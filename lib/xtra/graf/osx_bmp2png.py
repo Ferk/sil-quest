@@ -1,10 +1,39 @@
+#!/usr/bin/env -S uv run --script
+# /// script
+# dependencies = ["pillow", "numpy"]
+# ///
 """
-Converts a tile set from bmp to png for use with the Mac OS X frontend.
+Converts a tile set from BMP to PNG for use with the macOS frontend.
+
+Uses https://github.com/astral-sh/uv to automatically download the required
+Python dependencies and create a Python environment with these dependencies
+(see `uv cache dir` for the environment location).
+
+Purpose
+=======
+For Microchasm's tile set the conversion is required because
+CGImageSourceCreateWithURL() does not handle the BMP format and because
+there appears to be no NSCompositingOperation which is equivalent to
+'composite this image with the background treating x as transparent'.
 
 Usage
-    python osx_bmp2png.py input_file output_file [options]
+=====
+    uv run osx_bmp2png.py input_file output_file [options]
+
+Example
+=======
+This is the conversion that was used to ready Microchasm's tile set for
+the macOS front end:
+
+    uv run osx_bmp2png.py 16x16.bmp 16x16_microchasm.png
+
+That is equivalent to:
+
+    uv run osx_bmp2png.py 16x16.bmp 16x16_microchasm.png \
+            --tcoord 0 0 --terrain 0 0 496 16 192 192 224 208
 
 Options
+=======
 --tcoord hcoord vcoord
     Reads the color to be treated as transparent for non-terrain tiles
     from the position (hcoord, vcoord) in the tile set.  Both coordinates
@@ -25,22 +54,10 @@ Options
     as completely transparent for non-terrain tiles.  If not set, uses
     --tcoord or its default to get the color.
 
-Example
-This is the conversion that was used to ready Microchasm's tile set for
-the OS X front end:
-    python osx_bmp2png.py 16x16.bmp 16x16_microchasm.png
-That is equivalent to
-    python osx_bmp2png.py 16x16.bmp 16x16_microchasm.png --tcoord 0 0 \
-        --terrain 0 0 496 16 192 192 224 208
-
 Requirements
+============
 argparse, PIL (Python imaging library) or equivalent, and
 numpy (1.7 or later)
-
-For Michrochasm's tile set the conversion is required because
-CGImageSourceCreateWithURL() does not handle the bmp format and because
-there appears to be no NSCompositingOperation which is equivalent to
-'composite this image with the background treating x as transparent'.
 """
 
 import argparse
