@@ -1,153 +1,563 @@
-﻿<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
-<html xmlns="http://www.w3.org/1999/xhtml">
-<head>
-	<title>Ed's Tile Picker</title>
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Sil-Q Tile Picker</title>
 
-	<script type="text/javascript">
-		var tw, th;
-		var x, y;
+    <style>
+      :root {
+        --bg-primary: #181818;
+        --bg-secondary: #2a2018;
+        --bg-card: #302315;
+        --accent: #ffcf5b;
+        --accent-hover: #e8c547;
+        --text-primary: #e8dcc8;
+        --text-secondary: #a89878;
+        --border-color: #5a4a3a;
+        --input-bg: #2a2018;
+        --radius: 4px;
+        --shadow: 0 4px 8px rgba(0, 0, 0, 0.5);
+      }
 
-		function toggleOptions() {
-			if (divOptions.style.display == "none") {
-				divOptions.style.display = "";
-				divImg.style.display = "none";
-				divSelection.style.display = "none";
-				txtIndex.value = "";
-				btnMode.innerHTML = "Ready";
-				header.innerHTML = "Options";
-			}
-			else {
-				divOptions.style.display = "none";
-				img.src = txtImage.value;
-				divImg.style.display = "";
-				divSelection.style.display = "";
-				btnMode.innerHTML = "Options";
-				header.innerHTML = "Pick a tile!";
-				tw = parseInt(txtTileWidth.value);
-				th = parseInt(txtTileHeight.value);
-				reticule.style.width = tw + "px";
-				reticule.style.height = th + "px";
-			}
-		}
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
 
-		function imgMoused(event, sender) {
-			x = parseInt((event.x - img.x + document.body.scrollLeft) / tw);
-			y = parseInt((event.y - img.y + document.body.scrollTop) / th);
-			reticule.style.left = (x * tw + img.x) + "px";
-			reticule.style.top = (y * th + img.y) + "px";
-			reticule.style.display = "";
-		}
+      body {
+        background: var(--bg-primary);
+        color: var(--text-primary);
+        font-family: "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
+        min-height: 100vh;
+        padding: 2rem;
+        line-height: 1.6;
+      }
 
-		function reticuleMoused(event, sender) {
-			reticule.style.display = "";
-		}
+      .container {
+        max-width: 900px;
+      }
 
-		function imgClicked(event, sender) {
-			var result;
-			if (rbLTR.checked) {
-				result = y * parseInt(img.width / tw) + x;
-				if (!chkZero.checked)
-					result += 1;
-			}
-			else if (rbTopdown.checked) {
-				result = x * parseInt(img.height / th) + y;
-				if (!chkZero.checked)
-					result += 1;
-			}
-			else if (rbXY.checked) {
-				result = x + ", " + y;
-			}
-			copyToClipboard(result);
-		}
+      h1 {
+        font-size: 2.5rem;
+        font-weight: 400;
+        margin-bottom: 1.5rem;
+        color: var(--accent);
+        letter-spacing: 0.05em;
+      }
 
-		function copyToClipboard(text) {
-			txtIndex.value = text;
-			if (document.execCommand) // IE, chrome
-			{
-				txtIndex.select();
-				document.execCommand("Copy");
-				return true;
-			}
-			else if (unsafeWindow) // firefox, mozilla
-			{
-				unsafeWindow.netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
-				var clipboardHelper = Components.classes["@mozilla.org/widget/clipboardhelper;1"].getService(Components.interfaces.nsIClipboardHelper);
-				clipboardHelper.copyString(text);
-				return true;
-			}
-			else // no can do :(
-			{
-				return false;
-			}
-		}		
-	</script>
+      .card {
+        background: var(--bg-card);
+        border-radius: var(--radius);
+        padding: 1.5rem;
+        margin-bottom: 1.5rem;
+        box-shadow: var(--shadow);
+        border: 1px solid var(--border-color);
+      }
 
-</head>
-<body style="background-color: Black; color: white; font-family: Sans-Serif">
-	<h1>
-		Ed's Tile Picker
-	</h1>
-	<h2 id="header">
-		Options
-	</h2>
-	<div id="divOptions">
-		<table>
-			<tr>
-				<td>
-					Image
-				</td>
-				<td>
-					<input id="txtImage" type="text" />
-				</td>
-			</tr>
-			<tr>
-				<td>
-					Tile Size
-				</td>
-				<td>
-					<input id="txtTileWidth" type="text" value="32" />
-					x
-					<input id="txtTileHeight" type="text" value="32" />
-					px
-				</td>
-			</tr>
-			<tr>
-				<td>
-					Index Mode
-				</td>
-				<td>
-					<input id="rbLTR" type="radio" value="Left to Right" name="rblIndexMode" checked="checked" />Left
-					to Right<br />
-					<input id="rbTopdown" type="radio" name="rblIndexMode" value="Top Down" />Top Down
-					<br />
-					<input id="rbXY" type="radio" name="rblIndexMode" value="X, Y" />X, Y
-				</td>
-			</tr>
-			<tr>
-				<td>
-					Zero Indexed
-				</td>
-				<td>
-					<input id="chkZero" type="checkbox" />
-				</td>
-			</tr>
-		</table>
-	</div>
-	<div>
-		<button id="btnMode" onclick="toggleOptions();">
-			Ready</button></div>
-	<div id="divSelection" style="display: none">
-		Last Tile Selected: <input type="text" id="txtIndex" disabled="disabled"></label><br />
-		This value is copied into the clipboard if your browser supports this functionality.<br />
-		Note: You may need to set your browser's zoom level to 100% for the selection to work properly.
-	</div>
-	<div id="divImg">
-		<img id="img" onmousemove="imgMoused(event, this)" onmouseout="reticule.style.display = 'none';"
-			onclick="imgClicked(event, this);" style="border: solid 1px white" />
-		<div id="reticule" style="display: none; border: solid 1px white; position: absolute;
-			left: 0px; top: 0px;" onmousemove="reticuleMoused(event, this);" onclick="imgClicked(event, this);">
-		</div>
-	</div>
-	<div id="zoom_level_detector" style="left:100px;height:1em;position:absolute;font-size:16px;"></div>
-</body>
+      .form-grid {
+        display: grid;
+        gap: 1.25rem;
+      }
+
+      .form-row {
+        display: grid;
+        grid-template-columns: 140px 1fr;
+        align-items: start;
+        gap: 1rem;
+      }
+
+      .form-row .form-label {
+        padding-top: 0.3rem;
+      }
+
+      .form-label {
+        font-weight: 500;
+        color: var(--text-secondary);
+        font-size: 0.9rem;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+      }
+
+      input[type="text"],
+      input[type="number"] {
+        background: var(--input-bg);
+        border: 1px solid var(--border-color);
+        border-radius: var(--radius);
+        padding: 0.6rem 0.9rem;
+        color: var(--text-primary);
+        font-size: 0.95rem;
+      }
+
+      input[type="text"]:focus,
+      input[type="number"]:focus {
+        outline: none;
+        border-color: var(--accent);
+        box-shadow: 0 0 0 3px rgba(201, 162, 39, 0.2);
+      }
+
+      input[type="file"] {
+        font-size: 0.9rem;
+        color: var(--text-secondary);
+      }
+
+      input[type="file"]::file-selector-button {
+        background: var(--border-color);
+        color: var(--text-primary);
+        border: 1px solid var(--border-color);
+        border-radius: var(--radius);
+        padding: 0.5rem 1rem;
+        font-size: 0.85rem;
+        cursor: pointer;
+        margin-right: 0.75rem;
+      }
+
+      input[type="file"]::file-selector-button:hover {
+        background: #6a5a4a;
+        border-color: var(--accent);
+      }
+
+      .input-group {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        flex-wrap: wrap;
+      }
+
+      .input-group input[type="text"] {
+        width: 100px;
+      }
+
+      .input-group span {
+        color: var(--text-secondary);
+      }
+
+      .load-row {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        flex-wrap: wrap;
+      }
+
+      .load-row input[type="text"] {
+        flex: 1;
+        min-width: 150px;
+      }
+
+      .radio-group {
+        display: flex;
+        flex-direction: column;
+        gap: 0.6rem;
+      }
+
+      .radio-group-horizontal {
+        display: flex;
+        flex-direction: row;
+        gap: 1.5rem;
+        flex-wrap: wrap;
+      }
+
+      .radio-option {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        cursor: pointer;
+      }
+
+      input[type="radio"],
+      input[type="checkbox"] {
+        width: 18px;
+        height: 18px;
+        accent-color: var(--accent);
+        cursor: pointer;
+      }
+
+      .radio-option label {
+        cursor: pointer;
+        font-size: 0.95rem;
+      }
+
+      button {
+        background: var(--bg-card);
+        color: var(--accent);
+        border: 2px solid var(--accent);
+        border-radius: var(--radius);
+        padding: 0.5rem 1.5rem;
+        font-size: 1rem;
+        font-weight: 600;
+        cursor: pointer;
+        letter-spacing: 0.05em;
+        white-space: nowrap;
+      }
+
+      button:hover {
+        background: var(--accent);
+        color: var(--bg-primary);
+      }
+
+      button:active {
+        background: var(--accent-hover);
+      }
+
+      .info-box {
+        background: rgba(201, 162, 39, 0.1);
+        border: 1px solid rgba(201, 162, 39, 0.3);
+        border-radius: var(--radius);
+        padding: 1rem 1.25rem;
+        margin-bottom: 1.5rem;
+      }
+
+      .info-box p {
+        margin-bottom: 0.5rem;
+        font-size: 0.9rem;
+      }
+
+      .info-box p:last-child {
+        margin-bottom: 0;
+      }
+
+      .result-row {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        flex-wrap: wrap;
+      }
+
+      .result-row input {
+        font-size: 1.1rem;
+        font-weight: 600;
+        background: var(--bg-secondary);
+        text-align: center;
+      }
+
+      #txtIndex {
+        width: 100px;
+        font-family: monospace;
+      }
+
+      #txtHexCode {
+        width: 140px;
+        font-family: monospace;
+      }
+
+      #tilePreview {
+        border: 1px solid var(--border-color);
+        background-color: var(--bg-secondary);
+        image-rendering: pixelated;
+      }
+
+      .image-container {
+        position: relative;
+        display: inline-block;
+      }
+
+      .image-container img {
+        outline: 1px solid var(--border-color);
+        display: block;
+        max-width: 100%;
+      }
+
+      #placeholder {
+        width: 512px;
+        height: 256px;
+        border: 1px solid var(--border-color);
+        background-color: var(--bg-secondary);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: var(--text-secondary);
+        font-style: italic;
+      }
+
+      /* The square-shaped selection cursor to pick a tile. */
+      #reticule {
+        position: absolute;
+        left: 0;
+        top: 0;
+        outline: 1px solid var(--accent);
+        pointer-events: none;
+        background: rgba(201, 162, 39, 0.1);
+      }
+
+      .hidden {
+        display: none !important;
+      }
+
+      .note {
+        color: var(--text-secondary);
+        font-size: 0.9rem;
+        margin-bottom: 1rem;
+      }
+
+      .zoom-toggle {
+        margin-bottom: 1rem;
+      }
+    </style>
+
+    <script>
+      var tw, th;
+      var x, y;
+      var selectedX, selectedY; // Last clicked tile coordinates
+      var hasSelection = false;
+      var tilesetLoaded = false;
+
+      function handleFileSelect(event) {
+        var file = event.target.files[0];
+        if (file) {
+          txtImage.value = file.name;
+        }
+      }
+
+      function loadTileset() {
+        img.src = txtImage.value;
+        tw = parseInt(txtTileWidth.value);
+        th = parseInt(txtTileHeight.value);
+        reticule.style.width = tw + "px";
+        reticule.style.height = th + "px";
+        tilePreview.style.width = tw * 3 + "px";
+        tilePreview.style.height = th * 3 + "px";
+        tilePreview.style.backgroundImage = "";
+        placeholder.classList.add("hidden");
+        divImg.classList.remove("hidden");
+        tilesetLoaded = true;
+        applyZoom();
+      }
+
+      function applyZoom() {
+        if (!tilesetLoaded) return;
+        if (chkZoom.checked) {
+          img.style.width = img.naturalWidth * 2 + "px";
+          img.style.height = img.naturalHeight * 2 + "px";
+          img.style.imageRendering = "pixelated";
+        } else {
+          img.style.width = "";
+          img.style.height = "";
+          img.style.imageRendering = "";
+        }
+      }
+
+      function imgMoused(event, sender) {
+        tw = parseInt(txtTileWidth.value);
+        th = parseInt(txtTileHeight.value);
+        var rect = img.getBoundingClientRect();
+        // Calculate actual displayed tile size based on rendered dimensions
+        var displayedTileWidth = (rect.width * tw) / img.naturalWidth;
+        var displayedTileHeight = (rect.height * th) / img.naturalHeight;
+        x = Math.floor((event.clientX - rect.left) / displayedTileWidth);
+        y = Math.floor((event.clientY - rect.top) / displayedTileHeight);
+        reticule.style.left = x * displayedTileWidth + "px";
+        reticule.style.top = y * displayedTileHeight + "px";
+        reticule.style.width = displayedTileWidth + "px";
+        reticule.style.height = displayedTileHeight + "px";
+        reticule.style.display = "";
+      }
+
+      function reticuleMoused(event, sender) {
+        reticule.style.display = "";
+      }
+
+      function imgClicked(event, sender) {
+        // Save the selected tile coordinates
+        selectedX = x;
+        selectedY = y;
+        hasSelection = true;
+
+        updateTileIndex();
+        updateTilePreview();
+        updateHexCode();
+        copyToClipboard(txtIndex.value);
+      }
+
+      function updateTileIndex() {
+        if (!hasSelection) return;
+        tw = parseInt(txtTileWidth.value);
+        th = parseInt(txtTileHeight.value);
+        var result;
+        if (rbLTR.checked) {
+          result = selectedY * Math.floor(img.naturalWidth / tw) + selectedX;
+          if (rbIndexOne.checked) result += 1;
+        } else if (rbTopdown.checked) {
+          result = selectedX * Math.floor(img.naturalHeight / th) + selectedY;
+          if (rbIndexOne.checked) result += 1;
+        } else if (rbXY.checked) {
+          result = selectedX + ", " + selectedY;
+        }
+        txtIndex.value = result;
+      }
+
+      function updateTilePreview() {
+        if (!hasSelection) return;
+        tw = parseInt(txtTileWidth.value);
+        th = parseInt(txtTileHeight.value);
+        tilePreview.style.width = tw * 3 + "px";
+        tilePreview.style.height = th * 3 + "px";
+        tilePreview.style.backgroundImage = "url(" + img.src + ")";
+        tilePreview.style.backgroundPosition =
+          -selectedX * tw * 3 + "px " + -selectedY * th * 3 + "px";
+        tilePreview.style.backgroundSize =
+          img.naturalWidth * 3 + "px " + img.naturalHeight * 3 + "px";
+      }
+
+      function updateHexCode() {
+        if (!hasSelection) return;
+        var firstByte = 0x80 + selectedY;
+        var secondByte = 0x80 + selectedX;
+        txtHexCode.value = "0x" + firstByte.toString(16) + "/0x" + secondByte.toString(16);
+      }
+
+      function copyToClipboard(text) {
+        txtIndex.value = text;
+        if (navigator.clipboard) {
+          navigator.clipboard.writeText(text);
+          return true;
+        } else if (document.execCommand) {
+          txtIndex.select();
+          document.execCommand("Copy");
+          return true;
+        } else {
+          return false;
+        }
+      }
+    </script>
+  </head>
+  <body>
+    <div class="container">
+      <h1>Sil-Q Tile Picker</h1>
+
+      <!-- Load Tileset Section -->
+      <div class="card">
+        <p class="note">
+          Tileset dimensions for 16x16 tiles should be 512x256 pixels (16 rows, 32 columns).
+        </p>
+        <div class="load-row">
+          <input id="txtImage" type="text" value="16x16_microchasm.png" />
+          <input id="fileImage" type="file" accept="image/*" onchange="handleFileSelect(event)" />
+          <button type="button" id="btnLoad" onclick="loadTileset()">Load tileset</button>
+        </div>
+      </div>
+
+      <!-- Options Section (always visible) -->
+      <div class="card">
+        <div class="form-grid">
+          <div class="form-row">
+            <span class="form-label">Tile Size</span>
+            <div class="input-group">
+              <input id="txtTileWidth" type="text" value="16" />
+              <span>&times;</span>
+              <input id="txtTileHeight" type="text" value="16" />
+              <span>px</span>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <span class="form-label">Index Mode</span>
+            <div class="radio-group-horizontal">
+              <div class="radio-option">
+                <input
+                  id="rbLTR"
+                  type="radio"
+                  value="Left to Right"
+                  name="rblIndexMode"
+                  checked
+                  onchange="updateTileIndex()"
+                />
+                <label for="rbLTR">Left to Right</label>
+              </div>
+              <div class="radio-option">
+                <input
+                  id="rbTopdown"
+                  type="radio"
+                  name="rblIndexMode"
+                  value="Top Down"
+                  onchange="updateTileIndex()"
+                />
+                <label for="rbTopdown">Top Down</label>
+              </div>
+              <div class="radio-option">
+                <input
+                  id="rbXY"
+                  type="radio"
+                  name="rblIndexMode"
+                  value="X, Y"
+                  onchange="updateTileIndex()"
+                />
+                <label for="rbXY">X, Y</label>
+              </div>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <span class="form-label">Index starts at</span>
+            <div class="radio-group-horizontal">
+              <div class="radio-option">
+                <input
+                  id="rbIndexOne"
+                  type="radio"
+                  name="indexStart"
+                  value="1"
+                  checked
+                  onchange="updateTileIndex()"
+                />
+                <label for="rbIndexOne">1</label>
+              </div>
+              <div class="radio-option">
+                <input
+                  id="rbIndexZero"
+                  type="radio"
+                  name="indexStart"
+                  value="0"
+                  onchange="updateTileIndex()"
+                />
+                <label for="rbIndexZero">0</label>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Selection Info -->
+      <div class="info-box">
+        <div class="result-row">
+          <span>Last tile selected:</span>
+          <div id="tilePreview"></div>
+          <input type="text" id="txtIndex" disabled />
+          <input type="text" id="txtHexCode" disabled />
+          <label for="txtHexCode">hex coords for <code>lib/pref/*.prf</code> files</label>
+        </div>
+        <!-- See copyToClipboard() -->
+        <!--
+            <p>This value is copied into the clipboard if your browser supports this functionality.</p>
+        -->
+      </div>
+
+      <!-- Zoom toggle -->
+      <div class="radio-option zoom-toggle">
+        <input id="chkZoom" type="checkbox" onchange="applyZoom()" />
+        <label for="chkZoom">2x zoom</label>
+      </div>
+
+      <!-- Placeholder (shown before tileset is loaded) -->
+      <div id="placeholder">Load tileset first</div>
+
+      <!-- Tileset Image (hidden until loaded) -->
+      <div id="divImg" class="hidden">
+        <div class="image-container">
+          <img
+            id="img"
+            src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7"
+            alt="Tileset"
+            onmousemove="imgMoused(event, this)"
+            onmouseout="reticule.style.display = 'none'"
+            onclick="imgClicked(event, this)"
+          />
+          <div
+            id="reticule"
+            onmousemove="reticuleMoused(event, this)"
+            onclick="imgClicked(event, this)"
+          ></div>
+        </div>
+      </div>
+    </div>
+  </body>
 </html>
