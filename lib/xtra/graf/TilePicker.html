@@ -236,9 +236,42 @@
         font-family: monospace;
       }
 
-      #txtHexCode {
+      #txtHexCode,
+      #txtHexSearch {
         width: 140px;
         font-family: monospace;
+        flex: none;
+        min-width: unset;
+      }
+
+      .copyable-field {
+        position: relative;
+        display: inline-block;
+        cursor: pointer;
+      }
+
+      .copyable-field input {
+        cursor: pointer;
+        padding-right: 1.8rem;
+        pointer-events: none;
+      }
+
+      .copy-icon {
+        position: absolute;
+        right: 6px;
+        top: 50%;
+        transform: translateY(-50%);
+        font-size: 1rem;
+        color: var(--text-secondary);
+        pointer-events: none;
+      }
+
+      .copyable-field:hover .copy-icon {
+        color: var(--accent);
+      }
+
+      .copyable-field.copied .copy-icon {
+        color: var(--accent);
       }
 
       #tilePreview {
@@ -419,6 +452,93 @@
           return false;
         }
       }
+
+      function copyFieldToClipboard(inputElement) {
+        var text = inputElement.value;
+        if (!text) return;
+
+        var wrapper = inputElement.parentElement;
+        var icon = wrapper.querySelector(".copy-icon");
+
+        if (navigator.clipboard) {
+          navigator.clipboard.writeText(text).then(function () {
+            showCopiedFeedback(wrapper, icon);
+          });
+        } else if (document.execCommand) {
+          inputElement.disabled = false;
+          inputElement.select();
+          document.execCommand("Copy");
+          inputElement.disabled = true;
+          showCopiedFeedback(wrapper, icon);
+        }
+      }
+
+      function showCopiedFeedback(wrapper, icon) {
+        var originalIcon = icon.innerHTML;
+        icon.innerHTML = "&#x2713;";
+        wrapper.classList.add("copied");
+        setTimeout(function () {
+          icon.innerHTML = originalIcon;
+          wrapper.classList.remove("copied");
+        }, 800);
+      }
+
+      function searchByHex() {
+        if (!tilesetLoaded) {
+          alert("Please load a tileset first.");
+          return;
+        }
+
+        var input = txtHexSearch.value.trim();
+        // Match pattern like "0x85/0x9c" or "0X85/0X9C"
+        var match = input.match(/^0x([0-9a-f]+)\/0x([0-9a-f]+)$/i);
+        if (!match) {
+          alert("Invalid format. Use hex coordinates like: 0x85/0x9c");
+          return;
+        }
+
+        var firstByte = parseInt(match[1], 16);
+        var secondByte = parseInt(match[2], 16);
+
+        // Reverse the encoding: firstByte = 0x80 + y, secondByte = 0x80 + x
+        var tileY = firstByte - 0x80;
+        var tileX = secondByte - 0x80;
+
+        if (tileX < 0 || tileY < 0) {
+          alert("Invalid hex coordinates. Values must be >= 0x80.");
+          return;
+        }
+
+        // Check bounds
+        tw = parseInt(txtTileWidth.value);
+        th = parseInt(txtTileHeight.value);
+        var maxX = Math.floor(img.naturalWidth / tw) - 1;
+        var maxY = Math.floor(img.naturalHeight / th) - 1;
+
+        if (tileX > maxX || tileY > maxY) {
+          alert("Tile coordinates out of bounds. Max: x=" + maxX + ", y=" + maxY);
+          return;
+        }
+
+        // Select the tile
+        selectedX = tileX;
+        selectedY = tileY;
+        hasSelection = true;
+
+        updateTileIndex();
+        updateTilePreview();
+        updateHexCode();
+
+        // Update reticule position to show the selected tile
+        var rect = img.getBoundingClientRect();
+        var displayedTileWidth = (rect.width * tw) / img.naturalWidth;
+        var displayedTileHeight = (rect.height * th) / img.naturalHeight;
+        reticule.style.left = selectedX * displayedTileWidth + "px";
+        reticule.style.top = selectedY * displayedTileHeight + "px";
+        reticule.style.width = displayedTileWidth + "px";
+        reticule.style.height = displayedTileHeight + "px";
+        reticule.style.display = "";
+      }
     </script>
   </head>
   <body>
@@ -521,8 +641,14 @@
         <div class="result-row">
           <span>Last tile selected:</span>
           <div id="tilePreview"></div>
-          <input type="text" id="txtIndex" disabled />
-          <input type="text" id="txtHexCode" disabled />
+          <div class="copyable-field" onclick="copyFieldToClipboard(txtIndex)">
+            <input type="text" id="txtIndex" disabled />
+            <span class="copy-icon">&#x2398;</span>
+          </div>
+          <div class="copyable-field" onclick="copyFieldToClipboard(txtHexCode)">
+            <input type="text" id="txtHexCode" disabled />
+            <span class="copy-icon">&#x2398;</span>
+          </div>
           <label for="txtHexCode">hex coords for <code>lib/pref/*.prf</code> files</label>
         </div>
         <!-- See copyToClipboard() -->
@@ -557,6 +683,13 @@
             onclick="imgClicked(event, this)"
           ></div>
         </div>
+      </div>
+
+      <!-- Hex coordinate search -->
+      <div class="load-row" style="margin-top: 1rem">
+        <span class="form-label">Search by hex coords:</span>
+        <input id="txtHexSearch" type="text" placeholder="0x85/0x9c" />
+        <button type="button" onclick="searchByHex()">Search</button>
       </div>
     </div>
   </body>
