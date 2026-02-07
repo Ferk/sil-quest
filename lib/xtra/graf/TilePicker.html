@@ -313,6 +313,17 @@
         background: rgba(201, 162, 39, 0.1);
       }
 
+      /* Persistent marker showing the last clicked tile. */
+      #selectionMarker {
+        position: absolute;
+        left: 0;
+        top: 0;
+        outline: 2px solid #ff00ff;
+        outline-offset: -3px;
+        pointer-events: none;
+        display: none;
+      }
+
       .hidden {
         display: none !important;
       }
@@ -368,6 +379,8 @@
           img.style.height = "";
           img.style.imageRendering = "";
         }
+        // Update selection marker position after zoom change
+        setTimeout(updateSelectionMarker, 0);
       }
 
       function imgMoused(event, sender) {
@@ -399,7 +412,22 @@
         updateTileIndex();
         updateTilePreview();
         updateHexCode();
+        updateSelectionMarker();
         copyToClipboard(txtIndex.value);
+      }
+
+      function updateSelectionMarker() {
+        if (!hasSelection) return;
+        tw = parseInt(txtTileWidth.value);
+        th = parseInt(txtTileHeight.value);
+        var rect = img.getBoundingClientRect();
+        var displayedTileWidth = (rect.width * tw) / img.naturalWidth;
+        var displayedTileHeight = (rect.height * th) / img.naturalHeight;
+        selectionMarker.style.left = selectedX * displayedTileWidth + "px";
+        selectionMarker.style.top = selectedY * displayedTileHeight + "px";
+        selectionMarker.style.width = displayedTileWidth + "px";
+        selectionMarker.style.height = displayedTileHeight + "px";
+        selectionMarker.style.display = "block";
       }
 
       function updateTileIndex() {
@@ -532,6 +560,7 @@
         updateTileIndex();
         updateTilePreview();
         updateHexCode();
+        updateSelectionMarker();
 
         // Update reticule position to show the selected tile
         var rect = img.getBoundingClientRect();
@@ -686,6 +715,7 @@
             onmousemove="reticuleMoused(event, this)"
             onclick="imgClicked(event, this)"
           ></div>
+          <div id="selectionMarker"></div>
         </div>
       </div>
 
