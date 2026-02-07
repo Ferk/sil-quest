@@ -436,7 +436,11 @@
         if (!hasSelection) return;
         var firstByte = 0x80 + selectedY;
         var secondByte = 0x80 + selectedX;
-        txtHexCode.value = "0x" + firstByte.toString(16) + "/0x" + secondByte.toString(16);
+        txtHexCode.value =
+          "0x" +
+          firstByte.toString(16).toUpperCase() +
+          "/0x" +
+          secondByte.toString(16).toUpperCase();
       }
 
       function copyToClipboard(text) {
@@ -493,7 +497,7 @@
         // Match pattern like "0x85/0x9c" or "0X85/0X9C"
         var match = input.match(/^0x([0-9a-f]+)\/0x([0-9a-f]+)$/i);
         if (!match) {
-          alert("Invalid format. Use hex coordinates like: 0x85/0x9c");
+          alert("Invalid format. Use hex coordinates like: 0x85/0x9C");
           return;
         }
 
@@ -688,7 +692,7 @@
       <!-- Hex coordinate search -->
       <div class="load-row" style="margin-top: 1rem">
         <span class="form-label">Search by hex coords:</span>
-        <input id="txtHexSearch" type="text" placeholder="0x85/0x9c" />
+        <input id="txtHexSearch" type="text" placeholder="0x85/0x9C" />
         <button type="button" onclick="searchByHex()">Search</button>
       </div>
     </div>
