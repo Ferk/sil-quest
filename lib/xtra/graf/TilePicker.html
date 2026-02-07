@@ -631,9 +631,9 @@
         margin-top: 1rem;
       }
 
-      /* Tileset preview styling */
-      #card-type-definitions {
-        margin-top: 1rem;
+      /* Tileset options styling */
+      #card-tileset-options {
+        margin-top: 1.5rem;
       }
 
       /* Notes section */
@@ -1858,82 +1858,70 @@
     <div class="container">
       <h1>Sil-Q Tile Picker</h1>
 
-      <!-- Load Tileset Section -->
-      <div class="card">
-        <p class="note">
-          Tileset image (<code>lib/xtra/graf/*.png</code>).
-          Dimensions for 16x16 tiles should be 512x256 pixels, representing
-          16 rows and 32 columns.
-        </p>
-
-        <!-- Mode toggle -->
-        <div class="segmented-toggle">
-          <button
-            type="button"
-            id="tilesetRemoteBtn"
-            class="active"
-            onclick="setTilesetMode('remote')"
-          >
-            🌐 GitHub
-          </button>
-          <button
-            type="button"
-            id="tilesetLocalBtn"
-            onclick="setTilesetMode('local')"
-          >
-            📁 Local
-          </button>
-        </div>
-
-        <!-- Remote mode section -->
-        <div id="tilesetRemoteSection">
-          <div class="load-row">
-            <input
-              id="tilesetUrl"
-              type="text"
-              class="url-input"
-              value="https://raw.githubusercontent.com/sil-quirk/sil-q/master/lib/xtra/graf/16x16_microchasm.png"
-            >
-            <button type="button" onclick="loadTilesetFromUrl()">Load</button>
-            <button
-              type="button"
-              id="remote-use-defaults-button"
-              class="btn-small"
-              onclick="resetTilesetUrl()"
-            >
-              Load default
-            </button>
-          </div>
-        </div>
-
-        <!-- Local mode section -->
-        <div id="tilesetLocalSection" class="hidden local-file-section">
-          <div class="load-row">
-            <input
-              id="tilesetLocalFile"
-              type="file"
-              accept="image/*"
-              onchange="loadTilesetFromFile(event)"
-            >
-            <button type="button" class="btn-small" onclick="reloadLocalTileset()">
-              Reload
-            </button>
-          </div>
-        </div>
-
-        <!-- Tileset status (same style as entity files) -->
-        <div
-          id="tilesetStatusList"
-          class="prf-status-list status-list-spaced"
-        ></div>
-
-        <!-- Hidden field for current image name -->
-        <input id="txtImage" type="hidden" value="16x16_microchasm.png">
+      <!-- Hex coordinate search -->
+      <div class="load-row search-row">
+        <span class="form-label">Search tile by hex coords:</span>
+        <input id="txtHexSearch" type="text" placeholder="0x85/0x9C">
+        <button type="button" onclick="searchByHex()">Search</button>
       </div>
 
+      <!-- Selection Info -->
+      <div class="info-box">
+        <div class="result-row">
+          <span>Last tile selected:</span>
+          <div id="tilePreview"></div>
+          <div class="copyable-field" onclick="copyFieldToClipboard(txtIndex)">
+            <input type="text" id="txtIndex" disabled>
+            <span class="copy-icon">&#x2398;</span>
+          </div>
+          <div
+            class="copyable-field"
+            onclick="copyFieldToClipboard(txtHexCode)"
+          >
+            <input type="text" id="txtHexCode" disabled>
+            <span class="copy-icon">&#x2398;</span>
+          </div>
+          <label for="txtHexCode"
+            >hex coords for <code>lib/pref/*.prf</code> files</label
+          >
+        </div>
+        <div id="entityListContainer" class="entity-list-container hidden">
+          <div class="entity-list-header">Assigned entities:</div>
+          <div id="entityList" class="entity-list"></div>
+        </div>
+      </div>
+
+      <!-- Zoom toggle -->
+      <div class="radio-option zoom-toggle">
+        <input id="chkZoom" type="checkbox" onchange="applyZoom()" checked>
+        <label for="chkZoom">2x zoom</label>
+      </div>
+
+      <!-- Placeholder (shown before tileset is loaded) -->
+      <div id="placeholder">Load tileset first</div>
+
+      <!-- Tileset Image (hidden until loaded) -->
+      <div id="divImg" class="hidden">
+        <div class="image-container">
+          <img
+            id="img"
+            src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7"
+            alt="Tileset"
+            onmousemove="imgMoused(event, this)"
+            onmouseout="reticule.style.display = 'none'"
+            onclick="imgClicked(event, this)"
+          >
+          <div
+            id="reticule"
+            onmousemove="reticuleMoused(event, this)"
+            onclick="imgClicked(event, this)"
+          ></div>
+          <div id="selectionMarker"></div>
+        </div>
+      </div>
 
       <!-- Options Section (always visible) -->
-      <div class="card">
+      <div id="card-tileset-options" class="card">
         <div class="form-grid">
           <div class="form-row">
             <span class="form-label">Tile Size</span>
@@ -2011,67 +1999,79 @@
         </div>
       </div>
 
-      <!-- Hex coordinate search -->
-      <div class="load-row search-row">
-        <span class="form-label">Search tile by hex coords:</span>
-        <input id="txtHexSearch" type="text" placeholder="0x85/0x9C">
-        <button type="button" onclick="searchByHex()">Search</button>
-      </div>
+      <!-- Load Tileset Section -->
+      <div id="card-tileset" class="card">
+        <p class="note">
+          Tileset image (<code>lib/xtra/graf/*.png</code>).
+          Dimensions for 16x16 tiles should be 512x256 pixels, representing
+          16 rows and 32 columns.
+        </p>
 
-      <!-- Selection Info -->
-      <div class="info-box">
-        <div class="result-row">
-          <span>Last tile selected:</span>
-          <div id="tilePreview"></div>
-          <div class="copyable-field" onclick="copyFieldToClipboard(txtIndex)">
-            <input type="text" id="txtIndex" disabled>
-            <span class="copy-icon">&#x2398;</span>
+        <!-- Mode toggle -->
+        <div class="segmented-toggle">
+          <button
+            type="button"
+            id="tilesetRemoteBtn"
+            class="active"
+            onclick="setTilesetMode('remote')"
+          >
+            🌐 GitHub
+          </button>
+          <button
+            type="button"
+            id="tilesetLocalBtn"
+            onclick="setTilesetMode('local')"
+          >
+            📁 Local
+          </button>
+        </div>
+
+        <!-- Remote mode section -->
+        <div id="tilesetRemoteSection">
+          <div class="load-row">
+            <input
+              id="tilesetUrl"
+              type="text"
+              class="url-input"
+              value="https://raw.githubusercontent.com/sil-quirk/sil-q/master/lib/xtra/graf/16x16_microchasm.png"
+            >
+            <button type="button" onclick="loadTilesetFromUrl()">Load</button>
+            <button
+              type="button"
+              id="remote-use-defaults-button"
+              class="btn-small"
+              onclick="resetTilesetUrl()"
+            >
+              Load default
+            </button>
           </div>
-          <div
-            class="copyable-field"
-            onclick="copyFieldToClipboard(txtHexCode)"
-          >
-            <input type="text" id="txtHexCode" disabled>
-            <span class="copy-icon">&#x2398;</span>
+        </div>
+
+        <!-- Local mode section -->
+        <div id="tilesetLocalSection" class="hidden local-file-section">
+          <div class="load-row">
+            <input
+              id="tilesetLocalFile"
+              type="file"
+              accept="image/*"
+              onchange="loadTilesetFromFile(event)"
+            >
+            <button type="button" class="btn-small" onclick="reloadLocalTileset()">
+              Reload
+            </button>
           </div>
-          <label for="txtHexCode"
-            >hex coords for <code>lib/pref/*.prf</code> files</label
-          >
         </div>
-        <div id="entityListContainer" class="entity-list-container hidden">
-          <div class="entity-list-header">Assigned entities:</div>
-          <div id="entityList" class="entity-list"></div>
-        </div>
+
+        <!-- Tileset status (same style as entity files) -->
+        <div
+          id="tilesetStatusList"
+          class="prf-status-list status-list-spaced"
+        ></div>
+
+        <!-- Hidden field for current image name -->
+        <input id="txtImage" type="hidden" value="16x16_microchasm.png">
       </div>
 
-      <!-- Zoom toggle -->
-      <div class="radio-option zoom-toggle">
-        <input id="chkZoom" type="checkbox" onchange="applyZoom()" checked>
-        <label for="chkZoom">2x zoom</label>
-      </div>
-
-      <!-- Placeholder (shown before tileset is loaded) -->
-      <div id="placeholder">Load tileset first</div>
-
-      <!-- Tileset Image (hidden until loaded) -->
-      <div id="divImg" class="hidden">
-        <div class="image-container">
-          <img
-            id="img"
-            src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7"
-            alt="Tileset"
-            onmousemove="imgMoused(event, this)"
-            onmouseout="reticule.style.display = 'none'"
-            onclick="imgClicked(event, this)"
-          >
-          <div
-            id="reticule"
-            onmousemove="reticuleMoused(event, this)"
-            onclick="imgClicked(event, this)"
-          ></div>
-          <div id="selectionMarker"></div>
-        </div>
-      </div>
 
       <!-- Type Definitions Section (defines.h) -->
       <div id="card-type-definitions" class="card">
