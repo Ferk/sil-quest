@@ -635,6 +635,48 @@
       #card-type-definitions {
         margin-top: 1rem;
       }
+
+      /* Notes section */
+      .notes-card {
+        margin-top: 2rem;
+        background: var(--bg-secondary);
+        border-color: var(--border-color);
+      }
+
+      .notes-heading {
+        font-size: 1.1rem;
+        font-weight: 500;
+        color: var(--text-secondary);
+        margin-bottom: 0.75rem;
+        letter-spacing: 0.05em;
+      }
+
+      .notes-list {
+        margin: 0;
+        padding-left: 1.25rem;
+        color: var(--text-secondary);
+        font-size: 0.9rem;
+        line-height: 1.6;
+      }
+
+      .notes-list li {
+        margin-bottom: 0.5rem;
+      }
+
+      .notes-list li:last-child {
+        margin-bottom: 0;
+      }
+
+      .notes-list code {
+        font-size: 0.85rem;
+        background: var(--bg-card);
+        padding: 0.1rem 0.3rem;
+        border-radius: 2px;
+      }
+
+      .notes-list strong {
+        color: var(--text-primary);
+      }
     </style>
 
     <script>
@@ -2238,6 +2280,25 @@
           Tile assignments:
         </div>
         <div id="prfStatusList" class="prf-status-list"></div>
+      </div>
+
+      <!-- Notes Section -->
+      <div class="card notes-card">
+        <h2 class="notes-heading">Notes</h2>
+        <ul class="notes-list">
+          <li>
+            <strong>S: (Special) entries</strong> — Names are parsed from
+            comments in <code>.prf</code> files. Their actual behavior is
+            hardcoded in <code>src/spells1.c</code> and
+            <code>src/files.c</code>, using indices into the
+            <code>misc_to_attr[]</code> and <code>misc_to_char[]</code> arrays.
+          </li>
+          <li>
+            <strong>TV_* constants</strong> — Parsed from
+            <code>src/defines.h</code>. Only shown for entities that have a
+            <code>tval</code> (objects and flavors).
+          </li>
+        </ul>
       </div>
 
     </div>
