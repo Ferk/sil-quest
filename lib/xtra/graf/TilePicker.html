@@ -106,19 +106,20 @@
       }
 
       input[type="file"]::file-selector-button {
-        background: var(--border-color);
-        color: var(--text-primary);
-        border: 1px solid var(--border-color);
+        background: var(--bg-card);
+        color: var(--accent);
+        border: 2px solid var(--accent);
         border-radius: var(--radius);
         padding: 0.5rem 1rem;
         font-size: 0.85rem;
+        font-weight: 600;
         cursor: pointer;
         margin-right: 0.75rem;
       }
 
       input[type="file"]::file-selector-button:hover {
-        background: #6a5a4a;
-        border-color: var(--accent);
+        background: var(--accent);
+        color: var(--bg-primary);
       }
 
       .input-group {
@@ -1432,36 +1433,42 @@
       function parsePrfContent(content, fileName) {
         var lines = content.split("\n");
         var lastCondition = "";
+        var lastComment = "";
 
         for (var i = 0; i < lines.length; i++) {
           var line = lines[i].trim();
 
-          // Skip comments
+          // Track comments (for S: entries which use comments as names)
           if (line.startsWith("#")) {
+            // Extract comment text, removing leading # or ## and whitespace
+            lastComment = line.replace(/^##+\s*/, "").trim();
             continue;
           }
 
           // Track conditional lines for xtra-new.prf
           if (line.startsWith("?:")) {
             lastCondition = line;
+            lastComment = ""; // Reset comment after condition
             continue;
           }
 
           // Parse data lines: L:id:coords, S:id:coords, F:id:coords, K:id:coords, R:id:coords
+          // Note: S: entries use hex IDs (0x34), others use decimal IDs
           var match = line.match(
-            /^([LSFKR]):(\d+):(0x[0-9A-Fa-f]+\/0x[0-9A-Fa-f]+)/i,
+            /^([LSFKR]):(0x[0-9A-Fa-f]+|\d+):(0x[0-9A-Fa-f]+\/0x[0-9A-Fa-f]+)/i,
           );
           if (match) {
             var prefix = match[1].toUpperCase();
-            var id = parseInt(match[2], 10);
+            var id = parseInt(match[2], match[2].toLowerCase().startsWith("0x") ? 16 : 10);
             var hexCoords = match[3].toUpperCase();
             var entityName = null;
 
             // Look up the name and tval from the entity definition files
             var entityTval = null;
             if (prefix === "S") {
-              // S: entries are special (digits, icons, spells) - no lookup available
-              entityName = "(special #" + id + ")";
+              // S: entries use the preceding comment as the name
+              // Don't reset - consecutive S: entries share the same comment
+              entityName = lastComment || "(special #" + id + ")";
             } else if (fileName === "xtra-new.prf" && lastCondition) {
               // For xtra-new.prf, extract class/race from condition
               var classMatch = lastCondition.match(/\[EQU \$CLASS ([^\]]+)\]/i);
@@ -1489,6 +1496,11 @@
               hexCoords: hexCoords,
               sourceFile: fileName,
             });
+
+            // Reset comment after non-S: entries to prevent bleeding
+            if (prefix !== "S") {
+              lastComment = "";
+            }
           }
         }
       }
