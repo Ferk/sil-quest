@@ -39,6 +39,8 @@ Changed:
 
 Fixed:
 
+- fix: memory leak in init_x11()
+  ([#145](https://github.com/sil-quirk/sil-q/pull/145))
 - fix: prevent signed integer overflow in update_mon()
   ([#131](https://github.com/sil-quirk/sil-q/pull/131))
 - fix: docs for lightning chance for cross-shaped rooms
