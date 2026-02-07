@@ -1,8 +1,8 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
   <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sil-Q Tile Picker</title>
 
     <style>
@@ -18,6 +18,9 @@
         --input-bg: #2a2018;
         --radius: 4px;
         --shadow: 0 4px 8px rgba(0, 0, 0, 0.5);
+        --success: #5fbf5f;
+        --error: #bf5f5f;
+        --loading: #a89878;
       }
 
       * {
@@ -337,6 +340,297 @@
       .zoom-toggle {
         margin-bottom: 1rem;
       }
+
+      .status-indicator {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.3rem;
+        font-size: 0.85rem;
+        padding: 0.2rem 0.5rem;
+        border-radius: var(--radius);
+        white-space: nowrap;
+      }
+
+      .status-indicator.loading {
+        color: var(--loading);
+      }
+
+      .status-indicator.success {
+        color: var(--success);
+      }
+
+      .status-indicator.error {
+        color: var(--error);
+      }
+
+      .status-icon {
+        font-size: 1rem;
+      }
+
+      .prf-status-list {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+        margin-top: 0.5rem;
+      }
+
+      .prf-status-item {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.3rem;
+        font-size: 0.8rem;
+        padding: 0.15rem 0.4rem;
+        border-radius: var(--radius);
+        background: var(--bg-secondary);
+        border: 1px solid var(--border-color);
+      }
+
+      .prf-status-item.loading {
+        border-color: var(--loading);
+      }
+
+      .prf-status-item.success {
+        border-color: var(--success);
+      }
+
+      .prf-status-item.error {
+        border-color: var(--error);
+      }
+
+      .prf-status-item .status-icon {
+        font-size: 0.85rem;
+      }
+
+      .entity-list-container {
+        margin-top: 0.75rem;
+        padding-top: 0.75rem;
+        border-top: 1px solid rgba(201, 162, 39, 0.2);
+      }
+
+      .entity-list-header {
+        font-size: 0.85rem;
+        color: var(--text-secondary);
+        margin-bottom: 0.4rem;
+      }
+
+      .entity-list {
+        max-height: 4.8rem;
+        overflow-y: auto;
+        font-size: 0.9rem;
+      }
+
+      .entity-item {
+        padding: 0.2rem 0;
+        display: flex;
+        gap: 0.5rem;
+        align-items: baseline;
+      }
+
+      .entity-name {
+        color: var(--text-primary);
+      }
+
+      .entity-type {
+        color: var(--text-secondary);
+        font-size: 0.8rem;
+      }
+
+      .entity-source {
+        color: var(--text-secondary);
+        font-size: 0.75rem;
+        opacity: 0.7;
+      }
+
+      .entity-tval {
+        color: var(--accent);
+        font-size: 0.8rem;
+        font-family: monospace;
+      }
+
+      .entity-list::-webkit-scrollbar {
+        width: 6px;
+      }
+
+      .entity-list::-webkit-scrollbar-track {
+        background: var(--bg-secondary);
+        border-radius: 3px;
+      }
+
+      .entity-list::-webkit-scrollbar-thumb {
+        background: var(--border-color);
+        border-radius: 3px;
+      }
+
+      .entity-list::-webkit-scrollbar-thumb:hover {
+        background: var(--text-secondary);
+      }
+
+      .no-entities {
+        color: var(--text-secondary);
+        font-style: italic;
+        font-size: 0.85rem;
+      }
+
+      /* Segmented button group for Remote/Local toggle */
+      .segmented-toggle {
+        display: inline-flex;
+        border: 1px solid var(--border-color);
+        border-radius: var(--radius);
+        overflow: hidden;
+        margin-bottom: 0.75rem;
+      }
+
+      .segmented-toggle button {
+        border: none;
+        border-radius: 0;
+        padding: 0.4rem 0.8rem;
+        font-size: 0.85rem;
+        background: var(--bg-secondary);
+        color: var(--text-secondary);
+        border-right: 1px solid var(--border-color);
+      }
+
+      .segmented-toggle button:last-child {
+        border-right: none;
+      }
+
+      .segmented-toggle button:hover {
+        background: var(--bg-card);
+        color: var(--text-primary);
+      }
+
+      .segmented-toggle button.active {
+        background: var(--accent);
+        color: var(--bg-primary);
+      }
+
+      /* Collapsible section */
+      .collapsible-header {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        cursor: pointer;
+        font-size: 0.85rem;
+        color: var(--text-secondary);
+        margin-top: 0.75rem;
+        user-select: none;
+      }
+
+      .collapsible-header:hover {
+        color: var(--accent);
+      }
+
+      .collapsible-arrow {
+        transition: transform 0.2s;
+      }
+
+      .collapsible-header.expanded .collapsible-arrow {
+        transform: rotate(90deg);
+      }
+
+      .collapsible-content {
+        display: none;
+        margin-top: 0.5rem;
+        padding: 0.5rem;
+        background: var(--bg-secondary);
+        border-radius: var(--radius);
+      }
+
+      .collapsible-content.expanded {
+        display: block;
+      }
+
+      .url-field-row {
+        display: flex;
+        gap: 0.5rem;
+        margin-bottom: 0.4rem;
+        align-items: center;
+      }
+
+      .url-field-row input[type="text"] {
+        flex: 1;
+        font-size: 0.8rem;
+        padding: 0.4rem 0.6rem;
+        font-family: monospace;
+      }
+
+      .url-field-label {
+        font-size: 0.75rem;
+        color: var(--text-secondary);
+        min-width: 80px;
+      }
+
+      /* Source icon in status items */
+      .source-icon {
+        font-size: 0.75rem;
+        margin-left: 0.2rem;
+      }
+
+      /* Local mode file picker styling */
+      .local-file-section {
+        margin-top: 0.5rem;
+      }
+
+      /* URL input field styling */
+      .url-input {
+        flex: 1;
+        font-family: monospace;
+        font-size: 0.85rem;
+      }
+
+      /* Small button styling */
+      .btn-small {
+        font-size: 0.85rem;
+        padding: 0.4rem 0.8rem;
+      }
+
+      /* Status list with top margin */
+      .status-list-spaced {
+        margin-top: 0.5rem;
+      }
+
+      /* Section label styling */
+      .section-label {
+        margin-top: 0.75rem;
+        font-size: 0.8rem;
+        color: var(--text-secondary);
+      }
+
+      .section-label-small {
+        margin-top: 0.5rem;
+        font-size: 0.8rem;
+        color: var(--text-secondary);
+      }
+
+      .section-label-spaced {
+        margin-bottom: 0.5rem;
+        font-size: 0.8rem;
+        color: var(--text-secondary);
+      }
+
+      .section-label-prf {
+        margin-top: 0.75rem;
+        margin-bottom: 0.5rem;
+        font-size: 0.8rem;
+        color: var(--text-secondary);
+      }
+
+      /* Helper text styling */
+      .helper-text {
+        color: var(--text-secondary);
+        font-size: 0.85rem;
+      }
+
+      /* Search row styling */
+      .search-row {
+        margin-bottom: 1.5rem;
+        margin-top: 1rem;
+      }
+
+      /* Tileset preview styling */
+      #card-type-definitions {
+        margin-top: 1rem;
+      }
     </style>
 
     <script>
@@ -346,6 +640,72 @@
       var hasSelection = false;
       var tilesetLoaded = false;
 
+      // Mode tracking: "remote" or "local"
+      var tilesetMode = "remote";
+      var definesMode = "remote";
+      var entityFilesMode = "remote";
+
+      // GitHub raw URLs for default files
+      var GITHUB_BASE =
+        "https://raw.githubusercontent.com/sil-quirk/sil-q/master/";
+      var DEFAULT_TILESET_URL =
+        GITHUB_BASE + "lib/xtra/graf/16x16_microchasm.png";
+      var DEFAULT_DEFINES_URL =
+        GITHUB_BASE + "src/defines.h";
+
+      // Entity definition files (source of truth for names)
+      var DEFAULT_EDIT_URLS = [
+        GITHUB_BASE + "lib/edit/object.txt",
+        GITHUB_BASE + "lib/edit/monster.txt",
+        GITHUB_BASE + "lib/edit/terrain.txt",
+        GITHUB_BASE + "lib/edit/flavor.txt",
+        "", // 5th slot empty
+      ];
+
+      // Tile assignment files
+      var DEFAULT_PRF_URLS = [
+        GITHUB_BASE + "lib/pref/flvr-new.prf",
+        GITHUB_BASE + "lib/pref/graf-new.prf",
+        GITHUB_BASE + "lib/pref/xtra-new.prf",
+        "", // 4th slot empty
+        "", // 5th slot empty
+      ];
+
+      // Map file names to types for edit files
+      var EDIT_FILE_TYPES = {
+        "object.txt": "K",
+        "monster.txt": "R",
+        "terrain.txt": "F",
+        "flavor.txt": "L",
+      };
+
+      // Name lookup maps by ID (populated from edit files)
+      // Each entry can be: { name: "...", tval: 40 } or just a string for backwards compat
+      var entityNames = {
+        K: {}, // object.txt - objects
+        R: {}, // monster.txt - monsters
+        F: {}, // terrain.txt - features
+        L: {}, // flavor.txt - flavors
+      };
+
+      // tval to TV_* name mapping (populated from defines.h)
+      var tvalNames = {};
+      var definesLoaded = false;
+
+      var editFilesLoaded = 0;
+      var editFilesToLoad = 0;
+
+      // Parsed entity data from PRF files
+      var prfEntities = [];
+
+      // Track loaded file sources for tooltips
+      var loadedFileSources = {};
+
+      // Store last loaded local files for reload functionality
+      var lastLocalTilesetFile = null;
+      var lastLocalDefinesFile = null;
+      var lastLocalEntityFiles = null;
+
       function handleFileSelect(event) {
         var file = event.target.files[0];
         if (file) {
@@ -353,7 +713,542 @@
         }
       }
 
-      function loadTileset() {
+      function handlePrfFileSelect(event) {
+        var files = event.target.files;
+        if (files.length > 0) {
+          loadPrfFilesFromFileList(files);
+        }
+      }
+
+      // Status indicator helpers
+      function setTilesetStatus(status, message, source) {
+        var container = document.getElementById("tilesetStatusList");
+        var fullPath = loadedFileSources["tileset"] || "";
+        var fileName = fullPath ? getFileName(fullPath) : "";
+
+        var statusIcon =
+          status === "loading" ? "⏳" : status === "success" ? "✓" : "✗";
+        var sourceIcon = source === "local" ? "📁" : "🌐";
+
+        // Show filename for success/error, show message for loading
+        var displayName = status === "loading" ? fileName || message : fileName;
+        var sourceHtml =
+          status !== "loading" && source
+            ? ' <span class="source-icon">' + sourceIcon + "</span>"
+            : "";
+        var html =
+          '<span class="status-icon">' +
+          statusIcon +
+          "</span>" +
+          displayName +
+          sourceHtml;
+
+        // Clear and create single status item
+        container.innerHTML = "";
+        var item = document.createElement("span");
+        item.className = "prf-status-item " + status;
+        item.innerHTML = html;
+        item.title = fullPath || message || "";
+        container.appendChild(item);
+      }
+
+      function updateFileStatus(
+        containerId,
+        fileName,
+        status,
+        source,
+        fullPath,
+      ) {
+        var container = document.getElementById(containerId);
+        var existingItem = container.querySelector(
+          '[data-file="' + fileName + '"]',
+        );
+
+        var statusIcon =
+          status === "loading" ? "⏳" : status === "success" ? "✓" : "✗";
+        var sourceIcon = source === "local" ? "📁" : "🌐";
+        var sourceHtml =
+          status !== "loading" && source
+            ? ' <span class="source-icon">' + sourceIcon + "</span>"
+            : "";
+        var html =
+          '<span class="status-icon">' +
+          statusIcon +
+          "</span>" +
+          fileName +
+          sourceHtml;
+
+        // Store source for tooltip
+        if (fullPath) {
+          loadedFileSources[fileName] = fullPath;
+        }
+
+        if (existingItem) {
+          existingItem.className = "prf-status-item " + status;
+          existingItem.innerHTML = html;
+          existingItem.title = fullPath || "";
+        } else {
+          var item = document.createElement("span");
+          item.className = "prf-status-item " + status;
+          item.setAttribute("data-file", fileName);
+          item.innerHTML = html;
+          item.title = fullPath || "";
+          container.appendChild(item);
+        }
+      }
+
+      function updatePrfStatus(fileName, status, source, fullPath) {
+        updateFileStatus("prfStatusList", fileName, status, source, fullPath);
+      }
+
+      function clearPrfStatus() {
+        document.getElementById("prfStatusList").innerHTML = "";
+      }
+
+      function updateEditStatus(fileName, status, source, fullPath) {
+        updateFileStatus("editStatusList", fileName, status, source, fullPath);
+      }
+
+      function clearEditStatus() {
+        document.getElementById("editStatusList").innerHTML = "";
+      }
+
+      function updateDefinesStatus(fileName, status, source, fullPath) {
+        updateFileStatus("definesStatusList", fileName, status, source, fullPath);
+      }
+
+      function clearDefinesStatus() {
+        document.getElementById("definesStatusList").innerHTML = "";
+      }
+
+      // Load defines.h to get TV_* constants
+      function loadDefinesFromUrl() {
+        var urlInput = document.getElementById("definesUrl");
+        var url = urlInput ? urlInput.value.trim() : DEFAULT_DEFINES_URL;
+        if (!url) {
+          definesLoaded = true;
+          chainToEntityFiles();
+          return;
+        }
+
+        clearDefinesStatus();
+        var fileName = getFileName(url);
+        updateDefinesStatus(fileName, "loading", "remote", url);
+
+        fetch(url)
+          .then(function (response) {
+            if (!response.ok) throw new Error("HTTP " + response.status);
+            return response.text();
+          })
+          .then(function (content) {
+            parseDefinesContent(content);
+            updateDefinesStatus(fileName, "success", "remote", url);
+            definesLoaded = true;
+            chainToEntityFiles();
+          })
+          .catch(function (err) {
+            updateDefinesStatus(fileName, "error", "remote", url);
+            console.error("Failed to load " + fileName + ":", err);
+            definesLoaded = true;
+            chainToEntityFiles();
+          });
+      }
+
+      // Chain to entity files loading (respects entityFilesMode)
+      function chainToEntityFiles() {
+        if (entityFilesMode === "remote") {
+          loadEditFilesFromUrls();
+        }
+      }
+
+      // Load defines.h from local file
+      function loadDefinesFromFile(file) {
+        clearDefinesStatus();
+        updateDefinesStatus(file.name, "loading", "local", file.name);
+
+        var reader = new FileReader();
+        reader.onload = function (e) {
+          parseDefinesContent(e.target.result);
+          updateDefinesStatus(file.name, "success", "local", file.name);
+          definesLoaded = true;
+        };
+        reader.onerror = function () {
+          updateDefinesStatus(file.name, "error", "local", file.name);
+          definesLoaded = true;
+        };
+        reader.readAsText(file);
+      }
+
+      // Parse defines.h to extract TV_* constants
+      function parseDefinesContent(content) {
+        tvalNames = {};
+        var lines = content.split("\n");
+        for (var i = 0; i < lines.length; i++) {
+          var line = lines[i].trim();
+          // Match: #define TV_AMULET 40
+          var match = line.match(/^#define\s+(TV_\w+)\s+(\d+)/);
+          if (match) {
+            var name = match[1];
+            var value = parseInt(match[2], 10);
+            tvalNames[value] = name;
+          }
+        }
+      }
+
+      // Reset defines URL to default and reload
+      function resetDefinesUrl() {
+        document.getElementById("definesUrl").value = DEFAULT_DEFINES_URL;
+        loadDefinesFromUrl();
+      }
+
+      // Toggle function for defines mode
+      function setDefinesMode(mode) {
+        definesMode = mode;
+        var remoteBtn = document.getElementById("definesRemoteBtn");
+        var localBtn = document.getElementById("definesLocalBtn");
+        var remoteSection = document.getElementById("definesRemoteSection");
+        var localSection = document.getElementById("definesLocalSection");
+
+        if (mode === "remote") {
+          remoteBtn.classList.add("active");
+          localBtn.classList.remove("active");
+          remoteSection.classList.remove("hidden");
+          localSection.classList.add("hidden");
+        } else {
+          remoteBtn.classList.remove("active");
+          localBtn.classList.add("active");
+          remoteSection.classList.add("hidden");
+          localSection.classList.remove("hidden");
+        }
+      }
+
+      // Load defines.h from local file picker
+      function loadDefinesFromLocalFile(event) {
+        var file = event.target.files[0];
+        if (!file) return;
+        lastLocalDefinesFile = file;
+        loadDefinesFromFile(file);
+      }
+
+      // Reload last local defines file
+      function reloadLocalDefines() {
+        if (lastLocalDefinesFile) {
+          loadDefinesFromFile(lastLocalDefinesFile);
+        }
+      }
+
+      // Toggle functions for segmented buttons
+      function setTilesetMode(mode) {
+        tilesetMode = mode;
+        var remoteBtn = document.getElementById("tilesetRemoteBtn");
+        var localBtn = document.getElementById("tilesetLocalBtn");
+        var remoteSection = document.getElementById("tilesetRemoteSection");
+        var localSection = document.getElementById("tilesetLocalSection");
+
+        if (mode === "remote") {
+          remoteBtn.classList.add("active");
+          localBtn.classList.remove("active");
+          remoteSection.classList.remove("hidden");
+          localSection.classList.add("hidden");
+        } else {
+          remoteBtn.classList.remove("active");
+          localBtn.classList.add("active");
+          remoteSection.classList.add("hidden");
+          localSection.classList.remove("hidden");
+        }
+      }
+
+      function setEntityFilesMode(mode) {
+        entityFilesMode = mode;
+        var remoteBtn = document.getElementById("entityRemoteBtn");
+        var localBtn = document.getElementById("entityLocalBtn");
+        var remoteSection = document.getElementById("entityRemoteSection");
+        var localSection = document.getElementById("entityLocalSection");
+
+        if (mode === "remote") {
+          remoteBtn.classList.add("active");
+          localBtn.classList.remove("active");
+          remoteSection.classList.remove("hidden");
+          localSection.classList.add("hidden");
+        } else {
+          remoteBtn.classList.remove("active");
+          localBtn.classList.add("active");
+          remoteSection.classList.add("hidden");
+          localSection.classList.remove("hidden");
+        }
+      }
+
+      // Collapsible section toggle
+      function toggleCollapsible(headerId, contentId) {
+        var header = document.getElementById(headerId);
+        var content = document.getElementById(contentId);
+        header.classList.toggle("expanded");
+        content.classList.toggle("expanded");
+      }
+
+      // Reset tileset URL to default and reload
+      function resetTilesetUrl() {
+        document.getElementById("tilesetUrl").value = DEFAULT_TILESET_URL;
+        loadTilesetFromUrl();
+      }
+
+      // Reset entity file URLs to defaults and reload
+      function resetEntityUrls() {
+        // Reset edit URLs
+        var defaultEditUrls = [
+          GITHUB_BASE + "lib/edit/object.txt",
+          GITHUB_BASE + "lib/edit/monster.txt",
+          GITHUB_BASE + "lib/edit/terrain.txt",
+          GITHUB_BASE + "lib/edit/flavor.txt",
+          "",
+        ];
+        for (var i = 1; i <= 5; i++) {
+          var input = document.getElementById("editUrl" + i);
+          if (input) {
+            input.value = defaultEditUrls[i - 1] || "";
+          }
+        }
+
+        // Reset PRF URLs
+        var defaultPrfUrls = [
+          GITHUB_BASE + "lib/pref/flvr-new.prf",
+          GITHUB_BASE + "lib/pref/graf-new.prf",
+          GITHUB_BASE + "lib/pref/xtra-new.prf",
+          "",
+          "",
+        ];
+        for (var i = 1; i <= 5; i++) {
+          var input = document.getElementById("prfUrl" + i);
+          if (input) {
+            input.value = defaultPrfUrls[i - 1] || "";
+          }
+        }
+
+        // Reload all files
+        loadAllRemoteFiles();
+      }
+
+      // Get file name from URL or path
+      function getFileName(path) {
+        return path.split("/").pop().split("\\").pop() || path;
+      }
+
+      // Determine file type from filename
+      function getEditFileType(fileName) {
+        for (var key in EDIT_FILE_TYPES) {
+          if (fileName.toLowerCase().indexOf(key.toLowerCase()) !== -1) {
+            return EDIT_FILE_TYPES[key];
+          }
+        }
+        return null;
+      }
+
+      // Load edit files from URL fields
+      function loadEditFilesFromUrls() {
+        clearEditStatus();
+        editFilesLoaded = 0;
+        entityNames = { K: {}, R: {}, F: {}, L: {} };
+
+        // Get URLs from input fields
+        var urls = [];
+        for (var i = 1; i <= 5; i++) {
+          var input = document.getElementById("editUrl" + i);
+          if (input && input.value.trim()) {
+            urls.push(input.value.trim());
+          }
+        }
+
+        editFilesToLoad = urls.length;
+        if (editFilesToLoad === 0) {
+          loadPrfFilesFromUrls();
+          return;
+        }
+
+        urls.forEach(function (url) {
+          var fileName = getFileName(url);
+          updateEditStatus(fileName, "loading", "remote", url);
+
+          fetch(url)
+            .then(function (response) {
+              if (!response.ok) throw new Error("HTTP " + response.status);
+              return response.text();
+            })
+            .then(function (content) {
+              var type = getEditFileType(fileName);
+              if (type) {
+                parseEditFileContent(content, fileName, type);
+              }
+              updateEditStatus(fileName, "success", "remote", url);
+              editFilesLoaded++;
+              if (editFilesLoaded === editFilesToLoad) {
+                loadPrfFilesFromUrls();
+              }
+            })
+            .catch(function (err) {
+              updateEditStatus(fileName, "error", "remote", url);
+              editFilesLoaded++;
+              console.error("Failed to load " + fileName + ":", err);
+              if (editFilesLoaded === editFilesToLoad) {
+                loadPrfFilesFromUrls();
+              }
+            });
+        });
+      }
+
+      // Auto-load defines.h from GitHub - initial load
+      function autoLoadDefines() {
+        if (definesMode === "remote") {
+          loadDefinesFromUrl();
+        } else {
+          // In local mode, user must pick file manually, but still chain to entity files
+          chainToEntityFiles();
+        }
+      }
+
+      // Parse edit file content to build name lookup maps
+      // Stores: { name: "...", tval: N } for objects and flavors, or just name string for others
+      function parseEditFileContent(content, fileName, type) {
+        var lines = content.split("\n");
+
+        if (type === "L") {
+          // flavor.txt format: N:id:tval:sval then D:name on following line
+          var currentId = null;
+          var currentTval = null;
+          for (var i = 0; i < lines.length; i++) {
+            var line = lines[i].trim();
+            // N:id:tval:sval - capture id and tval
+            var nMatch = line.match(/^N:(\d+):(\d+)/);
+            if (nMatch) {
+              currentId = parseInt(nMatch[1], 10);
+              currentTval = parseInt(nMatch[2], 10);
+              continue;
+            }
+            // D:name (the flavor name)
+            if (currentId !== null && line.startsWith("D:")) {
+              var name = line.substring(2).trim();
+              entityNames[type][currentId] = { name: name, tval: currentTval };
+              currentId = null;
+              currentTval = null;
+            }
+          }
+        } else if (type === "K") {
+          // object.txt format: N:id:name then I:tval:sval:pval on following line
+          var currentId = null;
+          var currentName = null;
+          for (var i = 0; i < lines.length; i++) {
+            var line = lines[i].trim();
+            // N:id:name
+            var nMatch = line.match(/^N:(\d+):(.+)$/);
+            if (nMatch) {
+              currentId = parseInt(nMatch[1], 10);
+              currentName = nMatch[2].trim();
+              // Clean up object names (remove & prefix and ~ suffix)
+              currentName = currentName.replace(/^&\s*/, "").replace(/~$/, "");
+              continue;
+            }
+            // I:tval:sval:pval - store with tval
+            if (currentId !== null && currentName !== null) {
+              var iMatch = line.match(/^I:(\d+):/);
+              if (iMatch) {
+                var tval = parseInt(iMatch[1], 10);
+                entityNames[type][currentId] = { name: currentName, tval: tval };
+                currentId = null;
+                currentName = null;
+              }
+            }
+          }
+        } else {
+          // monster.txt, terrain.txt: N:id:name (no tval)
+          for (var i = 0; i < lines.length; i++) {
+            var line = lines[i].trim();
+            // Match N:id:name pattern
+            var match = line.match(/^N:(\d+):(.+)$/);
+            if (match) {
+              var id = parseInt(match[1], 10);
+              var name = match[2].trim();
+              entityNames[type][id] = name;
+            }
+          }
+        }
+      }
+
+      // Clear tileset display when loading fails
+      function clearTilesetDisplay() {
+        tilesetLoaded = false;
+        hasSelection = false;
+        img.src =
+          "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";
+        divImg.classList.add("hidden");
+        placeholder.classList.remove("hidden");
+        tilePreview.style.backgroundImage = "";
+        selectionMarker.style.display = "none";
+        reticule.style.display = "none";
+        txtIndex.value = "";
+        txtHexCode.value = "";
+        document.getElementById("entityListContainer").classList.add("hidden");
+      }
+
+      // Load tileset from URL field
+      function loadTilesetFromUrl() {
+        var urlInput = document.getElementById("tilesetUrl");
+        var url = urlInput ? urlInput.value.trim() : DEFAULT_TILESET_URL;
+        if (!url) {
+          setTilesetStatus("error", "No URL specified");
+          clearTilesetDisplay();
+          return;
+        }
+
+        setTilesetStatus("loading", "Loading...", "remote");
+        loadedFileSources["tileset"] = url;
+
+        var testImg = new Image();
+        testImg.onload = function () {
+          setTilesetStatus("success", "Loaded", "remote");
+          document.getElementById("txtImage").value = url;
+          loadTilesetImage(url);
+        };
+        testImg.onerror = function () {
+          setTilesetStatus("error", "Failed to load", "remote");
+          clearTilesetDisplay();
+        };
+        testImg.src = url;
+      }
+
+      // Load tileset from local file
+      function loadTilesetFromFile(event) {
+        var file = event.target.files[0];
+        if (!file) return;
+        lastLocalTilesetFile = file;
+        loadTilesetFromFileObject(file);
+      }
+
+      // Load tileset from file object (used by both initial load and reload)
+      function loadTilesetFromFileObject(file) {
+        setTilesetStatus("loading", "Loading...", "local");
+        loadedFileSources["tileset"] = file.name;
+
+        var reader = new FileReader();
+        reader.onload = function (e) {
+          setTilesetStatus("success", "Loaded", "local");
+          document.getElementById("txtImage").value = file.name;
+          loadTilesetImage(e.target.result);
+        };
+        reader.onerror = function () {
+          setTilesetStatus("error", "Failed to load", "local");
+          clearTilesetDisplay();
+        };
+        reader.readAsDataURL(file);
+      }
+
+      // Reload last local tileset file
+      function reloadLocalTileset() {
+        if (lastLocalTilesetFile) {
+          loadTilesetFromFileObject(lastLocalTilesetFile);
+        }
+      }
+
+      // Common tileset loading logic
+      function loadTilesetImage(src) {
         tw = parseInt(txtTileWidth.value);
         th = parseInt(txtTileHeight.value);
         reticule.style.width = tw + "px";
@@ -370,11 +1265,326 @@
         };
 
         img.onload = finishLoad;
-        img.src = txtImage.value;
+        img.src = src;
 
-        // Handle already-loaded case (e.g., from browser cache when revisiting via history)
         if (img.complete && img.naturalWidth > 0) {
           finishLoad();
+        }
+      }
+
+      // Auto-load tileset from GitHub
+      function autoLoadTileset() {
+        if (tilesetMode === "remote") {
+          loadTilesetFromUrl();
+        }
+      }
+
+      // Load PRF files from URL fields
+      function loadPrfFilesFromUrls() {
+        clearPrfStatus();
+        prfEntities = [];
+
+        // Get URLs from input fields
+        var urls = [];
+        for (var i = 1; i <= 5; i++) {
+          var input = document.getElementById("prfUrl" + i);
+          if (input && input.value.trim()) {
+            urls.push(input.value.trim());
+          }
+        }
+
+        if (urls.length === 0) {
+          updateEntityList();
+          return;
+        }
+
+        urls.forEach(function (url) {
+          var fileName = getFileName(url);
+          updatePrfStatus(fileName, "loading", "remote", url);
+
+          fetch(url)
+            .then(function (response) {
+              if (!response.ok) throw new Error("HTTP " + response.status);
+              return response.text();
+            })
+            .then(function (content) {
+              parsePrfContent(content, fileName);
+              updatePrfStatus(fileName, "success", "remote", url);
+              updateEntityList();
+            })
+            .catch(function (err) {
+              updatePrfStatus(fileName, "error", "remote", url);
+              console.error("Failed to load " + fileName + ":", err);
+            });
+        });
+      }
+
+      // Auto-load PRF files from GitHub
+      function autoLoadPrfFiles() {
+        if (entityFilesMode === "remote") {
+          loadPrfFilesFromUrls();
+        }
+      }
+
+      // Load local edit files from file picker
+      function loadLocalEditFiles(files) {
+        clearEditStatus();
+        entityNames = { K: {}, R: {}, F: {}, L: {} };
+        editFilesLoaded = 0;
+        editFilesToLoad = files.length;
+
+        if (editFilesToLoad === 0) return;
+
+        Array.from(files).forEach(function (file) {
+          updateEditStatus(file.name, "loading", "local", file.name);
+
+          var reader = new FileReader();
+          reader.onload = function (e) {
+            var type = getEditFileType(file.name);
+            if (type) {
+              parseEditFileContent(e.target.result, file.name, type);
+            }
+            updateEditStatus(file.name, "success", "local", file.name);
+            editFilesLoaded++;
+          };
+          reader.onerror = function () {
+            updateEditStatus(file.name, "error", "local", file.name);
+            editFilesLoaded++;
+          };
+          reader.readAsText(file);
+        });
+      }
+
+      // Load local PRF files from file picker
+      function loadLocalPrfFiles(files) {
+        clearPrfStatus();
+        prfEntities = [];
+
+        Array.from(files).forEach(function (file) {
+          updatePrfStatus(file.name, "loading", "local", file.name);
+
+          var reader = new FileReader();
+          reader.onload = function (e) {
+            parsePrfContent(e.target.result, file.name);
+            updatePrfStatus(file.name, "success", "local", file.name);
+            updateEntityList();
+          };
+          reader.onerror = function () {
+            updatePrfStatus(file.name, "error", "local", file.name);
+          };
+          reader.readAsText(file);
+        });
+      }
+
+      // Handle local file picker for entity files
+      function handleLocalEntityFiles(event) {
+        var files = event.target.files;
+        if (files.length === 0) return;
+        lastLocalEntityFiles = Array.from(files);
+        loadEntityFilesFromArray(lastLocalEntityFiles);
+      }
+
+      // Load entity files from array (used by both initial load and reload)
+      function loadEntityFilesFromArray(files) {
+        // Separate edit files from prf files
+        var editFiles = [];
+        var prfFiles = [];
+
+        files.forEach(function (file) {
+          if (file.name.endsWith(".prf")) {
+            prfFiles.push(file);
+          } else if (file.name.endsWith(".txt")) {
+            editFiles.push(file);
+          }
+        });
+
+        if (editFiles.length > 0) {
+          loadLocalEditFiles(editFiles);
+        }
+        if (prfFiles.length > 0) {
+          loadLocalPrfFiles(prfFiles);
+        }
+      }
+
+      // Reload last local entity files
+      function reloadLocalEntityFiles() {
+        if (lastLocalEntityFiles && lastLocalEntityFiles.length > 0) {
+          loadEntityFilesFromArray(lastLocalEntityFiles);
+        }
+      }
+
+      // Load PRF files from file picker (legacy - used by old handler)
+      function loadPrfFilesFromFileList(files) {
+        loadLocalPrfFiles(files);
+      }
+
+      // Load all remote files button handler
+      // Chain: defines.h -> edit files -> PRF files
+      function loadAllRemoteFiles() {
+        definesLoaded = false;
+        loadDefinesFromUrl();
+      }
+
+      // Parse PRF file content
+      function parsePrfContent(content, fileName) {
+        var lines = content.split("\n");
+        var lastCondition = "";
+
+        for (var i = 0; i < lines.length; i++) {
+          var line = lines[i].trim();
+
+          // Skip comments
+          if (line.startsWith("#")) {
+            continue;
+          }
+
+          // Track conditional lines for xtra-new.prf
+          if (line.startsWith("?:")) {
+            lastCondition = line;
+            continue;
+          }
+
+          // Parse data lines: L:id:coords, S:id:coords, F:id:coords, K:id:coords, R:id:coords
+          var match = line.match(
+            /^([LSFKR]):(\d+):(0x[0-9A-Fa-f]+\/0x[0-9A-Fa-f]+)/i,
+          );
+          if (match) {
+            var prefix = match[1].toUpperCase();
+            var id = parseInt(match[2], 10);
+            var hexCoords = match[3].toUpperCase();
+            var entityName = null;
+
+            // Look up the name and tval from the entity definition files
+            var entityTval = null;
+            if (prefix === "S") {
+              // S: entries are special (digits, icons, spells) - no lookup available
+              entityName = "(special #" + id + ")";
+            } else if (fileName === "xtra-new.prf" && lastCondition) {
+              // For xtra-new.prf, extract class/race from condition
+              var classMatch = lastCondition.match(/\[EQU \$CLASS ([^\]]+)\]/i);
+              var raceMatch = lastCondition.match(/\[EQU \$RACE ([^\]]+)\]/i);
+              if (classMatch && raceMatch) {
+                entityName = raceMatch[1] + " " + classMatch[1];
+              }
+            } else if (entityNames[prefix] && entityNames[prefix][id]) {
+              // Look up from the parsed edit files
+              var entityData = entityNames[prefix][id];
+              if (typeof entityData === "object") {
+                entityName = entityData.name;
+                entityTval = entityData.tval;
+              } else {
+                entityName = entityData;
+              }
+            }
+
+            var type = getEntityType(prefix, fileName);
+
+            prfEntities.push({
+              name: entityName || "(unknown #" + id + ")",
+              type: type,
+              tval: entityTval,
+              hexCoords: hexCoords,
+              sourceFile: fileName,
+            });
+          }
+        }
+      }
+
+      function getEntityType(prefix, fileName) {
+        if (fileName === "xtra-new.prf") {
+          return "Player";
+        }
+        switch (prefix) {
+          case "L":
+            return "Flavor";
+          case "S":
+            return "Special";
+          case "F":
+            return "Feature";
+          case "K":
+            return "Object";
+          case "R":
+            return "Monster";
+          default:
+            return "Unknown";
+        }
+      }
+
+      // Find entities matching the selected tile's hex coordinates
+      function findMatchingEntities(hexCoords) {
+        if (!hexCoords) return [];
+        var normalized = hexCoords.toUpperCase();
+        return prfEntities.filter(function (entity) {
+          return entity.hexCoords === normalized;
+        });
+      }
+
+      // Update the entity list display
+      function updateEntityList() {
+        var container = document.getElementById("entityListContainer");
+        var list = document.getElementById("entityList");
+
+        if (!hasSelection) {
+          container.classList.add("hidden");
+          return;
+        }
+
+        var hexCoords = txtHexCode.value;
+        var matches = findMatchingEntities(hexCoords);
+
+        if (matches.length === 0) {
+          list.innerHTML =
+            '<div class="no-entities">No assigned entities found</div>';
+        } else {
+          var html = matches
+            .map(function (entity) {
+              // Build tval display: [TV_AMULET] if available
+              var tvalDisplay = "";
+              if (entity.tval !== null && entity.tval !== undefined && tvalNames[entity.tval]) {
+                tvalDisplay = ' <span class="entity-tval">[' + tvalNames[entity.tval] + ']</span>';
+              }
+              return (
+                '<div class="entity-item">' +
+                '<span class="entity-name">' +
+                escapeHtml(entity.name) +
+                "</span>" +
+                tvalDisplay +
+                '<span class="entity-type">(' +
+                entity.type +
+                ")</span>" +
+                '<span class="entity-source">— ' +
+                entity.sourceFile +
+                "</span>" +
+                "</div>"
+              );
+            })
+            .join("");
+          list.innerHTML = html;
+        }
+
+        container.classList.remove("hidden");
+      }
+
+      function escapeHtml(text) {
+        var div = document.createElement("div");
+        div.textContent = text;
+        return div.innerHTML;
+      }
+
+      // Initialize on page load
+      document.addEventListener("DOMContentLoaded", function () {
+        autoLoadTileset();
+        // Chain: defines.h -> edit files -> PRF files
+        autoLoadDefines();
+      });
+
+      // Legacy loadTileset function - redirects to appropriate loader
+      function loadTileset() {
+        if (tilesetMode === "remote") {
+          loadTilesetFromUrl();
+        } else {
+          // In local mode, trigger file picker
+          document.getElementById("tilesetLocalFile").click();
         }
       }
 
@@ -423,6 +1633,7 @@
         updateTilePreview();
         updateHexCode();
         updateSelectionMarker();
+        updateEntityList();
       }
 
       function updateSelectionMarker() {
@@ -572,6 +1783,7 @@
         updateTilePreview();
         updateHexCode();
         updateSelectionMarker();
+        updateEntityList();
 
         // Update reticule position to show the selected tile
         var rect = img.getBoundingClientRect();
@@ -595,19 +1807,72 @@
           Tileset dimensions for 16x16 tiles should be 512x256 pixels (16 rows,
           32 columns).
         </p>
-        <div class="load-row">
-          <input id="txtImage" type="text" value="16x16_microchasm.png" />
-          <input
-            id="fileImage"
-            type="file"
-            accept="image/*"
-            onchange="handleFileSelect(event)"
-          />
-          <button type="button" id="btnLoad" onclick="loadTileset()">
-            Load tileset
+
+        <!-- Mode toggle -->
+        <div class="segmented-toggle">
+          <button
+            type="button"
+            id="tilesetRemoteBtn"
+            class="active"
+            onclick="setTilesetMode('remote')"
+          >
+            🌐 GitHub
+          </button>
+          <button
+            type="button"
+            id="tilesetLocalBtn"
+            onclick="setTilesetMode('local')"
+          >
+            📁 Local
           </button>
         </div>
+
+        <!-- Remote mode section -->
+        <div id="tilesetRemoteSection">
+          <div class="load-row">
+            <input
+              id="tilesetUrl"
+              type="text"
+              class="url-input"
+              value="https://raw.githubusercontent.com/sil-quirk/sil-q/master/lib/xtra/graf/16x16_microchasm.png"
+            >
+            <button type="button" onclick="loadTilesetFromUrl()">Load</button>
+            <button
+              type="button"
+              id="remote-use-defaults-button"
+              class="btn-small"
+              onclick="resetTilesetUrl()"
+            >
+              Load default
+            </button>
+          </div>
+        </div>
+
+        <!-- Local mode section -->
+        <div id="tilesetLocalSection" class="hidden local-file-section">
+          <div class="load-row">
+            <input
+              id="tilesetLocalFile"
+              type="file"
+              accept="image/*"
+              onchange="loadTilesetFromFile(event)"
+            >
+            <button type="button" class="btn-small" onclick="reloadLocalTileset()">
+              Reload
+            </button>
+          </div>
+        </div>
+
+        <!-- Tileset status (same style as entity files) -->
+        <div
+          id="tilesetStatusList"
+          class="prf-status-list status-list-spaced"
+        ></div>
+
+        <!-- Hidden field for current image name -->
+        <input id="txtImage" type="hidden" value="16x16_microchasm.png">
       </div>
+
 
       <!-- Options Section (always visible) -->
       <div class="card">
@@ -615,9 +1880,9 @@
           <div class="form-row">
             <span class="form-label">Tile Size</span>
             <div class="input-group">
-              <input id="txtTileWidth" type="text" value="16" />
+              <input id="txtTileWidth" type="text" value="16">
               <span>&times;</span>
-              <input id="txtTileHeight" type="text" value="16" />
+              <input id="txtTileHeight" type="text" value="16">
               <span>px</span>
             </div>
           </div>
@@ -633,7 +1898,7 @@
                   name="rblIndexMode"
                   checked
                   onchange="updateTileIndex()"
-                />
+                >
                 <label for="rbLTR">Left to Right</label>
               </div>
               <div class="radio-option">
@@ -643,7 +1908,7 @@
                   name="rblIndexMode"
                   value="Top Down"
                   onchange="updateTileIndex()"
-                />
+                >
                 <label for="rbTopdown">Top Down</label>
               </div>
               <div class="radio-option">
@@ -653,7 +1918,7 @@
                   name="rblIndexMode"
                   value="X, Y"
                   onchange="updateTileIndex()"
-                />
+                >
                 <label for="rbXY">X, Y</label>
               </div>
             </div>
@@ -670,7 +1935,7 @@
                   value="1"
                   checked
                   onchange="updateTileIndex()"
-                />
+                >
                 <label for="rbIndexOne">1</label>
               </div>
               <div class="radio-option">
@@ -680,12 +1945,19 @@
                   name="indexStart"
                   value="0"
                   onchange="updateTileIndex()"
-                />
+                >
                 <label for="rbIndexZero">0</label>
               </div>
             </div>
           </div>
         </div>
+      </div>
+
+      <!-- Hex coordinate search -->
+      <div class="load-row search-row">
+        <span class="form-label">Search tile by hex coords:</span>
+        <input id="txtHexSearch" type="text" placeholder="0x85/0x9C">
+        <button type="button" onclick="searchByHex()">Search</button>
       </div>
 
       <!-- Selection Info -->
@@ -694,29 +1966,29 @@
           <span>Last tile selected:</span>
           <div id="tilePreview"></div>
           <div class="copyable-field" onclick="copyFieldToClipboard(txtIndex)">
-            <input type="text" id="txtIndex" disabled />
+            <input type="text" id="txtIndex" disabled>
             <span class="copy-icon">&#x2398;</span>
           </div>
           <div
             class="copyable-field"
             onclick="copyFieldToClipboard(txtHexCode)"
           >
-            <input type="text" id="txtHexCode" disabled />
+            <input type="text" id="txtHexCode" disabled>
             <span class="copy-icon">&#x2398;</span>
           </div>
           <label for="txtHexCode"
             >hex coords for <code>lib/pref/*.prf</code> files</label
           >
         </div>
-        <!-- See copyToClipboard() -->
-        <!--
-            <p>This value is copied into the clipboard if your browser supports this functionality.</p>
-        -->
+        <div id="entityListContainer" class="entity-list-container hidden">
+          <div class="entity-list-header">Assigned entities:</div>
+          <div id="entityList" class="entity-list"></div>
+        </div>
       </div>
 
       <!-- Zoom toggle -->
       <div class="radio-option zoom-toggle">
-        <input id="chkZoom" type="checkbox" onchange="applyZoom()" checked />
+        <input id="chkZoom" type="checkbox" onchange="applyZoom()" checked>
         <label for="chkZoom">2x zoom</label>
       </div>
 
@@ -733,7 +2005,7 @@
             onmousemove="imgMoused(event, this)"
             onmouseout="reticule.style.display = 'none'"
             onclick="imgClicked(event, this)"
-          />
+          >
           <div
             id="reticule"
             onmousemove="reticuleMoused(event, this)"
@@ -743,12 +2015,215 @@
         </div>
       </div>
 
-      <!-- Hex coordinate search -->
-      <div class="load-row" style="margin-top: 1rem">
-        <span class="form-label">Search by hex coords:</span>
-        <input id="txtHexSearch" type="text" placeholder="0x85/0x9C" />
-        <button type="button" onclick="searchByHex()">Search</button>
+      <!-- Type Definitions Section (defines.h) -->
+      <div id="card-type-definitions" class="card">
+        <p class="note">Type definitions (defines.h for TV_* constants).</p>
+
+        <!-- Mode toggle -->
+        <div class="segmented-toggle">
+          <button
+            type="button"
+            id="definesRemoteBtn"
+            class="active"
+            onclick="setDefinesMode('remote')"
+          >
+            🌐 GitHub
+          </button>
+          <button
+            type="button"
+            id="definesLocalBtn"
+            onclick="setDefinesMode('local')"
+          >
+            📁 Local
+          </button>
+        </div>
+
+        <!-- Remote mode section -->
+        <div id="definesRemoteSection">
+          <div class="load-row">
+            <input
+              id="definesUrl"
+              type="text"
+              class="url-input"
+              value="https://raw.githubusercontent.com/sil-quirk/sil-q/master/src/defines.h"
+            >
+            <button type="button" onclick="loadDefinesFromUrl()">Load</button>
+            <button
+              type="button"
+              class="btn-small"
+              onclick="resetDefinesUrl()"
+            >
+              Load default
+            </button>
+          </div>
+        </div>
+
+        <!-- Local mode section -->
+        <div id="definesLocalSection" class="hidden local-file-section">
+          <div class="load-row">
+            <input
+              id="definesLocalFile"
+              type="file"
+              accept=".h,.c,.txt"
+              onchange="loadDefinesFromLocalFile(event)"
+            >
+            <button type="button" class="btn-small" onclick="reloadLocalDefines()">
+              Reload
+            </button>
+          </div>
+        </div>
+
+        <!-- Status display -->
+        <div id="definesStatusList" class="prf-status-list status-list-spaced"></div>
       </div>
+
+      <!-- Entity Files and Tile Assignments Section -->
+      <div class="card">
+        <p class="note">Entity definitions and tile assignments.</p>
+
+        <!-- Mode toggle -->
+        <div class="segmented-toggle">
+          <button
+            type="button"
+            id="entityRemoteBtn"
+            class="active"
+            onclick="setEntityFilesMode('remote')"
+          >
+            🌐 GitHub
+          </button>
+          <button
+            type="button"
+            id="entityLocalBtn"
+            onclick="setEntityFilesMode('local')"
+          >
+            📁 Local
+          </button>
+        </div>
+
+        <!-- Remote mode section -->
+        <div id="entityRemoteSection">
+          <div class="load-row">
+            <button type="button" onclick="loadAllRemoteFiles()">
+              Load all
+            </button>
+            <button
+              type="button"
+              class="btn-small"
+              onclick="resetEntityUrls()"
+            >
+              Load defaults
+            </button>
+          </div>
+
+          <!-- Collapsible URL fields -->
+          <div
+            class="collapsible-header"
+            id="urlFieldsHeader"
+            onclick="toggleCollapsible('urlFieldsHeader', 'urlFieldsContent')"
+          >
+            <span class="collapsible-arrow">▶</span>
+            <span>Configure URLs</span>
+          </div>
+          <div class="collapsible-content" id="urlFieldsContent">
+            <div class="section-label-spaced">
+              Entity definitions (object.txt, monster.txt, terrain.txt,
+              flavor.txt):
+            </div>
+            <div class="url-field-row">
+              <input
+                id="editUrl1"
+                type="text"
+                value="https://raw.githubusercontent.com/sil-quirk/sil-q/master/lib/edit/object.txt"
+              >
+            </div>
+            <div class="url-field-row">
+              <input
+                id="editUrl2"
+                type="text"
+                value="https://raw.githubusercontent.com/sil-quirk/sil-q/master/lib/edit/monster.txt"
+              >
+            </div>
+            <div class="url-field-row">
+              <input
+                id="editUrl3"
+                type="text"
+                value="https://raw.githubusercontent.com/sil-quirk/sil-q/master/lib/edit/terrain.txt"
+              >
+            </div>
+            <div class="url-field-row">
+              <input
+                id="editUrl4"
+                type="text"
+                value="https://raw.githubusercontent.com/sil-quirk/sil-q/master/lib/edit/flavor.txt"
+              >
+            </div>
+            <div class="url-field-row">
+              <input id="editUrl5" type="text" placeholder="(additional URL)">
+            </div>
+
+            <div class="section-label-prf">
+              Tile assignments (.prf files):
+            </div>
+            <div class="url-field-row">
+              <input
+                id="prfUrl1"
+                type="text"
+                value="https://raw.githubusercontent.com/sil-quirk/sil-q/master/lib/pref/flvr-new.prf"
+              >
+            </div>
+            <div class="url-field-row">
+              <input
+                id="prfUrl2"
+                type="text"
+                value="https://raw.githubusercontent.com/sil-quirk/sil-q/master/lib/pref/graf-new.prf"
+              >
+            </div>
+            <div class="url-field-row">
+              <input
+                id="prfUrl3"
+                type="text"
+                value="https://raw.githubusercontent.com/sil-quirk/sil-q/master/lib/pref/xtra-new.prf"
+              >
+            </div>
+            <div class="url-field-row">
+              <input id="prfUrl4" type="text" placeholder="(additional URL)">
+            </div>
+            <div class="url-field-row">
+              <input id="prfUrl5" type="text" placeholder="(additional URL)">
+            </div>
+          </div>
+        </div>
+
+        <!-- Local mode section -->
+        <div id="entityLocalSection" class="hidden local-file-section">
+          <div class="load-row">
+            <input
+              id="entityLocalFiles"
+              type="file"
+              accept=".prf,.txt"
+              multiple
+              onchange="handleLocalEntityFiles(event)"
+            >
+            <button type="button" class="btn-small" onclick="reloadLocalEntityFiles()">
+              Reload
+            </button>
+            <span class="helper-text">
+              Select .txt (definitions) and .prf (assignments) files
+            </span>
+          </div>
+        </div>
+
+        <!-- Status display -->
+        <div class="section-label">
+          Entity definitions:
+        </div>
+        <div id="editStatusList" class="prf-status-list"></div>
+        <div class="section-label-small">
+          Tile assignments:
+        </div>
+        <div id="prfStatusList" class="prf-status-list"></div>
+      </div>
+
     </div>
   </body>
 </html>
