@@ -29,7 +29,8 @@
       body {
         background: var(--bg-primary);
         color: var(--text-primary);
-        font-family: "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
+        font-family:
+          "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
         min-height: 100vh;
         padding: 2rem;
         line-height: 1.6;
@@ -354,7 +355,6 @@
       }
 
       function loadTileset() {
-        img.src = txtImage.value;
         tw = parseInt(txtTileWidth.value);
         th = parseInt(txtTileHeight.value);
         reticule.style.width = tw + "px";
@@ -364,8 +364,19 @@
         tilePreview.style.backgroundImage = "";
         placeholder.classList.add("hidden");
         divImg.classList.remove("hidden");
-        tilesetLoaded = true;
-        applyZoom();
+
+        var finishLoad = function () {
+          tilesetLoaded = true;
+          applyZoom();
+        };
+
+        img.onload = finishLoad;
+        img.src = txtImage.value;
+
+        // Handle already-loaded case (e.g., from browser cache when revisiting via history)
+        if (img.complete && img.naturalWidth > 0) {
+          finishLoad();
+        }
       }
 
       function applyZoom() {
@@ -548,7 +559,9 @@
         var maxY = Math.floor(img.naturalHeight / th) - 1;
 
         if (tileX > maxX || tileY > maxY) {
-          alert("Tile coordinates out of bounds. Max: x=" + maxX + ", y=" + maxY);
+          alert(
+            "Tile coordinates out of bounds. Max: x=" + maxX + ", y=" + maxY,
+          );
           return;
         }
 
@@ -581,12 +594,20 @@
       <!-- Load Tileset Section -->
       <div class="card">
         <p class="note">
-          Tileset dimensions for 16x16 tiles should be 512x256 pixels (16 rows, 32 columns).
+          Tileset dimensions for 16x16 tiles should be 512x256 pixels (16 rows,
+          32 columns).
         </p>
         <div class="load-row">
           <input id="txtImage" type="text" value="16x16_microchasm.png" />
-          <input id="fileImage" type="file" accept="image/*" onchange="handleFileSelect(event)" />
-          <button type="button" id="btnLoad" onclick="loadTileset()">Load tileset</button>
+          <input
+            id="fileImage"
+            type="file"
+            accept="image/*"
+            onchange="handleFileSelect(event)"
+          />
+          <button type="button" id="btnLoad" onclick="loadTileset()">
+            Load tileset
+          </button>
         </div>
       </div>
 
@@ -678,11 +699,16 @@
             <input type="text" id="txtIndex" disabled />
             <span class="copy-icon">&#x2398;</span>
           </div>
-          <div class="copyable-field" onclick="copyFieldToClipboard(txtHexCode)">
+          <div
+            class="copyable-field"
+            onclick="copyFieldToClipboard(txtHexCode)"
+          >
             <input type="text" id="txtHexCode" disabled />
             <span class="copy-icon">&#x2398;</span>
           </div>
-          <label for="txtHexCode">hex coords for <code>lib/pref/*.prf</code> files</label>
+          <label for="txtHexCode"
+            >hex coords for <code>lib/pref/*.prf</code> files</label
+          >
         </div>
         <!-- See copyToClipboard() -->
         <!--
