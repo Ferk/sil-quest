@@ -2801,7 +2801,7 @@ errr init_x11(int argc, char** argv)
             }
 
             /* Free tiles_raw */
-            FREE(tiles_raw);
+            XDestroyImage(tiles_raw);
         }
 
         /* Initialize the transparency masks */
