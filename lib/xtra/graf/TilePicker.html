@@ -244,6 +244,36 @@
         min-width: unset;
       }
 
+      .copyable-field {
+        position: relative;
+        display: inline-block;
+        cursor: pointer;
+      }
+
+      .copyable-field input {
+        cursor: pointer;
+        padding-right: 1.8rem;
+        pointer-events: none;
+      }
+
+      .copy-icon {
+        position: absolute;
+        right: 6px;
+        top: 50%;
+        transform: translateY(-50%);
+        font-size: 1rem;
+        color: var(--text-secondary);
+        pointer-events: none;
+      }
+
+      .copyable-field:hover .copy-icon {
+        color: var(--accent);
+      }
+
+      .copyable-field.copied .copy-icon {
+        color: var(--accent);
+      }
+
       #tilePreview {
         border: 1px solid var(--border-color);
         background-color: var(--bg-secondary);
@@ -423,6 +453,36 @@
         }
       }
 
+      function copyFieldToClipboard(inputElement) {
+        var text = inputElement.value;
+        if (!text) return;
+
+        var wrapper = inputElement.parentElement;
+        var icon = wrapper.querySelector(".copy-icon");
+
+        if (navigator.clipboard) {
+          navigator.clipboard.writeText(text).then(function () {
+            showCopiedFeedback(wrapper, icon);
+          });
+        } else if (document.execCommand) {
+          inputElement.disabled = false;
+          inputElement.select();
+          document.execCommand("Copy");
+          inputElement.disabled = true;
+          showCopiedFeedback(wrapper, icon);
+        }
+      }
+
+      function showCopiedFeedback(wrapper, icon) {
+        var originalIcon = icon.innerHTML;
+        icon.innerHTML = "&#x2713;";
+        wrapper.classList.add("copied");
+        setTimeout(function () {
+          icon.innerHTML = originalIcon;
+          wrapper.classList.remove("copied");
+        }, 800);
+      }
+
       function searchByHex() {
         if (!tilesetLoaded) {
           alert("Please load a tileset first.");
@@ -581,8 +641,14 @@
         <div class="result-row">
           <span>Last tile selected:</span>
           <div id="tilePreview"></div>
-          <input type="text" id="txtIndex" disabled />
-          <input type="text" id="txtHexCode" disabled />
+          <div class="copyable-field" onclick="copyFieldToClipboard(txtIndex)">
+            <input type="text" id="txtIndex" disabled />
+            <span class="copy-icon">&#x2398;</span>
+          </div>
+          <div class="copyable-field" onclick="copyFieldToClipboard(txtHexCode)">
+            <input type="text" id="txtHexCode" disabled />
+            <span class="copy-icon">&#x2398;</span>
+          </div>
           <label for="txtHexCode">hex coords for <code>lib/pref/*.prf</code> files</label>
         </div>
         <!-- See copyToClipboard() -->
