@@ -1340,6 +1340,7 @@
         }
 
         if (urls.length === 0) {
+          addPlayerTileEntries();
           updateEntityList();
           return;
         }
@@ -1356,6 +1357,7 @@
             .then(function (content) {
               parsePrfContent(content, fileName);
               updatePrfStatus(fileName, "success", "remote", url);
+              addPlayerTileEntries();
               updateEntityList();
             })
             .catch(function (err) {
@@ -1413,6 +1415,7 @@
           reader.onload = function (e) {
             parsePrfContent(e.target.result, file.name);
             updatePrfStatus(file.name, "success", "local", file.name);
+            addPlayerTileEntries();
             updateEntityList();
           };
           reader.onerror = function () {
@@ -1565,6 +1568,87 @@
           default:
             return "Unknown";
         }
+      }
+
+      // Player tile offset labels (from player_tile_offset() in src/cave.c)
+      var PLAYER_TILE_OFFSETS = [
+        "Unarmed/default",
+        "Small sword (dagger, short sword)",
+        "Curved sword",
+        "Big sword or shovel",
+        "Spear",
+        "Small axe/war hammer/mattock",
+        "Big axe",
+        "Quarterstaff",
+        "Shield + any weapon",
+        "Shield + big axe",
+        "Shield + small axe",
+        "Dual wielding swords",
+        "Sword + axe offhand",
+        "Axe + sword offhand",
+        "Axe + axe dual wield",
+        "Bow (archery > melee)"
+      ];
+
+      // Player race base tiles (from graf-new.prf R:0-R:3)
+      var PLAYER_RACE_TILES = [
+        { race: "Noldor", baseRow: 0x8D, baseCol: 0x80 },
+        { race: "Sindar", baseRow: 0x8D, baseCol: 0x90 },
+        { race: "Naugrim", baseRow: 0x8E, baseCol: 0x80 },
+        { race: "Edain", baseRow: 0x8E, baseCol: 0x90 }
+      ];
+
+      // Generate synthetic player tile entries for all 4 races x 16 equipment states
+      function generatePlayerTileEntries() {
+        var entries = [];
+        for (var r = 0; r < PLAYER_RACE_TILES.length; r++) {
+          var raceInfo = PLAYER_RACE_TILES[r];
+          for (var offset = 0; offset < 16; offset++) {
+            var col = raceInfo.baseCol + offset;
+            // Use uppercase 0X to match findMatchingEntities normalization
+            var hexCoords = "0X" + raceInfo.baseRow.toString(16).toUpperCase() +
+                            "/0X" + col.toString(16).toUpperCase();
+            entries.push({
+              name: "<player> [" + PLAYER_TILE_OFFSETS[offset] + "]",
+              type: "Monster",
+              tval: null,
+              hexCoords: hexCoords,
+              sourceFile: "graf-new.prf",
+              race: raceInfo.race
+            });
+          }
+        }
+        return entries;
+      }
+
+      // Check if hex coords fall within a player tile range
+      function isPlayerTileCoord(hexCoords) {
+        for (var r = 0; r < PLAYER_RACE_TILES.length; r++) {
+          var raceInfo = PLAYER_RACE_TILES[r];
+          var rowHex = "0X" + raceInfo.baseRow.toString(16).toUpperCase();
+          // Check if row matches and column is within range [baseCol, baseCol+15]
+          for (var offset = 0; offset < 16; offset++) {
+            var col = raceInfo.baseCol + offset;
+            var tileHex = rowHex + "/0X" + col.toString(16).toUpperCase();
+            if (hexCoords === tileHex) {
+              return true;
+            }
+          }
+        }
+        return false;
+      }
+
+      // Add player tile entries to prfEntities (called after PRF parsing)
+      function addPlayerTileEntries() {
+        var playerEntries = generatePlayerTileEntries();
+        // Remove all existing player tile entries to avoid duplicates
+        prfEntities = prfEntities.filter(function(entity) {
+          if (entity.sourceFile === "graf-new.prf" && isPlayerTileCoord(entity.hexCoords)) {
+            return false; // Remove this entry
+          }
+          return true;
+        });
+        prfEntities = prfEntities.concat(playerEntries);
       }
 
       // Find entities matching the selected tile's hex coordinates
@@ -2297,6 +2381,17 @@
             <strong>TV_* constants</strong> — Parsed from
             <code>src/defines.h</code>. Only shown for entities that have a
             <code>tval</code> (objects and flavors).
+          </li>
+          <li>
+            <strong>Player tiles</strong> — Each of the 4 playable races
+            (Noldor, Sindar, Naugrim, Edain) has 16 tiles representing
+            different equipment states. Only the base tile (offset 0) is
+            defined in <code>graf-new.prf</code> as <code>R:0</code> through
+            <code>R:3</code>. The remaining 15 tiles per race are computed
+            dynamically by adding an offset based on equipped weapons, as
+            defined in <code>src/cave.c</code>, function
+            <code>player_tile_offset()</code>. This tool hardcodes these offsets
+            to display all player tiles.
           </li>
         </ul>
       </div>
