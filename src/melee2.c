@@ -21,7 +21,7 @@
 /*
  * Tests if a monster is affected by Song of Challenge and if so how seriously.
  */
-int challenge_check(monster_type* m_ptr)
+static int challenge_check(monster_type* m_ptr)
 {
     monster_race* r_ptr = &r_info[m_ptr->r_idx];
     int challenge = ability_bonus(S_SNG, SNG_CHALLENGE);
@@ -2138,7 +2138,7 @@ static int calc_vulnerability(int fy, int fx)
 // The main way to gain hesitance is to have similar smart monsters who could
 // gang up if they waited for the player to get into the open.
 
-int calc_hesitance(monster_type* m_ptr)
+static int calc_hesitance(monster_type* m_ptr)
 {
     int x, y;
     int fy = m_ptr->fy;
@@ -3785,7 +3785,7 @@ static void pursuit_message(monster_type* m_ptr)
 /*
  * Deal with the monster Ability: exchange places
  */
-void monster_exchange_places(monster_type* m_ptr)
+static void monster_exchange_places(monster_type* m_ptr)
 {
     monster_lore* l_ptr = &l_list[m_ptr->r_idx];
     char m_name1[80];
@@ -4409,8 +4409,6 @@ static void process_move(monster_type* m_ptr, int ty, int tx, bool bash)
         {
             u32b f1, f2, f3;
 
-            u32b flg3 = 0L;
-
             char m_name[80];
             char o_name[120];
 
@@ -4431,27 +4429,6 @@ static void process_move(monster_type* m_ptr, int ty, int tx, bool bash)
                 /* Extract some flags */
                 object_flags(o_ptr, &f1, &f2, &f3);
 
-                /* React to objects that hurt the monster */
-                if (f1 & (TR1_SLAY_DRAGON))
-                    flg3 |= (RF3_DRAGON);
-                if (f1 & (TR1_SLAY_TROLL))
-                    flg3 |= (RF3_TROLL);
-                if (f1 & (TR1_SLAY_ORC))
-                    flg3 |= (RF3_ORC);
-                if (f1 & (TR1_SLAY_RAUKO))
-                    flg3 |= (RF3_RAUKO);
-                if (f1 & (TR1_SLAY_UNDEAD))
-                    flg3 |= (RF3_UNDEAD);
-                if (f1 & (TR1_SLAY_WOLF))
-                    flg3 |= (RF3_WOLF);
-                if (f1 & (TR1_SLAY_SPIDER))
-                    flg3 |= (RF3_SPIDER);
-                if (f1 & (TR1_SLAY_MAN_OR_ELF))
-                {
-                    flg3 |= (RF3_MAN);
-                    flg3 |= (RF3_ELF);
-                }
-
                 /* Don't pick up cursed items */
                 if ((r_ptr->flags2 & (RF2_TAKE_ITEM))
                     && (cursed_p(o_ptr) || broken_p(o_ptr)))
@@ -4470,34 +4447,6 @@ static void process_move(monster_type* m_ptr, int ty, int tx, bool bash)
                             "%^s looks at %s, but moves on.", m_name, o_name);
                     }
                 }
-
-                /* The object cannot be picked up by the monster */
-                // else if (artefact_p(o_ptr) || (f3 & flg3))
-                //{
-                //	/* Only give a message for "take_item" */
-                //	if (r_ptr->flags2 & (RF2_TAKE_ITEM))
-                //	{
-                //		/* Take note */
-                //		did_take_item = TRUE;
-
-                //		/* Describe observable situations */
-                //		if (m_ptr->ml && player_has_los_bold(ny, nx))
-                //		{
-                //			/* Get the object name */
-                //			object_desc(o_name, sizeof(o_name),
-                // o_ptr, TRUE, 3);
-
-                //			/* Get the monster name */
-                //			monster_desc(m_name, sizeof(m_name),
-                // m_ptr, 0x04);
-
-                //			/* Dump a message */
-                //			msg_format("%^s tries to pick up %s, but
-                // fails.", 				   m_name, o_name);
-                //		}
-                //	}
-                //}
-
                 /* Pick up the item */
                 else if (r_ptr->flags2 & (RF2_TAKE_ITEM))
                 {
@@ -4729,7 +4678,7 @@ void tell_allies(int y, int x, u32b flag)
 /*
  * Deal with monsters trying to wander around the dungeon
  */
-void wander(monster_type* m_ptr)
+static void wander(monster_type* m_ptr)
 {
     int ty, tx;
     bool fear = FALSE;
@@ -4775,7 +4724,7 @@ void wander(monster_type* m_ptr)
     process_move(m_ptr, ty, tx, bash);
 }
 
-int get_chance_of_ranged_attack(monster_type* m_ptr)
+static int get_chance_of_ranged_attack(monster_type* m_ptr)
 {
     monster_race* r_ptr = &r_info[m_ptr->r_idx];
 
@@ -5446,7 +5395,7 @@ extern void produce_cloud(monster_type* m_ptr)
  *  Calculate the number of monsters of the same type (same letter or RF3 type)
  *  within LOS of a given monster.
  */
-int morale_from_friends(monster_type* m_ptr)
+static int morale_from_friends(monster_type* m_ptr)
 {
     int i;
     int fy, fx, y, x;
@@ -5739,9 +5688,9 @@ void calc_stance(monster_type* m_ptr)
             calc_morale(m_ptr);
 
             if (!p_ptr->truce)
-                sprintf(buf, "turns to fight!");
+                strnfmt(buf, sizeof(buf), "turns to fight!");
             else
-                sprintf(buf, "recovers its composure.");
+                strnfmt(buf, sizeof(buf), "recovers its composure.");
 
             message = TRUE;
 
@@ -5755,7 +5704,7 @@ void calc_stance(monster_type* m_ptr)
                 m_ptr->tmp_morale -= 60;
                 calc_morale(m_ptr);
 
-                sprintf(buf, "flees in terror!");
+                strnfmt(buf, sizeof(buf), "flees in terror!");
                 message = TRUE;
             }
             break;
@@ -5768,7 +5717,7 @@ void calc_stance(monster_type* m_ptr)
                 m_ptr->tmp_morale -= 60;
                 calc_morale(m_ptr);
 
-                sprintf(buf, "flees in terror!");
+                strnfmt(buf, sizeof(buf), "flees in terror!");
                 message = TRUE;
             }
             break;

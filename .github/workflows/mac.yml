@@ -29,7 +29,7 @@ jobs:
       - name: Build with with curses/ncurses support and release flags
         run: |
           cd src
-          make -f Makefile.std -j$(sysctl -n hw.ncpu) OPT="-O2" CFLAGS="-Wall $(OPT) -DUSE_GCU" LIBS="-lcurses"
+          make -f Makefile.std -j$(sysctl -n hw.ncpu) OPT="-O2" ENABLE_X11=0 EXTRA_CFLAGS="-Werror"
           mv sil ../sil
 
       - name: Verify build
@@ -48,7 +48,7 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@v6
         with:
-          name: Sil-Q-macos-console.zip
+          name: Sil-Q-macos-console
           # IMPORTANT: Do NOT use quotes to escape spaces in filenames.
           path: |
             sil
@@ -81,8 +81,7 @@ jobs:
       - name: Build with release flags (x86_64 and arm64)
         run: |
           cd src
-          # TODO: Add `-Werror` once all compiler warnings are fixed.
-          make -f Makefile.cocoa -j$(sysctl -n hw.ncpu) ARCHS="x86_64 arm64" OPT="-O2"
+          make -f Makefile.cocoa -j$(sysctl -n hw.ncpu) ARCHS="x86_64 arm64" OPT="-O2" EXTRA_CFLAGS="-Werror"
 
       - name: Verify build
         run: |
@@ -101,6 +100,6 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@v6
         with:
-          name: Sil-Q-macos.zip
+          name: Sil-Q-macos-native
           path: Sil-Q-macos.zip
           if-no-files-found: error

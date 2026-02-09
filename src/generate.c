@@ -168,7 +168,7 @@ int cave_corridor2[MAX_DUNGEON_HGT][MAX_DUNGEON_WID];
 
 /* determines whether the player can pass through a given feature */
 /* icky locations (inside vaults) are all considered passable.    */
-bool player_passable(int y, int x, bool ignore_rubble_and_chasms)
+static bool player_passable(int y, int x, bool ignore_rubble_and_chasms)
 {
     byte feature = cave_feat[y][x];
     bool icky_interior = (cave_info[y][x] & (CAVE_ICKY))
@@ -191,7 +191,7 @@ bool player_passable(int y, int x, bool ignore_rubble_and_chasms)
 
 /* floodfills access through the dungeon, marking all accessible squares with
  * TRUE */
-void flood_access(int y, int x,
+static void flood_access(int y, int x,
     int access_array[MAX_DUNGEON_HGT][MAX_DUNGEON_WID],
     bool ignore_rubble_and_chasms)
 {
@@ -228,7 +228,8 @@ void flood_access(int y, int x,
     return;
 }
 
-void label_rooms(void)
+/*
+static void label_rooms(void)
 {
     int i;
 
@@ -251,9 +252,10 @@ void label_rooms(void)
         }
     }
 }
+*/
 
 // floodfills access through the *graph* of the dungeon
-void flood_piece(int n, int piece_num)
+static void flood_piece(int n, int piece_num)
 {
     int i;
 
@@ -269,7 +271,7 @@ void flood_piece(int n, int piece_num)
     return;
 }
 
-int dungeon_pieces(void)
+static int dungeon_pieces(void)
 {
     int piece_num;
     int i;
@@ -381,7 +383,8 @@ void place_random_stairs(int y, int x)
  * Generate the chosen item at a random spot in the dungeon.
  * If 'close' is true, it must be nearby and in line-of-sight of the player.
  */
-void place_item_randomly(int tval, int sval, bool close)
+/*
+static void place_item_randomly(int tval, int sval, bool close)
 {
     object_type* i_ptr;
     object_type object_type_body;
@@ -417,21 +420,21 @@ void place_item_randomly(int tval, int sval, bool close)
         }
     }
 
-    /* Get local object */
+    // Get local object
     i_ptr = &object_type_body;
 
-    /* Get the object_kind */
+    // Get the object_kind
     k_idx = lookup_kind(tval, sval);
 
-    /* Valid item? */
+    // Valid item?
     if (!k_idx)
         return;
 
-    /* Paranoia regarding having found a spot */
+    // Paranoia regarding having found a spot
     if (i == 1000)
         return;
 
-    /* Prepare the item */
+    // Prepare the item
     object_prep(i_ptr, k_idx);
 
     if (tval == TV_ARROW)
@@ -445,6 +448,7 @@ void place_item_randomly(int tval, int sval, bool close)
 
     drop_near(i_ptr, 0, y, x);
 }
+*/
 
 /*
  * Allocates some objects (using "place" and "type")
@@ -1301,6 +1305,13 @@ static bool build_tunnel(
     return (TRUE);
 }
 
+/*
+ * NOTE (Feb 2026): "desperate" appears to attempt a connection at a greater
+ * distance, and this comes after dividing the dungeon into connected pieces.
+ * Rooms are connected to the closest rooms, but this doesn't connect the whole
+ * dungeon. The purpose of the desperate tunnels seems to be to connect the
+ * clusters of rooms together.
+ */
 static bool connect_two_rooms(int r1, int r2, bool tentative, bool desperate)
 {
     int x, y;
@@ -1406,6 +1417,9 @@ static bool connect_two_rooms(int r1, int r2, bool tentative, bool desperate)
     return (success);
 }
 
+/*
+ * Adds T-intersections (T-junctions) in the corridors.
+ */
 static bool connect_room_to_corridor(int r)
 {
     int length = 10;
@@ -1600,7 +1614,7 @@ static bool alloc_stairs(int feat, int num)
     return (TRUE);
 }
 
-bool feat_within_los(int y0, int x0, int feat)
+static bool feat_within_los(int y0, int x0, int feat)
 {
     int y, x;
 
@@ -1632,7 +1646,7 @@ bool feat_within_los(int y0, int x0, int feat)
 /*
  * Are there any stairs within line of sight?
  */
-bool stairs_within_los(int y, int x)
+static bool stairs_within_los(int y, int x)
 {
     if (feat_within_los(y, x, FEAT_LESS))
         return (TRUE);
@@ -1769,7 +1783,7 @@ static bool place_rubble_player(void)
  *  Make sure that the level is sufficiently connected.
  */
 
-bool check_connectivity(void)
+static bool check_connectivity(void)
 {
     int cave_access[MAX_DUNGEON_HGT][MAX_DUNGEON_WID];
     int y, x;
@@ -1819,7 +1833,8 @@ bool check_connectivity(void)
 /*
  *  Check if there are two adjacent doors on the level.
  */
-bool doubled_doors(void)
+/*
+static bool doubled_doors(void)
 {
     int y, x;
 
@@ -1836,6 +1851,7 @@ bool doubled_doors(void)
 
     return (FALSE);
 }
+*/
 
 static bool connect_rooms_stairs(void)
 {
@@ -2316,7 +2332,7 @@ extern void place_monster_by_flag(
  * letter (eg 'v' for vampire) at (y,x). It is goverened by a maximum depth and
  * tries 100 times at this depth and each depth below it.
  */
-void place_monster_by_letter(
+static void place_monster_by_letter(
     int y, int x, char c, bool allow_unique, int max_depth)
 {
     bool got_r_idx = FALSE;
@@ -2741,10 +2757,9 @@ static bool build_vault(int y0, int x0, vault_type* v_ptr, bool flip_d)
                 {
                     if (one_in_(8))
                     {
-                        humanOrElf = one_in_(2) ?
-                                    R_IDX_ALERT_HUMAN_THRALL :
-                                    R_IDX_ALERT_ELF_THRALL;
-                        p_ptr->thrall_quest = QUEST_GIVER_PRESENT; 
+                        humanOrElf = one_in_(2) ? R_IDX_ALERT_HUMAN_THRALL
+                                                : R_IDX_ALERT_ELF_THRALL;
+                        p_ptr->thrall_quest = QUEST_GIVER_PRESENT;
                     }
                 }
 
@@ -3451,7 +3466,7 @@ static void basic_granite(void)
     }
 }
 
-void make_patch_of_sunlight(int y, int x)
+static void make_patch_of_sunlight(int y, int x)
 {
     int m, n, floor;
 
@@ -3486,17 +3501,17 @@ void make_patch_of_sunlight(int y, int x)
     }
 }
 
-void make_patches_of_sunlight()
+static void make_patches_of_sunlight(void)
 {
     int i, x, y;
 
     // bunch near the player
     for (i = 0; i < 40; ++i)
     {
-        y = rand_range(MAX(p_ptr->py - 5, 1),
-            MIN(p_ptr->py + 5, p_ptr->cur_map_hgt - 2));
-        x = rand_range(MAX(p_ptr->px - 5, 1),
-            MIN(p_ptr->px + 5, p_ptr->cur_map_wid - 2));
+        y = rand_range(
+            MAX(p_ptr->py - 5, 1), MIN(p_ptr->py + 5, p_ptr->cur_map_hgt - 2));
+        x = rand_range(
+            MAX(p_ptr->px - 5, 1), MIN(p_ptr->px + 5, p_ptr->cur_map_wid - 2));
         make_patch_of_sunlight(y, x);
     }
 
@@ -3901,7 +3916,7 @@ static void throne_gen(void)
  *
  * "You can't unring a bell." -- Tom Waits
  */
-void unring_a_bell(void)
+static void unring_a_bell(void)
 {
     object_type* o_ptr;
     int y, x, i;

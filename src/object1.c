@@ -1906,7 +1906,7 @@ void display_inven(void)
         if (o_ptr->weight)
         {
             int wgt = o_ptr->weight * o_ptr->number;
-            sprintf(tmp_val, "%3d.%1d lb", wgt / 10, wgt % 10);
+            strnfmt(tmp_val, sizeof(tmp_val), "%3d.%1d lb", wgt / 10, wgt % 10);
             Term_putstr(col, i, -1, attr, tmp_val);
         }
     }
@@ -2001,7 +2001,7 @@ void display_equip(void)
         }
         else
         {
-            sprintf(o_name, "%s", describe_empty_slot(i));
+            strnfmt(o_name, sizeof(o_name), "%s", describe_empty_slot(i));
         }
 
         /* Obtain the length of the description */
@@ -2021,7 +2021,7 @@ void display_equip(void)
         if (o_ptr->weight)
         {
             int wgt = o_ptr->weight * o_ptr->number;
-            sprintf(tmp_val, "%3d.%1d lb ", wgt / 10, wgt % 10);
+            strnfmt(tmp_val, sizeof(tmp_val), "%3d.%1d lb ", wgt / 10, wgt % 10);
             if ((i >= INVEN_BODY) && (i <= INVEN_FEET))
             {
                 Term_putstr(col, i - INVEN_WIELD, -1, TERM_SLATE, tmp_val);
@@ -2045,8 +2045,8 @@ void display_equip(void)
 
     /* Put in the total weight */
     Term_putstr(col, INVEN_TOTAL - INVEN_WIELD, -1, TERM_L_DARK, "--------");
-    sprintf(
-        tmp_val, "armour: %3d.%1d lb", armour_weight / 10, armour_weight % 10);
+    strnfmt(
+        tmp_val, sizeof(tmp_val), "armour: %3d.%1d lb", armour_weight / 10, armour_weight % 10);
     Term_putstr(
         col - 8, INVEN_TOTAL - INVEN_WIELD + 1, -1, TERM_SLATE, tmp_val);
 }
@@ -2152,7 +2152,7 @@ void show_inven(void)
         prt("", j + 1, col ? col - 2 : col);
 
         /* Prepare an index --(-- */
-        sprintf(tmp_val, "%c)", index_to_label(i));
+        strnfmt(tmp_val, sizeof(tmp_val), "%c)", index_to_label(i));
 
         /* Clear the line with the (possibly indented) index */
         put_str(tmp_val, j + 1, col);
@@ -2164,7 +2164,7 @@ void show_inven(void)
         if (show_weights)
         {
             int wgt = o_ptr->weight * o_ptr->number;
-            sprintf(tmp_val, "%3d.%1d lb", wgt / 10, wgt % 10);
+            strnfmt(tmp_val, sizeof(tmp_val), "%3d.%1d lb", wgt / 10, wgt % 10);
             c_put_str(out_color[j], tmp_val, j + 1, 71);
         }
     }
@@ -2265,7 +2265,7 @@ void show_equip(void)
         prt("", j + 1, col ? col - 2 : col);
 
         /* Prepare an index --(-- */
-        sprintf(tmp_val, "%c)", index_to_label(i));
+        strnfmt(tmp_val, sizeof(tmp_val), "%c)", index_to_label(i));
 
         /* Clear the line with the (possibly indented) index */
         put_str(tmp_val, j + 1, col);
@@ -2281,7 +2281,7 @@ void show_equip(void)
         if (show_weights && o_ptr->weight)
         {
             int wgt = o_ptr->weight * o_ptr->number;
-            sprintf(tmp_val, "%3d.%d lb", wgt / 10, wgt % 10);
+            strnfmt(tmp_val, sizeof(tmp_val), "%3d.%d lb", wgt / 10, wgt % 10);
 
             if ((i >= INVEN_BODY) && (i <= INVEN_FEET))
             {
@@ -2306,7 +2306,7 @@ void show_equip(void)
         /* Blank the line for the total */
         prt("", j + 2, col ? col - 2 : col);
         c_put_str(TERM_L_DARK, "--------", INVEN_TOTAL - INVEN_WIELD + 1, 71);
-        sprintf(tmp_val, "armour: %3d.%1d lb", armour_weight / 10,
+        strnfmt(tmp_val, sizeof(tmp_val), "armour: %3d.%1d lb", armour_weight / 10,
             armour_weight % 10);
         c_put_str(TERM_SLATE, tmp_val, INVEN_TOTAL - INVEN_WIELD + 2, 71 - 8);
         /* Make a new "shadow" below the list (only if needed) */
@@ -2398,7 +2398,7 @@ void show_floor(const int* floor_list, int floor_num)
         prt("", j + 1, col ? col - 2 : col);
 
         /* Prepare an index --(-- */
-        sprintf(tmp_val, "%c)", index_to_label(out_index[j]));
+        strnfmt(tmp_val, sizeof(tmp_val), "%c)", index_to_label(out_index[j]));
 
         /* Clear the line with the (possibly indented) index */
         put_str(tmp_val, j + 1, col);
@@ -2410,7 +2410,7 @@ void show_floor(const int* floor_list, int floor_num)
         if (show_weights)
         {
             int wgt = o_ptr->weight * o_ptr->number;
-            sprintf(tmp_val, "%3d.%1d lb", wgt / 10, wgt % 10);
+            strnfmt(tmp_val, sizeof(tmp_val), "%3d.%1d lb", wgt / 10, wgt % 10);
             c_put_str(out_color[j], tmp_val, j + 1, 71);
         }
     }
@@ -2923,14 +2923,14 @@ bool get_item(int* cp, cptr pmt, cptr str, int mode)
                 show_inven();
 
             /* Begin the prompt */
-            sprintf(out_val, "Inven:");
+            strnfmt(out_val, sizeof(out_val), "Inven:");
 
             /* List choices */
             if (i1 <= i2)
             {
                 /* Build the prompt */
-                sprintf(
-                    tmp_val, " %c-%c,", index_to_label(i1), index_to_label(i2));
+                strnfmt(
+                    tmp_val, sizeof(tmp_val), " %c-%c,", index_to_label(i1), index_to_label(i2));
 
                 /* Append */
                 my_strcat(out_val, tmp_val, sizeof(out_val));
@@ -2957,14 +2957,14 @@ bool get_item(int* cp, cptr pmt, cptr str, int mode)
                 show_equip();
 
             /* Begin the prompt */
-            sprintf(out_val, "Equip:");
+            strnfmt(out_val, sizeof(out_val), "Equip:");
 
             /* List choices */
             if (e1 <= e2)
             {
                 /* Build the prompt */
-                sprintf(
-                    tmp_val, " %c-%c,", index_to_label(e1), index_to_label(e2));
+                strnfmt(
+                    tmp_val, sizeof(tmp_val), " %c-%c,", index_to_label(e1), index_to_label(e2));
 
                 /* Append */
                 my_strcat(out_val, tmp_val, sizeof(out_val));
@@ -2991,13 +2991,13 @@ bool get_item(int* cp, cptr pmt, cptr str, int mode)
                 show_floor(floor_list, floor_num);
 
             /* Begin the prompt */
-            sprintf(out_val, "Floor:");
+            strnfmt(out_val, sizeof(out_val), "Floor:");
 
             /* List choices */
             if (f1 <= f2)
             {
                 /* Build the prompt */
-                sprintf(tmp_val, " %c-%c,", I2A(f1), I2A(f2));
+                strnfmt(tmp_val, sizeof(tmp_val), " %c-%c,", I2A(f1), I2A(f2));
 
                 /* Append */
                 my_strcat(out_val, tmp_val, sizeof(out_val));

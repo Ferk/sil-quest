@@ -401,7 +401,7 @@ int ability_index(int skilltype, int abilitynum)
  *  Counts the number of innate abilities in a skill
  */
 
-int abilities_in_skill(int skilltype)
+static int abilities_in_skill(int skilltype)
 {
     int i;
     ability_type* b_ptr;
@@ -427,7 +427,7 @@ int abilities_in_skill(int skilltype)
     return (count);
 }
 
-bool prereqs(int skilltype, int abilitynum)
+static bool prereqs(int skilltype, int abilitynum)
 {
     int i;
     ability_type* b_ptr;
@@ -456,7 +456,7 @@ bool prereqs(int skilltype, int abilitynum)
 /*
  * Display the available songs (modelled on show_inven).
  */
-void show_songs(void)
+static void show_songs(void)
 {
     int i, j, k = 0;
 
@@ -507,7 +507,7 @@ void show_songs(void)
         prt("", j + 2, col - 2);
 
         /* Prepare an index --(-- */
-        sprintf(tmp_val, "%c)", index_to_label(i));
+        strnfmt(tmp_val, sizeof(tmp_val), "%c)", index_to_label(i));
 
         /* Clear the line with the (possibly indented) index */
         put_str(tmp_val, j + 2, col);
@@ -536,7 +536,7 @@ void show_songs(void)
         prt("", j + 2, col - 2);
 }
 
-void do_cmd_change_song()
+void do_cmd_change_song(void)
 {
     int i;
     bool done = FALSE;
@@ -590,7 +590,7 @@ void do_cmd_change_song()
             show_songs();
 
         /* Begin the prompt */
-        sprintf(out_val, "Songs: s");
+        strnfmt(out_val, sizeof(out_val), "Songs: s");
 
         // count the abilities
         for (i = 0; i < SNG_WOVEN_THEMES; i++)
@@ -599,7 +599,7 @@ void do_cmd_change_song()
             if (p_ptr->active_ability[S_SNG][i])
             {
                 my_strcat(out_val, ",", sizeof(out_val));
-                sprintf(tmp_val, "%c", (char)'a' + i);
+                strnfmt(tmp_val, sizeof(tmp_val), "%c", (char)'a' + i);
 
                 /* Append */
                 my_strcat(out_val, tmp_val, sizeof(out_val));
@@ -744,7 +744,7 @@ void do_cmd_change_song()
     }
 }
 
-void wipe_screen_from(int col)
+static void wipe_screen_from(int col)
 {
     int i;
 
@@ -785,7 +785,7 @@ static u32b bane_flag[] = { 0L, RF3_ORC, RF3_WOLF, RF3_SPIDER, RF3_TROLL,
 char* bane_name[] = { "Nothing", "Orc", "Wolf", "Spider", "Troll", "Wraith",
     "Rauko", "Serpent", "Dragon" };
 
-int bane_type_killed(int i)
+static int bane_type_killed(int i)
 {
     int j;
     int k = 0;
@@ -805,7 +805,7 @@ int bane_type_killed(int i)
     return (k);
 }
 
-int bane_bonus_aux(void)
+static int bane_bonus_aux(void)
 {
     int i = 2;
     int bonus = 0;
@@ -856,7 +856,7 @@ int spider_bane_bonus(void)
         return (0);
 }
 
-int bane_menu(int* highlight)
+static int bane_menu(int* highlight)
 {
     int i, k;
 
@@ -1018,7 +1018,7 @@ bool chosen_oath(int oath)
     return p_ptr->oath_type == oath;
 }
 
-int oath_menu(int* highlight)
+static int oath_menu(int* highlight)
 {
     int i;
     int ch;
@@ -1139,7 +1139,7 @@ int oath_menu(int* highlight)
     return (0);
 }
 
-int abilities_menu1(int* highlight)
+static int abilities_menu1(int* highlight)
 {
     int i;
     int ch;
@@ -1231,7 +1231,7 @@ int abilities_menu1(int* highlight)
     return (0);
 }
 
-int abilities_menu2(int skilltype, int* highlight)
+static int abilities_menu2(int skilltype, int* highlight)
 {
     int i, j;
 
@@ -1324,7 +1324,7 @@ int abilities_menu2(int skilltype, int* highlight)
                 COL_ABILITY, b_ptr->abilitynum + 4, -1, TERM_L_BLUE, buf);
 
             // print the description of the highlighted ability
-            if ((b_text + b_ptr->text) != NULL)
+            if (b_text && b_ptr->text)
             {
                 /* Indent output by 2 character, and wrap at column 70 */
                 text_out_wrap = 79;
@@ -2020,7 +2020,7 @@ static const smithing_flag_desc smithing_flag_types[] = { { CAT_STAT, TR1_STR,
 /*
  * Determines whether the attack bonus of an item is eligible for modification.
  */
-int att_valid(void)
+static int att_valid(void)
 {
     switch (smith_o_ptr->tval)
     {
@@ -2057,7 +2057,7 @@ int att_valid(void)
 /*
  * Determines the maximum legal attack bonus for an item.
  */
-int att_max()
+static int att_max(void)
 {
     object_kind* k_ptr = &k_info[smith_o_ptr->k_idx];
     ego_item_type* e_ptr = &e_info[smith_o_ptr->name2];
@@ -2131,7 +2131,7 @@ int att_max()
 /*
  * Determines the minimum legal attack bonus for an item.
  */
-int att_min(void)
+static int att_min(void)
 {
     object_kind* k_ptr = &k_info[smith_o_ptr->k_idx];
     ego_item_type* e_ptr = &e_info[smith_o_ptr->name2];
@@ -2173,7 +2173,7 @@ int att_min(void)
 /*
  * Determines whether the damage sides of an item is eligible for modification.
  */
-int ds_valid(void)
+static int ds_valid(void)
 {
     switch (smith_o_ptr->tval)
     {
@@ -2193,7 +2193,7 @@ int ds_valid(void)
 /*
  * Determines the maximum legal damage sides for an item.
  */
-int ds_max()
+static int ds_max(void)
 {
     object_kind* k_ptr = &k_info[smith_o_ptr->k_idx];
     ego_item_type* e_ptr = &e_info[smith_o_ptr->name2];
@@ -2222,7 +2222,7 @@ int ds_max()
 /*
  * Determines the minimum legal damage sides for an item.
  */
-int ds_min(void)
+static int ds_min(void)
 {
     object_kind* k_ptr = &k_info[smith_o_ptr->k_idx];
     ego_item_type* e_ptr = &e_info[smith_o_ptr->name2];
@@ -2249,7 +2249,7 @@ int ds_min(void)
 /*
  * Determines whether the evasion bonus of an item is eligible for modification.
  */
-int evn_valid(void)
+static int evn_valid(void)
 {
     switch (smith_o_ptr->tval)
     {
@@ -2287,7 +2287,7 @@ int evn_valid(void)
 /*
  * Determines the maximum legal evasion bonus for an item.
  */
-int evn_max()
+static int evn_max(void)
 {
     object_kind* k_ptr = &k_info[smith_o_ptr->k_idx];
     ego_item_type* e_ptr = &e_info[smith_o_ptr->name2];
@@ -2337,7 +2337,7 @@ int evn_max()
 /*
  * Determines the minimum legal evasion bonus for an item.
  */
-int evn_min(void)
+static int evn_min(void)
 {
     object_kind* k_ptr = &k_info[smith_o_ptr->k_idx];
     ego_item_type* e_ptr = &e_info[smith_o_ptr->name2];
@@ -2382,7 +2382,7 @@ int evn_min(void)
  * Determines whether the protection sides of an item is eligible for
  * modification.
  */
-int ps_valid(void)
+static int ps_valid(void)
 {
     switch (smith_o_ptr->tval)
     {
@@ -2413,7 +2413,7 @@ int ps_valid(void)
 /*
  * Determines the maximum legal protection sides for an item.
  */
-int ps_max()
+static int ps_max(void)
 {
     object_kind* k_ptr = &k_info[smith_o_ptr->k_idx];
     ego_item_type* e_ptr = &e_info[smith_o_ptr->name2];
@@ -2468,7 +2468,7 @@ int ps_max()
 /*
  * Determines the minimum legal protection sides for an item.
  */
-int ps_min(void)
+static int ps_min(void)
 {
     object_kind* k_ptr = &k_info[smith_o_ptr->k_idx];
     ego_item_type* e_ptr = &e_info[smith_o_ptr->name2];
@@ -2505,7 +2505,7 @@ int ps_min(void)
 /*
  * Determines whether the pval of an item is eligible for modification.
  */
-int pval_valid(void)
+static int pval_valid(void)
 {
     u32b f1, f2, f3;
 
@@ -2517,7 +2517,7 @@ int pval_valid(void)
 /*
  * Determines the maximum legal pval for an item.
  */
-int pval_max(void)
+static int pval_max(void)
 {
     object_kind* k_ptr = &k_info[smith_o_ptr->k_idx];
     ego_item_type* e_ptr = &e_info[smith_o_ptr->name2];
@@ -2561,7 +2561,7 @@ int pval_max(void)
 /*
  * Determines the minimum legal pval for an item.
  */
-int pval_min(void)
+static int pval_min(void)
 {
     object_kind* k_ptr = &k_info[smith_o_ptr->k_idx];
     return k_ptr->pval;
@@ -2570,7 +2570,7 @@ int pval_min(void)
 /*
  * Determines whether the weight of an item is eligible for modification.
  */
-int wgt_valid(void)
+static int wgt_valid(void)
 {
     switch (smith_o_ptr->tval)
     {
@@ -2590,7 +2590,7 @@ int wgt_valid(void)
 /*
  * Determines the maximum legal weight for an item.
  */
-int wgt_max(void)
+static int wgt_max(void)
 {
     object_kind* k_ptr = &k_info[smith_o_ptr->k_idx];
     int weight = div_round(k_ptr->weight, 2) * 3;
@@ -2600,7 +2600,7 @@ int wgt_max(void)
 /*
  * Determines the minimum legal weight for an item.
  */
-int wgt_min(void)
+static int wgt_min(void)
 {
     object_kind* k_ptr = &k_info[smith_o_ptr->k_idx];
     int weight = div_round(k_ptr->weight, 3) * 2;
@@ -2610,7 +2610,7 @@ int wgt_min(void)
 /*
  * Moves the light blue highlighted letter.
  */
-void move_displayed_highlight(
+static void move_displayed_highlight(
     int old_highlight, byte old_attr, int new_highlight, int col)
 {
     char buf[80];
@@ -2624,7 +2624,7 @@ void move_displayed_highlight(
     Term_putstr(col, new_highlight + 1, -1, TERM_L_BLUE, buf);
 }
 
-bool melt_mithril_item(int item_num)
+static bool melt_mithril_item(int item_num)
 {
     int number = 0;
     int item, i;
@@ -2738,7 +2738,7 @@ bool melt_mithril_item(int item_num)
     return (FALSE);
 }
 
-int mithril_items_carried(void)
+static int mithril_items_carried(void)
 {
     int number = 0;
     int item;
@@ -2759,7 +2759,7 @@ int mithril_items_carried(void)
     return (number);
 }
 
-int mithril_carried(void)
+static int mithril_carried(void)
 {
     int w = 0;
     int item;
@@ -2777,7 +2777,7 @@ int mithril_carried(void)
     return (w);
 }
 
-void use_mithril(int cost)
+static void use_mithril(int cost)
 {
     int item;
 
@@ -2810,7 +2810,7 @@ void use_mithril(int cost)
 /*
  * Determines how many uses are left for a given forge.
  */
-int forge_uses(int y, int x)
+static int forge_uses(int y, int x)
 {
     byte feat = cave_feat[y][x];
 
@@ -2828,7 +2828,7 @@ int forge_uses(int y, int x)
 /*
  * Determines how high a bonus is provided by a given forge.
  */
-int forge_bonus(int y, int x)
+static int forge_bonus(int y, int x)
 {
     byte feat = cave_feat[y][x];
 
@@ -2849,7 +2849,7 @@ int forge_bonus(int y, int x)
  * The marginal difficulty of increasing a pval increases by 1 each time, if the
  * base is up to 5, by 2 each time if the base is 6--10, and so on.
  */
-void dif_mod(int value, int positive_base, int* dif_inc)
+static void dif_mod(int value, int positive_base, int* dif_inc)
 {
     int mod = 1 + ((positive_base - 1) / 5);
 
@@ -3445,7 +3445,7 @@ int object_difficulty(object_type* o_ptr)
 /*
  * Clears the object's name and description at the bottom of the screen.
  */
-void wipe_object_description(void)
+static void wipe_object_description(void)
 {
     int i;
 
@@ -3460,7 +3460,7 @@ void wipe_object_description(void)
 /*
  * Displays the object's name and description at the bottom of the screen.
  */
-void prt_object_description(void)
+static void prt_object_description(void)
 {
     char o_desc[80];
     char buf[80];
@@ -3472,7 +3472,7 @@ void prt_object_description(void)
     {
         Term_putstr(
             COL_SMT1, MAX_SMITHING_TVALS + 3, -1, TERM_L_BLUE, "In progress:");
-        sprintf(buf, "%3d turns left", p_ptr->smithing_leftover);
+        strnfmt(buf, sizeof(buf), "%3d turns left", p_ptr->smithing_leftover);
         Term_putstr(COL_SMT1 - 1, MAX_SMITHING_TVALS + 5, -1, TERM_BLUE, buf);
     }
 
@@ -3522,7 +3522,7 @@ void prt_object_description(void)
 /*
  * Determines whether an item is too difficult to make.
  */
-int too_difficult(object_type* o_ptr)
+static int too_difficult(object_type* o_ptr)
 {
     int ability = p_ptr->skill_use[S_SMT] + forge_bonus(p_ptr->py, p_ptr->px);
     int dif = object_difficulty(o_ptr);
@@ -3540,7 +3540,7 @@ int too_difficult(object_type* o_ptr)
  * Displays the object's difficulty and costs in the right hand side of the
  * screen.
  */
-void prt_object_difficulty(void)
+static void prt_object_difficulty(void)
 {
     int dif;
     char buf[80];
@@ -3573,10 +3573,10 @@ void prt_object_difficulty(void)
     // calculate difficulty (and costs)
     dif = object_difficulty(smith_o_ptr);
 
-    sprintf(buf, "%d", dif);
+    strnfmt(buf, sizeof(buf), "%d", dif);
     Term_putstr(COL_SMT4 + 2, 4, -1, attr, buf);
 
-    sprintf(buf, "(max %d)",
+    strnfmt(buf, sizeof(buf), "(max %d)",
         p_ptr->skill_use[S_SMT] + forge_bonus(p_ptr->py, p_ptr->px));
     Term_putstr(COL_SMT4 + 5, 4, -1, TERM_L_DARK, buf);
 
@@ -3619,15 +3619,15 @@ void prt_object_difficulty(void)
         }
         if (smithing_cost.uses == 1)
         {
-            sprintf(buf, "%d Use", smithing_cost.uses);
+            strnfmt(buf, sizeof(buf), "%d Use", smithing_cost.uses);
         }
         else
         {
-            sprintf(buf, "%d Uses", smithing_cost.uses);
+            strnfmt(buf, sizeof(buf), "%d Uses", smithing_cost.uses);
         }
         Term_putstr(COL_SMT4 + 2, 10 + costs, -1, attr, buf);
 
-        sprintf(buf, "(of %d)", forge_uses(p_ptr->py, p_ptr->px));
+        strnfmt(buf, sizeof(buf), "(of %d)", forge_uses(p_ptr->py, p_ptr->px));
         Term_putstr(COL_SMT4 + 9, 10 + costs, -1, TERM_L_DARK, buf);
         costs++;
     }
@@ -3642,7 +3642,7 @@ void prt_object_difficulty(void)
             attr = TERM_L_DARK;
             affordable = FALSE;
         }
-        sprintf(buf, "%d Smithing", smithing_cost.drain);
+        strnfmt(buf, sizeof(buf), "%d Smithing", smithing_cost.drain);
         Term_putstr(COL_SMT4 + 2, 10 + costs, -1, attr, buf);
         costs++;
     }
@@ -3657,7 +3657,7 @@ void prt_object_difficulty(void)
             attr = TERM_L_DARK;
             affordable = FALSE;
         }
-        sprintf(buf, "%d.%d lb Mithril", smithing_cost.mithril / 10,
+        strnfmt(buf, sizeof(buf), "%d.%d lb Mithril", smithing_cost.mithril / 10,
             smithing_cost.mithril % 10);
         Term_putstr(COL_SMT4 + 2, 10 + costs, -1, attr, buf);
         costs++;
@@ -3675,7 +3675,7 @@ void prt_object_difficulty(void)
             attr = TERM_L_DARK;
             affordable = FALSE;
         }
-        sprintf(buf, "%d Str", smithing_cost.str);
+        strnfmt(buf, sizeof(buf), "%d Str", smithing_cost.str);
         Term_putstr(COL_SMT4 + 2, 10 + costs, -1, attr, buf);
         costs++;
     }
@@ -3692,7 +3692,7 @@ void prt_object_difficulty(void)
             attr = TERM_L_DARK;
             affordable = FALSE;
         }
-        sprintf(buf, "%d Dex", smithing_cost.dex);
+        strnfmt(buf, sizeof(buf), "%d Dex", smithing_cost.dex);
         Term_putstr(COL_SMT4 + 2, 10 + costs, -1, attr, buf);
         costs++;
     }
@@ -3709,7 +3709,7 @@ void prt_object_difficulty(void)
             attr = TERM_L_DARK;
             affordable = FALSE;
         }
-        sprintf(buf, "%d Con", smithing_cost.con);
+        strnfmt(buf, sizeof(buf), "%d Con", smithing_cost.con);
         Term_putstr(COL_SMT4 + 2, 10 + costs, -1, attr, buf);
         costs++;
     }
@@ -3726,7 +3726,7 @@ void prt_object_difficulty(void)
             attr = TERM_L_DARK;
             affordable = FALSE;
         }
-        sprintf(buf, "%d Gra", smithing_cost.gra);
+        strnfmt(buf, sizeof(buf), "%d Gra", smithing_cost.gra);
         Term_putstr(COL_SMT4 + 2, 10 + costs, -1, attr, buf);
         costs++;
     }
@@ -3741,7 +3741,7 @@ void prt_object_difficulty(void)
             attr = TERM_L_DARK;
             affordable = FALSE;
         }
-        sprintf(buf, "%d Exp", smithing_cost.exp);
+        strnfmt(buf, sizeof(buf), "%d Exp", smithing_cost.exp);
         Term_putstr(COL_SMT4 + 2, 10 + costs, -1, attr, buf);
         costs++;
     }
@@ -3751,7 +3751,7 @@ void prt_object_difficulty(void)
     }
 
     attr = TERM_SLATE;
-    sprintf(buf, "%d Turns", MAX(10, dif * turn_multiplier));
+    strnfmt(buf, sizeof(buf), "%d Turns", MAX(10, dif * turn_multiplier));
     Term_putstr(COL_SMT4 + 2, 10 + costs, -1, attr, buf);
     costs++;
 
@@ -3772,7 +3772,7 @@ void prt_object_difficulty(void)
  * Checks whether you can pay the costs in terms of ability points and
  * experience needed to make the object.
  */
-bool affordable(object_type* o_ptr)
+static bool affordable(object_type* o_ptr)
 {
     bool can_afford = TRUE;
 
@@ -3822,7 +3822,7 @@ bool affordable(object_type* o_ptr)
  * Pay the costs in terms of ability points and experience needed to make the
  * object.
  */
-void pay_costs()
+static void pay_costs(void)
 {
     if (smithing_cost.str > 0)
         p_ptr->stat_drain[A_STR] -= smithing_cost.str;
@@ -3852,7 +3852,7 @@ void pay_costs()
 /*
  * Creates the base object (not in the dungeon, but just as a work in progress).
  */
-void create_base_object(int tval, int sval)
+static void create_base_object(int tval, int sval)
 {
     /* Wipe the object */
     object_wipe(smith_o_ptr);
@@ -3880,7 +3880,7 @@ void create_base_object(int tval, int sval)
  * Performs the interface and selection work for the sval part of the base item
  * menu.
  */
-int create_sval_menu_aux(int tval, int* highlight)
+static int create_sval_menu_aux(int tval, int* highlight)
 {
     char ch;
     int i, num;
@@ -4003,7 +4003,7 @@ int create_sval_menu_aux(int tval, int* highlight)
 /*
  * Displays a menu for choosing a base item's sval.
  */
-bool create_sval_menu(int tval)
+static bool create_sval_menu(int tval)
 {
     int choice = -1;
     int highlight = 1;
@@ -4043,7 +4043,7 @@ bool create_sval_menu(int tval)
  * Performs the interface and selection work for the tval part of the base item
  * menu.
  */
-int create_tval_menu_aux(int* highlight)
+static int create_tval_menu_aux(int* highlight)
 {
     char ch;
     int i;
@@ -4161,7 +4161,7 @@ int create_tval_menu_aux(int* highlight)
 /*
  * Displays a menu for choosing a base item's tval.
  */
-void create_tval_menu(void)
+static void create_tval_menu(void)
 {
     int choice = -1;
     int highlight = 1;
@@ -4198,7 +4198,7 @@ void create_tval_menu(void)
 /*
  * Actually modifies the numbers on an item.
  */
-void modify_numbers(int choice)
+static void modify_numbers(int choice)
 {
     switch (choice)
     {
@@ -4256,7 +4256,7 @@ void modify_numbers(int choice)
 /*
  * Performs the interface and selection work for the numbers menu.
  */
-int numbers_menu_aux(int* highlight)
+static int numbers_menu_aux(int* highlight)
 {
     int i;
     char ch;
@@ -4409,7 +4409,7 @@ int numbers_menu_aux(int* highlight)
 /*
  * Displays a menu for modifying numerical bonuses and weight of an item.
  */
-void numbers_menu(void)
+static void numbers_menu(void)
 {
     int choice = -1;
     int highlight = 1;
@@ -4449,7 +4449,7 @@ void numbers_menu(void)
     return;
 }
 
-void create_special(int name2)
+static void create_special(int name2)
 {
     // retrieve a backup of the object
     object_copy(smith_o_ptr, smith2_o_ptr);
@@ -4464,7 +4464,7 @@ void create_special(int name2)
 /*
  * Performs the interface and selection work for the enchantment menu.
  */
-int enchant_menu_aux(int* highlight)
+static int enchant_menu_aux(int* highlight)
 {
     char ch;
     int i, j, num;
@@ -4606,7 +4606,7 @@ int enchant_menu_aux(int* highlight)
 /*
  * Brings up a menu for making an item into a {special} item.
  */
-bool enchant_menu(void)
+static bool enchant_menu(void)
 {
     int choice = -1;
     int highlight = 1;
@@ -4646,7 +4646,7 @@ bool enchant_menu(void)
 /*
  * Copies an artefact structure over the top of another one.
  */
-void artefact_copy(artefact_type* a1_ptr, artefact_type* a2_ptr)
+static void artefact_copy(artefact_type* a1_ptr, artefact_type* a2_ptr)
 {
     /* Copy the structure */
     COPY(a1_ptr, a2_ptr, artefact_type);
@@ -4655,7 +4655,7 @@ void artefact_copy(artefact_type* a1_ptr, artefact_type* a2_ptr)
 /*
  * Fills in the details on the artefact type being created.
  */
-void add_artefact_details(void)
+static void add_artefact_details(void)
 {
     smith_a_ptr->tval = smith_o_ptr->tval;
     smith_a_ptr->sval = smith_o_ptr->sval;
@@ -4680,7 +4680,7 @@ void add_artefact_details(void)
 /*
  * Prepares an artefact for modification.
  */
-void prepare_artefact(void)
+static void prepare_artefact(void)
 {
     int i;
 
@@ -4709,7 +4709,7 @@ void prepare_artefact(void)
 /*
  * Does the given object type support the given flag type?
  */
-bool applicable_flag(u32b f, int flagset, object_type* o_ptr)
+static bool applicable_flag(u32b f, int flagset, object_type* o_ptr)
 {
     bool ok = FALSE;
     int i;
@@ -4758,7 +4758,7 @@ bool applicable_flag(u32b f, int flagset, object_type* o_ptr)
 /*
  * Adds a given flag to the dummy artefact.
  */
-void add_artefact_flag(u32b f, int flagset)
+static void add_artefact_flag(u32b f, int flagset)
 {
     // prepare the artefact and object for modification
     prepare_artefact();
@@ -4775,7 +4775,7 @@ void add_artefact_flag(u32b f, int flagset)
 /*
  * Removes a given flag from the dummy artefact.
  */
-void remove_artefact_flag(u32b f, int flagset)
+static void remove_artefact_flag(u32b f, int flagset)
 {
     // prepare the artefact and object for modification
     prepare_artefact();
@@ -4792,7 +4792,7 @@ void remove_artefact_flag(u32b f, int flagset)
 /*
  * Performs the interface and selection work for the artefact flag selection.
  */
-int artefact_flag_menu_aux(int category, int* highlight)
+static int artefact_flag_menu_aux(int category, int* highlight)
 {
     char ch;
     int i, num = 0;
@@ -4988,7 +4988,7 @@ int artefact_flag_menu_aux(int category, int* highlight)
  * Brings up a menu to select individual flags of a given type to
  * add to (or subtract from) an artefact.
  */
-void artefact_flag_menu(int category)
+static void artefact_flag_menu(int category)
 {
     int choice = -1;
     int highlight = 1;
@@ -5020,7 +5020,7 @@ void artefact_flag_menu(int category)
 /*
  * Does the given object type support the given ability type?
  */
-bool applicable_ability(ability_type* b_ptr, object_type* o_ptr)
+static bool applicable_ability(ability_type* b_ptr, object_type* o_ptr)
 {
     bool ok = FALSE;
     int j;
@@ -5060,7 +5060,7 @@ bool applicable_ability(ability_type* b_ptr, object_type* o_ptr)
 /*
  * Adds a given ability to the dummy artefact.
  */
-void add_artefact_ability(int skilltype, int abilitynum)
+static void add_artefact_ability(int skilltype, int abilitynum)
 {
     int i;
 
@@ -5102,7 +5102,7 @@ void add_artefact_ability(int skilltype, int abilitynum)
 /*
  * Removes a given ability from the dummy artefact.
  */
-void remove_artefact_ability(int skilltype, int abilitynum)
+static void remove_artefact_ability(int skilltype, int abilitynum)
 {
     int i;
     int location = -1;
@@ -5147,7 +5147,7 @@ void remove_artefact_ability(int skilltype, int abilitynum)
 /*
  * Determines if an artefact type has a given ability.
  */
-bool has_ability(artefact_type* a_ptr, int skilltype, int abilitynum)
+static bool has_ability(artefact_type* a_ptr, int skilltype, int abilitynum)
 {
     int i;
 
@@ -5164,7 +5164,7 @@ bool has_ability(artefact_type* a_ptr, int skilltype, int abilitynum)
 /*
  * Performs the interface and selection work for the artefact flag selection.
  */
-int artefact_ability_menu_aux(int skill, int* highlight)
+static int artefact_ability_menu_aux(int skill, int* highlight)
 {
     char ch;
     int i, num = 0;
@@ -5377,7 +5377,7 @@ int artefact_ability_menu_aux(int skill, int* highlight)
  * Brings up a menu to select individual abilities of a given skill to
  * add to (or subtract from) an artefact.
  */
-void artefact_ability_menu(int skill)
+static void artefact_ability_menu(int skill)
 {
     int choice = -1;
     int highlight = 1;
@@ -5409,7 +5409,7 @@ void artefact_ability_menu(int skill)
 /*
  * Allows the player to choose a new name for an artefact.
  */
-void rename_artefact(void)
+static void rename_artefact(void)
 {
     char tmp[20];
     char old_name[20];
@@ -5466,7 +5466,7 @@ void rename_artefact(void)
 /*
  * Performs the interface and selection work for the 1st level artefact menu.
  */
-int artefact_menu_aux(int* highlight)
+static int artefact_menu_aux(int* highlight)
 {
     char ch;
     int i, num;
@@ -5569,7 +5569,7 @@ int artefact_menu_aux(int* highlight)
  * Brings up a menu for making a base item into an artefact,
  * by adding flags of various types.
  */
-void artefact_menu(void)
+static void artefact_menu(void)
 {
     int choice = -1;
     int highlight = 1;
@@ -5607,7 +5607,7 @@ void artefact_menu(void)
     // set the backup artefact name to the player character's name
     if (strlen(smith2_a_ptr->name) == 0)
     {
-        sprintf(buf, "of %s", op_ptr->full_name);
+        strnfmt(buf, sizeof(buf), "of %s", op_ptr->full_name);
         my_strcpy(smith2_a_ptr->name, buf, MAX_LEN_ART_NAME);
     }
 
@@ -5646,7 +5646,7 @@ void artefact_menu(void)
 /*
  * Performs the interface and selection work for the melting menu.
  */
-int melt_menu_aux(int* highlight)
+static int melt_menu_aux(int* highlight)
 {
     char ch;
     int i;
@@ -5748,7 +5748,7 @@ int melt_menu_aux(int* highlight)
 /*
  * Produces the menu for melting down mithril items into pieces of mithril.
  */
-void melt_menu(void)
+static void melt_menu(void)
 {
     int choice = -1;
     int highlight = 1;
@@ -5783,7 +5783,7 @@ void melt_menu(void)
 /*
  * Performs the interface and selection work for the smithing screen.
  */
-int smithing_menu_aux(int* highlight)
+static int smithing_menu_aux(int* highlight)
 {
     char ch;
     byte valid_attr;
@@ -6153,7 +6153,7 @@ void do_cmd_smithing_screen(void)
             {
                 char buf[80];
 
-                sprintf(buf,
+                strnfmt(buf, sizeof(buf),
                     "This will drain your smithing skill by %d points. "
                     "Proceed? ",
                     smithing_cost.drain);
@@ -6327,7 +6327,7 @@ void create_smithing_item(void)
 /*
  * Performs the interface and selection work for the main menu.
  */
-int main_menu_aux(int* highlight)
+static int main_menu_aux(int* highlight)
 {
     char ch;
     int i;
@@ -6850,7 +6850,7 @@ static void do_cmd_pref_file_hack(int row)
     }
 }
 
-void clear_skills_and_abilities()
+static void clear_skills_and_abilities(void)
 {
     int i, j;
 
@@ -7209,7 +7209,7 @@ static errr option_dump(cptr fname)
     return (0);
 }
 
-int options_menu(int* highlight)
+static int options_menu(int* highlight)
 {
     int ch;
     int options = 6;
@@ -8893,7 +8893,7 @@ static bool askfor_color_values(int idx)
     int k, r, g, b;
 
     /* Get the default value */
-    sprintf(str, "%d", angband_color_table[idx][1]);
+    strnfmt(str, sizeof(str), "%d", angband_color_table[idx][1]);
 
     /* Query, check for ESCAPE */
     if (!term_get_string("Red (0-255) ", str, sizeof(str)))
@@ -8909,7 +8909,7 @@ static bool askfor_color_values(int idx)
         r = 255;
 
     /* Get the default value */
-    sprintf(str, "%d", angband_color_table[idx][2]);
+    strnfmt(str, sizeof(str), "%d", angband_color_table[idx][2]);
 
     /* Query, check for ESCAPE */
     if (!term_get_string("Green (0-255) ", str, sizeof(str)))
@@ -8925,7 +8925,7 @@ static bool askfor_color_values(int idx)
         g = 255;
 
     /* Get the default value */
-    sprintf(str, "%d", angband_color_table[idx][3]);
+    strnfmt(str, sizeof(str), "%d", angband_color_table[idx][3]);
 
     /* Query, check for ESCAPE */
     if (!term_get_string("Blue (0-255) ", str, sizeof(str)))
@@ -8941,7 +8941,7 @@ static bool askfor_color_values(int idx)
         b = 255;
 
     /* Get the default value */
-    sprintf(str, "%d", angband_color_table[idx][0]);
+    strnfmt(str, sizeof(str), "%d", angband_color_table[idx][0]);
 
     /* Query, check for ESCAPE */
     if (!term_get_string("Extra (0-255) ", str, sizeof(str)))
@@ -9208,7 +9208,7 @@ static void modify_colors(void)
             int src;
 
             /* Get the default value, the base color */
-            sprintf(str, "%d", GET_BASE_COLOR(idx));
+            strnfmt(str, sizeof(str), "%d", GET_BASE_COLOR(idx));
 
             /* Query, check for ESCAPE */
             if (!term_get_string(format("Copy from color (0-%d, def. base) ",
@@ -9578,11 +9578,11 @@ void do_cmd_note(char* note, int what_depth)
     }
     else
     {
-        comma_number(depths, what_depth * 50);
+        comma_number(depths, sizeof(depths), what_depth * 50);
         strnfmt(depths, sizeof(depths), "%5s ft", depths);
     }
 
-    comma_number(turn_string, playerturn);
+    comma_number(turn_string, sizeof(turn_string), playerturn);
 
     /* Make preliminary part of note */
     strnfmt(info_note, sizeof(info_note), "%7s  %s   ", turn_string, depths);
@@ -9763,7 +9763,7 @@ void do_cmd_save_screen(void)
     char tmp_val[256];
 
     /* Ask for a file */
-    sprintf(tmp_val, "%s.html", op_ptr->base_name);
+    strnfmt(tmp_val, sizeof(tmp_val), "%s.html", op_ptr->base_name);
     if (!term_get_string("File: ", tmp_val, sizeof(tmp_val)))
         return;
 
@@ -11131,7 +11131,10 @@ static void display_object_list(int col, int row, int per_page,
             else
             {
                 int j;
-                char buf2[80];
+                /* Set to length of `buf` minus 1. This is still sufficient for
+                 * display purposes, and it fixes a compiler warning about
+                 * format truncation. */
+                char buf2[79];
 
                 /* Find the specific type */
                 buf[0] = '\0';
@@ -11513,7 +11516,7 @@ void do_cmd_knowledge(void)
  * Determines the direction from the player and writes it as text into a buffer
  * of at least size 10.
  */
-void write_direction_from_player_to_buffer(
+static void write_direction_from_player_to_buffer(
     int y, int x, char* buffer, int buffer_size)
 {
     bool north, south, east, west;
@@ -11575,7 +11578,7 @@ struct view_object_data_line
     char name[60];
 };
 
-void show_nearby_monsters(bool line_of_sight_only)
+static void show_nearby_monsters(bool line_of_sight_only)
 {
     view_monster_data_line lines[MAX_VIEW_LINES];
 
@@ -11670,7 +11673,7 @@ void show_nearby_monsters(bool line_of_sight_only)
     }
 }
 
-void show_nearby_objects(bool line_of_sight_only)
+static void show_nearby_objects(bool line_of_sight_only)
 {
     view_object_data_line lines[MAX_VIEW_LINES];
 
@@ -11709,7 +11712,7 @@ void show_nearby_objects(bool line_of_sight_only)
             = distance(p_ptr->py, p_ptr->px, temp_y[i], temp_x[i]);
 
         if (strlen(lines[j].direction) == 0)
-            strncpy(lines[j].direction, "underfoot", 9);
+            snprintf(lines[j].direction, sizeof(lines[j].direction), "%s", "underfoot");
 
         lines[j].object_character = object_char(o_ptr);
         lines[j].object_color = object_attr(o_ptr);
@@ -11762,7 +11765,7 @@ void show_nearby_objects(bool line_of_sight_only)
     }
 }
 
-void do_cmd_view_monsters()
+void do_cmd_view_monsters(void)
 {
     char get_char = '[';
     bool show_los = TRUE;
@@ -11782,7 +11785,7 @@ void do_cmd_view_monsters()
     }
 }
 
-void do_cmd_view_objects()
+void do_cmd_view_objects(void)
 {
     char get_char = ']';
     bool show_los = TRUE;

@@ -1277,7 +1277,7 @@ bool object_similar(const object_type* o_ptr, const object_type* j_ptr)
         if (!object_known_p(o_ptr) || !object_known_p(j_ptr))
             return (FALSE);
 
-        /* Fall through */
+        FALLTHROUGH;
     }
 
     /* Weapons and Armor */
@@ -1295,7 +1295,7 @@ bool object_similar(const object_type* o_ptr, const object_type* j_ptr)
     case TV_SOFT_ARMOR:
     case TV_MAIL:
     {
-        /* Fall Through */
+        FALLTHROUGH;
     }
 
     /* Missiles & most things from above */
@@ -1506,7 +1506,7 @@ void object_copy(object_type* o_ptr, const object_type* j_ptr)
 /*
  * Set Hallucinatory object kind
  */
-int random_k_idx(void)
+static int random_k_idx(void)
 {
     object_kind* k_ptr;
     int kind_idx;

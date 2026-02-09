@@ -28,7 +28,7 @@ typedef int errr;
 #define uint uint_hack
 
 /*
- * Hack -- prevent problems with AMIGA
+ * Hack -- prevent problems with system headers that define byte
  */
 #undef byte
 #define byte byte_hack

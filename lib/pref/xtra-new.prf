@@ -1,12 +1,17 @@
 # File: xtra-new.prf
 
+# ----------------------------------------------------------------------------
+# NOTE (Feb 2026): This file is effectively not used by the Microchasm tiles.
+# The specified hex coordinates (such as `0x92/0x80`, where 0x92 denotes row
+# 19 in a tileset) are out-of-bounds for the current Microchasm tiles, whose
+# largest hex coordinate is `0x8F/0x9F` (for 16 rows, 32 columns; `0x80/0x80`
+# is the tile in the first row and first column). It is not clear whether this
+# file can be removed safely.
+# ----------------------------------------------------------------------------
 #
 # This file defines special attr/char mappings for use in "graphics" mode
 #
-# Edited for use with Adam Bolt's new graphics by Robert Ruehlmann
-# < rr9@thangorodrim.net >
-#
-# See "lib/help/command.txt" and "src/files.c" for more information.
+# See "src/files.c" for more information.
 #
 
 

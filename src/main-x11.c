@@ -14,15 +14,13 @@
  * To use this file, compile with "USE_X11" defined, and link against all
  * the various "X11" libraries which may be needed.
  *
- * See also "main-xaw.c".
- *
  * Part of this file provides a user interface package composed of several
  * pseudo-objects, including "metadpy" (a display), "infowin" (a window),
  * "infoclr" (a color), and "infofnt" (a font).  Actually, the package was
  * originally much more interesting, but it was bastardized to keep this
  * file simple.
  *
- * The rest of this file is an implementation of "main-xxx.c" for X11.
+ * The rest of this file is an implementation of "main-*.c" for X11.
  *
  * Most of this file is by Ben Harrison (benh@phial.com).
  */
@@ -1407,8 +1405,6 @@ static x11_selection_type x11_selection[1];
 
 /*
  * Process a keypress event
- *
- * Also appears in "main-xaw.c".
  */
 static void react_keypress(XKeyEvent* ev)
 {
@@ -1722,7 +1718,7 @@ static void paste_x11_send(XSelectionRequestEvent* rq)
         /* Reply to a known target received recently with data */
         char buf[1024];
         co_ord max, min;
-        int x, y, i;
+        size_t i;
         byte a;
         char c;
 
@@ -1732,14 +1728,14 @@ static void paste_x11_send(XSelectionRequestEvent* rq)
         /* Delete the old value of the property */
         XDeleteProperty(DPY, rq->requestor, rq->property);
 
-        for (y = 0; y < Term->hgt; y++)
+        for (int y = 0; y < Term->hgt; y++)
         {
             if (y < min.y)
                 continue;
             if (y > max.y)
                 break;
 
-            for (x = i = 0; x < Term->wid; x++)
+            for (int x = i = 0; x < Term->wid; x++)
             {
                 if (x < min.x)
                     continue;
@@ -2214,7 +2210,7 @@ static errr Term_text_x11(int x, int y, int n, byte a, cptr s)
 
 #ifdef USE_GRAPHICS
 
-void composite_image(
+static void composite_image(
     term_data* td, int x1, int y1, int x2, int y2, bool alert, bool glow)
 {
     unsigned long pixel, blank = td->blank;
@@ -2376,24 +2372,24 @@ static errr term_data_init(term_data* td, int i)
     // Sil-y: changed all 'ANGBAND' to 'SIL'
 
     /* Window specific location (x) */
-    sprintf(buf, "SIL_X11_AT_X_%d", i);
+    strnfmt(buf, sizeof(buf), "SIL_X11_AT_X_%d", i);
     str = getenv(buf);
     x = (str != NULL) ? atoi(str) : -1;
 
     /* Window specific location (y) */
-    sprintf(buf, "SIL_X11_AT_Y_%d", i);
+    strnfmt(buf, sizeof(buf), "SIL_X11_AT_Y_%d", i);
     str = getenv(buf);
     y = (str != NULL) ? atoi(str) : -1;
 
     /* Window specific cols */
-    sprintf(buf, "SIL_X11_COLS_%d", i);
+    strnfmt(buf, sizeof(buf), "SIL_X11_COLS_%d", i);
     str = getenv(buf);
     val = (str != NULL) ? atoi(str) : -1;
     if (val > 0)
         cols = val;
 
     /* Window specific rows */
-    sprintf(buf, "SIL_X11_ROWS_%d", i);
+    strnfmt(buf, sizeof(buf), "SIL_X11_ROWS_%d", i);
     str = getenv(buf);
     val = (str != NULL) ? atoi(str) : -1;
     if (val > 0)
@@ -2409,14 +2405,14 @@ static errr term_data_init(term_data* td, int i)
     }
 
     /* Window specific inner border offset (ox) */
-    sprintf(buf, "SIL_X11_IBOX_%d", i);
+    strnfmt(buf, sizeof(buf), "SIL_X11_IBOX_%d", i);
     str = getenv(buf);
     val = (str != NULL) ? atoi(str) : -1;
     if (val > 0)
         ox = val;
 
     /* Window specific inner border offset (oy) */
-    sprintf(buf, "SIL_X11_IBOY_%d", i);
+    strnfmt(buf, sizeof(buf), "SIL_X11_IBOY_%d", i);
     str = getenv(buf);
     val = (str != NULL) ? atoi(str) : -1;
     if (val > 0)

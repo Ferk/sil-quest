@@ -80,7 +80,7 @@ void note_lost_greater_vault(void)
  * It gets more likely the more stairs you have recently taken.
  * It is designed to stop you stair-scumming.
  */
-bool trapped_stairs(void)
+static bool trapped_stairs(void)
 {
     int chance;
 
@@ -895,7 +895,7 @@ static bool generate_poor_quality_object(object_type* o_ptr)
  *
  * Assumes there is no monster blocking the destination
  */
-static void do_cmd_search_skeleton(int y, int x, s16b o_idx)
+static void do_cmd_search_skeleton(s16b o_idx)
 {
     bool search_failed = TRUE;
     int drop_result = 0;
@@ -3114,7 +3114,7 @@ void do_cmd_alter(void)
     /* Search a skeleton */
     else if (skeleton_present)
     {
-        do_cmd_search_skeleton(y, x, cave_o_idx[y][x]);
+        do_cmd_search_skeleton(cave_o_idx[y][x]);
     }
 
     /* Close open doors */
@@ -3517,7 +3517,7 @@ static int breakage_chance(const object_type* o_ptr, bool hit_wall)
 /*
  *  Determines if a bow shoots radiant arrows and lights the current grid if so
  */
-bool do_radiance(int y, int x, const object_type* j_ptr)
+static bool do_radiance(int y, int x, const object_type* j_ptr)
 {
     bool radiance = FALSE;
 

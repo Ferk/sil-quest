@@ -215,17 +215,17 @@ void quit(cptr str)
 
     /* Success */
     if (!str)
-        (void)(exit(0));
+        exit(0);
 
     /* Extract a "special error code" */
     if ((str[0] == '-') || (str[0] == '+'))
-        (void)(exit(atoi(str)));
+        exit(atoi(str));
 
     /* Send the string to plog() */
     plog(str);
 
     /* Failure */
-    (void)(exit(EXIT_FAILURE));
+    exit(EXIT_FAILURE);
 }
 
 /*

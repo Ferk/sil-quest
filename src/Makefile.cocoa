@@ -1,13 +1,31 @@
 # File: Makefile.cocoa
 
-# This is a Makefile for Mac OS X Cocoa port of Angband.
+# This is a Makefile for the Cocoa port of Sil-Q to build a native macOS app.
+# It requires Clang (typically from Xcode Developer Tools) as its build
+# toolchain.
 #
-# Based on Makefile.osx
+# If instead you want to build a version of Sil-Q that runs in the terminal
+# with curses/ncurses, see `Makefile.std`.
 
-# default target
-all: install
+# Default target
+#
+# Note: Default target must be defined before including Makefile.src, which has
+# compile rules itself.
+default: install
 
-# settings
+#
+# Include shared definitions (object files, headers, dependencies)
+#
+# NOTE: Makefile.src sets VERSION. So if we ever want to dynamically inject
+# additional version information such as the git commit hash (similar to what
+# Angband does in its scripts/version.sh), we must do that after including
+# Makefile.src.
+include Makefile.src
+
+#
+# Cocoa-specific settings
+#
+
 CC = clang
 LD = ld
 # OPT can be overridden, e.g.: make OPT="-O2"
@@ -19,12 +37,17 @@ OPT = -O0 -g
 # Use ARCHS='x86_64 arm64' to build for both.
 ARCHS = "x86_64 arm64"
 ARCHFLAGS = $(addprefix -arch ,$(ARCHS))
-WARNINGS = -W -Wall -Wno-unused-parameter -Wno-missing-field-initializers
-JUST_C = -std=c99 -Wdeclaration-after-statement
+WARNINGS = -Wall -Wextra
+JUST_C = -std=c99
 OBJ_CFLAGS = -std=c99 -x objective-c -fobjc-arc
-CFLAGS = -g -I. $(WARNINGS) $(OPT) -DMACH_O_CARBON -DCOCOA -DUSE_PRIVATE_SAVE_PATH -DPRIVATE_USER_PATH -DRUNTIME_PRIVATE_USER_PATH -DHAVE_MKSTEMP \
-	-fno-stack-protector -mmacosx-version-min=10.6 $(ARCHFLAGS)
+CFLAGS = -g -I. $(WARNINGS) $(OPT) -DMACH_O_CARBON -DCOCOA -DUSE_PRIVATE_SAVE_PATH -DPRIVATE_USER_PATH -DRUNTIME_PRIVATE_USER_PATH -DHAVE_MKSTEMP -mmacosx-version-min=10.6 $(ARCHFLAGS)
 LIBS = -framework Cocoa
+
+# Additional flags to append, such as when creating debug builds.
+# Example: make EXTRA_CFLAGS="-Werror -fsanitize=address -fsanitize=undefined"
+EXTRA_CFLAGS ?=
+CFLAGS += $(EXTRA_CFLAGS)
+
 # Fix for bug #1663: Set the deployment target via environment variable
 # for the final link command.
 # See http://grauonline.de/wordpress/?p=71 or
@@ -35,32 +58,32 @@ LIBS = -framework Cocoa
 # look for the output related to the LC_VERSION_MIN_MACOSX load command.
 DEPLOYMENT_TARGET = MACOSX_DEPLOYMENT_TARGET=10.6
 
-# Import user prefs
-# If you don't want to edit this file, put your module redefinitions
-# and build flags in "./config"
--include config
-
 # Check for autoconf.h; do not warn on nonexistence
 autoconf= $(wildcard autoconf.h)
 ifneq ($(autoconf),)
 CFLAGS += -DHAVE_CONFIG_H
 endif
 
-include Makefile.inc
-
 APPNAME = $(NAME).app
 EXE = $(PROG)
 
+#
+# Object files
+#
 OBJS = $(BASEOBJS)
 OSX_OBJS = main-cocoa.o
 
-
-
 #
-# Build the "Angband" program
+# Build the "Sil" program
 #
-
-
+# TODO: Eventually add `-platform_version macos 11.0.0 11.0.0` (with appropriate
+# macOS version to fix ld warning:
+#    ld: warning: no platform load command found in '.../src/sil.o', assuming: macOS
+# in the `$(LD) -r arch $$A ...` command of the for-loop.
+# Setting the version to 11.0.0+, however, will cause compiler warnings about
+# the use of deprecated functions in main-cocoa.m. Example warning:
+#    main-cocoa.m:2483:9: error: 'NSDisableScreenUpdates' is deprecated: first deprecated in macOS 10.11 - [...]
+#
 $(EXE).o: $(OBJS)
 	@for A in $(ARCHS); do \
 		printf "%10s %-20s\n" LD $@.$$A; \
@@ -72,26 +95,21 @@ $(EXE).o: $(OBJS)
 $(EXE): $(EXE).o $(OSX_OBJS)
 	$(DEPLOYMENT_TARGET) $(CC) $(CFLAGS) $(LDFLAGS) -o $(EXE) $(EXE).o $(OSX_OBJS) $(LIBS) 
 
-
 #
 # Clean up old junk
 #
-
 clean:
 	-rm -f $(OBJS) $(EXE) $(addprefix $(EXE).o.,$(ARCHS)) $(EXE).o $(OSX_OBJS)
-
 
 #
 # Basic build rules and dependencies
 #
-
 main-cocoa.o : main-cocoa.m
 	@printf "%10s %-20s (objective-c)\n" CC $<
 	$(CC) $(CFLAGS) $(OBJ_CFLAGS) -c -o $@ $<
 %.o : %.c
 	@printf "%10s %-20s\n" CC $<
 	$(CC) $(JUST_C) $(CFLAGS) -c -o $@ $<
-
 
 #
 # Installation.
@@ -118,9 +136,9 @@ APPRES = $(APPCONT)/Resources
 # of 8x8.png for Vanilla.  Make sure setting dpi to 72, *not* preserving
 # the actual size of image.  When you have them ready, put them in
 # the lib/xtra/graf directory and rebuild.
-PLIST = cocoa/Sil-Cocoa.xml
+PLIST = cocoa/$(NAME)-Cocoa.xml
 
-ICONFILES = cocoa/Sil_Icons.icns cocoa/Save.icns cocoa/Edit.icns cocoa/Data.icns
+ICONFILES = cocoa/$(NAME)_Icons.icns cocoa/Save.icns cocoa/Edit.icns cocoa/Data.icns
 
 install: $(EXE) $(ICONFILES) $(PLIST)
 	@echo making directories...
@@ -160,18 +178,16 @@ install: $(EXE) $(ICONFILES) $(PLIST)
 	dot_clean -m $(APPBNDL)
 	codesign --force --deep --sign - $(APPBNDL)
 
-
 vars:
 	@echo LDFLAGS = $(LDFLAGS)
 	@echo CFLAGS = $(CFLAGS)
 	@echo BASEOBJS = $(BASEOBJS)
 
-
-
 PACKAGE_NAME = $(NAME)-$(VERSION)
 
-# In the unlikely event that tar+zip isn't enough...
-
+#
+# Generate a macOS .dmg file
+#
 dist: install
 	@rm -rf disttemp*
 	mkdir disttemp
@@ -180,7 +196,7 @@ dist: install
 	# Include any top-level PDF files, such as the Sil-Q PDF manual.
 	find .. -name '*.pdf' -depth 1 -print0 | xargs -0 -J % cp -p % disttemp
 	# Include the top-level version file.
-	cp -p ../Sil-Q-version.txt disttemp
+	cp -p ../$(VERSION_FILE) disttemp
 
 	@-rm ../"$(PACKAGE_NAME)-macos.dmg"
 

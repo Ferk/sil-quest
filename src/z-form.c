@@ -353,7 +353,7 @@ size_t vstrnfmt(char* buf, size_t max, cptr fmt, va_list vp)
                     arg = va_arg(vp, int);
 
                     /* Hack -- append the "length" */
-                    sprintf(aux + q, "%d", arg);
+                    snprintf(aux + q, sizeof(aux) - q, "%d", arg);
 
                     /* Hack -- accept the "length" */
                     while (aux[q])
@@ -400,7 +400,7 @@ size_t vstrnfmt(char* buf, size_t max, cptr fmt, va_list vp)
             arg = va_arg(vp, int);
 
             /* Format the argument */
-            sprintf(tmp, aux, arg);
+            snprintf(tmp, sizeof(tmp), aux, arg);
 
             /* Done */
             break;
@@ -418,7 +418,7 @@ size_t vstrnfmt(char* buf, size_t max, cptr fmt, va_list vp)
                 arg = va_arg(vp, long);
 
                 /* Format the argument */
-                sprintf(tmp, aux, arg);
+                snprintf(tmp, sizeof(tmp), aux, arg);
             }
             else
             {
@@ -428,7 +428,7 @@ size_t vstrnfmt(char* buf, size_t max, cptr fmt, va_list vp)
                 arg = va_arg(vp, int);
 
                 /* Format the argument */
-                sprintf(tmp, aux, arg);
+                snprintf(tmp, sizeof(tmp), aux, arg);
             }
 
             /* Done */
@@ -449,7 +449,7 @@ size_t vstrnfmt(char* buf, size_t max, cptr fmt, va_list vp)
                 arg = va_arg(vp, unsigned long);
 
                 /* Format the argument */
-                sprintf(tmp, aux, arg);
+                snprintf(tmp, sizeof(tmp), aux, arg);
             }
             else
             {
@@ -459,7 +459,7 @@ size_t vstrnfmt(char* buf, size_t max, cptr fmt, va_list vp)
                 arg = va_arg(vp, unsigned int);
 
                 /* Format the argument */
-                sprintf(tmp, aux, arg);
+                snprintf(tmp, sizeof(tmp), aux, arg);
             }
 
             /* Done */
@@ -479,7 +479,7 @@ size_t vstrnfmt(char* buf, size_t max, cptr fmt, va_list vp)
             arg = va_arg(vp, double);
 
             /* Format the argument */
-            sprintf(tmp, aux, arg);
+            snprintf(tmp, sizeof(tmp), aux, arg);
 
             /* Done */
             break;
@@ -494,7 +494,7 @@ size_t vstrnfmt(char* buf, size_t max, cptr fmt, va_list vp)
             arg = va_arg(vp, void*);
 
             /* Format the argument */
-            sprintf(tmp, aux, arg);
+            snprintf(tmp, sizeof(tmp), aux, arg);
 
             /* Done */
             break;
@@ -517,7 +517,7 @@ size_t vstrnfmt(char* buf, size_t max, cptr fmt, va_list vp)
             (void)my_strcpy(arg2, arg, sizeof(arg2));
 
             /* Format the argument */
-            sprintf(tmp, aux, arg2);
+            snprintf(tmp, sizeof(tmp), aux, arg2);
 
             /* Done */
             break;

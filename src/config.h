@@ -24,51 +24,14 @@
  * OPTION: See the Makefile(s), where several options may be declared.
  *
  * Some popular options include "USE_GCU" (allow use with Unix "curses"),
- * "USE_X11" (allow basic use with Unix X11), "USE_XAW" (allow use with
- * Unix X11 plus the Athena Widget set), and "USE_CAP" (allow use with
- * the "termcap" library, or with hard-coded vt100 terminals).
- *
- * The old "USE_NCU" option has been replaced with "USE_GCU".
+ * and "USE_X11" (allow basic use with Unix X11).
  *
  * Several other such options are available for non-unix machines,
- * such as "MACINTOSH", "WINDOWS", "USE_IBM", "USE_EMX".
+ * such as "WINDOWS".
  *
  * You may also need to specify the "system", using defines such as
- * "SOLARIS" (for Solaris), etc, see "h-config.h" for more info.
+ * "WINDOWS", see "h-config.h" for more info.
  */
-
-/*
- * OPTION: Use the POSIX "termios" methods in "main-gcu.c"
- */
-/* #define USE_TPOSIX */
-
-/*
- * OPTION: Use the "termio" methods in "main-gcu.c"
- */
-/* #define USE_TERMIO */
-
-/*
- * OPTION: Use the icky BSD "tchars" methods in "main-gcu.c"
- */
-/* #define USE_TCHARS */
-
-/*
- * OPTION: Use "blocking getch() calls" in "main-gcu.c".
- * Hack -- Note that this option will NOT work on many BSD machines
- * Currently used whenever available, if you get a warning about
- * "nodelay()" undefined, then make sure to undefine this.
- */
-#if defined(SYS_V) || defined(AMIGA)
-#define USE_GETCH
-#endif
-
-/*
- * OPTION: Use the "curs_set()" call in "main-gcu.c".
- * Hack -- This option will not work on most BSD machines
- */
-#ifdef SYS_V
-#define USE_CURS_SET
-#endif
 
 /*
  * OPTION: Include "ncurses.h" instead of "curses.h" in "main-gcu.c"
@@ -85,26 +48,6 @@
  * This will handle "gids" correctly once the permissions are set right.
  */
 #define SAFE_SETUID
-
-/*
- * This flag enables the "POSIX" methods for "SAFE_SETUID".
- */
-
-/* XXX - hack to get it to compile under tiger
-
-#ifdef _POSIX_SAVED_IDS
-# define SAFE_SETUID_POSIX
-#endif
-
-*/
-
-/*
- * Prevent problems on (non-Solaris) Suns using "SAFE_SETUID".
- * The SAFE_SETUID code is weird, use it at your own risk...
- */
-#if defined(SUNOS) && !defined(SOLARIS)
-#undef SAFE_SETUID_POSIX
-#endif
 
 /*
  * OPTION: Forbid the use of "fiddled" savefiles.  As far as I can tell,
@@ -215,29 +158,9 @@
 #define USE_GRAPHICS
 
 /*
- * Hack -- Macintosh stuff
- */
-#ifdef MACINTOSH
-
-/* Do not handle signals */
-#undef HANDLE_SIGNALS
-
-#endif
-
-/*
  * Hack -- Windows stuff
  */
 #ifdef WINDOWS
-
-/* Do not handle signals */
-#undef HANDLE_SIGNALS
-
-#endif
-
-/*
- * Hack -- EMX stuff
- */
-#ifdef USE_EMX
 
 /* Do not handle signals */
 #undef HANDLE_SIGNALS
@@ -308,6 +231,7 @@
 
 /*
  * OPTION: Person to bother if something goes wrong.
+ * TODO: Update MAINTAINER contact information.
  */
 #define MAINTAINER "sil@amirrorclear.net"
 
@@ -336,35 +260,6 @@
 #ifdef SAVEFILE_USE_UID
 #undef SAVEFILE_USE_UID
 #endif
-#endif
-
-/*
- * Hack -- Special "ancient machine" versions
- */
-#if defined(USE_286) || defined(ANGBAND_LITE_MAC)
-#ifndef ANGBAND_LITE
-#define ANGBAND_LITE
-#endif
-#endif
-
-/*
- * OPTION: Attempt to minimize the size of the game
- */
-#ifndef ANGBAND_LITE
-/* #define ANGBAND_LITE */
-#endif
-
-/*
- * Hack -- React to the "ANGBAND_LITE" flag
- */
-#ifdef ANGBAND_LITE
-#undef ALLOW_COLORS
-#undef ALLOW_VISUALS
-#undef ALLOW_MACROS
-#undef ALLOW_TERROR
-#undef ALLOW_DEBUG
-#undef ALLOW_SPOILERS
-#undef ALLOW_TEMPLATES
 #endif
 
 /*

@@ -227,7 +227,7 @@ static int do_cmd_squelch_aux(void)
         prt("File: ", 18, 30);
 
         /* Default filename */
-        sprintf(ftmp, "%s.squ", op_ptr->base_name);
+        strnfmt(ftmp, sizeof(ftmp), "%s.squ", op_ptr->base_name);
 
         /* Get a filename */
         if (askfor_aux(ftmp, 80))
@@ -292,7 +292,7 @@ static int do_cmd_squelch_aux(void)
         prt("File: ", 17, 30);
 
         /* Default filename */
-        sprintf(ftmp, "%s.squ", op_ptr->base_name);
+        strnfmt(ftmp, sizeof(ftmp), "%s.squ", op_ptr->base_name);
 
         /* Ask for a file (or cancel) */
         if (askfor_aux(ftmp, 80))
@@ -739,7 +739,8 @@ static void do_qual_squelch(void)
 #define AMULET_INDEX 19
     /* - open chest TVAL in defines*/
 
-    char squelch_str[7] = "NCVGWAO";
+    /* Intentionally no null terminator. */
+    char squelch_str[7] = {'N', 'C', 'V', 'G', 'W', 'A', 'O'};
 
     int old_index = -1;
     int display_all = 1;
@@ -1454,7 +1455,7 @@ static int do_ego_item_squelch(void)
  * accessed.  This can certainly be improved.
  */
 
-void init_tv_to_type(void)
+static void init_tv_to_type(void)
 {
     tv_to_type[TV_SKELETON] = TYPE_MISC;
     tv_to_type[TV_CHEST] = TYPE_MISC;
@@ -1816,7 +1817,7 @@ int remove_autoinscription(s16b kind)
 /*
  *  Uninscribes an object if its inscription matches the given autoinscription
  */
-void unapply_autoinscription(object_type* o_ptr, cptr note)
+static void unapply_autoinscription(object_type* o_ptr, cptr note)
 {
     cptr existingInscription = quark_str(o_ptr->obj_note);
 
@@ -1872,7 +1873,7 @@ extern void obliterate_autoinscription(s16b kind)
     return;
 }
 
-void autoinscribe_dungeon(void)
+static void autoinscribe_dungeon(void)
 {
     int i;
     object_type* o_ptr;

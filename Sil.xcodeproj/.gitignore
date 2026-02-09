@@ -1,0 +1,5 @@
+# Ignore user-specific Xcode data.
+#
+# See GitHub's official .gitignore file for Objective-C.
+# https://github.com/github/gitignore/blob/main/Objective-C.gitignore
+xcuserdata/

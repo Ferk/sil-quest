@@ -17,13 +17,13 @@
  *
  * Major fixes and cleanup by Ben Harrison (benh@phial.com).
  *
- * This file is designed to be "included" by "main-x11.c" or "main-xaw.c",
+ * This file is designed to be "included" by "main-x11.c",
  * which will have already "included" several relevant header files.
  */
 
 #include "angband.h"
 
-#if defined(USE_X11) || defined(USE_XAW) || defined(USE_XPJ) || defined(USE_GTK)
+#if defined(USE_X11) || defined(USE_GTK)
 
 #ifndef __MAKEDEPEND__
 #include <X11/Xlib.h>
@@ -101,7 +101,7 @@ cptr get_default_font(int term_num)
     char buf[80];
 
     /* Window specific font name */
-    sprintf(buf, "SIL_X11_FONT_%d", term_num);
+    strnfmt(buf, sizeof(buf), "SIL_X11_FONT_%d", term_num);
 
     /* Check environment for that font */
     font = getenv(buf);
@@ -925,4 +925,4 @@ XImage* ResizeImage(Display* dpy, XImage* Im, int ix, int iy, int ox, int oy)
 
 #endif /* USE_GRAPHICS */
 
-#endif /* USE_X11 || USE_XAW || USE_XPJ || USE_GTK */
+#endif /* USE_X11 || USE_GTK */

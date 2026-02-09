@@ -88,7 +88,7 @@ void write_r_info_txt(void)
         fd_close(fd);
 
         /* Build query */
-        sprintf(out_val, "Replace existing file %s? ", buf);
+        strnfmt(out_val, sizeof(out_val), "Replace existing file %s? ", buf);
 
         /* Ask */
         if (get_check(out_val))
@@ -295,7 +295,7 @@ void write_o_info_txt(void)
         fd_close(fd);
 
         /* Build query */
-        sprintf(out_val, "Replace existing file %s? ", buf);
+        strnfmt(out_val, sizeof(out_val), "Replace existing file %s? ", buf);
 
         /* Ask */
         if (get_check(out_val))
@@ -483,7 +483,7 @@ void write_e_info_txt(void)
         fd_close(fd);
 
         /* Build query */
-        sprintf(out_val, "Replace existing file %s? ", buf);
+        strnfmt(out_val, sizeof(out_val), "Replace existing file %s? ", buf);
 
         /* Ask */
         if (get_check(out_val))
@@ -658,7 +658,7 @@ void write_a_info_txt(void)
         fd_close(fd);
 
         /* Build query */
-        sprintf(out_val, "Replace existing file %s? ", buf);
+        strnfmt(out_val, sizeof(out_val), "Replace existing file %s? ", buf);
 
         /* Ask */
         if (get_check(out_val))
@@ -842,7 +842,7 @@ void dump_artefact_power(void)
         fd_close(fd);
 
         /* Build query */
-        sprintf(out_val, "Replace existing file %s? ", buf);
+        strnfmt(out_val, sizeof(out_val), "Replace existing file %s? ", buf);
 
         /* Ask */
         if (get_check(out_val))
@@ -937,7 +937,7 @@ void write_mon_power(void)
         fd_close(fd);
 
         /* Build query */
-        sprintf(out_val, "Replace existing file %s? ", buf);
+        strnfmt(out_val, sizeof(out_val), "Replace existing file %s? ", buf);
 
         /* Ask */
         if (get_check(out_val))

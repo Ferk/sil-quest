@@ -243,7 +243,7 @@ void id_known_specials(void)
  *  This lets hasted players regenerate at the right speed.
  */
 
-int regen_amount(int turn_number, int max, int regen_period)
+static int regen_amount(int turn_number, int max, int regen_period)
 {
     int regen_so_far, regen_next;
 
@@ -1387,7 +1387,7 @@ void land(void)
 /*
  * Continue your leap
  */
-void continue_leap(void)
+static void continue_leap(void)
 {
     int dir;
     int y_end, x_end; // the desired endpoint of the leap
@@ -2900,7 +2900,7 @@ static void death_knowledge(void)
  *
  * This function is called from a variety of entry points, since both
  * the standard "main.c" file, as well as several platform-specific
- * "main-xxx.c" files, call this function to start a new game with a
+ * "main-*.c" files, call this function to start a new game with a
  * new savefile, start a new game with an existing savefile, or resume
  * a saved game with an existing savefile.
  *

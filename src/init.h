@@ -132,9 +132,6 @@ extern header r_head;
 extern header p_head;
 extern header c_head;
 extern header h_head;
-extern header b_head;
-extern header g_head;
-extern header q_head;
 extern header n_head;
 extern header flavor_head;
 

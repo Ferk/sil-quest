@@ -126,7 +126,7 @@ static void kind_info(
     object_desc_spoil(buf, 80, i_ptr, FALSE, 1);
 
     /* Weight */
-    sprintf(wgt, "%3d.%d lb", k_ptr->weight / 10, k_ptr->weight % 10);
+    strnfmt(wgt, sizeof(wgt), "%3d.%d lb", k_ptr->weight / 10, k_ptr->weight % 10);
 }
 
 /*
@@ -536,33 +536,33 @@ static void spoil_mon_desc(cptr fname)
         }
 
         /* Level */
-        sprintf(lev, "%d", r_ptr->level);
+        strnfmt(lev, sizeof(lev), "%d", r_ptr->level);
 
         /* Rarity */
-        sprintf(rar, "%d", r_ptr->rarity);
+        strnfmt(rar, sizeof(rar), "%d", r_ptr->rarity);
 
         /* Speed */
-        sprintf(spd, "%d", r_ptr->speed);
+        strnfmt(spd, sizeof(spd), "%d", r_ptr->speed);
 
         /* Hitpoints */
         if ((r_ptr->flags1 & (RF1_UNIQUE)) || (r_ptr->hside == 1))
         {
-            sprintf(hp, "%d", r_ptr->hdice * (1 + r_ptr->hside) / 2);
+            strnfmt(hp, sizeof(hp), "%d", r_ptr->hdice * (1 + r_ptr->hside) / 2);
         }
         else
         {
-            sprintf(hp, "%dd%d", r_ptr->hdice, r_ptr->hside);
+            strnfmt(hp, sizeof(hp), "%dd%d", r_ptr->hdice, r_ptr->hside);
         }
 
         /* Defence */
-        sprintf(def1, "[%+2d", r_ptr->evn);
+        strnfmt(def1, sizeof(def1), "[%+2d", r_ptr->evn);
         if (r_ptr->pd == 0)
         {
-            sprintf(def2, "]");
+            strnfmt(def2, sizeof(def2), "]");
         }
         else
         {
-            sprintf(def2, ", %dd%d]", r_ptr->pd, r_ptr->ps);
+            strnfmt(def2, sizeof(def2), ", %dd%d]", r_ptr->pd, r_ptr->ps);
         }
 
         /* Attack 1 */
@@ -576,18 +576,18 @@ static void spoil_mon_desc(cptr fname)
 
             if (r_ptr->blow[0].method == RBM_SPORE)
             {
-                sprintf(att1, "(%dd%d)%c", r_ptr->blow[0].dd, r_ptr->blow[0].ds,
+                strnfmt(att1, sizeof(att1), "(%dd%d)%c", r_ptr->blow[0].dd, r_ptr->blow[0].ds,
                     special);
             }
             else
             {
-                sprintf(att1, "(%+2d, %dd%d)%c", r_ptr->blow[0].att,
+                strnfmt(att1, sizeof(att1), "(%+2d, %dd%d)%c", r_ptr->blow[0].att,
                     r_ptr->blow[0].dd, r_ptr->blow[0].ds, special);
             }
         }
         else
         {
-            sprintf(att1, " ");
+            strnfmt(att1, sizeof(att1), " ");
         }
 
         /* Attack 2 */
@@ -601,18 +601,18 @@ static void spoil_mon_desc(cptr fname)
 
             if (r_ptr->blow[1].method == RBM_SPORE)
             {
-                sprintf(att2, "(%dd%d)%c", r_ptr->blow[1].dd, r_ptr->blow[1].ds,
+                strnfmt(att2, sizeof(att2), "(%dd%d)%c", r_ptr->blow[1].dd, r_ptr->blow[1].ds,
                     special);
             }
             else
             {
-                sprintf(att2, "(%+2d, %dd%d)%c", r_ptr->blow[1].att,
+                strnfmt(att2, sizeof(att2), "(%+2d, %dd%d)%c", r_ptr->blow[1].att,
                     r_ptr->blow[1].dd, r_ptr->blow[1].ds, special);
             }
         }
         else
         {
-            sprintf(att2, " ");
+            strnfmt(att2, sizeof(att2), " ");
         }
 
         // /* Complex Visual */
@@ -717,26 +717,26 @@ static void spoil_mon_ss(cptr fname)
         }
 
         /* Level */
-        sprintf(lev, "%d", r_ptr->level);
+        strnfmt(lev, sizeof(lev), "%d", r_ptr->level);
 
         /* Rarity */
-        sprintf(rar, "%d", r_ptr->rarity);
+        strnfmt(rar, sizeof(rar), "%d", r_ptr->rarity);
 
         /* Speed */
-        sprintf(spd, "%d", r_ptr->speed);
+        strnfmt(spd, sizeof(spd), "%d", r_ptr->speed);
 
         /* Hitpoints */
-        sprintf(hp, "%d", r_ptr->hdice);
+        strnfmt(hp, sizeof(hp), "%d", r_ptr->hdice);
 
         /* Defence */
-        sprintf(def1, "%+d", r_ptr->evn);
+        strnfmt(def1, sizeof(def1), "%+d", r_ptr->evn);
         if (r_ptr->pd == 0)
         {
-            sprintf(def2, "0\t0");
+            strnfmt(def2, sizeof(def2), "0\t0");
         }
         else
         {
-            sprintf(def2, "%d\t%d", r_ptr->pd, r_ptr->ps);
+            strnfmt(def2, sizeof(def2), "%d\t%d", r_ptr->pd, r_ptr->ps);
         }
 
         /* Attack 1 */
@@ -750,18 +750,18 @@ static void spoil_mon_ss(cptr fname)
 
             if (r_ptr->blow[0].method == RBM_SPORE)
             {
-                sprintf(att1, "\t%d\t%d\t%c", r_ptr->blow[0].dd,
+                strnfmt(att1, sizeof(att1), "\t%d\t%d\t%c", r_ptr->blow[0].dd,
                     r_ptr->blow[0].ds, special);
             }
             else
             {
-                sprintf(att1, "%+d\t%d\t%d\t%c", r_ptr->blow[0].att,
+                strnfmt(att1, sizeof(att1), "%+d\t%d\t%d\t%c", r_ptr->blow[0].att,
                     r_ptr->blow[0].dd, r_ptr->blow[0].ds, special);
             }
         }
         else
         {
-            sprintf(att1, "\t\t\t");
+            strnfmt(att1, sizeof(att1), "\t\t\t");
         }
 
         /* Attack 2 */
@@ -775,18 +775,18 @@ static void spoil_mon_ss(cptr fname)
 
             if (r_ptr->blow[1].method == RBM_SPORE)
             {
-                sprintf(att2, "\t%d\t%d\t%c", r_ptr->blow[1].dd,
+                strnfmt(att2, sizeof(att2), "\t%d\t%d\t%c", r_ptr->blow[1].dd,
                     r_ptr->blow[1].ds, special);
             }
             else
             {
-                sprintf(att2, "%+d\t%d\t%d\t%c", r_ptr->blow[1].att,
+                strnfmt(att2, sizeof(att2), "%+d\t%d\t%d\t%c", r_ptr->blow[1].att,
                     r_ptr->blow[1].dd, r_ptr->blow[1].ds, special);
             }
         }
         else
         {
-            sprintf(att2, "\t\t\t");
+            strnfmt(att2, sizeof(att2), "\t\t\t");
         }
 
         // /* Complex Visual */
@@ -903,37 +903,37 @@ static void spoil_mon_info(cptr fname)
         text_out(attr_to_text(r_ptr->d_attr));
 
         /* Symbol --(-- */
-        sprintf(buf, " '%c')\n", r_ptr->d_char);
+        strnfmt(buf, sizeof(buf), " '%c')\n", r_ptr->d_char);
         text_out(buf);
 
         /* Indent */
-        sprintf(buf, "=== ");
+        strnfmt(buf, sizeof(buf), "=== ");
         text_out(buf);
 
         /* Number */
-        sprintf(buf, "Num:%d  ", r_idx);
+        strnfmt(buf, sizeof(buf), "Num:%d  ", r_idx);
         text_out(buf);
 
         /* Level */
-        sprintf(buf, "Lev:%d  ", r_ptr->level);
+        strnfmt(buf, sizeof(buf), "Lev:%d  ", r_ptr->level);
         text_out(buf);
 
         /* Rarity */
-        sprintf(buf, "Rar:%d  ", r_ptr->rarity);
+        strnfmt(buf, sizeof(buf), "Rar:%d  ", r_ptr->rarity);
         text_out(buf);
 
         /* Speed */
-        sprintf(buf, "Spd:%d  ", r_ptr->speed);
+        strnfmt(buf, sizeof(buf), "Spd:%d  ", r_ptr->speed);
         text_out(buf);
 
         /* Hitpoints */
         if ((r_ptr->flags1 & RF1_UNIQUE) || (r_ptr->hside == 1))
         {
-            sprintf(buf, "Hp:%d  ", r_ptr->hdice * (1 + r_ptr->hside) / 2);
+            strnfmt(buf, sizeof(buf), "Hp:%d  ", r_ptr->hdice * (1 + r_ptr->hside) / 2);
         }
         else
         {
-            sprintf(buf, "Hp:%dd%d  ", r_ptr->hdice, r_ptr->hside);
+            strnfmt(buf, sizeof(buf), "Hp:%dd%d  ", r_ptr->hdice, r_ptr->hside);
         }
         text_out(buf);
 
@@ -1041,8 +1041,4 @@ void do_cmd_spoilers(void)
 
 #else
 
-#ifdef MACINTOSH
-static int i = 0;
-#endif
-
-#endif
+#endif /* ALLOW_SPOILERS */

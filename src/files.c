@@ -32,21 +32,10 @@ void safe_setuid_drop(void)
 
 #else /* HAVE_SETEGID */
 
-#ifdef SAFE_SETUID_POSIX
-
-    if (setgid(getgid()) != 0)
-    {
-        quit("setgid(): cannot set permissions correctly!");
-    }
-
-#else /* SAFE_SETUID_POSIX */
-
     if (setregid(getegid(), getgid()) != 0)
     {
         quit("setregid(): cannot set permissions correctly!");
     }
-
-#endif /* SAFE_SETUID_POSIX */
 
 #endif /* HAVE_SETEGID */
 
@@ -73,21 +62,10 @@ void safe_setuid_grab(void)
 
 #else /* HAVE_SETEGID */
 
-#ifdef SAFE_SETUID_POSIX
-
-    if (setgid(player_egid) != 0)
-    {
-        quit("setgid(): cannot set permissions correctly!");
-    }
-
-#else /* SAFE_SETUID_POSIX */
-
     if (setregid(getegid(), getgid()) != 0)
     {
         quit("setregid(): cannot set permissions correctly!");
     }
-
-#endif /* SAFE_SETUID_POSIX */
 
 #endif /* HAVE_SETEGID */
 
@@ -1243,7 +1221,7 @@ void display_player_xtra_info(int mode)
     Term_putstr(col, 2, -1, TERM_WHITE, "Age");
     if (p_ptr->age > 0)
     {
-        comma_number(buf, (int)p_ptr->age);
+        comma_number(buf, sizeof(buf), (int)p_ptr->age);
         Term_putstr(col + 7, 2, -1, ahw_attr, format("%5s", buf));
     }
     /* Height */
@@ -1284,17 +1262,17 @@ void display_player_xtra_info(int mode)
 
     /* Game Turn */
     Term_putstr(col, 7, -1, TERM_WHITE, "Game Turn");
-    comma_number(buf, playerturn);
+    comma_number(buf, sizeof(buf), playerturn);
     Term_putstr(col + 10, 7, -1, TERM_L_GREEN, format("%8s", buf));
 
     /* Current Experience */
     Term_putstr(col, 8, -1, TERM_WHITE, "Exp Pool");
-    comma_number(buf, p_ptr->new_exp);
+    comma_number(buf, sizeof(buf), p_ptr->new_exp);
     Term_putstr(col + 10, 8, -1, TERM_L_GREEN, format("%8s", buf));
 
     /* Maximum Experience */
     Term_putstr(col, 9, -1, TERM_WHITE, "Total Exp");
-    comma_number(buf, p_ptr->exp);
+    comma_number(buf, sizeof(buf), p_ptr->exp);
     Term_putstr(col + 10, 9, -1, TERM_L_GREEN, format("%8s", buf));
 
     /* Burden (in pounds) */
@@ -1657,7 +1635,7 @@ void display_player_stat_info(int row, int col)
         }
 
         /* Resulting "modified" maximum value */
-        cnv_stat(p_ptr->stat_use[i], buf);
+        cnv_stat(p_ptr->stat_use[i], buf, sizeof(buf));
 
         if (p_ptr->stat_drain[i] < 0)
             c_put_str(TERM_YELLOW, buf, row + i, col + 5);
@@ -1670,7 +1648,7 @@ void display_player_stat_info(int row, int col)
             c_put_str(TERM_SLATE, "=", row + i, col + 8);
 
             /* Internal "natural" maximum value */
-            cnv_stat(p_ptr->stat_base[i], buf);
+            cnv_stat(p_ptr->stat_base[i], buf, sizeof(buf));
             c_put_str(TERM_GREEN, buf, row + i, col + 10);
 
             /* Equipment Bonus */
@@ -1684,7 +1662,7 @@ void display_player_stat_info(int row, int col)
             c_put_str(TERM_SLATE, "=", row + i, col + 8);
 
             /* Internal "natural" maximum value */
-            cnv_stat(p_ptr->stat_base[i], buf);
+            cnv_stat(p_ptr->stat_base[i], buf, sizeof(buf));
             c_put_str(TERM_GREEN, buf, row + i, col + 10);
 
             /* Reduction */
@@ -1698,7 +1676,7 @@ void display_player_stat_info(int row, int col)
             c_put_str(TERM_SLATE, "=", row + i, col + 8);
 
             /* Internal "natural" maximum value */
-            cnv_stat(p_ptr->stat_base[i], buf);
+            cnv_stat(p_ptr->stat_base[i], buf, sizeof(buf));
             c_put_str(TERM_GREEN, buf, row + i, col + 10);
 
             /* Modifier */
@@ -2539,7 +2517,7 @@ bool show_file(cptr name, cptr what, int line)
     return (ch != '?');
 }
 
-void show_help_screen(int i)
+static void show_help_screen(int i)
 {
     int row, col, col2;
 
@@ -3042,7 +3020,7 @@ void do_cmd_help(void)
  *
  * If "sf" is TRUE, then we initialize "savefile" based on player name.
  *
- * Some platforms (Windows, Macintosh, Amiga) leave the "savefile" empty
+ * Some platforms (Windows, Macintosh) leave the "savefile" empty
  * when a new character is created, and then when the character is done
  * being created, they call this function to choose a new savefile name.
  */
@@ -3070,7 +3048,7 @@ void process_player_name(bool sf)
         op_ptr->base_name[i] = c;
     }
 
-#if defined(WINDOWS) || defined(MSDOS)
+#if defined(WINDOWS)
 
     /* Max length */
     if (i > 8)
@@ -3099,11 +3077,6 @@ void process_player_name(bool sf)
         /* Rename the savefile, using the base name */
         strnfmt(temp, sizeof(temp), "%s", op_ptr->base_name);
 #endif
-
-#ifdef VM
-        /* Hack -- support "flat directory" usage on VM/ESA */
-        strnfmt(temp, sizeof(temp), "%s.sv", op_ptr->base_name);
-#endif /* VM */
 
         /* Build the filename */
         path_build(savefile, sizeof(savefile), ANGBAND_DIR_SAVE, temp);
@@ -3212,7 +3185,7 @@ void do_cmd_escape(void)
     my_strcat(notes_buffer, "\n", sizeof(notes_buffer));
 
     /*killed by */
-    sprintf(buf, "You escaped the Iron Hells on %s.", long_day);
+    strnfmt(buf, sizeof(buf), "You escaped the Iron Hells on %s.", long_day);
 
     /* Write message */
     do_cmd_note(buf, p_ptr->depth);
@@ -3512,7 +3485,7 @@ static int highscore_write(const high_score* score)
  *
  * It ranges from 100,000 to 141,399,999
  */
-int score_points(high_score* score)
+static int score_points(high_score* score)
 {
     int points = 0;
     int silmarils;
@@ -3666,65 +3639,65 @@ static int highscore_add(high_score* score)
 /*
  * Prints a nice comma spaced natural number
  */
-void comma_number(char* output, int number)
+void comma_number(char* output, size_t max, int number)
 {
     if (number >= 1000000)
     {
-        sprintf(output, "%d,%03d,%03d", number / 1000000,
+        strnfmt(output, max, "%d,%03d,%03d", number / 1000000,
             (number % 1000000) / 1000, number % 1000);
     }
     else if (number >= 1000)
     {
-        sprintf(output, "%d,%03d", number / 1000, number % 1000);
+        strnfmt(output, max, "%d,%03d", number / 1000, number % 1000);
     }
     else
     {
-        sprintf(output, "%d", number);
+        strnfmt(output, max, "%d", number);
     }
 }
 
 /*
  * Converts a number into the three letter code of a month
  */
-void atomonth(int number, char* output)
+void atomonth(int number, char* output, size_t max)
 {
     switch (number)
     {
     case 1:
-        sprintf(output, "Jan");
+        strnfmt(output, max, "Jan");
         break;
     case 2:
-        sprintf(output, "Feb");
+        strnfmt(output, max, "Feb");
         break;
     case 3:
-        sprintf(output, "Mar");
+        strnfmt(output, max, "Mar");
         break;
     case 4:
-        sprintf(output, "Apr");
+        strnfmt(output, max, "Apr");
         break;
     case 5:
-        sprintf(output, "May");
+        strnfmt(output, max, "May");
         break;
     case 6:
-        sprintf(output, "Jun");
+        strnfmt(output, max, "Jun");
         break;
     case 7:
-        sprintf(output, "Jul");
+        strnfmt(output, max, "Jul");
         break;
     case 8:
-        sprintf(output, "Aug");
+        strnfmt(output, max, "Aug");
         break;
     case 9:
-        sprintf(output, "Sep");
+        strnfmt(output, max, "Sep");
         break;
     case 10:
-        sprintf(output, "Oct");
+        strnfmt(output, max, "Oct");
         break;
     case 11:
-        sprintf(output, "Nov");
+        strnfmt(output, max, "Nov");
         break;
     case 12:
-        sprintf(output, "Dec");
+        strnfmt(output, max, "Dec");
         break;
     }
 }
@@ -3761,21 +3734,21 @@ extern void display_single_score(
     aged = atoi(the_score->turns);
     depth = atoi(the_score->cur_dun) * 50;
 
-    comma_number(aged_commas, aged);
-    comma_number(depth_commas, depth);
+    comma_number(aged_commas, sizeof(aged_commas), aged);
+    comma_number(depth_commas, sizeof(depth_commas), depth);
 
     /* Clean up standard encoded form of "when" */
     if ((*when == '@') && strlen(when) == 9)
     {
         char month[4];
 
-        sprintf(month, "%.2s", when + 5);
-        atomonth(atoi(month), month);
+        strnfmt(month, sizeof(month), "%.2s", when + 5);
+        atomonth(atoi(month), month, sizeof(month));
 
         if (*(when + 7) == '0')
-            sprintf(tmp_val, "%.1s %.3s %.4s", when + 8, month, when + 1);
+            strnfmt(tmp_val, sizeof(tmp_val), "%.1s %.3s %.4s", when + 8, month, when + 1);
         else
-            sprintf(tmp_val, "%.2s %.3s %.4s", when + 7, month, when + 1);
+            strnfmt(tmp_val, sizeof(tmp_val), "%.2s %.3s %.4s", when + 7, month, when + 1);
 
         when = tmp_val;
     }
@@ -4532,7 +4505,7 @@ errr file_character(cptr name, bool full)
                 int wgt = o_ptr->weight * o_ptr->number;
                 char wgt_buf[80];
 
-                sprintf(wgt_buf, " %d.%1d lb", wgt / 10, wgt % 10);
+                strnfmt(wgt_buf, sizeof(wgt_buf), " %d.%1d lb", wgt / 10, wgt % 10);
                 my_strcat(o_name, wgt_buf, sizeof(o_name));
             }
 
@@ -4563,7 +4536,7 @@ errr file_character(cptr name, bool full)
             int wgt = o_ptr->weight * o_ptr->number;
             char wgt_buf[80];
 
-            sprintf(wgt_buf, " %d.%1d lb", wgt / 10, wgt % 10);
+            strnfmt(wgt_buf, sizeof(wgt_buf), " %d.%1d lb", wgt / 10, wgt % 10);
             my_strcat(o_name, wgt_buf, sizeof(o_name));
         }
 
@@ -4725,7 +4698,7 @@ static int final_menu(int* highlight)
 
     // if (p_ptr->noscore & 0x0008)
     //{
-    //	sprintf(buf, "Debugging info: %d forges generated", p_ptr->forge_count);
+    //	strnfmt(buf, sizeof(buf), "Debugging info: %d forges generated", p_ptr->forge_count);
     //	Term_putstr(15, 21, -1, TERM_WHITE, buf);
     //}
 
@@ -4871,7 +4844,7 @@ static void close_game_aux(void)
     char curr_time[30], sheet[90];
     time_t ct = time((time_t*)0);
     (void)strftime(curr_time, 30, "%Y%m%d-%H%M%S.txt", localtime(&ct));
-    sprintf(sheet, "%s-%s", op_ptr->full_name, curr_time);
+    strnfmt(sheet, sizeof(sheet), "%s-%s", op_ptr->full_name, curr_time);
     errr err;
     // Save the screen
     screen_save();
@@ -5498,15 +5471,6 @@ void signals_init(void)
 
 #ifdef SIGEMT
     (void)(*signal_aux)(SIGEMT, handle_signal_abort);
-#endif
-
-/*
- * SIGDANGER:
- * This is not a common (POSIX, SYSV, BSD) signal, it is used by AIX(?) to
- * signal that the system will soon be out of memory.
- */
-#ifdef SIGDANGER
-    (void)(*signal_aux)(SIGDANGER, handle_signal_abort);
 #endif
 
 #ifdef SIGSYS

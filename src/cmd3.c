@@ -915,7 +915,7 @@ static bool item_tester_hook_destroy(const object_type* o_ptr)
 /*
  *  Shatter the player's wielded weapon.
  */
-void shatter_weapon(int silnum)
+static void shatter_weapon(int silnum)
 {
     int i;
     object_type* w_ptr = &inventory[INVEN_WIELD];
@@ -962,7 +962,7 @@ void shatter_weapon(int silnum)
     }
 }
 
-void prise_silmaril(void)
+static void prise_silmaril(void)
 {
     object_type* o_ptr;
     object_type* w_ptr;
@@ -1401,7 +1401,7 @@ void do_cmd_observe(void)
 /*
  * Helper function which actually removes the inscription
  */
-void uninscribe(object_type* o_ptr)
+static void uninscribe(object_type* o_ptr)
 {
     /* Remove the inscription */
     o_ptr->obj_note = 0;

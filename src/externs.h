@@ -302,7 +302,7 @@ extern void object_kind_track(int k_idx);
 extern void disturb(int stop_stealth, int unused_flag);
 
 /* cmd1.c */
-extern void give_player_item(object_type * o_ptr);
+extern void give_player_item(object_type* o_ptr);
 extern bool graphics_are_ascii();
 extern void new_wandering_flow(monster_type* m_ptr, int y, int x);
 extern void new_wandering_destination(
@@ -508,8 +508,8 @@ extern void do_cmd_escape(void);
 extern void do_cmd_suicide(void);
 extern void do_cmd_save_game(void);
 extern void show_scores(void);
-extern void comma_number(char* output, int number);
-extern void atomonth(int number, char* output);
+extern void comma_number(char* output, size_t max, int number);
+extern void atomonth(int number, char* output, size_t max);
 extern void display_single_score(
     byte attr, int row, int col, int place, int fake, high_score* the_score);
 extern void display_scores(int from, int to);
@@ -723,8 +723,6 @@ extern s32b artefact_power(int a_idx);
 extern void build_randart_tables(void);
 extern void free_randart_tables(void);
 extern errr do_randart(u32b randart_seed, bool full);
-extern bool make_one_randart(
-    object_type* o_ptr, int art_power, bool namechoice);
 extern void artefact_wipe(int a_idx);
 extern bool can_be_randart(const object_type* o_ptr);
 
@@ -836,8 +834,6 @@ extern bool fire_arc(
     int typ, int dir, int dd, int ds, int dif, int rad, int degrees);
 extern bool fire_bolt(int typ, int dir, int dd, int ds, int dif);
 extern bool fire_beam(int typ, int dir, int dd, int ds, int dif);
-extern bool fire_bolt_or_beam(
-    int prob, int typ, int dir, int dd, int ds, int dif);
 extern bool project_arc(int who, int rad, int y0, int x0, int y1, int x1,
     int dd, int ds, int dif, int typ, u32b flg, int degrees);
 extern bool project_los_not_player(
@@ -987,7 +983,7 @@ extern int hand_and_a_half_bonus(const object_type* o_ptr);
 extern int axe_bonus(const object_type* o_ptr);
 extern int polearm_bonus(const object_type* o_ptr);
 extern byte total_ads(const object_type* j_ptr);
-extern void cnv_stat(int val, char* out_val);
+extern void cnv_stat(int val, char* out_val, size_t max);
 extern int health_level(int current, int max);
 extern bool get_alertness_text(
     monster_type* m_ptr, int text_size, char* text, int* color);
@@ -1100,11 +1096,6 @@ extern bool repeat_pull(int* what);
 extern void repeat_clear(void);
 extern void repeat_check(void);
 #endif /* ALLOW_REPEAT */
-
-#ifdef RISCOS
-/* main-ros.c */
-extern char* riscosify_name(cptr path);
-#endif /* RISCOS */
 
 #if defined(MACH_O_CARBON)
 /* main-mac.c, or its derivatives */

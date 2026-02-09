@@ -1629,7 +1629,7 @@ static int compare_advances(const void *ap, const void *bp)
 
 - (void)requestRedraw
 {
-    if (!self->terminal || !self->terminal->mapped_flag) return;
+    if (! self->terminal) return;
     
     term *old = Term;
     
@@ -2742,6 +2742,12 @@ static void Term_init_cocoa(term *t)
         if (autosaveName) [window setFrameAutosaveName:autosaveName];
 
         /*
+         * Tell it about its term. Do this after we've sized it so that the
+         * sizing doesn't trigger redrawing and such.
+         */
+        [context setTerm:t];
+
+        /*
          * Only order front if it's the first term. Other terms will be ordered
          * front from AngbandUpdateWindowVisibility(). This is to work around a
          * problem where Angband aggressively tells us to initialize terms that
@@ -2752,11 +2758,8 @@ static void Term_init_cocoa(term *t)
 
         NSEnableScreenUpdates();
 
-        /*
-         * Tell it about its term. Do this after we've sized it so that the
-         * sizing doesn't trigger redrawing and such.
-         */
-        [context setTerm:t];
+        /* Set "mapped" flag */
+        t->mapped_flag = true;
     }
 }
 
@@ -4687,7 +4690,7 @@ extern void fsetfileinfo(cptr pathname, u32b fcreator, u32b ftype)
                 [NSDictionary dictionaryWithObjectsAndKeys:
                 [NSNumber numberWithUnsignedLong:ftype],
                 NSFileHFSTypeCode,
-                [NSNumber numberWithUnsignedLong:SIL_CREATOR],
+                [NSNumber numberWithUnsignedLong:fcreator],
                 NSFileHFSCreatorCode,
                 nil];
             [[NSFileManager defaultManager]
@@ -5268,4 +5271,4 @@ int main(int argc, char* argv[])
     return (0);
 }
 
-#endif /* MACINTOSH || MACH_O_CARBON */
+#endif /* MACH_O_CARBON */

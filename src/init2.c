@@ -117,26 +117,6 @@ void init_file_paths(char* path)
     /* Prepare to append to the Base Path */
     tail = path + strlen(path);
 
-#ifdef VM
-
-    /*** Use "flat" paths with VM/ESA ***/
-
-    /* Use "blank" path names */
-    ANGBAND_DIR_APEX = string_make("");
-    ANGBAND_DIR_BONE = string_make("");
-    ANGBAND_DIR_DATA = string_make("");
-    ANGBAND_DIR_EDIT = string_make("");
-    ANGBAND_DIR_FILE = string_make("");
-    ANGBAND_DIR_HELP = string_make("");
-    ANGBAND_DIR_INFO = string_make("");
-    ANGBAND_DIR_SAVE = string_make("");
-    ANGBAND_DIR_PREF = string_make("");
-    ANGBAND_DIR_USER = string_make("");
-    ANGBAND_DIR_XTRA = string_make("");
-    ANGBAND_DIR_SCRIPT = string_make("");
-
-#else /* VM */
-
     /*** Build the sub-directory names ***/
 
     /* Build a path name */
@@ -209,45 +189,6 @@ void init_file_paths(char* path)
     /* Build a path name */
     strcpy(tail, "script");
     ANGBAND_DIR_SCRIPT = string_make(path);
-
-#endif /* VM */
-
-#ifdef NeXT
-
-    /* Allow "fat binary" usage with NeXT */
-    if (TRUE)
-    {
-        cptr next = NULL;
-
-#if defined(m68k)
-        next = "m68k";
-#endif
-
-#if defined(i386)
-        next = "i386";
-#endif
-
-#if defined(sparc)
-        next = "sparc";
-#endif
-
-#if defined(hppa)
-        next = "hppa";
-#endif
-
-        /* Use special directory */
-        if (next)
-        {
-            /* Forget the old path name */
-            string_free(ANGBAND_DIR_DATA);
-
-            /* Build a new path name */
-            sprintf(tail, "data-%s", next);
-            ANGBAND_DIR_DATA = string_make(path);
-        }
-    }
-
-#endif /* NeXT */
 }
 
 #ifdef ALLOW_TEMPLATES
@@ -284,24 +225,57 @@ static cptr err_str[PARSE_ERROR_MAX] = {
 
 #endif /* ALLOW_TEMPLATES */
 
-/*
- * File headers
- */
+// File headers to make arrays of "things" from data files at `lib/edit/*.txt`.
+//
+// The `header` struct has a void pointer and some data on record size, layout,
+// and number of records. Headers represent different things, like races,
+// houses, vaults etc.
+//
+// An unused header therefore represents some type that isn't relevant to the
+// current iteration of the game.
+
+/// Header for the maxima array (limits.txt), defining array sizes and bounds.
 header z_head;
+
+/// Header for the vault array (vault.txt), defining vault layouts.
 header v_head;
+
+/// Header for the feature/terrain array (terrain.txt), defining dungeon
+/// features.
 header f_head;
+
+/// Header for the object kind array (object.txt), defining base object types.
 header k_head;
+
+/// Header for the ability array (ability.txt), defining player abilities.
 header b_head;
+
+/// Header for the artefact array (artefact.txt), defining unique artefacts.
 header a_head;
+
+/// Header for the ego/special item array (special.txt), defining ego item
+/// types.
 header e_head;
+
+/// Header for the monster race array (monster.txt), defining monster types.
 header r_head;
+
+/// Header for the player race array (race.txt), defining playable races.
 header p_head;
+
+/// Header for the player house array (house.txt), defining playable houses.
 header c_head;
+
+/// Header for the history array (history.txt), defining character background
+/// entries.
 header h_head;
-header b_head;
-header g_head;
+
+/// Header for the flavor array (flavor.txt), defining object flavor
+/// descriptions.
 header flavor_head;
-header q_head;
+
+/// Header for the random names array (names.txt), used by the random name
+/// generator.
 header n_head;
 
 /*** Initialize from binary image files ***/
@@ -1616,7 +1590,7 @@ extern void display_introduction(void)
  * We load the default "user pref files" here in case any "color"
  * changes are needed before character creation.
  *
- * Note that the "graf-xxx.prf" file must be loaded separately,
+ * Note that the "graf-*.prf" file must be loaded separately,
  * if needed, in the first (?) pass through "TERM_XTRA_REACT".
  */
 void init_angband(void)
@@ -1912,7 +1886,6 @@ void cleanup_angband(void)
 
     /* Free the info, name, and text arrays */
     free_info(&flavor_head);
-    free_info(&g_head);
     free_info(&b_head);
     free_info(&c_head);
     free_info(&p_head);

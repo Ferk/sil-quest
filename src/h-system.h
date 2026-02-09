@@ -16,61 +16,36 @@
 #include <stdio.h>
 #include <ctype.h>
 #include <errno.h>
-
-#if defined(NeXT)
-#include <libc.h>
-#else
 #include <stdlib.h>
-#endif
 
 #ifdef SET_UID
 
 #include <sys/types.h>
 
-#if defined(Pyramid) || defined(NeXT) || defined(SUNOS) || defined(NCR3K)      \
-    || defined(SUNOS) || defined(ibm032) || defined(__osf__) || defined(ISC)   \
-    || defined(SGI) || defined(linux)
+#if defined(__linux__)
 #include <sys/time.h>
 #endif
 
-#if !defined(SGI) && !defined(ULTRIX)
 #include <sys/timeb.h>
-#endif
 
-#endif
+#endif /* SET_UID */
 
 #include <time.h>
 
-#if defined(MACINTOSH) && defined(__MWERKS__)
-#include <unix.h>
-#endif
-
-#if defined(WINDOWS) || defined(MSDOS) || defined(USE_EMX)
+#if defined(WINDOWS)
 #include <io.h>
 #endif
 
-#if !defined(MACINTOSH) && !defined(AMIGA) && !defined(RISCOS) && !defined(VM) \
-    && !defined(__MWERKS__)
-#if defined(__TURBOC__) || defined(__WATCOMC__)
-#include <mem.h>
-#else
 #include <memory.h>
-#endif
-#endif
-
-#if !defined(NeXT) && !defined(RISCOS)
 #include <fcntl.h>
-#endif
 
 #ifdef SET_UID
 
 #ifndef _MSC_VER
-#ifndef USG
 #include <sys/param.h>
 #include <sys/file.h>
-#endif
 
-#ifdef linux
+#ifdef __linux__
 #include <sys/file.h>
 #endif
 
@@ -78,7 +53,7 @@
 
 #include <unistd.h>
 
-#else
+#else /* _MSC_VER */
 
 #ifndef WINDOWS
 #define WINDOWS
@@ -86,22 +61,13 @@
 
 #undef SET_UID
 
-#endif
+#endif /* _MSC_VER */
 
 #include <sys/stat.h>
 
-#if defined(SOLARIS)
-#include <netdb.h>
-#endif
-
-#endif
-
-#if defined(__DJGPP__) || defined(__MWERKS__)
-#include <unistd.h>
-#endif /* __DJGPP__ || __MWERKS__ */
+#endif /* SET_UID */
 
 #include <string.h>
-
 #include <stdarg.h>
 
 #endif

@@ -10,7 +10,7 @@
 
 #include "angband.h"
 
-int medicine_bonus(int original)
+static int medicine_bonus(int original)
 {
     int bonus = 0;
     object_type* o_ptr;
@@ -1445,6 +1445,3 @@ bool use_object(object_type* o_ptr, bool* ident)
     return (used);
 }
 
-#ifdef MACINTOSH
-static int i = 0;
-#endif

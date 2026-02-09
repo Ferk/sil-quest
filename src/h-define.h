@@ -15,15 +15,6 @@
 #endif /* NULL */
 
 /*
- * Hack -- assist "main-ros.c" XXX XXX XXX
- */
-#ifdef RISCOS
-#define O_RDONLY 0
-#define O_WRONLY 1
-#define O_RDWR 2
-#endif
-
-/*
  * Hack -- force definitions -- see fd_seek()
  */
 #ifndef SEEK_SET
@@ -100,15 +91,6 @@
  * all "digits" must be "digits".  Control characters can be made
  * from any legal characters.  XXX XXX XXX
  */
-#ifdef VM
-#define A2I(X) alphatoindex(X)
-#define I2A(X) indextoalpha(X)
-#define D2I(X) ((X) - '0')
-#define I2D(X) ((X) + '0')
-#define KTRL(X) ((X)&0x1F)
-#define UN_KTRL(X) ((X) + 64)
-#define ESCAPE '\033'
-#else
 #define A2I(X) ((X) - 'a')
 #define I2A(X) ((X) + 'a')
 #define D2I(X) ((X) - '0')
@@ -116,6 +98,20 @@
 #define KTRL(X) ((X)&0x1F)
 #define UN_KTRL(X) ((X) + 64)
 #define ESCAPE '\033'
+
+/*
+ * Annotate intentional switch/case fallthroughs.
+ *
+ * - GCC and Clang warn about implicit fallthrough (if enabled), and both
+ *   define __GNUC__.
+ * - MSVC doesn't warn, so it doesn't need a fallthrough marker. But it would
+ *   error on parsing `__attribute__((fallthrough))`, hence the empty else
+ *   branch.
+ */
+#ifdef __GNUC__
+#define FALLTHROUGH __attribute__((fallthrough))
+#else
+#define FALLTHROUGH
 #endif
 
-#endif
+#endif /* INCLUDED_H_DEFINE_H */

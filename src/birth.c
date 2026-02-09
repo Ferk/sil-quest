@@ -336,7 +336,7 @@ static bool get_ahw(void)
 
             while ((age < age_l) || (age > age_h))
             {
-                sprintf(prompt, "Enter age (%d-%d): ", age_l, age_h);
+                strnfmt(prompt, sizeof(prompt), "Enter age (%d-%d): ", age_l, age_h);
                 if (!term_get_string(prompt, line, sizeof(line)))
                     return (FALSE);
                 age = atoi(line);
@@ -352,7 +352,7 @@ static bool get_ahw(void)
 
             while ((height < height_l) || (height > height_h))
             {
-                sprintf(prompt, "Enter height in inches (%d-%d): ", height_l,
+                strnfmt(prompt, sizeof(prompt), "Enter height in inches (%d-%d): ", height_l,
                     height_h);
                 if (!term_get_string(prompt, line, sizeof(line)))
                     return (FALSE);
@@ -369,7 +369,7 @@ static bool get_ahw(void)
 
             while ((weight < weight_l) || (weight > weight_h))
             {
-                sprintf(prompt, "Enter weight in pounds (%d-%d): ", weight_l,
+                strnfmt(prompt, sizeof(prompt), "Enter weight in pounds (%d-%d): ", weight_l,
                     weight_h);
                 if (!term_get_string(prompt, line, sizeof(line)))
                     return (FALSE);
@@ -424,7 +424,7 @@ static void player_wipe(void)
         age = p_ptr->age;
         height = p_ptr->ht;
         weight = p_ptr->wt;
-        sprintf(history, "%s", p_ptr->history);
+        strnfmt(history, sizeof(history), "%s", p_ptr->history);
 
         for (i = 0; i < A_MAX; i++)
         {
@@ -449,7 +449,7 @@ static void player_wipe(void)
         p_ptr->age = age;
         p_ptr->ht = height;
         p_ptr->wt = weight;
-        sprintf(p_ptr->history, "%s", history);
+        strnfmt(p_ptr->history, 250, "%s", history);
         for (i = 0; i < A_MAX; i++)
         {
             p_ptr->stat_base[i] = stat[i];
@@ -1977,7 +1977,7 @@ static bool player_birth_aux(void)
  * Note that we may be called with "junk" leftover in the various
  * fields, so we must be sure to clear them first.
  */
-void player_birth()
+void player_birth(void)
 {
     int i;
 
@@ -2005,15 +2005,13 @@ void player_birth()
     /* Get date */
     (void)strftime(raw_date, sizeof(raw_date), "@%Y%m%d", localtime(&ct));
 
-    sprintf(month, "%.2s", raw_date + 5);
-    atomonth(atoi(month), month);
+    strnfmt(month, sizeof(month), "%.2s", raw_date + 5);
+    atomonth(atoi(month), month, sizeof(month));
 
     if (*(raw_date + 7) == '0')
-        sprintf(
-            clean_date, "%.1s %.3s %.4s", raw_date + 8, month, raw_date + 1);
+        strnfmt(clean_date, sizeof(clean_date), "%.1s %.3s %.4s", raw_date + 8, month, raw_date + 1);
     else
-        sprintf(
-            clean_date, "%.2s %.3s %.4s", raw_date + 7, month, raw_date + 1);
+        strnfmt(clean_date, sizeof(clean_date), "%.2s %.3s %.4s", raw_date + 7, month, raw_date + 1);
 
     /* Add in "character start" information */
     my_strcat(notes_buffer,

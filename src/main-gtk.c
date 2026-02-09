@@ -459,7 +459,7 @@ static gboolean keypress_event_handler(
         && (event->keyval <= GDK_KP_9))
     {
         /* Build the macro trigger string */
-        sprintf(msg, "%cS_%X%c", 31, event->keyval, 13);
+        strnfmt(msg, sizeof(msg), "%cS_%X%c", 31, event->keyval, 13);
 
         /* Enqueue the "macro trigger" string */
         for (i = 0; msg[i]; i++)

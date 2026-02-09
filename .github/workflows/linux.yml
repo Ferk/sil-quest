@@ -30,7 +30,7 @@ jobs:
       - name: Build with release flags
         run: |
           cd src
-          make -f Makefile.std -j$(nproc) OPT="-O2"
+          make -f Makefile.std -j$(nproc) OPT="-O2" EXTRA_CFLAGS="-Werror"
           mv sil ../sil
 
       - name: Verify build
@@ -49,7 +49,7 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@v6
         with:
-          name: Sil-Q-linux-x86_64.zip
+          name: Sil-Q-linux-x86_64
           # IMPORTANT: Do NOT use quotes to escape spaces in filenames.
           path: |
             sil

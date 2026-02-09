@@ -11,11 +11,11 @@
 #include "angband.h"
 
 /*
- * Some machines have a "main()" function in their "main-xxx.c" file,
+ * Some machines have a "main()" function in their "main-*.c" file,
  * all the others use this file for their "main()" function.
  */
 
-#if !defined(MACINTOSH) && !defined(WINDOWS) && !defined(RISCOS)
+#if !defined(WINDOWS)
 
 #include "main.h"
 
@@ -32,57 +32,13 @@ static const struct module modules[] = {
     { "gtk", help_gtk, init_gtk },
 #endif /* USE_GTK */
 
-#ifdef USE_XAW
-    { "xaw", help_xaw, init_xaw },
-#endif /* USE_XAW */
-
 #ifdef USE_X11
     { "x11", help_x11, init_x11 },
 #endif /* USE_X11 */
 
-#ifdef USE_XPJ
-    { "xpj", help_xpj, init_xpj },
-#endif /* USE_XPJ */
-
 #ifdef USE_GCU
     { "gcu", help_gcu, init_gcu },
 #endif /* USE_GCU */
-
-#ifdef USE_CAP
-    { "cap", help_cap, init_cap },
-#endif /* USE_CAP */
-
-#ifdef USE_DOS
-    { "dos", help_dos, init_dos },
-#endif /* USE_DOS */
-
-#ifdef USE_IBM
-    { "ibm", help_ibm, init_ibm },
-#endif /* USE_IBM */
-
-#ifdef USE_EMX
-    { "emx", help_emx, init_emx },
-#endif /* USE_EMX */
-
-#ifdef USE_SLA
-    { "sla", help_sla, init_sla },
-#endif /* USE_SLA */
-
-#ifdef USE_LSL
-    { "lsl", help_lsl, init_lsl },
-#endif /* USE_LSL */
-
-#ifdef USE_AMI
-    { "ami", help_ami, init_ami },
-#endif /* USE_AMI */
-
-#ifdef USE_VME
-    { "vme", help_vme, init_vme },
-#endif /* USE_VME */
-
-#ifdef USE_VCS
-    { "vcs", help_vcs, init_vcs },
-#endif /* USE_VCS */
 };
 
 /*
@@ -108,23 +64,6 @@ static void quit_hook(cptr s)
         term_nuke(angband_term[j]);
     }
 }
-
-/*
- * Set the stack size (for the Amiga)
- */
-#ifdef AMIGA
-#include <dos.h>
-__near long __stack = 32768L;
-#endif /* AMIGA */
-
-/*
- * Set the stack size and overlay buffer (see main-286.c")
- */
-#ifdef USE_286
-#include <dos.h>
-extern unsigned _stklen = 32768U;
-extern unsigned _ovrbuffer = 0x1500;
-#endif /* USE_286 */
 
 #ifdef PRIVATE_USER_PATH
 
@@ -189,9 +128,6 @@ static void create_user_dir(void)
  * since the "init_file_paths()" function will simply append the
  * relevant "sub-directory names" to the given path.
  *
- * Note that the "path" must be "Sil:" for the Amiga, and it
- * is ignored for "VM/ESA", so I just combined the two.
- *
  * Make sure that the path doesn't overflow the buffer.  We have
  * to leave enough space for the path separator, directory, and
  * filenames.
@@ -199,13 +135,6 @@ static void create_user_dir(void)
 static void init_stuff(void)
 {
     char path[1024];
-
-#if defined(AMIGA) || defined(VM)
-
-    /* Hack -- prepare "path" */
-    my_strcpy(path, "Sil:", sizeof(path));
-
-#else /* AMIGA / VM */
 
     cptr tail = NULL;
 
@@ -225,8 +154,6 @@ static void init_stuff(void)
     /* Hack -- Add a path separator (only if needed) */
     if (!suffix(path, PATH_SEP))
         my_strcat(path, PATH_SEP, sizeof(path));
-
-#endif /* AMIGA / VM */
 
     /* Initialize */
     init_file_paths(path);
@@ -373,14 +300,6 @@ int main(int argc, char* argv[])
     /* Save the "program name" XXX XXX XXX */
     argv0 = argv[0];
 
-#ifdef USE_286
-    /* Attempt to use XMS (or EMS) memory for swap space */
-    if (_OvrInitExt(0L, 0L))
-    {
-        _OvrInitEms(0, 0, 64);
-    }
-#endif /* USE_286 */
-
 #ifdef SET_UID
 
     /* Default permissions on files */
@@ -396,20 +315,15 @@ int main(int argc, char* argv[])
     /* Get the user id (?) */
     player_uid = getuid();
 
-#ifdef VMS
-    /* Mega-Hack -- Factor group id */
-    player_uid += (getgid() * 1000);
-#endif /* VMS */
-
 #ifdef SAFE_SETUID
 
-#if defined(HAVE_SETEGID) || defined(SAFE_SETUID_POSIX)
+#if defined(HAVE_SETEGID)
 
     /* Save some info for later */
     player_euid = geteuid();
     player_egid = getegid();
 
-#endif /* defined(HAVE_SETEGID) || defined(SAFE_SETUID_POSIX) */
+#endif /* defined(HAVE_SETEGID) */
 
 #if 0 /* XXX XXX XXX */
 
@@ -565,6 +479,7 @@ int main(int argc, char* argv[])
         {
             printf("%s version %s\n", VERSION_NAME, VERSION_STRING);
             quit(NULL);
+            break;
         }
 
         case '-':
@@ -718,7 +633,9 @@ int main(int argc, char* argv[])
                     process_player_name(TRUE);
                     break;
                 case 4:
+                    /* Free resources */
                     cleanup_angband();
+                    /* Quit */
                     quit(NULL);
                     break;
                 }
@@ -743,15 +660,6 @@ int main(int argc, char* argv[])
         // game no longer in progress
         game_in_progress = FALSE;
     }
-
-    /* Free resources */
-    cleanup_angband();
-
-    /* Quit */
-    quit(NULL);
-
-    /* Exit */
-    return (0);
 }
 
-#endif /* !defined(MACINTOSH) && !defined(WINDOWS) && !defined(RISCOS) */
+#endif /* !defined(WINDOWS) */

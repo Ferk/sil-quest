@@ -20,6 +20,16 @@
   prints the Sil-Q version information (example: "Sil-Q version 1.5.1"). This
   breaking change does not affect the Windows and native macOS (Cocoa) versions,
   because they never supported this functionality in the first place.
+- Officially supported platforms are now limited to Windows, Mac, Linux. Removed
+  support for ancient, unused, and/or untested platforms such as Amiga, NeXT,
+  Solaris, SGI, Dec ALPHA, RISC OS, OS/2, DOS. Most of this was left-over code
+  from earlier versions of Sil and Angband, on which Sil-Q is based. Focusing
+  Sil-Q's platform support on Windows, Mac, and Linux helps our small developer
+  team to make the best of our available development time. Users who still need
+  to run Sil-Q on the removed platforms are advised to use prior versions of
+  the game, such as version 1.5.0.
+- Removed support for ancient, unused, and/or untested development toolchains
+  such as the Borland and lcc32 compilers.
 
 ### Gameplay changes
 
@@ -31,6 +41,13 @@ Added:
 
 - macOS: Support retina display
   ([#96](https://github.com/sil-quirk/sil-q/pull/96))
+- Sil-Q code base is now compatible with C99/GNU99 and commonly enabled compiler
+  warnings including `-Wall` and `-Wextra`. This is one of the steps to
+  modernize the game's code base (whose lineage dates back several decades) so
+  that it can be improved in future releases more easily, helping us to reduce
+  the necessary development time. These changes should not be visible to
+  players, other than (hopefully!) reducing the number of bugs they might
+  experience.
 
 Changed:
 
@@ -39,6 +56,7 @@ Changed:
 
 Fixed:
 
+- fix: bug in my_fopen_temp() for Windows
 - fix: correctly search skeletons and chests in tight spaces (fixes #107)
   ([#146](https://github.com/sil-quirk/sil-q/pull/146))
   - thanks @davidk64fnq and @joeljpa for reporting and helping to fix this issue

@@ -3,13 +3,6 @@ terms of either the GNU General Public License as published by the Free
 Software Foundation, version 2, or the "Angband licence", shown below, with 
 some exceptions:
 
- * Adam Bolt's (16x16) graphics may be redistributed and used for any purpose, 
-   with or without modification.
-
- * David Gervais' (32x32) graphics may be redistributed, modified, and used
-   only under the terms of the Creative Commons Attribution 3.0 licence:
-   http://creativecommons.org/licenses/by/3.0/
-
  * the sounds are freeware, whatever that means.
 
  * the font files are under the licences noted in lib/xtra/font/copying.txt,
@@ -17,7 +10,7 @@ some exceptions:
 
 
 It is considered good practice to retain this statement for derivatives, rather
-than (e.g.) redistributing Adam Bolt's tiles under the GPL, or choosing to make
+than (e.g.) redistributing Microchasm's tiles under the GPL, or choosing to make
 a variant which is only under one of the Angband or GPL licences.  This allows
 easier sharing of changes between variants.
 

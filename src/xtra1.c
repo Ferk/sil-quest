@@ -158,7 +158,7 @@ extern int hand_and_a_half_bonus(const object_type* o_ptr)
 /*
  * Bonus for certain races/houses (elves) using bows
  */
-int bow_bonus(const object_type* o_ptr)
+static int bow_bonus(const object_type* o_ptr)
 {
     int bonus = 0;
 
@@ -260,7 +260,10 @@ extern byte total_ads(const object_type* j_ptr)
  * Converts stat num into a two-char (right justified) string
  * Sil: rather pointless since stats no longer have and 18/XYZ format
  */
-void cnv_stat(int val, char* out_val) { sprintf(out_val, "%2d", val); }
+void cnv_stat(int val, char* out_val, size_t max)
+{
+    strnfmt(out_val, max, "%2d", val);
+}
 
 /*
  * Print character info at given row, column in a 13 char field
@@ -285,7 +288,7 @@ static void prt_stat(int stat)
     if (p_ptr->stat_drain[stat] < 0)
     {
         put_str(stat_names_reduced[stat], ROW_STAT + stat, 0);
-        cnv_stat(p_ptr->stat_use[stat], tmp);
+        cnv_stat(p_ptr->stat_use[stat], tmp, sizeof(tmp));
         c_put_str(TERM_YELLOW, tmp, ROW_STAT + stat, COL_STAT + 10);
     }
 
@@ -293,7 +296,7 @@ static void prt_stat(int stat)
     else
     {
         put_str(stat_names[stat], ROW_STAT + stat, 0);
-        cnv_stat(p_ptr->stat_use[stat], tmp);
+        cnv_stat(p_ptr->stat_use[stat], tmp, sizeof(tmp));
         c_put_str(TERM_L_GREEN, tmp, ROW_STAT + stat, COL_STAT + 10);
     }
 
@@ -321,7 +324,7 @@ static void prt_exp(void)
     /*Print experience label*/
     put_str("Exp ", ROW_EXP, 0);
 
-    comma_number(out_val, p_ptr->new_exp);
+    comma_number(out_val, sizeof(out_val), p_ptr->new_exp);
 
     c_put_str(attr, format("%8s", out_val), ROW_EXP, COL_EXP + 4);
 }
@@ -439,7 +442,7 @@ static void prt_hp(void)
         put_str("Health      ", ROW_HP, COL_HP);
     }
 
-    len = sprintf(tmp, "%d:%d", p_ptr->chp, p_ptr->mhp);
+    len = strnfmt(tmp, sizeof(tmp), "%d:%d", p_ptr->chp, p_ptr->mhp);
 
     c_put_str(TERM_L_GREEN, tmp, ROW_HP, COL_HP + 12 - len);
 
@@ -457,7 +460,7 @@ static void prt_hp(void)
     }
 
     /* Show current hitpoints using another color */
-    sprintf(tmp, "%d", p_ptr->chp);
+    strnfmt(tmp, sizeof(tmp), "%d", p_ptr->chp);
 
     c_put_str(color, tmp, ROW_HP, COL_HP + 12 - len);
 }
@@ -476,7 +479,7 @@ static void prt_sp(void)
     else
         put_str("Voice       ", ROW_SP, COL_SP);
 
-    len = sprintf(tmp, "%d:%d", p_ptr->csp, p_ptr->msp);
+    len = strnfmt(tmp, sizeof(tmp), "%d:%d", p_ptr->csp, p_ptr->msp);
 
     c_put_str(TERM_L_GREEN, tmp, ROW_SP, COL_SP + 12 - len);
 
@@ -494,7 +497,7 @@ static void prt_sp(void)
     }
 
     /* Show current mana using another color */
-    sprintf(tmp, "%d", p_ptr->csp);
+    strnfmt(tmp, sizeof(tmp), "%d", p_ptr->csp);
 
     c_put_str(color, tmp, ROW_SP, COL_SP + 12 - len);
 }
@@ -540,7 +543,7 @@ static void prt_depth(void)
     }
     else
     {
-        sprintf(depths, "%d ft", p_ptr->depth * 50);
+        strnfmt(depths, sizeof(depths), "%d ft", p_ptr->depth * 50);
     }
 
     /* Get color of level based on feeling  -JSV- */
@@ -684,12 +687,12 @@ static void prt_cut(void)
     }
     else if (c > 20)
     {
-        sprintf(buf, "Bleeding %-2d", c);
+        strnfmt(buf, sizeof(buf), "Bleeding %-2d", c);
         c_put_str(TERM_RED, buf, r, COL_CUT);
     }
     else if (c > 0)
     {
-        sprintf(buf, "Bleeding %-2d", c);
+        strnfmt(buf, sizeof(buf), "Bleeding %-2d", c);
         c_put_str(TERM_L_RED, buf, r, COL_CUT);
     }
     else
@@ -708,12 +711,12 @@ static void prt_poisoned(void)
 
     if (p > 20)
     {
-        sprintf(buf, "Poisoned %-3d", p);
+        strnfmt(buf, sizeof(buf), "Poisoned %-3d", p);
         c_put_str(TERM_L_GREEN, buf, ROW_POISONED, COL_POISONED);
     }
     else if (p > 0)
     {
-        sprintf(buf, "Poisoned %-3d", p);
+        strnfmt(buf, sizeof(buf), "Poisoned %-3d", p);
         c_put_str(TERM_GREEN, buf, ROW_POISONED, COL_POISONED);
     }
     else
@@ -824,11 +827,11 @@ static void prt_state(void)
     {
         if (p_ptr->command_rep > 999)
         {
-            sprintf(text, "Rep. %3d00", p_ptr->command_rep / 100);
+            strnfmt(text, sizeof(text), "Rep. %3d00", p_ptr->command_rep / 100);
         }
         else
         {
-            sprintf(text, "Repeat %3d", p_ptr->command_rep);
+            strnfmt(text, sizeof(text), "Repeat %3d", p_ptr->command_rep);
         }
     }
 
@@ -862,14 +865,14 @@ static void prt_speed(void)
     if (i > 2)
     {
         attr = TERM_L_GREEN;
-        sprintf(buf, "Fast");
+        strnfmt(buf, sizeof(buf), "Fast");
     }
 
     /* Slow */
     else if (i < 2)
     {
         attr = TERM_ORANGE;
-        sprintf(buf, "Slow");
+        strnfmt(buf, sizeof(buf), "Slow");
     }
 
     /* Display the speed */
@@ -1050,9 +1053,11 @@ bool get_alertness_text(
             }
 
             if (m_ptr->morale >= 0)
-                sprintf(morale_buf, " %d", (m_ptr->morale + 9) / 10);
+                strnfmt(morale_buf, sizeof(morale_buf), " %d",
+                    (m_ptr->morale + 9) / 10);
             else
-                sprintf(morale_buf, " %d", m_ptr->morale / 10);
+                strnfmt(
+                    morale_buf, sizeof(morale_buf), " %d", m_ptr->morale / 10);
 
             strncat(text, morale_buf, text_size - strlen(text));
         }
@@ -1607,7 +1612,7 @@ static void calc_hitpoints(void)
 /*
  * Determine the radius of possibly flickering lights
  */
-int light_up_to(int base_radius, object_type* o_ptr)
+static int light_up_to(int base_radius, object_type* o_ptr)
 {
     int radius = base_radius;
     u32b f1, f2, f3;
@@ -1637,7 +1642,7 @@ int light_up_to(int base_radius, object_type* o_ptr)
 /*
  *  Determines how much an enemy in a given location should make the sword glow
  */
-int hate_level(int y, int x, int multiplier)
+static int hate_level(int y, int x, int multiplier)
 {
     int dist;
 
@@ -2079,7 +2084,7 @@ int weight_limit(void)
     return (limit);
 }
 
-bool sprinting(void)
+static bool sprinting(void)
 {
     int i;
     int turns = 1;
@@ -2120,7 +2125,7 @@ bool sprinting(void)
 }
 
 /* Calculate stats */
-void calc_stats(void)
+static void calc_stats(void)
 {
     for (int i = 0; i < A_MAX; i++)
     {
@@ -2549,7 +2554,7 @@ static void calc_bonuses(void)
     if (p_ptr->active_ability[S_WIL][WIL_OATH])
     {
         if (chosen_oath(OATH_IRON) && !oath_invalid(OATH_IRON))
-            p_ptr->stat_misc_mod[A_CON]+=2;
+            p_ptr->stat_misc_mod[A_CON] += 2;
         else if (chosen_oath(OATH_SILENCE) && !oath_invalid(OATH_SILENCE))
             p_ptr->stat_misc_mod[A_STR]++;
         else if (chosen_oath(OATH_MERCY) && !oath_invalid(OATH_MERCY))
@@ -3083,7 +3088,7 @@ void notice_stuff(void)
 /*
  * Helper function for update_lore()
  */
-void update_lore_aux(object_type* o_ptr)
+static void update_lore_aux(object_type* o_ptr)
 {
     // identify seen items
     if (!object_known_p(o_ptr))
@@ -3140,12 +3145,12 @@ void update_lore_aux(object_type* o_ptr)
                     /* Build note and write */
                     if (o_ptr->xtra1 == p_ptr->depth)
                     {
-                        sprintf(note, "Found %s", shorter_desc);
+                        strnfmt(note, sizeof(note), "Found %s", shorter_desc);
                     }
                     else
                     {
-                        sprintf(note, "Found %s (from %d ft)", shorter_desc,
-                            o_ptr->xtra1 * 50);
+                        strnfmt(note, sizeof(note), "Found %s (from %d ft)",
+                            shorter_desc, o_ptr->xtra1 * 50);
                     }
 
                     /* Record the depth where the artefact was identified */
@@ -3182,7 +3187,7 @@ void update_lore_aux(object_type* o_ptr)
  * marks artefacts/specials as seen and grants experience for the first
  * sighting.
  */
-void update_lore(void)
+static void update_lore(void)
 {
     int i;
     object_type* o_ptr;

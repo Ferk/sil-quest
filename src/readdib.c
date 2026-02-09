@@ -24,7 +24,7 @@
 /*
  * Extract the "WIN32" flag from the compiler
  */
-#if defined(__WIN32__) || defined(__WINNT__) || defined(__NT__)
+#if defined(_WIN32)
 #ifndef WIN32
 #define WIN32
 #endif

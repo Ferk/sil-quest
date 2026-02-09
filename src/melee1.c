@@ -40,7 +40,7 @@ static bool monster_cut_or_stun(int crit_bonus_dice, int net_dam, int effect)
     return (FALSE);
 }
 
-bool blocking_bonus_active(void)
+static bool blocking_bonus_active(void)
 {
     bool moved_last_turn = (p_ptr->previous_action[0] >= 1)
         && (p_ptr->previous_action[0] <= 9) && (p_ptr->previous_action[0] != 5);
@@ -52,7 +52,7 @@ bool blocking_bonus_active(void)
  * Determine whether there is a bonus die for an elemental attack that
  * the player doesn't resist
  */
-int elem_bonus(int effect)
+static int elem_bonus(int effect)
 {
     int resistance = 1;
 
@@ -92,6 +92,16 @@ extern int protection_roll(int typ, bool melee)
     int prt = 0;
     int mult = 1;
     int armour_weight = 0;
+
+    if (melee)
+    {
+        // For now, there's no difference between the handling of melee vs.
+        // non-melee attacks.
+        //
+        // Rather than removing the currently unused function parameter
+        // altogether, this empty if-block is used to prevent a compiler warning
+        // about unused parameters when compiling with `-Wextra`.
+    }
 
     // things that always count:
 
@@ -161,6 +171,16 @@ extern int p_min(int typ, bool melee)
     int armour_weight = 0;
     int mult = 1;
 
+    if (melee)
+    {
+        // For now, there's no difference between the handling of melee vs.
+        // non-melee attacks.
+        //
+        // Rather than removing the currently unused function parameter
+        // altogether, this empty if-block is used to prevent a compiler warning
+        // about unused parameters when compiling with, e.g., `-Wextra`.
+    }
+
     // things that always count:
 
     if (singing(SNG_STAYING))
@@ -228,6 +248,16 @@ extern int p_max(int typ, bool melee)
     int prt = 0;
     int armour_weight = 0;
     int mult = 1;
+
+    if (melee)
+    {
+        // For now, there's no difference between the handling of melee vs.
+        // non-melee attacks.
+        //
+        // Rather than removing the currently unused function parameter
+        // altogether, this empty if-block is used to prevent a compiler warning
+        // about unused parameters when compiling with, e.g., `-Wextra`.
+    }
 
     // things that always count:
 
@@ -306,7 +336,7 @@ int dodging_bonus(void)
 /*
  * Determine whether a monster is making a valid charge attack
  */
-bool monster_charge(monster_type* m_ptr)
+static bool monster_charge(monster_type* m_ptr)
 {
     int d, i;
 
@@ -347,7 +377,7 @@ bool monster_charge(monster_type* m_ptr)
 /*
  * Returns true if an item is a "traitor" item.
  */
-bool is_traitor_item(int item_slot)
+static bool is_traitor_item(int item_slot)
 {
     u32b f1, f2, f3;
     if (item_slot >= INVEN_WIELD && item_slot < INVEN_TOTAL)
@@ -361,7 +391,7 @@ bool is_traitor_item(int item_slot)
     return FALSE;
 }
 
-void do_betrayal_ring_amulet()
+void do_betrayal_ring_amulet(void)
 {
     object_type* o_ptr = NULL;
     object_type object_type_body;
@@ -452,7 +482,7 @@ void do_betrayal_ring_amulet()
     }
 }
 
-void do_betrayal_helm_crown()
+static void do_betrayal_helm_crown(void)
 {
     if (is_traitor_item(INVEN_HEAD) && one_in_(20)
         && health_level(p_ptr->chp, p_ptr->mhp) <= HEALTH_BADLY_WOUNDED)

@@ -48,7 +48,7 @@ jobs:
       - name: Build with release flags
         run: |
           cd src
-          make -f Makefile.cyg OPT="-O2" PEFORMAT=${{ matrix.peformat }}
+          make -f Makefile.cyg PEFORMAT=${{ matrix.peformat }} OPT="-O2" EXTRA_CFLAGS="-Werror"
           mv sil.exe ../sil.exe
 
       - name: Verify build
@@ -66,7 +66,7 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@v6
         with:
-          name: Sil-Q-windows-${{ matrix.arch-human-readable }}.zip
+          name: Sil-Q-windows-${{ matrix.arch-human-readable }}
           # IMPORTANT: Do NOT use quotes to escape spaces in filenames.
           path: |
             sil.exe

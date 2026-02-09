@@ -1495,7 +1495,7 @@ void self_knowledge(void)
  * Detect all doors and traps on the whole level.
  * Used to show map at end of the game.
  */
-void detect_all_doors_traps()
+void detect_all_doors_traps(void)
 {
     int y, x;
 
@@ -2299,7 +2299,7 @@ bool recharge(int num)
  * Bolts stop as soon as they hit a monster, whiz past missed targets, and
  * (almost) never affect items on the floor.
  */
-bool project_bolt(int who, int rad, int y0, int x0, int y1, int x1, int dd,
+static bool project_bolt(int who, int rad, int y0, int x0, int y1, int x1, int dd,
     int ds, int dif, int typ, u32b flg)
 {
     /* Add the bolt bitflags */
@@ -2323,7 +2323,7 @@ bool project_bolt(int who, int rad, int y0, int x0, int y1, int x1, int dd,
  * Beams affect every grid they touch, go right through monsters, and
  * (almost) never affect items on the floor.
  */
-bool project_beam(int who, int rad, int y0, int x0, int y1, int x1, int dd,
+static bool project_beam(int who, int rad, int y0, int x0, int y1, int x1, int dd,
     int ds, int dif, int typ, u32b flg)
 {
     /* Add the beam bitflags */
@@ -2352,7 +2352,7 @@ bool project_beam(int who, int rad, int y0, int x0, int y1, int x1, int dd,
  * how quickly their damage falls off with distance from the center of the
  * explosion).
  */
-bool project_ball(int who, int rad, int y0, int x0, int y1, int x1, int dd,
+static bool project_ball(int who, int rad, int y0, int x0, int y1, int x1, int dd,
     int ds, int dif, int typ, u32b flg, bool uniform)
 {
     /* Add the ball bitflags */
@@ -2574,7 +2574,7 @@ bool project_los(int typ, int dd, int ds, int dif, bool silent)
 /*
  * Apply a "project()" directly to all viewable grids
  */
-bool project_los_grids(int typ, int dd, int ds, int dif)
+static bool project_los_grids(int typ, int dd, int ds, int dif)
 {
     int x, y;
     u32b flg = PROJECT_GRID | PROJECT_ITEM | PROJECT_HIDE | PROJECT_JUMP;

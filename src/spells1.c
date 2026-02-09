@@ -334,7 +334,7 @@ void teleport_towards(int oy, int ox, int ny, int nx)
 /*
  * Teleport the player one level up or down (random when legal)
  */
-void teleport_player_level()
+void teleport_player_level(void)
 {
     bool go_up = FALSE;
     bool go_down = FALSE;
@@ -518,7 +518,7 @@ u16b bolt_pict(int y, int x, int ny, int nx, int typ)
 /*
  * Allows items that have the CHEAT_DEATH flag to save the player
  */
-void attempt_to_cheat_death(void)
+static void attempt_to_cheat_death(void)
 {
     char o_name[80];
 
@@ -626,13 +626,13 @@ void take_hit(int dam, cptr kb_str)
         my_strcat(notes_buffer, "\n", sizeof(notes_buffer));
 
         /*killed by */
-        sprintf(buf, "Slain by %s.", p_ptr->died_from);
+        strnfmt(buf, sizeof(buf), "Slain by %s.", p_ptr->died_from);
 
         /* Write message */
         do_cmd_note(buf, p_ptr->depth);
 
         /* date and time*/
-        sprintf(buf, "Died on %s.", long_day);
+        strnfmt(buf, sizeof(buf), "Died on %s.", long_day);
 
         /* Write message */
         do_cmd_note(buf, p_ptr->depth);
@@ -1648,7 +1648,7 @@ static int project_m_y;
 /*
  * Magically close/lock/restore a door at a particular grid
  */
-bool lock_door(int y, int x, int power)
+static bool lock_door(int y, int x, int power)
 {
     int lock_level;
     int obvious = FALSE;
@@ -4440,7 +4440,7 @@ bool project(int who, int rad, int y0, int x0, int y1, int x1, int dd, int ds,
 /*
  *  Do the effects of Song of Freedom
  */
-void sing_song_of_freedom(int score)
+static void sing_song_of_freedom(int score)
 {
     int y, x;
     int base_difficulty, difficulty;
@@ -5358,14 +5358,14 @@ bool singing(int song)
     return (FALSE);
 }
 
-bool known_to_delvings(int y, int x)
+static bool known_to_delvings(int y, int x)
 {
     if (!in_bounds(y, x))
         return FALSE;
     return ((cave_info[y][x] & CAVE_MARK) || (cave_info[y][x] & CAVE_SEEN));
 }
 
-void sing_song_of_challenge(int score)
+static void sing_song_of_challenge(int score)
 {
     int i;
 
@@ -5404,7 +5404,7 @@ void sing_song_of_challenge(int score)
     }
 }
 
-void sing_song_of_delvings(int score)
+static void sing_song_of_delvings(int score)
 {
     int y, x, yy, xx;
     int min_x, max_x, min_y, max_y, y_range, x_range;
@@ -5512,7 +5512,7 @@ void sing_song_of_delvings(int score)
     FREE(delvings);
 }
 
-void sing_song_of_elbereth(int score)
+static void sing_song_of_elbereth(int score)
 {
     int i;
 
@@ -5554,7 +5554,7 @@ void sing_song_of_elbereth(int score)
     }
 }
 
-void sing_song_of_lorien(int score)
+static void sing_song_of_lorien(int score)
 {
     int i;
 

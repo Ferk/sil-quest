@@ -287,7 +287,7 @@ static void do_cmd_wiz_change_aux(void)
             BASE_STAT_MIN, BASE_STAT_MAX);
 
         /* Default */
-        sprintf(tmp_val, "%d", p_ptr->stat_base[i]);
+        strnfmt(tmp_val, sizeof(tmp_val), "%d", p_ptr->stat_base[i]);
 
         /* Query */
         if (!term_get_string(ppp, tmp_val, 4))
@@ -308,7 +308,7 @@ static void do_cmd_wiz_change_aux(void)
     }
 
     /* Default */
-    sprintf(tmp_val, "%ld", (long)(p_ptr->new_exp));
+    strnfmt(tmp_val, sizeof(tmp_val), "%ld", (long)(p_ptr->new_exp));
 
     /* Query */
     if (!term_get_string("Experience Pool: ", tmp_val, 10))
@@ -331,7 +331,7 @@ static void do_cmd_wiz_change_aux(void)
     check_experience();
 
     /* Default */
-    sprintf(tmp_val, "%ld", (long)(p_ptr->game_type));
+    strnfmt(tmp_val, sizeof(tmp_val), "%ld", (long)(p_ptr->game_type));
 
     /* Query */
     if (!term_get_string("Game Type: ", tmp_val, 10))
@@ -619,28 +619,28 @@ static void wiz_tweak_item(object_type* o_ptr)
         return;
 
     p = "Enter new 'att' setting: ";
-    sprintf(tmp_val, "%d", o_ptr->att);
+    strnfmt(tmp_val, sizeof(tmp_val), "%d", o_ptr->att);
     if (!term_get_string(p, tmp_val, 6))
         return;
     o_ptr->att = atoi(tmp_val);
     wiz_display_item(o_ptr);
 
     p = "Enter new 'evn' setting: ";
-    sprintf(tmp_val, "%d", o_ptr->evn);
+    strnfmt(tmp_val, sizeof(tmp_val), "%d", o_ptr->evn);
     if (!term_get_string(p, tmp_val, 6))
         return;
     o_ptr->evn = atoi(tmp_val);
     wiz_display_item(o_ptr);
 
     p = "Enter new 'pval' setting: ";
-    sprintf(tmp_val, "%d", o_ptr->pval);
+    strnfmt(tmp_val, sizeof(tmp_val), "%d", o_ptr->pval);
     if (!term_get_string(p, tmp_val, 6))
         return;
     o_ptr->pval = atoi(tmp_val);
     wiz_display_item(o_ptr);
 
     p = "Enter new weight: ";
-    sprintf(tmp_val, "%d", o_ptr->weight);
+    strnfmt(tmp_val, sizeof(tmp_val), "%d", o_ptr->weight);
     if (!term_get_string(p, tmp_val, 6))
         return;
     o_ptr->weight = atoi(tmp_val);
@@ -901,7 +901,7 @@ static void wiz_quantity_item(object_type* o_ptr)
         return;
 
     /* Default */
-    sprintf(tmp_val, "%d", o_ptr->number);
+    strnfmt(tmp_val, sizeof(tmp_val), "%d", o_ptr->number);
 
     /* Query */
     if (term_get_string("Quantity: ", tmp_val, 3))
@@ -1171,10 +1171,10 @@ static void do_cmd_wiz_jump(void)
         char tmp_val[160];
 
         /* Prompt */
-        sprintf(ppp, "Jump to level (0-%d): ", MORGOTH_DEPTH);
+        strnfmt(ppp, sizeof(ppp), "Jump to level (0-%d): ", MORGOTH_DEPTH);
 
         /* Default */
-        sprintf(tmp_val, "%d", p_ptr->depth);
+        strnfmt(tmp_val, sizeof(tmp_val), "%d", p_ptr->depth);
 
         /* Ask for a level */
         if (!term_get_string(ppp, tmp_val, 11))
@@ -1379,6 +1379,7 @@ static void do_cmd_wiz_forget(void)
                 object_known(o_ptr);
                 break;
             }
+            FALLTHROUGH;
         }
         default:
         {
@@ -1432,6 +1433,7 @@ static void do_cmd_wiz_forget(void)
                 object_known(o_ptr);
                 break;
             }
+            FALLTHROUGH;
         }
         default:
         {
@@ -1758,7 +1760,7 @@ static void do_cmd_wiz_query(void)
 /*
  * Modify the dungeon
  */
-void do_cmd_wiz_look(void)
+static void do_cmd_wiz_look(void)
 {
     /* Look around and modify things */
     target_set_interactive(TARGET_WIZ, 0);
@@ -2025,8 +2027,4 @@ void do_cmd_debug(void)
 
 #else
 
-#ifdef MACINTOSH
-static int i = 0;
-#endif
-
-#endif
+#endif /* ALLOW_DEBUG */

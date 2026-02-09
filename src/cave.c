@@ -664,7 +664,7 @@ static void special_lighting_wall(byte* a, char* c, int feat, int info)
     }
 }
 
-int player_tile_offset()
+static int player_tile_offset(void)
 {
     object_type * main_wield_ptr = &inventory[INVEN_WIELD];
     object_type * secondary_wield_ptr = &inventory[INVEN_ARM];
@@ -2683,7 +2683,7 @@ void forget_view(void)
     view_n = fast_view_n;
 }
 
-bool same_side_of_wall_as_player(int y, int x, int fy, int fx)
+static bool same_side_of_wall_as_player(int y, int x, int fy, int fx)
 {
     int py = p_ptr->py;
     int px = p_ptr->px;
@@ -4335,9 +4335,6 @@ int project_path(
 
     s16b g;
 
-    /* Pointer to vinfo data */
-    vinfo_type* p;
-
     /* Handle projections of zero length */
     if ((range <= 0) || ((*y2 == y1) && (*x2 == x1)))
         return (0);
@@ -4427,7 +4424,7 @@ int project_path(
         s16b vy, vx;
 
         /* Point to this vinfo record */
-        p = &vinfo[j];
+        vinfo_type* p = &vinfo[j];
 
         /* Extract grid value */
         g = g0 + p->grid[octant];
@@ -4466,7 +4463,7 @@ int project_path(
         line_fire = FALSE;
 
         /* Point to this vinfo record */
-        p = &vinfo[j];
+        vinfo_type* p = &vinfo[j];
 
         /* See if any lines of sight pass through this grid */
         if (!((bits0 & (p->bits_0)) || (bits1 & (p->bits_1))
@@ -4479,7 +4476,7 @@ int project_path(
          * Extract grid value.  Use pointer shifting to get the
          * correct grid offset for this octant.
          */
-        g = g0 + *((s16b*)(((byte*)(p)) + (octant * 2)));
+        g = g0 + p->grid[octant];
 
         y = GRID_Y(g);
         x = GRID_X(g);

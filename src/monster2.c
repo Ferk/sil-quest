@@ -833,7 +833,7 @@ void display_monlist(void)
         }
 
         /* Add race count */
-        sprintf(buf, "%3d  ", race_counts[m_ptr->r_idx]);
+        strnfmt(buf, sizeof(buf), "%3d  ", race_counts[m_ptr->r_idx]);
         Term_addstr(strlen(buf), TERM_WHITE, buf);
         n += 5;
 
@@ -1262,7 +1262,7 @@ int monster_stat(monster_type* m_ptr, int stat_type)
     return (stat);
 }
 
-void listen(monster_type* m_ptr)
+static void listen(monster_type* m_ptr)
 {
     byte a;
     char c;
@@ -1807,7 +1807,7 @@ s16b monster_carry(int m_idx, object_type* j_ptr)
 /*
  * Check if the monster in the given location needs to fall down a chasm
  */
-void m_fall_in_chasm(int fy, int fx)
+static void m_fall_in_chasm(int fy, int fx)
 {
     monster_type* m_ptr;
     monster_race* r_ptr;
@@ -1884,7 +1884,7 @@ void m_fall_in_chasm(int fy, int fx)
 /*
  * Print a message saying what is underfoot.
  */
-void describe_floor_object(void)
+static void describe_floor_object(void)
 {
     object_type* o_ptr;
     char o_name[80];
@@ -2395,7 +2395,7 @@ void set_monster_slow(s16b m_idx, s16b counter, bool message)
 /*
  * Set Hallucinatory monster race
  */
-int random_r_idx(void)
+static int random_r_idx(void)
 {
     monster_race* r_ptr;
     int race_idx;
@@ -3124,25 +3124,25 @@ bool alloc_monster(bool on_stairs, bool force_undead)
                 case FEAT_LESS_SHAFT:
                 {
                     monster_level -= 2;
-                    sprintf(dir, "down");
+                    strnfmt(dir, sizeof(dir), "down");
                     break;
                 }
                 case FEAT_LESS:
                 {
                     monster_level -= 1;
-                    sprintf(dir, "down");
+                    strnfmt(dir, sizeof(dir), "down");
                     break;
                 }
                 case FEAT_MORE:
                 {
                     monster_level += 1;
-                    sprintf(dir, "up");
+                    strnfmt(dir, sizeof(dir), "up");
                     break;
                 }
                 case FEAT_MORE_SHAFT:
                 {
                     monster_level += 2;
-                    sprintf(dir, "up");
+                    strnfmt(dir, sizeof(dir), "up");
                     break;
                 }
                 }

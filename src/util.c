@@ -101,23 +101,10 @@ void user_name(char* buf, size_t len, int id)
  *
  * Note that "canonical" filenames use a leading "slash" to indicate an absolute
  * path, and a leading "tilde" to indicate a special directory, and default to a
- * relative path, but MSDOS uses a leading "drivename plus colon" to indicate
- * the use of a "special drive", and then the rest of the path is parsed
- * "normally", and MACINTOSH uses a leading colon to indicate a relative path,
- * and an embedded colon to indicate a "drive plus absolute path", and finally
- * defaults to a file in the current working directory, which may or may not be
- * defined.
+ * relative path.
  *
  * We should probably parse a leading "~~/" as referring to "ANGBAND_DIR". (?)
  */
-
-#ifdef RISCOS
-
-/*
- * Most of the "file" routines for "RISCOS" should be in "main-ros.c"
- */
-
-#else /* RISCOS */
 
 #ifdef SET_UID
 
@@ -206,13 +193,6 @@ errr path_parse(char* buf, size_t max, cptr file)
     /*accept the filename*/
     my_strcpy(buf, file, max);
 
-#if defined(MAC_MPW) && defined(CARBON)
-
-    /* Fix it according to the current operating system */
-    convert_pathname(buf);
-
-#endif
-
     /* Success */
     return (0);
 }
@@ -231,7 +211,19 @@ static errr path_temp(char* buf, size_t max)
     cptr s;
 
     /* Temp file */
+#if defined(_WIN32)
+#pragma warning(push)
+#pragma warning(disable : 4996)
+#elif defined(__GNUC__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+#endif
     s = tmpnam(NULL);
+#if defined(_WIN32)
+#pragma warning(pop)
+#elif defined(__GNUC__)
+#pragma GCC diagnostic pop
+#endif
 
     /* Oops */
     if (!s)
@@ -337,8 +329,6 @@ errr my_fclose(FILE* fff)
     return (0);
 }
 
-#endif /* RISCOS */
-
 #ifdef HAVE_MKSTEMP
 
 FILE* my_fopen_temp(char* buf, size_t max)
@@ -357,6 +347,33 @@ FILE* my_fopen_temp(char* buf, size_t max)
 
     /* Return a file stream */
     return (fdopen(fd, "w"));
+}
+
+#elif defined(_WIN32)
+
+#include <windows.h>
+
+FILE* my_fopen_temp(char* buf, size_t max)
+{
+    /* MAX_PATH is defined in windows.h (260 characters) */
+    char temp_path[MAX_PATH];
+    char temp_file[MAX_PATH];
+
+    /* Get the system temporary directory */
+    if (!GetTempPathA(sizeof(temp_path), temp_path))
+        return NULL;
+
+    /* Generate a unique temporary filename */
+    if (!GetTempFileNameA(temp_path, "an", 0, temp_file))
+        return NULL;
+
+    if (strlen(temp_file) >= max)
+        return NULL;
+
+    my_strcpy(buf, temp_file, max);
+
+    /* Return a file stream */
+    return fopen(buf, "w");
 }
 
 #else /* HAVE_MKSTEMP */
@@ -429,7 +446,7 @@ errr my_fgets(FILE* fff, char* buf, size_t n)
             return (0);
         }
 
-#if defined(MACINTOSH) || defined(MACH_O_CARBON)
+#if defined(MACH_O_CARBON)
 
         /*
          * Be nice to the Macintosh, where a file can have Mac or Unix
@@ -439,7 +456,7 @@ errr my_fgets(FILE* fff, char* buf, size_t n)
         if (c == '\r')
             c = '\n';
 
-#endif /* MACINTOSH || MACH_O_CARBON */
+#endif /* MACH_O_CARBON */
 
         /* End of line */
         if (c == '\n')
@@ -511,17 +528,6 @@ errr my_fputs(FILE* fff, cptr buf, size_t n)
     /* Success */
     return (0);
 }
-
-#ifdef RISCOS
-
-/*
- * Most of the "file" routines for "RISCOS" should be in "main-ros.c"
- *
- * Many of them can be rewritten now that only "fd_open()" and "fd_make()"
- * and "my_fopen()" should ever create files.
- */
-
-#else /* RISCOS */
 
 /*
  * Several systems have no "O_BINARY" flag
@@ -610,19 +616,10 @@ int fd_make(cptr file, int mode)
     if (path_parse(buf, sizeof(buf), file))
         return (-1);
 
-#if defined(MACINTOSH)
-
-    /* Create the file, fail if exists, write-only, binary */
-    fd = open(buf, O_CREAT | O_EXCL | O_WRONLY | O_BINARY);
-
-#else
-
     /* Create the file, fail if exists, write-only, binary */
     fd = open(buf, O_CREAT | O_EXCL | O_WRONLY | O_BINARY, mode);
 
-#endif
-
-#if defined(MAC_MPW) || defined(MACH_O_CARBON)
+#if defined(MACH_O_CARBON)
 
     /* Set file creator and type */
     if (fd >= 0)
@@ -647,7 +644,7 @@ int fd_open(cptr file, int flags)
     if (path_parse(buf, sizeof(buf), file))
         return (-1);
 
-#if defined(MACINTOSH) || defined(WINDOWS)
+#if defined(WINDOWS)
 
     /* Attempt to open the file */
     return (open(buf, flags | O_BINARY));
@@ -673,29 +670,6 @@ errr fd_lock(int fd, int what)
 
 #ifdef SET_UID
 
-#ifdef USG
-
-#if defined(F_ULOCK) && defined(F_LOCK)
-
-    /* Un-Lock */
-    if (what == F_UNLCK)
-    {
-        /* Unlock it, Ignore errors */
-        lockf(fd, F_ULOCK, 0);
-    }
-
-    /* Lock */
-    else
-    {
-        /* Lock the score file */
-        if (lockf(fd, F_LOCK, 0) != 0)
-            return (1);
-    }
-
-#endif /* defined(F_ULOCK) && defined(F_LOCK) */
-
-#else
-
 #if defined(LOCK_UN) && defined(LOCK_EX)
 
     /* Un-Lock */
@@ -714,8 +688,6 @@ errr fd_lock(int fd, int what)
     }
 
 #endif /* defined(LOCK_UN) && defined(LOCK_EX) */
-
-#endif /* USG */
 
 #else /* SET_UID */
 
@@ -840,13 +812,10 @@ errr fd_close(int fd)
     return (0);
 }
 
-#if defined(CHECK_MODIFICATION_TIME) && !defined(MAC_MPW)
-#ifdef MACINTOSH
-#include <stat.h>
-#else
+#if defined(CHECK_MODIFICATION_TIME)
+
 #include <sys/types.h>
 #include <sys/stat.h>
-#endif /* MACINTOSH */
 
 errr check_modification_date(int fd, cptr template_file)
 {
@@ -881,8 +850,6 @@ errr check_modification_date(int fd, cptr template_file)
 }
 
 #endif /* CHECK_MODIFICATION_TIME */
-
-#endif /* RISCOS */
 
 /*
  * Convert a decimal to a single digit hex number
@@ -1211,7 +1178,7 @@ static size_t trigger_ascii_to_text(char* buf, size_t max, cptr* strptr)
             u16b x;
             /* Read key code */
             for (x = 0; *str && (*str != '\r') && (x < sizeof(key_code) - 1);
-                 x++)
+                x++)
                 key_code[x] = *str++;
             key_code[x] = '\0';
             break;
@@ -1857,7 +1824,7 @@ static cptr inkey_next = NULL;
  * If "inkey_flag" is TRUE, then we will assume that we are waiting for a
  * normal command, and we will only show the cursor if "hilite_player" is
  * TRUE (or if the player is in a store), instead of always showing the
- * cursor.  The various "main-xxx.c" files should avoid saving the game
+ * cursor.  The various "main-*.c" files should avoid saving the game
  * in response to a "menu item" request unless "inkey_flag" is TRUE, to
  * prevent savefile corruption.
  *
@@ -1874,7 +1841,7 @@ static cptr inkey_next = NULL;
  * that their loss as normal keys will probably be noticed by nobody.  The
  * "ascii 30" key is used to indicate the "end" of a macro action, which
  * allows recursive macros to be avoided.  The "ascii 31" key is used by
- * some of the "main-xxx.c" files to introduce macro trigger sequences.
+ * some of the "main-*.c" files to introduce macro trigger sequences.
  *
  * Hack -- we use "ascii 29" (ctrl-right-bracket) as a special "magic" key,
  * which can be used to give a variety of "sub-commands" which can be used
@@ -1882,7 +1849,7 @@ static cptr inkey_next = NULL;
  * the current screen, to start/stop recording a macro action, etc.
  *
  * If "term_screen" is not active, we will make it active during this
- * function, so that the various "main-xxx.c" files can assume that input
+ * function, so that the various "main-*.c" files can assume that input
  * is only requested (via "Term_inkey()") when "term_screen" is active.
  *
  * Mega-Hack -- This function is used as the entry point for clearing the
@@ -2703,7 +2670,7 @@ void messages_free(void)
  * components (Red, Green, Blue), for example, TERM_UMBER is defined
  * as 2/4 Red, 1/4 Green, 0/4 Blue.
  *
- * The following info is from "Torbjorn Lindgren" (see "main-xaw.c").
+ * The following info is from "Torbjorn Lindgren".
  *
  * These values are NOT gamma-corrected.  On most machines (with the
  * Macintosh being an important exception), you must "gamma-correct"
@@ -2965,7 +2932,7 @@ void msg_debug(cptr fmt, ...)
     /* End the Varargs Stuff */
     va_end(vp);
 
-    sprintf(buf2, "<< %s >>", buf);
+    strnfmt(buf2, sizeof(buf2), "<< %s >>", buf);
 
     /* Display */
     msg_print_aux(MSG_GENERIC, buf2);
@@ -3686,14 +3653,14 @@ s16b get_quantity(cptr prompt, int max)
         if (!prompt)
         {
             /* Build a prompt */
-            sprintf(tmp, "Quantity (0-%d): ", max);
+            strnfmt(tmp, sizeof(tmp), "Quantity (0-%d): ", max);
 
             /* Use that prompt */
             prompt = tmp;
         }
 
         /* Build the default */
-        sprintf(buf, "%d", amt);
+        strnfmt(buf, sizeof(buf), "%d", amt);
 
         /* Ask for a quantity */
         if (!term_get_string(prompt, buf, 7))
@@ -5214,7 +5181,7 @@ cptr attr_to_text(byte a)
 
     base = short_color_names[GET_BASE_COLOR(a)];
 
-#if DO_YOU_WANT_THIS_IN_MONSTER_SPOILERS_Q
+#ifdef DO_YOU_WANT_THIS_IN_MONSTER_SPOILERS_Q
 
     if (GET_SHADE(a) > 0)
     {
