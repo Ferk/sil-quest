@@ -2,7 +2,9 @@
 
 ## Preparation (for all platforms)
 
-**Step 0**: Download the Sil-Q source code.
+The initial step is to download the Sil-Q source code. You have two options.
+
+**Option 1: Clone the Sil-Q git repository.**
 
 If you have `git` installed, git clone the Sil-Q repository and then proceed
 with one of the next sections (depending on your operating system) to compile
@@ -12,6 +14,8 @@ the game:
 # Clone the Sil-Q repository and change to its directory
 $ git clone git@github.com:sil-quirk/sil-q.git Sil-Q && cd Sil-Q
 ```
+
+**Option 2: Download the Sil-Q source release file.**
 
 If you have downloaded the `Sil-src.zip` source release file:
 
