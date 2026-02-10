@@ -1,8 +1,8 @@
 # Sil-Q
 
-[![CI workflow status for Windows](https://github.com/sil-quirk/sil-q/actions/workflows/ci.yml/badge.svg)](https://github.com/sil-quirk/sil-q/actions/workflows/windows.yml)
-[![CI workflow status for macOS](https://github.com/sil-quirk/sil-q/actions/workflows/ci.yml/badge.svg)](https://github.com/sil-quirk/sil-q/actions/workflows/mac.yml)
-[![CI workflow status for Linux](https://github.com/sil-quirk/sil-q/actions/workflows/ci.yml/badge.svg)](https://github.com/sil-quirk/sil-q/actions/workflows/linux.yml)
+[![CI workflow status for Windows](https://github.com/sil-quirk/sil-q/actions/workflows/windows.yml/badge.svg)](https://github.com/sil-quirk/sil-q/actions/workflows/windows.yml)
+[![CI workflow status for macOS](https://github.com/sil-quirk/sil-q/actions/workflows/mac.yml/badge.svg)](https://github.com/sil-quirk/sil-q/actions/workflows/mac.yml)
+[![CI workflow status for Linux](https://github.com/sil-quirk/sil-q/actions/workflows/linux.yml/badge.svg)](https://github.com/sil-quirk/sil-q/actions/workflows/linux.yml)
 
 Sil-Q is a free, single-player game with a strong emphasis on exploration and
 tactical combat. It has a simple but rich combat system which allows for a great
