@@ -10,10 +10,9 @@ his iron crown and escape alive!
 
 ## Screenshots
 
-|                           |                           |
+| Sil-Q with Tiles graphics | Sil-Q with ASCII graphics |
 | :-----------------------: | :-----------------------: |
 |        ![][tiles]         |        ![][ascii]         |
-| Sil-Q with Tiles graphics | Sil-Q with ASCII graphics |
 
 ## Download Sil-Q
 
