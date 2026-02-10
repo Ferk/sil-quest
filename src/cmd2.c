@@ -3323,6 +3323,7 @@ void do_cmd_run(void)
     if (dir == 5)
     {
         do_cmd_rest();
+        return;
     }
 
     /* Get location */
