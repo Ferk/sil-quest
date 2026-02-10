@@ -3,9 +3,10 @@ terms of either the GNU General Public License as published by the Free
 Software Foundation, version 2, or the "Angband licence", shown below, with
 some exceptions:
 
-- the sounds are freeware, whatever that means.
+- The sounds are freeware, whatever that means.
 
-- the font files are under the licences noted in lib/xtra/font/copying.txt,
+- The font files are under the licences noted in
+  [lib/xtra/font/copying.txt](lib/xtra/font/copying.txt),
   all of which are OSI-compliant.
 
 It is considered good practice to retain this statement for derivatives, rather
@@ -15,27 +16,34 @@ easier sharing of changes between variants.
 
 ---
 
+## Angband License
+
 The Angband Licence is:
 
+```
 Copyright (c) 1997 Ben Harrison, James E. Wilson, Robert A. Koeneke
 
 This software may be copied and distributed for educational, research,
 and not for profit purposes provided that this copyright and statement
 are included in all such copies. Other copyrights may also apply.
+```
 
 ---
 
+## GNU General Public License (GPL)
+
 The GNU GENERAL PUBLIC LICENCE is:
 
-    	    GNU GENERAL PUBLIC LICENSE
-    	       Version 2, June 1991
+```
+            GNU GENERAL PUBLIC LICENSE
+               Version 2, June 1991
 
 Copyright (C) 1989, 1991 Free Software Foundation, Inc.,
 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 Everyone is permitted to copy and distribute verbatim copies
 of this license document, but changing it is not allowed.
 
-    		    Preamble
+                Preamble
 
 The licenses for most software are designed to take away your
 freedom to share and change it. By contrast, the GNU General Public
@@ -287,7 +295,7 @@ Foundation.
     of preserving the free status of all derivatives of our free software and
     of promoting the sharing and reuse of software generally.
 
-        		    NO WARRANTY
+                    NO WARRANTY
 
 11. BECAUSE THE PROGRAM IS LICENSED FREE OF CHARGE, THERE IS NO WARRANTY
     FOR THE PROGRAM, TO THE EXTENT PERMITTED BY APPLICABLE LAW. EXCEPT WHEN
@@ -309,7 +317,7 @@ Foundation.
     PROGRAMS), EVEN IF SUCH HOLDER OR OTHER PARTY HAS BEEN ADVISED OF THE
     POSSIBILITY OF SUCH DAMAGES.
 
-        	     END OF TERMS AND CONDITIONS
+                 END OF TERMS AND CONDITIONS
 
             How to Apply These Terms to Your New Programs
 
@@ -369,3 +377,4 @@ proprietary programs. If your program is a subroutine library, you may
 consider it more useful to permit linking proprietary applications with the
 library. If this is what you want to do, use the GNU Lesser General
 Public License instead of this License.
+```
