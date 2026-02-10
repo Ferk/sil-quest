@@ -27,6 +27,8 @@ the [releases](https://github.com/sil-quirk/sil-q/releases) section.
 The latest Sil-Q version is **v1.5.0**, released on 2022-01-03. [Read about the
 changes](lib/docs/CHANGELOG.md) in this version.
 
+> We plan to release the next update some time in 2026. Stay tuned!
+
 ## Compiling Sil-Q from source code
 
 See [COMPILING](lib/docs/COMPILING.md) for instructions how to compile Sil-Q
