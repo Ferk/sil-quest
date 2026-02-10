@@ -53,13 +53,13 @@ Added:
 - macOS: Support retina display
   ([#96](https://github.com/sil-quirk/sil-q/pull/96))
   - thanks @backwardsEric
-- Sil-Q code base is now compatible with C99/GNU99 and commonly enabled compiler
-  warnings including `-Wall` and `-Wextra`. This is one of the steps to
-  modernize the game's code base (whose lineage dates back several decades) so
-  that it can be improved in future releases more easily, helping us to reduce
-  the necessary development time. These changes should not be visible to
-  players, other than (hopefully!) reducing the number of bugs they might
-  experience.
+- Sil-Q's codebase is now compatible with C99/GNU99 and compiles cleanly with
+  commonly enabled compiler warnings, such as `-Wall` and `-Wextra`. This is an
+  important step to modernize the game's codebase (whose lineage dates back
+  several decades) so that it can be improved in future releases more easily,
+  which in turn helps us to reduce the necessary development time. These changes
+  should not be visible to players, other than (hopefully!) reducing the number
+  of bugs they might experience.
 
 Changed:
 
