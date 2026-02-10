@@ -42,24 +42,25 @@ There are several different Linux/Unix (incl. macOS) setups for Sil-Q:
 **Step 2**: Compile Sil-Q. Open a terminal in the top-level directory of the
 Sil-Q folder.
 
-    ```shell
-    # Go to the src/ directory.
-    $ cd src/
+```shell
+# Go to the src/ directory.
+$ cd src/
 
-    # Compile the sources.
-    $ make -f Makefile.std install
-    ```
+# Compile the sources.
+$ make -f Makefile.std install
+```
 
 **Step 3**: Run Sil-Q via the `sil` executable in the top-level directory. Note
 that you still need the `lib/` directory to run Sil-Q. It must be located in the
 same directory as the `sil` executable.
 
-    ```shell
-    # Go back to top-level directory.
-    $ cd ..
+```shell
+# Go back to top-level directory.
+$ cd ..
 
-    # Run the Sil-Q executable to start the game.
-    $ ./sil
+# Run the Sil-Q executable to start the game.
+$ ./sil
+```
 
 > NOTE: If you are on macOS 10.15 or later and haven't run Sil-Q before, the
 > macOS Gatekeeper security feature may prevent you from starting the `sil`
@@ -88,25 +89,26 @@ Enjoy!
 **Step 2**: Compile Sil-Q. Open a terminal in the top-level directory of the
 Sil-Q folder.
 
-    ```shell
-    # In the Cygwin terminal, go to the src/ directory.
-    $ cd src/
+```shell
+# In the Cygwin terminal, go to the src/ directory.
+$ cd src/
 
-    # Compile the sources.
-    # pe-x86-64 is for 64-bit windows, pe-i386 for 32-bit Windows.
-    $ make -f Makefile.cyg PEFORMAT=pe-x86-64 install
-    ```
+# Compile the sources.
+# pe-x86-64 is for 64-bit windows, pe-i386 for 32-bit Windows.
+$ make -f Makefile.cyg PEFORMAT=pe-x86-64 install
+```
 
 **Step 3**: Run Sil-Q via the `sil.exe` executable in the top-level directory.
 Note that you still need the `lib/` directory to run Sil-Q. It must be located
 in the same directory as `sil.exe`.
 
-    ```shell
-    # Go back to top-level directory.
-    $ cd ..
+```shell
+# Go back to top-level directory.
+$ cd ..
 
-    # Run the Sil-Q executable to start the game.
-    $ ./sil.exe
+# Run the Sil-Q executable to start the game.
+$ ./sil.exe
+```
 
 Enjoy!
 
@@ -142,26 +144,26 @@ Sil-Q folder.
 > `arm64` vs. Intel `x86_64`), run `make -f Makefile.cocoa clean` to clean up
 > any object files that may not match your new set of selected architectures.
 
-    ```shell
-    # Go to the src/ directory
-    $ cd src
+```shell
+# Go to the src/ directory
+$ cd src
 
-    # Option 1 (default): Generate a universal app that works on both Apple
-    # Silicon Macs (M1/M2/M3/M4) and Intel-based Macs. Use this option if you
-    # are unsure.
-    #           *** Requires Xcode 12.2 or later. ***
-    $ make -f Makefile.cocoa install
+# Option 1 (default): Generate a universal app that works on both Apple
+# Silicon Macs (M1/M2/M3/M4) and Intel-based Macs. Use this option if you
+# are unsure.
+#           *** Requires Xcode 12.2 or later. ***
+$ make -f Makefile.cocoa install
 
-    # Option 2: Generate a native app that works only on Apple Silicon Macs.
-    #           *** Requires Xcode 12.2 or later. ***
-    $ make -f Makefile.cocoa ARCHS=arm64 install
+# Option 2: Generate a native app that works only on Apple Silicon Macs.
+#           *** Requires Xcode 12.2 or later. ***
+$ make -f Makefile.cocoa ARCHS=arm64 install
 
-    # Option 3: Generate a native app that works only on Intel-based Macs.
-    #           If you have an Intel machine, you might be forced to use this
-    #           option if your Xcode version doesn't support building for
-    #           Apple Silicon Macs.
-    $ make -f Makefile.cocoa ARCHS=x86_64 install
-    ```
+# Option 3: Generate a native app that works only on Intel-based Macs.
+#           If you have an Intel machine, you might be forced to use this
+#           option if your Xcode version doesn't support building for
+#           Apple Silicon Macs.
+$ make -f Makefile.cocoa ARCHS=x86_64 install
+```
 
 The compilation generates a macOS application, `Sil.app`, in the top-level
 directory of Sil-Q (the parent directory of `src/`). You may move `Sil.app` to
