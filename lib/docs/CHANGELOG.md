@@ -25,12 +25,6 @@ See detailed information below.
 
 ### Breaking changes
 
-- For Linux and (non-Cocoa) macOS versions only:
-  The command line argument of the `sil` binary to "request sound mode" was
-  changed from `-v` to `-a` ("a" for "audio/sound"). Now, the `-v` command
-  prints the Sil-Q version information (example: "Sil-Q version 1.5.1"). This
-  breaking change does not affect the Windows and native macOS (Cocoa) versions,
-  because they never supported this functionality in the first place.
 - Officially supported platforms are now limited to Windows, Mac, Linux. Removed
   support for ancient, unused, and/or untested platforms such as Amiga, NeXT,
   Solaris, SGI, Dec ALPHA, RISC OS, OS/2, DOS. Most of this was left-over code
@@ -41,6 +35,17 @@ See detailed information below.
   the game, such as version 1.5.0.
 - Removed support for ancient, unused, and/or untested development toolchains
   such as the Borland and lcc32 compilers.
+- _For Windows version only_: Players should use the new 64-bit version of Sil-Q
+  for Microsoft Windows. The 32-bit version is now deprecated and intended only
+  as a fallback option if players should experience bugs specific to the new
+  64-bit version. Once we are happy with 64-bit, the 32-bit variant will be
+  removed in a future release.
+- _For Linux and (non-Cocoa) macOS versions only_:
+  The command line argument of the `sil` binary to "request sound mode" was
+  changed from `-v` to `-a` ("a" for "audio/sound"). Now, the `-v` command
+  prints the Sil-Q version information (example: "Sil-Q version 1.5.1"). This
+  breaking change does not affect the Windows and native macOS (Cocoa) versions,
+  because they never supported this functionality in the first place.
 
 ### Gameplay changes
 
