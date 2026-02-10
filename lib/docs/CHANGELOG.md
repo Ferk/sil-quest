@@ -73,6 +73,8 @@ Changed:
 
 Fixed:
 
+- fix: tile assignment for easter eggs (fixes #120)
+  ([#168](https://github.com/sil-quirk/sil-q/pull/168))
 - fix: buffer overflow in do_cmd_run() when player requests "running in place"
   ([df53768](https://github.com/sil-quirk/sil-q/commit/df53768))
 - fix: memory leak for races/houses during character creation
