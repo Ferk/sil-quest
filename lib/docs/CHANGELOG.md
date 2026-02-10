@@ -12,6 +12,17 @@
   happy with 64-bit, the 32-bit variant will be removed in a future release.
 - Many bug fixes
 
+### Thanks and appreciation
+
+We’d like to thank the following members of the Sil-Q community for their help
+in creating this release (in alphabetical order):
+
+- @backwardsEric
+- @davidk64fnq
+- @joeljpa
+
+See detailed information below.
+
 ### Breaking changes
 
 - For Linux and (non-Cocoa) macOS versions only:
@@ -41,6 +52,7 @@ Added:
 
 - macOS: Support retina display
   ([#96](https://github.com/sil-quirk/sil-q/pull/96))
+  - thanks @backwardsEric
 - Sil-Q code base is now compatible with C99/GNU99 and commonly enabled compiler
   warnings including `-Wall` and `-Wextra`. This is one of the steps to
   modernize the game's code base (whose lineage dates back several decades) so
