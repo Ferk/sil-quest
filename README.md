@@ -1,6 +1,6 @@
 # Sil-Q
 
-![Latest Release](https://img.shields.io/github/v/release/sil-quirk/sil-q?label=Latest%20Release)
+[![Latest Release](https://img.shields.io/github/v/release/sil-quirk/sil-q?label=Latest%20Release)](https://github.com/sil-quirk/sil-q/releases)
 [![CI workflow status for Windows](https://github.com/sil-quirk/sil-q/actions/workflows/windows.yml/badge.svg)](https://github.com/sil-quirk/sil-q/actions/workflows/windows.yml)
 [![CI workflow status for macOS](https://github.com/sil-quirk/sil-q/actions/workflows/mac.yml/badge.svg)](https://github.com/sil-quirk/sil-q/actions/workflows/mac.yml)
 [![CI workflow status for Linux](https://github.com/sil-quirk/sil-q/actions/workflows/linux.yml/badge.svg)](https://github.com/sil-quirk/sil-q/actions/workflows/linux.yml)
