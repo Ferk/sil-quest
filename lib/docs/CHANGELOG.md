@@ -56,6 +56,7 @@ Changed:
 
 Fixed:
 
+- fix: memory leak for races/houses during character creation
 - fix: bug in my_fopen_temp() for Windows
 - fix: correctly search skeletons and chests in tight spaces (fixes #107)
   ([#146](https://github.com/sil-quirk/sil-q/pull/146))

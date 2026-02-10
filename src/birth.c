@@ -1207,6 +1207,7 @@ static bool get_player_race(void)
     /* No selection? */
     if (race == INVALID_CHOICE)
     {
+        FREE(races);
         return (FALSE);
     }
 
@@ -1341,6 +1342,7 @@ static bool get_player_house(void)
     /* No selection? */
     if (house_choice == INVALID_CHOICE)
     {
+        FREE(houses);
         return (FALSE);
     }
 
