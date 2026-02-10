@@ -9,7 +9,7 @@ with one of the next sections (depending on your operating system) to compile
 the game:
 
 ```shell
-# Clone the Sil-Q repository
+# Clone the Sil-Q repository and change to its directory
 $ git clone git@github.com:sil-quirk/sil-q.git Sil-Q && cd Sil-Q
 ```
 
