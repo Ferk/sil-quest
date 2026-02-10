@@ -21,8 +21,11 @@ his iron crown and escape alive!
 
 ## Download Sil-Q
 
-You can [download Sil-Q](https://github.com/sil-quirk/sil-q/releases) from the
-[releases](https://github.com/sil-quirk/sil-q/releases) section.
+You can [**download Sil-Q**](https://github.com/sil-quirk/sil-q/releases) from
+the [releases](https://github.com/sil-quirk/sil-q/releases) section.
+
+The latest Sil-Q version is **v1.5.0**, released on 2022-01-03. [Read about the
+changes](lib/docs/CHANGELOG.md) in this version.
 
 ## Compiling Sil-Q from source code
 
