@@ -58,6 +58,7 @@ Fixed:
 
 - fix: buffer overflow in do_cmd_run() when player requests "running in place"
 - fix: memory leak for races/houses during character creation
+- fix: abort firing when no valid path was found to prevent buffer overflow
 - fix: bug in my_fopen_temp() for Windows
 - fix: correctly search skeletons and chests in tight spaces (fixes #107)
   ([#146](https://github.com/sil-quirk/sil-q/pull/146))
