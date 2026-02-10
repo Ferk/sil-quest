@@ -690,6 +690,7 @@
       var tilesetMode = "remote";
       var definesMode = "remote";
       var entityFilesMode = "remote";
+      var prfFilesMode = "remote";
 
       // GitHub raw URLs for default files
       var GITHUB_BASE =
@@ -750,7 +751,8 @@
       // Store last loaded local files for reload functionality
       var lastLocalTilesetFile = null;
       var lastLocalDefinesFile = null;
-      var lastLocalEntityFiles = null;
+      var lastLocalEditFiles = null;
+      var lastLocalPrfFiles = null;
 
       function handleFileSelect(event) {
         var file = event.target.files[0];
@@ -1024,6 +1026,26 @@
         }
       }
 
+      function setPrfFilesMode(mode) {
+        prfFilesMode = mode;
+        var remoteBtn = document.getElementById("prfRemoteBtn");
+        var localBtn = document.getElementById("prfLocalBtn");
+        var remoteSection = document.getElementById("prfRemoteSection");
+        var localSection = document.getElementById("prfLocalSection");
+
+        if (mode === "remote") {
+          remoteBtn.classList.add("active");
+          localBtn.classList.remove("active");
+          remoteSection.classList.remove("hidden");
+          localSection.classList.add("hidden");
+        } else {
+          remoteBtn.classList.remove("active");
+          localBtn.classList.add("active");
+          remoteSection.classList.add("hidden");
+          localSection.classList.remove("hidden");
+        }
+      }
+
       // Collapsible section toggle
       function toggleCollapsible(headerId, contentId) {
         var header = document.getElementById(headerId);
@@ -1038,9 +1060,8 @@
         loadTilesetFromUrl();
       }
 
-      // Reset entity file URLs to defaults and reload
-      function resetEntityUrls() {
-        // Reset edit URLs
+      // Reset entity definition URLs to defaults and reload
+      function resetEditUrls() {
         var defaultEditUrls = [
           GITHUB_BASE + "lib/edit/object.txt",
           GITHUB_BASE + "lib/edit/monster.txt",
@@ -1054,8 +1075,11 @@
             input.value = defaultEditUrls[i - 1] || "";
           }
         }
+        loadAllRemoteFiles();
+      }
 
-        // Reset PRF URLs
+      // Reset tile assignment URLs to defaults and reload
+      function resetPrfUrls() {
         var defaultPrfUrls = [
           GITHUB_BASE + "lib/pref/flvr-new.prf",
           GITHUB_BASE + "lib/pref/graf-new.prf",
@@ -1069,9 +1093,7 @@
             input.value = defaultPrfUrls[i - 1] || "";
           }
         }
-
-        // Reload all files
-        loadAllRemoteFiles();
+        loadPrfFilesFromUrls();
       }
 
       // Get file name from URL or path
@@ -1106,7 +1128,9 @@
 
         editFilesToLoad = urls.length;
         if (editFilesToLoad === 0) {
-          loadPrfFilesFromUrls();
+          if (prfFilesMode === "remote") {
+            loadPrfFilesFromUrls();
+          }
           return;
         }
 
@@ -1127,7 +1151,9 @@
               updateEditStatus(fileName, "success", "remote", url);
               editFilesLoaded++;
               if (editFilesLoaded === editFilesToLoad) {
-                loadPrfFilesFromUrls();
+                if (prfFilesMode === "remote") {
+                  loadPrfFilesFromUrls();
+                }
               }
             })
             .catch(function (err) {
@@ -1135,7 +1161,9 @@
               editFilesLoaded++;
               console.error("Failed to load " + fileName + ":", err);
               if (editFilesLoaded === editFilesToLoad) {
-                loadPrfFilesFromUrls();
+                if (prfFilesMode === "remote") {
+                  loadPrfFilesFromUrls();
+                }
               }
             });
         });
@@ -1369,7 +1397,7 @@
 
       // Auto-load PRF files from GitHub
       function autoLoadPrfFiles() {
-        if (entityFilesMode === "remote") {
+        if (prfFilesMode === "remote") {
           loadPrfFilesFromUrls();
         }
       }
@@ -1425,40 +1453,33 @@
         });
       }
 
-      // Handle local file picker for entity files
-      function handleLocalEntityFiles(event) {
+      // Handle local file picker for entity definition files
+      function handleLocalEditFilesOnly(event) {
         var files = event.target.files;
         if (files.length === 0) return;
-        lastLocalEntityFiles = Array.from(files);
-        loadEntityFilesFromArray(lastLocalEntityFiles);
+        lastLocalEditFiles = Array.from(files);
+        loadLocalEditFiles(lastLocalEditFiles);
       }
 
-      // Load entity files from array (used by both initial load and reload)
-      function loadEntityFilesFromArray(files) {
-        // Separate edit files from prf files
-        var editFiles = [];
-        var prfFiles = [];
-
-        files.forEach(function (file) {
-          if (file.name.endsWith(".prf")) {
-            prfFiles.push(file);
-          } else if (file.name.endsWith(".txt")) {
-            editFiles.push(file);
-          }
-        });
-
-        if (editFiles.length > 0) {
-          loadLocalEditFiles(editFiles);
-        }
-        if (prfFiles.length > 0) {
-          loadLocalPrfFiles(prfFiles);
+      // Reload last local entity definition files
+      function reloadLocalEditFilesStored() {
+        if (lastLocalEditFiles && lastLocalEditFiles.length > 0) {
+          loadLocalEditFiles(lastLocalEditFiles);
         }
       }
 
-      // Reload last local entity files
-      function reloadLocalEntityFiles() {
-        if (lastLocalEntityFiles && lastLocalEntityFiles.length > 0) {
-          loadEntityFilesFromArray(lastLocalEntityFiles);
+      // Handle local file picker for tile assignment files
+      function handleLocalPrfFilesOnly(event) {
+        var files = event.target.files;
+        if (files.length === 0) return;
+        lastLocalPrfFiles = Array.from(files);
+        loadLocalPrfFiles(lastLocalPrfFiles);
+      }
+
+      // Reload last local tile assignment files
+      function reloadLocalPrfFilesStored() {
+        if (lastLocalPrfFiles && lastLocalPrfFiles.length > 0) {
+          loadLocalPrfFiles(lastLocalPrfFiles);
         }
       }
 
@@ -2219,9 +2240,9 @@
         <div id="definesStatusList" class="prf-status-list status-list-spaced"></div>
       </div>
 
-      <!-- Entity Files and Tile Assignments Section -->
+      <!-- Entity Definitions Section -->
       <div class="card">
-        <p class="note">Entity definitions (<code>lib/edit/*.txt</code>) and tile assignments (<code>lib/pref/*.prf</code>).</p>
+        <p class="note">Entity definitions (<code>lib/edit/*.txt</code>).</p>
 
         <!-- Mode toggle -->
         <div class="segmented-toggle">
@@ -2251,7 +2272,7 @@
             <button
               type="button"
               class="btn-small"
-              onclick="resetEntityUrls()"
+              onclick="resetEditUrls()"
             >
               Load defaults
             </button>
@@ -2260,13 +2281,13 @@
           <!-- Collapsible URL fields -->
           <div
             class="collapsible-header"
-            id="urlFieldsHeader"
-            onclick="toggleCollapsible('urlFieldsHeader', 'urlFieldsContent')"
+            id="editUrlFieldsHeader"
+            onclick="toggleCollapsible('editUrlFieldsHeader', 'editUrlFieldsContent')"
           >
             <span class="collapsible-arrow">▶</span>
             <span>Configure URLs</span>
           </div>
-          <div class="collapsible-content" id="urlFieldsContent">
+          <div class="collapsible-content" id="editUrlFieldsContent">
             <div class="section-label-spaced">
               Entity definitions (object.txt, monster.txt, terrain.txt,
               flavor.txt):
@@ -2302,8 +2323,81 @@
             <div class="url-field-row">
               <input id="editUrl5" type="text" placeholder="(additional URL)">
             </div>
+          </div>
+        </div>
 
-            <div class="section-label-prf">
+        <!-- Local mode section -->
+        <div id="entityLocalSection" class="hidden local-file-section">
+          <div class="load-row">
+            <input
+              id="editLocalFiles"
+              type="file"
+              accept=".txt"
+              multiple
+              onchange="handleLocalEditFilesOnly(event)"
+            >
+            <button type="button" class="btn-small" onclick="reloadLocalEditFilesStored()">
+              Reload
+            </button>
+            <span class="helper-text">
+              Select .txt definition files
+            </span>
+          </div>
+        </div>
+
+        <!-- Status display -->
+        <div id="editStatusList" class="prf-status-list status-list-spaced"></div>
+      </div>
+
+      <!-- Tile Assignments Section -->
+      <div class="card">
+        <p class="note">Tile assignments (<code>lib/pref/*.prf</code>).</p>
+
+        <!-- Mode toggle -->
+        <div class="segmented-toggle">
+          <button
+            type="button"
+            id="prfRemoteBtn"
+            class="active"
+            onclick="setPrfFilesMode('remote')"
+          >
+            🌐 GitHub
+          </button>
+          <button
+            type="button"
+            id="prfLocalBtn"
+            onclick="setPrfFilesMode('local')"
+          >
+            📁 Local
+          </button>
+        </div>
+
+        <!-- Remote mode section -->
+        <div id="prfRemoteSection">
+          <div class="load-row">
+            <button type="button" onclick="loadPrfFilesFromUrls()">
+              Load all
+            </button>
+            <button
+              type="button"
+              class="btn-small"
+              onclick="resetPrfUrls()"
+            >
+              Load defaults
+            </button>
+          </div>
+
+          <!-- Collapsible URL fields -->
+          <div
+            class="collapsible-header"
+            id="prfUrlFieldsHeader"
+            onclick="toggleCollapsible('prfUrlFieldsHeader', 'prfUrlFieldsContent')"
+          >
+            <span class="collapsible-arrow">▶</span>
+            <span>Configure URLs</span>
+          </div>
+          <div class="collapsible-content" id="prfUrlFieldsContent">
+            <div class="section-label-spaced">
               Tile assignments (.prf files):
             </div>
             <div class="url-field-row">
@@ -2337,33 +2431,26 @@
         </div>
 
         <!-- Local mode section -->
-        <div id="entityLocalSection" class="hidden local-file-section">
+        <div id="prfLocalSection" class="hidden local-file-section">
           <div class="load-row">
             <input
-              id="entityLocalFiles"
+              id="prfLocalFiles"
               type="file"
-              accept=".prf,.txt"
+              accept=".prf"
               multiple
-              onchange="handleLocalEntityFiles(event)"
+              onchange="handleLocalPrfFilesOnly(event)"
             >
-            <button type="button" class="btn-small" onclick="reloadLocalEntityFiles()">
+            <button type="button" class="btn-small" onclick="reloadLocalPrfFilesStored()">
               Reload
             </button>
             <span class="helper-text">
-              Select .txt (definitions) and .prf (assignments) files
+              Select .prf assignment files
             </span>
           </div>
         </div>
 
         <!-- Status display -->
-        <div class="section-label">
-          Entity definitions:
-        </div>
-        <div id="editStatusList" class="prf-status-list"></div>
-        <div class="section-label-small">
-          Tile assignments:
-        </div>
-        <div id="prfStatusList" class="prf-status-list"></div>
+        <div id="prfStatusList" class="prf-status-list status-list-spaced"></div>
       </div>
 
       <!-- Notes Section -->
