@@ -2,7 +2,18 @@
 
 ## Preparation (for all platforms)
 
-**Step 0**: Download and extract the Sil-Q source code.
+**Step 0**: Download the Sil-Q source code.
+
+If you have `git` installed, git clone the Sil-Q repository and then proceed
+with one of the next sections (depending on your operating system) to compile
+the game:
+
+```shell
+# Clone the Sil-Q repository
+$ git clone git@github.com:sil-quirk/sil-q.git && cd sil-q
+```
+
+If you have downloaded the `Sil-src.zip` source release file:
 
 - Unzip the file `Sil-src.zip`. It will become a folder called `Sil-Q-src`,
   which contains sub-folders called `lib/` and `src/`.
@@ -11,9 +22,10 @@
     the Sil-Q game executable (such as `sil.exe` on Windows) still requires the
     files and folders under the `lib/` directory.**
 - Move the `Sil-Q-src` folder to wherever you want to keep it. It is recommended
-  to rename the folder to `Sil`.
-- When you are done compiling the source code as per the instructions below, the
-  game will be automatically installed in the this folder as well.
+  to rename the folder to `Sil-Q`.
+- Proceed with one of the next sections (depending on your operating) system to
+  compile the game. Once compiled, the game will be automatically installed in
+  the `Sil-Q` folder as well.
 
 ## Linux/Unix (incl. macOS) with gcc
 
