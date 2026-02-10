@@ -10,7 +10,7 @@ the game:
 
 ```shell
 # Clone the Sil-Q repository
-$ git clone git@github.com:sil-quirk/sil-q.git && cd sil-q
+$ git clone git@github.com:sil-quirk/sil-q.git Sil-Q && cd Sil-Q
 ```
 
 If you have downloaded the `Sil-src.zip` source release file:
