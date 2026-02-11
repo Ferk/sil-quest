@@ -2210,15 +2210,62 @@ static errr Term_text_x11(int x, int y, int n, byte a, cptr s)
 
 #ifdef USE_GRAPHICS
 
+/// Draws multiple tiles top of of each other at render-time.
+///
+/// Used to create visual effects by drawing special tiles on top of or below
+/// base tiles, such as overlaying an "alert icon" on top of a monster tile.
+///
+/// The compositing works pixel-by-pixel. For each pixel, we work from the "top"
+/// visual layer down to the "bottom" visual layer:
+///
+///  TOP
+///   | 1. Alert icon/tile (which is mostly transparent)
+///   | 2. Base tile (e.g., a player or monster tile)
+///   | 3. Glow icon/tile (which is mostly transparent)
+///   V 4. Terrain background
+/// BOTTOM
+///
+/// The "blank" color is used as transparency.
+///
+/// This is also why the tile coordinate extraction uses `& 0x3F` (masking off
+/// both 0x80 for the graphics flag and 0x40 for the alert/glow flag), giving 6
+/// usable bits (0-63) for row and column indices.
+///
+/// Related code:
+/// - `Term_pict_win()` in `main-win.c` for Microsoft Windows.
+///
 static void composite_image(
     term_data* td, int x1, int y1, int x2, int y2, bool alert, bool glow)
 {
     unsigned long pixel, blank = td->blank;
 
+    // A glow icon (tile) to show a glow effect underneath a player/monster's
+    // base tile when the weapon glows. See function `weapon_glows()` in
+    // `xtra1.c`.
+    //
+    // ICON_GLOW is defined in `src/defines.h` and assigned to a tile via an
+    // `S:` entry in `lib/pref/graf-new.prf`.
+    //
+    // GRAPHICS_GLOW_MASK = 0x40 (per `src/defines.h`) on attr (cf. struct
+    // `feature_type->x_attr`)
+    //
+    // Pixel offset for left edge of the glow icon within the tileset
     int glow_x = (0x7F & misc_to_char[ICON_GLOW]) * td->fnt->twid;
+    // Pixel offset for top edge of the glow icon within the tileset
     int glow_y = (0x7F & misc_to_attr[ICON_GLOW]) * td->fnt->hgt;
 
+    // An alert icon (tile) to show an alertness indicator on top of a monster's
+    // base tile.
+    //
+    // ICON_ALERT is defined in `src/defines.h` and assigned to a tile via an
+    // `S:` entry in `lib/pref/graf-new.prf`.
+    //
+    // GRAPHICS_ALERT_MASK = 0x40 (per `src/defines.sh`) on char (cf. struct
+    // `feature_type->x_char`)
+    //
+    // Pixel offset for left edge of the alert icon within the tileset
     int alert_x = (0x7F & misc_to_char[ICON_ALERT]) * td->fnt->twid;
+    // Pixel offset for top edge of the alert icon within the tileset
     int alert_y = (0x7F & misc_to_attr[ICON_ALERT]) * td->fnt->hgt;
 
     for (int k = 0; k < td->fnt->twid; k++)
@@ -2227,27 +2274,31 @@ static void composite_image(
         {
             pixel = blank;
 
+            // Draw the alert icon/tile (alertness VFX)
             if (alert)
             {
-                /* Output from the icon */
+                /* Output from the alert icon/tile */
                 pixel = XGetPixel(td->tiles, alert_x + k, alert_y + l);
             }
 
+            // Draw the base tile (e.g., a monster tile)
             if (pixel == blank)
             {
-                /* Output from the tile */
+                /* Output from the base tile */
                 pixel = XGetPixel(td->tiles, x1 + k, y1 + l);
             }
 
+            // Draw the glow icon/tile (glow VFX)
             if (glow && pixel == blank)
             {
-                /* Output from the icon */
+                /* Output from the glow icon/tile */
                 pixel = XGetPixel(td->tiles, glow_x + k, glow_y + l);
             }
 
+            // Draw the terrain tile
             if (pixel == blank)
             {
-                /* Output from the terrain */
+                /* Output from the terrain tile */
                 pixel = XGetPixel(td->tiles, x2 + k, y2 + l);
             }
 
