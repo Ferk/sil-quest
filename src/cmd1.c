@@ -352,6 +352,12 @@ void drop_iron_crown(monster_type* m_ptr, const char* msg)
         // lower Morgoth's protection, remove his light source, increase his
         // will and perception and evasion
         anger_morgoth(1);
+
+        // Change Morgoth's tile to depict him without the crown
+        (&r_info[R_IDX_MORGOTH])->x_attr
+            = (&r_info[R_IDX_MORGOTH_NO_CROWN])->x_attr;
+        (&r_info[R_IDX_MORGOTH])->x_char
+            = (&r_info[R_IDX_MORGOTH_NO_CROWN])->x_char;
     }
 }
 

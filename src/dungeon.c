@@ -3063,6 +3063,21 @@ void play_game(bool new_game)
     /* Process some user pref files */
     process_some_user_pref_files();
 
+    // If Morgoth has lost his crown, change his tile to depict him without it.
+    //
+    // This must happen after `reset_visuals()`, which loads the default tile
+    // assignments and thus would always override this change to Morgoth's tile.
+    //
+    // It must also happen after `process_some_user_pref_files()`, because the
+    // user might have customized Morgoth's tile assignments.
+    if ((&a_info[ART_MORGOTH_3])->cur_num == 1)
+    {
+        (&r_info[R_IDX_MORGOTH])->x_attr
+            = (&r_info[R_IDX_MORGOTH_NO_CROWN])->x_attr;
+        (&r_info[R_IDX_MORGOTH])->x_char
+            = (&r_info[R_IDX_MORGOTH_NO_CROWN])->x_char;
+    }
+
     /* Set or clear "hjkl_movement" if requested */
     if (arg_force_original)
         hjkl_movement = FALSE;

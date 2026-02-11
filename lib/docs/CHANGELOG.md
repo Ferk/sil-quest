@@ -10,6 +10,8 @@
   The 32-bit version is now deprecated and intended only as a fallback option if
   players should experience bugs specific to the new 64-bit version. Once we are
   happy with 64-bit, the 32-bit variant will be removed in a future release.
+- _Tiles graphics only_: When Morgoth loses his crown, his tile now reflects the
+  loss. This should make it a bit more satisfying to achieve this milestone.
 - Many bug fixes
 
 ### Thanks and appreciation
@@ -67,6 +69,9 @@ Added:
   which in turn helps us to reduce the necessary development time. These changes
   should not be visible to players, other than (hopefully!) reducing the number
   of bugs they might experience.
+- Use dedicated tile when Morgoth loses his crown (fixes #170)
+  ([#172](https://github.com/sil-quirk/sil-q/pull/172))
+  - thanks @MicroChasm for the suggestion
 
 Changed:
 

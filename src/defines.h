@@ -207,13 +207,14 @@
 #define R_IDX_YOUNG_FIRE_DRAKE 181
 #define R_IDX_TROLL_GUARD 192
 #define R_IDX_SILENT_WATCHER 203
-#define R_IDX_GOTHMOG 241 //       the location of Gothmog
-#define R_IDX_UNGOLIANT 242 //     the location of Ungoliant
-#define R_IDX_GLAURUNG 243 //      the location of Glaurung
-#define R_IDX_GORTHAUR 244 //      the location of Gorthaur
-#define R_IDX_MORGOTH 251 //       the location of Morgoth
-#define R_IDX_CARCHAROTH 253 //    the location of Carcharoth
-#define R_IDX_MORGOTH_HALLU 401 // the location of Morgoth's hallucination image
+#define R_IDX_GOTHMOG 241 //          the location of Gothmog
+#define R_IDX_UNGOLIANT 242 //        the location of Ungoliant
+#define R_IDX_GLAURUNG 243 //         the location of Glaurung
+#define R_IDX_GORTHAUR 244 //         the location of Gorthaur
+#define R_IDX_MORGOTH 251 //          the location of Morgoth (with crown)
+#define R_IDX_MORGOTH_NO_CROWN 252 // the location of Morgoth (without crown)
+#define R_IDX_CARCHAROTH 253 //       the location of Carcharoth
+#define R_IDX_MORGOTH_HALLU 401 //    the location of Morgoth's hallucination image
 
 #define O_IDX_HERB_RAGE 380
 #define O_IDX_HERB_TERROR 382

@@ -894,8 +894,11 @@ R:243:0x8A/0x83
 # Gorthaur, Servant of Morgoth
 R:244:0x8A/0x91
 
-# Morgoth, Lord of Darkness
+# Morgoth, Lord of Darkness (with crown)
 R:251:0x8A/0x92
+
+# Morgoth, Lord of Darkness (without crown)
+R:252:0x8C/0x91
 
 # Carcharoth, the Jaws of Thirst
 R:253:0x88/0x97
