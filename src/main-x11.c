@@ -2234,6 +2234,14 @@ static errr Term_text_x11(int x, int y, int n, byte a, cptr s)
 /// Related code:
 /// - `Term_pict_win()` in `main-win.c` for Microsoft Windows.
 ///
+/// @param[in] td    The terminal data, provides tile dimensions and the tileset
+/// @param[in] x1    Pixel x-offset of the foreground tile in the tileset
+/// @param[in] y1    Pixel y-offset of the foreground tile in the tileset
+/// @param[in] x2    Pixel x-offset of the terrain tile in the tileset
+/// @param[in] y2    Pixel y-offset of the terrain tile in the tileset
+/// @param[in] alert Whether to composite the alert icon on top of foreground
+/// @param[in] glow  Whether to composite the glow icon behind foreground
+///
 static void composite_image(
     term_data* td, int x1, int y1, int x2, int y2, bool alert, bool glow)
 {
@@ -2244,10 +2252,7 @@ static void composite_image(
     // `xtra1.c`.
     //
     // ICON_GLOW is defined in `src/defines.h` and assigned to a tile via an
-    // `S:` entry in `lib/pref/graf-new.prf`.
-    //
-    // GRAPHICS_GLOW_MASK = 0x40 (per `src/defines.h`) on attr (cf. struct
-    // `feature_type->x_attr`)
+    // `S:` line in `lib/pref/graf-new.prf`.
     //
     // Pixel offset for left edge of the glow icon within the tileset
     int glow_x = (0x7F & misc_to_char[ICON_GLOW]) * td->fnt->twid;
@@ -2258,10 +2263,7 @@ static void composite_image(
     // base tile.
     //
     // ICON_ALERT is defined in `src/defines.h` and assigned to a tile via an
-    // `S:` entry in `lib/pref/graf-new.prf`.
-    //
-    // GRAPHICS_ALERT_MASK = 0x40 (per `src/defines.sh`) on char (cf. struct
-    // `feature_type->x_char`)
+    // `S:` line in `lib/pref/graf-new.prf`.
     //
     // Pixel offset for left edge of the alert icon within the tileset
     int alert_x = (0x7F & misc_to_char[ICON_ALERT]) * td->fnt->twid;
@@ -2350,7 +2352,11 @@ static errr Term_pict_x11(int x, int y, int n, const byte* ap, const char* cp,
         x2 = (tc & 0x3F) * td->fnt->twid;
         y2 = (ta & 0x3F) * td->fnt->hgt;
 
+        // GRAPHICS_ALERT_MASK = 0x40 (per `src/defines.sh`) on char (cf. struct
+        // `feature_type->x_char`)
         bool alert = (c & GRAPHICS_ALERT_MASK);
+        // GRAPHICS_GLOW_MASK = 0x40 (per `src/defines.h`) on attr (cf. struct
+        // `feature_type->x_attr`)
         bool glow = (a & GRAPHICS_GLOW_MASK);
 
         /* Optimise the common case */
