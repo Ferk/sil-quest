@@ -2198,19 +2198,43 @@ static errr Term_text_win(int x, int y, int n, byte a, cptr s)
     return 0;
 }
 
-/*
- * Low level graphics.  Assumes valid input.
- *
- * Draw an array of "special" attr/char pairs at the given location.
- *
- * We use the "Term_pict_win()" function for "graphic" data, which are
- * encoded by setting the "high-bits" of both the "attr" and the "char"
- * data.  We use the "attr" to represent the "row" of the main bitmap,
- * and the "char" to represent the "col" of the main bitmap.  The use
- * of this function is induced by the "higher_pict" flag.
- *
- * If "graphics" is not available, we simply "wipe" the given grids.
- */
+/// Low level graphics (assumes valid input).
+/// Draw an array of "special" attr/char pairs (tiles) at the given location.
+///
+/// For each tile be drawn (e.g., a player or monster tile), we will, if needed,
+/// overlay an alertness VFX on top and/or a glow VFX underneath.
+///
+/// We draw from the "bottom" visual layer up to the "top" visual layer:
+///
+///  TOP
+///   ^ 4. Alert icon/tile (which is mostly transparent)
+///   | 3. Base tile (e.g., a player or monster tile)
+///   | 2. Glow icon/tile (which is mostly transparent)
+///   | 1. Terrain background
+/// BOTTOM
+///
+/// The "blank" color is used as transparency.
+///
+/// We use this function for "graphic" data, which are encoded by setting the
+/// "high-bits" of both the `attr` and the `char` data.  We use the `attr` to
+/// represent the "row" (y) and the `char` (x) to represent the "column" of the
+/// main bitmap (tileset image), respectively.  The use of this function is
+/// induced by the "higher_pict" flag.
+///
+/// If "graphics" is not available, we simply "wipe" the given grids.
+///
+/// Related code:
+/// - `composite_image()` in `main-x11.c` for X11.
+///
+/// @param[in] x   Starting column in the terminal window (cell position, not
+/// pixels)
+/// @param[in] y   Row in the terminal window (cell position, not pixels)
+/// @param[in] n   Number of cells to draw
+/// @param[in] ap  The attr components of the foreground tiles to be drawn
+/// @param[in] cp  The char components of the foreground tiles to be drawn
+/// @param[in] tap The attr components of the terrain tiles to be drawn
+/// @param[in] tcp The char components of the terrain tiles to be drawn
+///
 static errr Term_pict_win(int x, int y, int n, const byte* ap, const char* cp,
     const byte* tap, const char* tcp)
 {
@@ -2274,26 +2298,37 @@ static errr Term_pict_win(int x, int y, int n, const byte* ap, const char* cp,
         byte a = ap[i];
         char c = cp[i];
 
-        /* Extract picture */
+        // Row and column numbers of the base tile
         int row = (a & 0x3F);
         int col = (c & 0x3F);
 
-        bool alert = (c & GRAPHICS_ALERT_MASK);
-        bool glow = (a & GRAPHICS_GLOW_MASK);
-
-        /* Location of bitmap cell */
+        // Pixel offset for left edge of the base tile
         x1 = col * w1;
+        // Pixel offset for top edge of the base tile
         y1 = row * h1;
+
+        // GRAPHICS_ALERT_MASK = 0x40 (per `src/defines.sh`) on char (cf. struct
+        // `feature_type->x_char`)
+        bool alert = (c & GRAPHICS_ALERT_MASK);
+        // GRAPHICS_GLOW_MASK = 0x40 (per `src/defines.h`) on attr (cf. struct
+        // `feature_type->x_attr`)
+        bool glow = (a & GRAPHICS_GLOW_MASK);
 
         if (arg_graphics == GRAPHICS_MICROCHASM)
         {
+            // Pixel offset for left edge of the glow icon within the tileset
             int glow_x = (0x7F & misc_to_char[ICON_GLOW]) * w1;
+            // Pixel offset for top edge of the glow icon within the tileset
             int glow_y = (0x7F & misc_to_attr[ICON_GLOW]) * h1;
 
+            // Pixel offset for left edge of the alert icon within the tileset
             int alert_x = (0x7F & misc_to_char[ICON_ALERT]) * w1;
+            // Pixel offset for top edge of the alert icon within the tileset
             int alert_y = (0x7F & misc_to_attr[ICON_ALERT]) * h1;
 
+            // Pixel offset for left edge of the terrain tile
             x3 = (tcp[i] & 0x3F) * w1;
+            // Pixel offset for top edge of the terrain tile
             y3 = (tap[i] & 0x3F) * h1;
 
             /* Perfect size */
@@ -2301,16 +2336,18 @@ static errr Term_pict_win(int x, int y, int n, const byte* ap, const char* cp,
             {
                 COLORREF transparent = GetPixel(hdcSrc, 0, 0);
 
-                /* Copy the terrain picture from the bitmap to the window */
+                // Draw the terrain tile by copying the terrain tile from the
+                // the bitmap to the window
                 BitBlt(hdc, x2, y2, tw2, h2, hdcSrc, x3, y3, SRCCOPY);
 
+                // Draw the glow icon/tile (glow VFX)
                 if (glow)
                 {
                     TransparentBlt(hdc, x2, y2, tw2, h2, hdcSrc, glow_x, glow_y,
                         w1, h1, transparent);
                 }
 
-                /* Draw the tile */
+                // Draw the base tile (e.g., a monster tile)
                 TransparentBlt(
                     hdc, x2, y2, tw2, h2, hdcSrc, x1, y1, w1, h1, transparent);
             }
@@ -2323,25 +2360,28 @@ static errr Term_pict_win(int x, int y, int n, const byte* ap, const char* cp,
                 /* Set the correct mode for stretching the tiles */
                 SetStretchBltMode(hdc, COLORONCOLOR);
 
-                /* Copy the terrain picture from the bitmap to the window */
+                // Draw the terrain tile by copying the terrain tile from the
+                // the bitmap to the window
                 StretchBlt(
                     hdc, x2, y2, tw2, h2, hdcSrc, x3, y3, w1, h1, SRCCOPY);
 
+                // Draw the glow icon/tile (glow VFX)
                 if (glow)
                 {
                     TransparentBlt(hdc, x2, y2, tw2, h2, hdcSrc, glow_x, glow_y,
                         w1, h1, transparent);
                 }
 
-                /* Only draw if terrain and overlay are different */
+                /* Only draw if terrain and overlay (base tile) are different */
                 if ((x1 != x3) || (y1 != y3))
                 {
-                    /* Draw the tile */
+                    // Draw the base tile (e.g., a monster tile)
                     TransparentBlt(hdc, x2, y2, tw2, h2, hdcSrc, x1, y1, w1, h1,
                         transparent);
                 }
             }
 
+            // Draw the alert icon/tile (alertness VFX)
             if (alert)
             {
                 COLORREF transparent = GetPixel(hdcSrc, 0, 0);
