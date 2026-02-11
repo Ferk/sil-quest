@@ -116,9 +116,10 @@ struct maxima
     u16b art_self_made_max; /* Max number of self-made artefacts */
 };
 
-/*
- * Information about terrain "features"
- */
+/// Information about terrain "features" (floors, walls, doors, traps, etc.).
+///
+/// Tile assignments for features are set via `F:` lines in PRF files (e.g.,
+/// `lib/pref/graf-new.prf`), which override `x_attr` and `x_char`.
 struct feature_type
 {
     u32b name; /* Name (offset) */
@@ -130,11 +131,60 @@ struct feature_type
 
     s16b unused; /* Extra bytes (unused) */
 
-    byte d_attr; /* Default feature attribute */
-    char d_char; /* Default feature character */
+    /// Default feature attribute.
+    ///
+    /// Loaded once from `lib/edit/*.txt` data files at startup and is never
+    /// modified afterwards. `x_attr` is initialized as a copy of this value.
+    ///
+    /// Contains a terminal color code (0–15). Bit 7 (`0x80`) is never set in
+    /// practice because `lib/edit/*.txt` files only define ASCII display data.
+    ///
+    /// See also `x_attr`.
+    byte d_attr;
+    /// Default feature character.
+    ///
+    /// Loaded once from `lib/edit/*.txt` data files at startup and is never
+    /// modified afterwards. `x_char` is initialized as a copy of this value.
+    ///
+    /// Contains an ASCII character (e.g., `#` for a wall). Bit 7 (`0x80`) is
+    /// never set in practice because `lib/edit/*.txt` files only define ASCII
+    /// display data.
+    ///
+    /// See also `x_char`.
+    char d_char;
 
-    byte x_attr; /* Desired feature attribute */
-    char x_char; /* Desired feature character */
+    /// The desired ("actual") feature attribute. Read by the rendering code.
+    ///
+    /// Initialized as a copy of `d_attr`, then may be overridden by
+    /// `lib/pref/*.prf` files, or changed at runtime by game logic.
+    ///
+    /// In ASCII mode: this is a terminal color.
+    ///
+    /// In tiles mode: encodes the tile row (y) in the tileset (bits 5-0), an
+    /// optional glow overlay flag (bit 6 = `0x40`, aka `GRAPHICS_GLOW_MASK`),
+    /// and a graphics flag (bit 7 = `0x80`). When both `x_attr & 0x80` and
+    /// `x_char & 0x80` are set, then the rendering code treats the lower bits
+    /// as tile coordinates.
+    ///
+    /// Example: If the tile of down shaft is `0x80/0x9C`, then `x_attr` is
+    /// `0x80`.
+    byte x_attr;
+    /// The desired ("actual") feature character. Read by the rendering code.
+    ///
+    /// Initialized as a copy of `d_char`, then may be overridden by
+    /// `lib/pref/*.prf` files, or changed at runtime by game logic.
+    ///
+    /// In ASCII mode: this is the display character (like `#` for a wall).
+    ///
+    /// In tiles mode: encodes the tile column (x) in the tileset (bits 5-0), an
+    /// optional alert overlay flag (bit 6 = `0x40`, aka `GRAPHICS_ALERT_MASK`),
+    /// and a graphics flag (bit 7 = `0x80`). When both `x_attr & 0x80` and
+    /// `x_char & 0x80` are set, then the rendering code treats the lower bits
+    /// as tile coordinates.
+    ///
+    /// Example: If the tile of down shaft is `0x80/0x9C`, then `x_char` is
+    /// `0x9C`.
+    char x_char;
 };
 
 /*
