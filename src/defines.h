@@ -891,10 +891,13 @@
 #define KEYMAP_MODE_ANGBAND 2 // The Angband-like keyset
 #define KEYMAP_MODE_ANGBAND_HJKL 3 // The Angband-like keyset with hjkl movement
 
-/*** Icons mapped in "lib/edit/graf-new.prf" ***/
+/*** Icons mapped in "lib/pref/graf-new.prf" ***/
 
 #define ICON_UNKNOWN_ENEMY 0x0A
+/// Alertness indicator for monsters.
 #define ICON_ALERT 0x0B
+/// Glow icon. Used to show a glowing visual effect underneath a base tile, like
+/// a monster's tile, when that entity's weapon is glowing.
 #define ICON_GLOW 0x0C
 
 /*** Feature Indexes (see "lib/edit/feature.txt") ***/
