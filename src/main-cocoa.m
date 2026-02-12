@@ -394,7 +394,7 @@ struct PendingTileChange {
     char bckRow; /**< row coordinate within the tile set, for the
                      background tile */
     int mask;    /**< PICT_MASK_NONE or a bitwise-or of one or more of
-                     PICT_MAX_ALERT and PICT_MASK_GLOW */
+                     PICT_MASK_ALERT and PICT_MASK_GLOW */
 };
 struct PendingCellChange {
     union { struct PendingTextChange txc; struct PendingTileChange tic; } v;
