@@ -1965,7 +1965,7 @@
 
       <!-- Hex coordinate search -->
       <div class="load-row search-row">
-        <span class="form-label">Search tile by hex coords:</span>
+        <span class="form-label">Search tile by <code>char/attr</code> index:</span>
         <input id="txtHexSearch" type="text" placeholder="0x85/0x9C">
         <button type="button" onclick="searchByHex()">Search</button>
       </div>
@@ -1987,7 +1987,7 @@
             <span class="copy-icon">&#x2398;</span>
           </div>
           <label for="txtHexCode"
-            >hex coords for <code>lib/pref/*.prf</code> files</label
+            ><code>(char/attr)</code> tile index for <code>*.prf</code> files</label
           >
         </div>
         <div id="entityListContainer" class="entity-list-container hidden">
@@ -2468,6 +2468,13 @@
             <strong>TV_* constants</strong> — Parsed from
             <code>src/defines.h</code>. Only shown for entities that have a
             <code>tval</code> (objects and flavors).
+          </li>
+          <li>
+            <strong>(char/attr) tile indices</strong> — The char(acter) is the
+            row, attr(ibute) is the column in the tileset when the game runs
+            in tiles graphics mode. Bit flag <code>0x80</code> tells the
+            rendering engine to draw a graphical tile rather than an ASCII
+            char(acter) with a color attr(ibute).
           </li>
           <li>
             <strong>Player tiles</strong> — Each of the 4 playable races
