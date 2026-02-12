@@ -664,6 +664,26 @@ static void special_lighting_wall(byte* a, char* c, int feat, int info)
     }
 }
 
+/// Computes the tile offset to determine the player tile to be rendered,
+/// which is based on a sequence of 16 tiles per race.
+///
+/// As of Feb 2026, each race has a set of 16 tiles to represent the player. The
+/// tiles vary based on the player's skills (e.g., Melee vs. Archery) and
+/// equipment (e.g., sword vs. axe). Based on the aforementioned data, this
+/// function returns the offset of the appropriate tile out out of the set.
+/// The offset values are consistent across the four races.
+///
+/// Assumptions for the tileset image:
+/// 1. A race's sequence of 16 tiles must be on the same row in the tileset and
+/// in an uninterrupted sequence from 0, 1, ..., 15; i.e., a race's tiles must
+/// be "next to each other".
+/// 2. Each offset (such as 5) must represent the same player state (such as
+/// "dual-wielding swords") across all four races, thus across all 4x 16 tiles.
+///
+/// @returns The tile offset [0..15] that determines the appropriate player tile
+/// to be rendered, where 0 is the respective race's first tile (out of a
+/// sequence of 16 tiles) as defined by the `R:0`, `R:1`, `R:2`, `R:3` lines in
+/// `lib/pref/graf-new.prf`.
 static int player_tile_offset(void)
 {
     object_type * main_wield_ptr = &inventory[INVEN_WIELD];
@@ -1185,15 +1205,24 @@ void map_info(int y, int x, byte* ap, char* cp, byte* tap, char* tcp)
 
         if (graphics_are_ascii())
         {
+            // Change player color based on remaining health points.
             a = health_attr(p_ptr->chp, p_ptr->mhp);
+            // Set the desired display character for the player
             c = r_ptr->x_char;
         }
         else
         {
+            // Set the desired tile (x_attr/x_char pair) for the player,
+            // based on the player's race.
             r_ptr = &r_info[p_ptr->prace];
-
             a = r_ptr->x_attr;
+            // Pick the appropriate tile to be displayed for the player, based
+            // on the player's skills and equipment. Each race has 16 tiles.
+            //
+            // 1. Get the first (offset 0) tile of the player's race.
             c = r_ptr->x_char;
+            // 2. Pick the appropriate tile (thus offset) to be displayed for
+            // the player, based on the player's skills and equipment.
             c += player_tile_offset();
         }
     }
@@ -1507,10 +1536,10 @@ void map_info_default(int y, int x, byte* ap, char* cp)
     {
         monster_race* r_ptr = &r_info[0];
 
-        /*change player color with HP*/
+        // Change player color based on remaining health points.
         a = health_attr(p_ptr->chp, p_ptr->mhp);
 
-        /* Get the "player" char */
+        // Use the default display character for the player
         c = r_ptr->d_char;
     }
 
