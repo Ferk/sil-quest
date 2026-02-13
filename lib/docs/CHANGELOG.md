@@ -19,6 +19,7 @@ in creating this release (in alphabetical order):
 
 - @backwardsEric
 - @davidk64fnq
+- @imraflip
 - @joeljpa
 
 See detailed information below.
@@ -73,6 +74,9 @@ Changed:
 
 Fixed:
 
+- Fix inconsistent house naming for Falathrim and Haleth (fixes #164)
+  ([#173](https://github.com/sil-quirk/sil-q/pull/173))
+  - thanks @imraflip
 - fix: tile assignment for easter eggs (fixes #120)
   ([#168](https://github.com/sil-quirk/sil-q/pull/168))
 - fix: buffer overflow in do_cmd_run() when player requests "running in place"
