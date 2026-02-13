@@ -7,7 +7,7 @@
 
 **Sil-Q is a free, single-player dungeon infiltration game.** It has a strong
 emphasis on exploration and tactical combat. It features a simple but rich
-combat and stealth system which allows for a great variety of choice.
+combat and stealth system which gives players a great variety of choice.
 
 You play an adventurer who must venture deep into the dungeons of Angband, the
 fortress of the Dark Lord Morgoth, and attempt to steal a precious Silmaril from
