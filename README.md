@@ -5,9 +5,9 @@
 [![CI workflow status for macOS](https://github.com/sil-quirk/sil-q/actions/workflows/mac.yml/badge.svg)](https://github.com/sil-quirk/sil-q/actions/workflows/mac.yml)
 [![CI workflow status for Linux](https://github.com/sil-quirk/sil-q/actions/workflows/linux.yml/badge.svg)](https://github.com/sil-quirk/sil-q/actions/workflows/linux.yml)
 
-Sil-Q is a free, single-player game with a strong emphasis on exploration and
-tactical combat. It has a simple but rich combat system which allows for a great
-variety of choice.
+**Sil-Q is a free, single-player dungeon infiltration game.** It has a strong
+emphasis on exploration and tactical combat. It features a simple but rich
+combat and stealth system which allows for a great variety of choice.
 
 You play an adventurer who must venture deep into the dungeons of Angband, the
 fortress of the Dark Lord Morgoth, and attempt to steal a precious Silmaril from
