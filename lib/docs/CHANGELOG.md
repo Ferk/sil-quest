@@ -4,7 +4,7 @@
 
 ### Highlights
 
-- macOS version supports Retina displays (thanks backwardsEric)
+- macOS version supports high-resolution Retina displays.
 - Windows version in 64-bit and 32-bit. This release adds 64-bit Windows
   support. From this release onwards, we recommend you use the 64-bit version.
   The 32-bit version is now deprecated and intended only as a fallback option if
@@ -56,7 +56,7 @@ See detailed information below.
 
 Added:
 
-- macOS: Support retina display
+- macOS native app (Cocoa): Support high-resolution Retina displays.
   ([#96](https://github.com/sil-quirk/sil-q/pull/96))
   - thanks @backwardsEric
 - Sil-Q's codebase is now compatible with C99/GNU99 and compiles cleanly with
