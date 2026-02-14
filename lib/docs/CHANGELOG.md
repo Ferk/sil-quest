@@ -23,6 +23,7 @@ in creating this release (in alphabetical order):
 - @davidk64fnq
 - @imraflip
 - @joeljpa
+- @MicroChasm
 
 See detailed information below.
 
