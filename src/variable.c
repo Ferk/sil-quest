@@ -428,11 +428,22 @@ s16b alloc_race_size;
  */
 alloc_entry* alloc_race_table;
 
-/*
- * Specify attr/char pairs for visual special effects
- * Be sure to use "index & 0xFF" to avoid illegal access
- */
+/// Specify attr/char pairs for visual special effects.
+///
+/// These are lookup tables for special/misc tile coordinates, populated by `S:`
+/// lines in PRF files like `graf-new.prf`. Each entry stores a tile row (in
+/// `misc_to_attr`) and column (in `misc_to_char`) in the tileset image, with
+/// the 0x80 graphics flag set on both bytes.
+///
+/// Known indices:
+///   0x00-0x09  Damage number digit tiles (0-9), used by display_hit()
+///   0x0A       Question mark icon
+///   ICON_ALERT (0x0B)  Alert overlay icon, composited on top of alert monsters
+///   ICON_GLOW  (0x0C)  Glow overlay icon, composited behind glowing weapons
+///
+/// Make sure to use `index & 0xFF` to avoid illegal access.
 byte misc_to_attr[256];
+/// See misc_to_attr.
 char misc_to_char[256];
 
 /*
