@@ -24,6 +24,10 @@ his iron crown and escape alive!
 You can [**download Sil-Q**](https://github.com/sil-quirk/sil-q/releases) from
 the [releases](https://github.com/sil-quirk/sil-q/releases) section.
 
+> **macOS users:** When you launch `Sil.app` for the first time, the Gatekeeper
+> security feature in macOS 10.15+ may prevent you from starting the app.
+> [Follow these macOS instructions to fix this problem](lib/docs/MACOS.md).
+
 The latest Sil-Q version is **v1.5.0**, released on 2022-01-03. [Read about the
 changes](lib/docs/CHANGELOG.md#sil-q-150-2022-01-03) in this version.
 
