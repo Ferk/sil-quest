@@ -677,6 +677,27 @@
       .notes-list strong {
         color: var(--text-primary);
       }
+
+      .error-banner {
+        background: rgba(191, 95, 95, 0.15);
+        border: 1px solid var(--error);
+        border-radius: var(--radius);
+        padding: 0.75rem 1rem;
+        margin-bottom: 1.5rem;
+        color: var(--error);
+        font-size: 0.9rem;
+      }
+
+      .error-banner-title {
+        font-weight: 600;
+        margin-bottom: 0.3rem;
+      }
+
+      .error-banner-list {
+        margin: 0;
+        padding-left: 1.25rem;
+        font-size: 0.85rem;
+      }
     </style>
 
     <script>
@@ -711,9 +732,9 @@
 
       // Tile assignment files
       var DEFAULT_PRF_URLS = [
-        GITHUB_BASE + "lib/pref/flvr-new.prf",
-        GITHUB_BASE + "lib/pref/graf-new.prf",
-        GITHUB_BASE + "lib/pref/xtra-new.prf",
+        GITHUB_BASE + "lib/pref/flvr-tiles.prf",
+        GITHUB_BASE + "lib/pref/graf-tiles.prf",
+        "", // 3rd slot empty
         "", // 4th slot empty
         "", // 5th slot empty
       ];
@@ -753,6 +774,44 @@
       var lastLocalDefinesFile = null;
       var lastLocalEditFiles = null;
       var lastLocalPrfFiles = null;
+
+      // Track files that failed to load
+      var loadErrors = {};
+
+      function trackLoadError(fileName, category) {
+        loadErrors[fileName] = category;
+        updateErrorBanner();
+      }
+
+      function clearLoadError(fileName) {
+        delete loadErrors[fileName];
+        updateErrorBanner();
+      }
+
+      function clearLoadErrorsByCategory(category) {
+        var keys = Object.keys(loadErrors);
+        for (var i = 0; i < keys.length; i++) {
+          if (loadErrors[keys[i]] === category) {
+            delete loadErrors[keys[i]];
+          }
+        }
+        updateErrorBanner();
+      }
+
+      function updateErrorBanner() {
+        var banner = document.getElementById("errorBanner");
+        var list = document.getElementById("errorBannerList");
+        var keys = Object.keys(loadErrors);
+        if (keys.length === 0) {
+          banner.classList.add("hidden");
+          return;
+        }
+        var html = keys.map(function (name) {
+          return "<li>" + escapeHtml(name) + " (" + escapeHtml(loadErrors[name]) + ")</li>";
+        }).join("");
+        list.innerHTML = html;
+        banner.classList.remove("hidden");
+      }
 
       function handleFileSelect(event) {
         var file = event.target.files[0];
@@ -879,6 +938,7 @@
           return;
         }
 
+        clearLoadErrorsByCategory("type definitions");
         clearDefinesStatus();
         var fileName = getFileName(url);
         updateDefinesStatus(fileName, "loading", "remote", url);
@@ -891,11 +951,13 @@
           .then(function (content) {
             parseDefinesContent(content);
             updateDefinesStatus(fileName, "success", "remote", url);
+            clearLoadError(fileName);
             definesLoaded = true;
             chainToEntityFiles();
           })
           .catch(function (err) {
             updateDefinesStatus(fileName, "error", "remote", url);
+            trackLoadError(fileName, "type definitions");
             console.error("Failed to load " + fileName + ":", err);
             definesLoaded = true;
             chainToEntityFiles();
@@ -911,6 +973,7 @@
 
       // Load defines.h from local file
       function loadDefinesFromFile(file) {
+        clearLoadErrorsByCategory("type definitions");
         clearDefinesStatus();
         updateDefinesStatus(file.name, "loading", "local", file.name);
 
@@ -918,10 +981,12 @@
         reader.onload = function (e) {
           parseDefinesContent(e.target.result);
           updateDefinesStatus(file.name, "success", "local", file.name);
+          clearLoadError(file.name);
           definesLoaded = true;
         };
         reader.onerror = function () {
           updateDefinesStatus(file.name, "error", "local", file.name);
+          trackLoadError(file.name, "type definitions");
           definesLoaded = true;
         };
         reader.readAsText(file);
@@ -1081,9 +1146,9 @@
       // Reset tile assignment URLs to defaults and reload
       function resetPrfUrls() {
         var defaultPrfUrls = [
-          GITHUB_BASE + "lib/pref/flvr-new.prf",
-          GITHUB_BASE + "lib/pref/graf-new.prf",
-          GITHUB_BASE + "lib/pref/xtra-new.prf",
+          GITHUB_BASE + "lib/pref/flvr-tiles.prf",
+          GITHUB_BASE + "lib/pref/graf-tiles.prf",
+          "",
           "",
           "",
         ];
@@ -1113,6 +1178,7 @@
 
       // Load edit files from URL fields
       function loadEditFilesFromUrls() {
+        clearLoadErrorsByCategory("entity definitions");
         clearEditStatus();
         editFilesLoaded = 0;
         entityNames = { K: {}, R: {}, F: {}, L: {} };
@@ -1149,6 +1215,7 @@
                 parseEditFileContent(content, fileName, type);
               }
               updateEditStatus(fileName, "success", "remote", url);
+              clearLoadError(fileName);
               editFilesLoaded++;
               if (editFilesLoaded === editFilesToLoad) {
                 if (prfFilesMode === "remote") {
@@ -1158,6 +1225,7 @@
             })
             .catch(function (err) {
               updateEditStatus(fileName, "error", "remote", url);
+              trackLoadError(fileName, "entity definitions");
               editFilesLoaded++;
               console.error("Failed to load " + fileName + ":", err);
               if (editFilesLoaded === editFilesToLoad) {
@@ -1272,17 +1340,20 @@
           return;
         }
 
+        clearLoadErrorsByCategory("tileset image");
         setTilesetStatus("loading", "Loading...", "remote");
         loadedFileSources["tileset"] = url;
 
         var testImg = new Image();
         testImg.onload = function () {
           setTilesetStatus("success", "Loaded", "remote");
+          clearLoadError(getFileName(url));
           document.getElementById("txtImage").value = url;
           loadTilesetImage(url);
         };
         testImg.onerror = function () {
           setTilesetStatus("error", "Failed to load", "remote");
+          trackLoadError(getFileName(url), "tileset image");
           clearTilesetDisplay();
         };
         testImg.src = url;
@@ -1298,17 +1369,20 @@
 
       // Load tileset from file object (used by both initial load and reload)
       function loadTilesetFromFileObject(file) {
+        clearLoadErrorsByCategory("tileset image");
         setTilesetStatus("loading", "Loading...", "local");
         loadedFileSources["tileset"] = file.name;
 
         var reader = new FileReader();
         reader.onload = function (e) {
           setTilesetStatus("success", "Loaded", "local");
+          clearLoadError(file.name);
           document.getElementById("txtImage").value = file.name;
           loadTilesetImage(e.target.result);
         };
         reader.onerror = function () {
           setTilesetStatus("error", "Failed to load", "local");
+          trackLoadError(file.name, "tileset image");
           clearTilesetDisplay();
         };
         reader.readAsDataURL(file);
@@ -1355,6 +1429,7 @@
 
       // Load PRF files from URL fields
       function loadPrfFilesFromUrls() {
+        clearLoadErrorsByCategory("tile assignments");
         clearPrfStatus();
         prfEntities = [];
 
@@ -1385,11 +1460,13 @@
             .then(function (content) {
               parsePrfContent(content, fileName);
               updatePrfStatus(fileName, "success", "remote", url);
+              clearLoadError(fileName);
               addPlayerTileEntries();
               updateEntityList();
             })
             .catch(function (err) {
               updatePrfStatus(fileName, "error", "remote", url);
+              trackLoadError(fileName, "tile assignments");
               console.error("Failed to load " + fileName + ":", err);
             });
         });
@@ -1404,6 +1481,7 @@
 
       // Load local edit files from file picker
       function loadLocalEditFiles(files) {
+        clearLoadErrorsByCategory("entity definitions");
         clearEditStatus();
         entityNames = { K: {}, R: {}, F: {}, L: {} };
         editFilesLoaded = 0;
@@ -1421,10 +1499,12 @@
               parseEditFileContent(e.target.result, file.name, type);
             }
             updateEditStatus(file.name, "success", "local", file.name);
+            clearLoadError(file.name);
             editFilesLoaded++;
           };
           reader.onerror = function () {
             updateEditStatus(file.name, "error", "local", file.name);
+            trackLoadError(file.name, "entity definitions");
             editFilesLoaded++;
           };
           reader.readAsText(file);
@@ -1433,6 +1513,7 @@
 
       // Load local PRF files from file picker
       function loadLocalPrfFiles(files) {
+        clearLoadErrorsByCategory("tile assignments");
         clearPrfStatus();
         prfEntities = [];
 
@@ -1443,11 +1524,13 @@
           reader.onload = function (e) {
             parsePrfContent(e.target.result, file.name);
             updatePrfStatus(file.name, "success", "local", file.name);
+            clearLoadError(file.name);
             addPlayerTileEntries();
             updateEntityList();
           };
           reader.onerror = function () {
             updatePrfStatus(file.name, "error", "local", file.name);
+            trackLoadError(file.name, "tile assignments");
           };
           reader.readAsText(file);
         });
@@ -1511,7 +1594,7 @@
             continue;
           }
 
-          // Track conditional lines for xtra-new.prf
+          // Track conditional statements
           if (line.startsWith("?:")) {
             lastCondition = line;
             lastComment = ""; // Reset comment after condition
@@ -1535,13 +1618,6 @@
               // S: entries use the preceding comment as the name
               // Don't reset - consecutive S: entries share the same comment
               entityName = lastComment || "(special #" + id + ")";
-            } else if (fileName === "xtra-new.prf" && lastCondition) {
-              // For xtra-new.prf, extract class/race from condition
-              var classMatch = lastCondition.match(/\[EQU \$CLASS ([^\]]+)\]/i);
-              var raceMatch = lastCondition.match(/\[EQU \$RACE ([^\]]+)\]/i);
-              if (classMatch && raceMatch) {
-                entityName = raceMatch[1] + " " + classMatch[1];
-              }
             } else if (entityNames[prefix] && entityNames[prefix][id]) {
               // Look up from the parsed edit files
               var entityData = entityNames[prefix][id];
@@ -1572,9 +1648,6 @@
       }
 
       function getEntityType(prefix, fileName) {
-        if (fileName === "xtra-new.prf") {
-          return "Player";
-        }
         switch (prefix) {
           case "L":
             return "Flavor";
@@ -1611,7 +1684,7 @@
         "Bow (archery > melee)"
       ];
 
-      // Player race base tiles (from graf-new.prf R:0-R:3)
+      // Player race base tiles (from graf-tiles.prf R:0-R:3)
       var PLAYER_RACE_TILES = [
         { race: "Noldor", baseRow: 0x8D, baseCol: 0x80 },
         { race: "Sindar", baseRow: 0x8D, baseCol: 0x90 },
@@ -1634,7 +1707,7 @@
               type: "Monster",
               tval: null,
               hexCoords: hexCoords,
-              sourceFile: "graf-new.prf",
+              sourceFile: "graf-tiles.prf",
               race: raceInfo.race
             });
           }
@@ -1664,7 +1737,7 @@
         var playerEntries = generatePlayerTileEntries();
         // Remove all existing player tile entries to avoid duplicates
         prfEntities = prfEntities.filter(function(entity) {
-          if (entity.sourceFile === "graf-new.prf" && isPlayerTileCoord(entity.hexCoords)) {
+          if (entity.sourceFile === "graf-tiles.prf" && isPlayerTileCoord(entity.hexCoords)) {
             return false; // Remove this entry
           }
           return true;
@@ -1962,6 +2035,12 @@
   <body>
     <div class="container">
       <h1>Sil-Q Tile Picker</h1>
+
+      <!-- Error banner (shown when any file fails to load) -->
+      <div id="errorBanner" class="error-banner hidden">
+        <div class="error-banner-title">Some files failed to load:</div>
+        <ul id="errorBannerList" class="error-banner-list"></ul>
+      </div>
 
       <!-- Hex coordinate search -->
       <div class="load-row search-row">
@@ -2404,22 +2483,18 @@
               <input
                 id="prfUrl1"
                 type="text"
-                value="https://raw.githubusercontent.com/sil-quirk/sil-q/master/lib/pref/flvr-new.prf"
+                value="https://raw.githubusercontent.com/sil-quirk/sil-q/master/lib/pref/flvr-tiles.prf"
               >
             </div>
             <div class="url-field-row">
               <input
                 id="prfUrl2"
                 type="text"
-                value="https://raw.githubusercontent.com/sil-quirk/sil-q/master/lib/pref/graf-new.prf"
+                value="https://raw.githubusercontent.com/sil-quirk/sil-q/master/lib/pref/graf-tiles.prf"
               >
             </div>
             <div class="url-field-row">
-              <input
-                id="prfUrl3"
-                type="text"
-                value="https://raw.githubusercontent.com/sil-quirk/sil-q/master/lib/pref/xtra-new.prf"
-              >
+              <input id="prfUrl3" type="text" placeholder="(additional URL)">
             </div>
             <div class="url-field-row">
               <input id="prfUrl4" type="text" placeholder="(additional URL)">
@@ -2480,7 +2555,7 @@
             <strong>Player tiles</strong> — Each of the 4 playable races
             (Noldor, Sindar, Naugrim, Edain) has 16 tiles representing
             different equipment states. Only the base tile (offset 0) is
-            defined in <code>graf-new.prf</code> as <code>R:0</code> through
+            defined in <code>graf-tiles.prf</code> as <code>R:0</code> through
             <code>R:3</code>. The remaining 15 tiles per race are computed
             dynamically by adding an offset based on equipped weapons, as
             defined in <code>src/cave.c</code>, function

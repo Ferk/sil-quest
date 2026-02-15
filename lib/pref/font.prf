@@ -1,11 +1,9 @@
 # File: font.prf
 
 #
-# This file defines special attr/char mappings for use in "text" mode
+# This file defines attr/char mappings for use in "text" mode.
 #
-# This file includes, if appropriate, various "sub-files"
-#
-# See "lib/help/command.txt" and "src/files.c" for more information.
+# See `src/files.c` for more information.
 #
 
 
@@ -18,26 +16,13 @@
 ## F:53:0x01/0x23
 
 
-##### Standard font file #####
-
+###############################################################################
+# Load the standard font file
+###############################################################################
 %:font-std.prf
 
-##### Load the Shades #####
+###############################################################################
+# Load the Shades
+###############################################################################
 %:shades.prf
-
-##### System Specific Subfiles #####
-
-?:[IOR [EQU $SYS x11] [EQU $SYS gtk]]
-%:font-x11.prf
-
-?:[EQU $SYS gcu]
-%:font-gcu.prf
-
-?:[EQU $SYS mac]
-%:font-mac.prf
-
-?:[EQU $SYS win]
-%:font-win.prf
-
-?:1
 
