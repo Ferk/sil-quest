@@ -13,12 +13,10 @@
 
 #include "angband.h"
 
-extern errr init_gtk(int argc, char** argv);
 extern errr init_x11(int argc, char** argv);
 extern errr init_gcu(int argc, char** argv);
 
 extern const char help_x11[];
-extern const char help_gtk[];
 extern const char help_gcu[];
 
 struct module

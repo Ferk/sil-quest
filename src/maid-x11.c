@@ -23,7 +23,7 @@
 
 #include "angband.h"
 
-#if defined(USE_X11) || defined(USE_GTK)
+#if defined(USE_X11)
 
 #ifndef __MAKEDEPEND__
 #include <X11/Xlib.h>
@@ -925,4 +925,4 @@ XImage* ResizeImage(Display* dpy, XImage* Im, int ix, int iy, int ox, int oy)
 
 #endif /* USE_GRAPHICS */
 
-#endif /* USE_X11 || USE_GTK */
+#endif /* USE_X11 */
