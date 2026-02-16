@@ -892,6 +892,13 @@ XImage* ResizeImage(Display* dpy, XImage* Im, int ix, int iy, int ox, int oy)
 
     Ty = *dy1 / 2;
 
+    // The loop variables (x1, x2, y1, y2) are modified indirectly through
+    // pointers (px1, px2, py1, py2), which Clang's -Wfor-loop-analysis
+    // doesn't track, resulting in a false positive warning.
+#if defined(__clang__)
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wfor-loop-analysis"
+#endif
     for (y1 = 0, y2 = 0; (y1 < height1) && (y2 < height2);)
     {
         Tx = *dx1 / 2;
@@ -919,6 +926,9 @@ XImage* ResizeImage(Display* dpy, XImage* Im, int ix, int iy, int ox, int oy)
             (*py2)++;
         }
     }
+#if defined(__clang__)
+#pragma clang diagnostic pop
+#endif
 
     return Tmp;
 }

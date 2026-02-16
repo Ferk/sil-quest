@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple Computer//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleDevelopmentRegion</key>
+    <string>en</string>
+    <key>CFBundleExecutable</key>
+    <string>@SIL_EXECUTABLE@</string>
+    <key>CFBundleDisplayName</key>
+    <string>@SIL_NAME@</string>
+    <key>CFBundleName</key>
+    <string>@SIL_NAME@</string>
+    <key>CFBundleIconFile</key>
+    <string>Sil_Icons</string>
+    <key>CFBundleIdentifier</key>
+    <string>net.amirrorclear.Sil</string>
+    <key>CFBundleInfoDictionaryVersion</key>
+    <string>6.0</string>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+    <!-- Apple requires exactly three period-separated integers for CFBundleShortVersionString -->
+    <!-- https://developer.apple.com/documentation/bundleresources/information-property-list/cfbundleshortversionstring -->
+    <key>CFBundleShortVersionString</key>
+    <string>@PROJECT_VERSION_SHORT@</string>
+    <key>CFBundleSignature</key>
+    <string>Sil1</string>
+    <key>CFBundleVersion</key>
+    <string>@PROJECT_VERSION@</string>
+    <key>CGDisableCoalescedUpdates</key>
+    <true/>
+    <key>NSHumanReadableCopyright</key>
+    <string>© @SIL_COPYRIGHT_XML@</string>
+    <key>NSMainNibFile</key>
+    <string>MainMenu</string>
+    <key>NSPrincipalClass</key>
+    <string>NSApplication</string>
+    <key>CFBundleDocumentTypes</key>
+    <array>
+        <dict>
+            <key>CFBundleTypeExtensions</key>
+            <array>
+                <string>*</string>
+            </array>
+            <key>CFBundleTypeIconFile</key>
+            <string>Save</string>
+            <key>CFBundleTypeName</key>
+            <string>Sil saved game</string>
+            <key>CFBundleTypeOSTypes</key>
+            <array>
+                <string>SAVE</string>
+            </array>
+            <key>CFBundleTypeRole</key>
+            <string>Editor</string>
+        </dict>
+        <dict>
+            <key>CFBundleTypeExtensions</key>
+            <array>
+                <string>*</string>
+            </array>
+            <key>CFBundleTypeIconFile</key>
+            <string>Edit</string>
+            <key>CFBundleTypeName</key>
+            <string>Sil game data</string>
+            <key>CFBundleTypeOSTypes</key>
+            <array>
+                <string>TEXT</string>
+            </array>
+            <key>CFBundleTypeRole</key>
+            <string>Editor</string>
+        </dict>
+        <dict>
+            <key>CFBundleTypeExtensions</key>
+            <array>
+                <string>*</string>
+            </array>
+            <key>CFBundleTypeIconFile</key>
+            <string>Data</string>
+            <key>CFBundleTypeName</key>
+            <string>Sil game data</string>
+            <key>CFBundleTypeOSTypes</key>
+            <array>
+                <string>DATA</string>
+            </array>
+            <key>CFBundleTypeRole</key>
+            <string>Editor</string>
+        </dict>
+    </array>
+</dict>
+</plist>

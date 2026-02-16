@@ -31,13 +31,13 @@ jobs:
 
       - name: Install dependencies
         run: |
-          sudo apt-get install gcc libncursesw5-dev libx11-dev
+          sudo apt-get install gcc cmake ninja-build libncursesw5-dev libx11-dev
 
       - name: Build with release flags
         run: |
-          cd src
-          make -f Makefile.std -j$(nproc) OPT="-O2" EXTRA_CFLAGS="-Werror"
-          mv sil ../sil
+          cmake -G Ninja -B build -DCMAKE_BUILD_TYPE=Release -DBUILD_ENABLE_WERROR=ON
+          cmake --build build
+          cp build/sil sil
 
       - name: Verify build
         run: |
