@@ -200,8 +200,6 @@ dist: install
 	SetFile -a B disttemp/$(APPNAME)
 	# Include any top-level PDF files, such as the Sil-Q PDF manual.
 	find .. -name '*.pdf' -depth 1 -print0 | xargs -0 -J % cp -p % disttemp
-	# Include the top-level version file.
-	cp -p ../$(VERSION_FILE) disttemp
 
 	@-rm ../"$(PACKAGE_NAME)-macos.dmg"
 

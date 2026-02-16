@@ -21,9 +21,6 @@ COPYRIGHT = half & Scatha
 # The name of the executable to run the game
 PROG = sil
 
-# The name of the bundled version.txt file.
-VERSION_FILE = Sil-Q-version.txt
-
 #
 # Low-level header files
 #
