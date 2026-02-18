@@ -700,6 +700,8 @@
 #define ROW_INFO 17
 #define COL_INFO 0 /* "  ****----  " monster health bar*/
 
+/// When both "Bleeding" (ROW_CUT) and "Poisonsed" (ROW_POISONED) must be shown,
+/// then "Bleeding" moves up one row in the in-game HUD (from row 20 to 19).
 #define ROW_CUT 20
 #define COL_CUT 0 /* "Bleeding XX" */
 
