@@ -6,11 +6,17 @@ on:
       - "**"
   pull_request:
     branches: [master]
+  workflow_call:
+    inputs:
+      version:
+        description: 'Release version (example: v1.5.1). If empty, creates a snapshot artifact.'
+        type: string
+        default: ''
 
 # To cancel a currently running workflow from the same PR, branch, or tag
 # when a new workflow is triggered.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  group: linux-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -46,7 +52,22 @@ jobs:
         run: |
           rm lib/docs/*.pdf
 
-      - name: Upload artifact
+      - name: Create release archive
+        if: inputs.version != ''
+        run: |
+          tar czf "Sil-Q-${{ inputs.version }}-linux-x86_64.tar.gz" \
+            sil silg silx lib LICENSE.md README.md "Sil-Q v1.5.0.pdf"
+
+      - name: Upload release archive
+        if: inputs.version != ''
+        uses: actions/upload-artifact@v6
+        with:
+          name: linux-archive
+          path: Sil-Q-*-linux-x86_64.tar.gz
+          if-no-files-found: error
+
+      - name: Upload snapshot artifact
+        if: inputs.version == ''
         uses: actions/upload-artifact@v6
         with:
           name: Sil-Q-linux-x86_64
@@ -67,4 +88,3 @@ jobs:
           #       if needed, then remove this workaround.
           include-hidden-files: true
           if-no-files-found: error
-

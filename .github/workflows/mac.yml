@@ -9,11 +9,17 @@ on:
       - "**"
   # Skip macOS build for pull requests to save GitHub runner credits.
   pull_request:
+  workflow_call:
+    inputs:
+      version:
+        description: 'Release version (example: v1.5.1). If empty, creates a snapshot artifact.'
+        type: string
+        default: ''
 
 # To cancel a currently running workflow from the same PR, branch, or tag
 # when a new workflow is triggered.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  group: mac-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -45,7 +51,22 @@ jobs:
         run: |
           rm lib/docs/*.pdf
 
-      - name: Upload artifact
+      - name: Create release archive
+        if: inputs.version != ''
+        run: |
+          zip -r "Sil-Q-${{ inputs.version }}-macos-console.zip" \
+            sil silg silx lib LICENSE.md README.md "Sil-Q v1.5.0.pdf"
+
+      - name: Upload release archive
+        if: inputs.version != ''
+        uses: actions/upload-artifact@v6
+        with:
+          name: macos-console-archive
+          path: Sil-Q-*-macos-console.zip
+          if-no-files-found: error
+
+      - name: Upload snapshot artifact
+        if: inputs.version == ''
         uses: actions/upload-artifact@v6
         with:
           name: Sil-Q-macos-console
@@ -95,9 +116,23 @@ jobs:
       # top-level `Sil.app` folder. Without this folder, macOS will not
       # recognize the artifact as a valid macOS application.
       - name: Create archive
-        run: zip -r Sil-Q-macos.zip Sil.app "Sil-Q v1.5.0.pdf"
+        run: |
+          if [ -n "${{ inputs.version }}" ]; then
+            zip -r "Sil-Q-${{ inputs.version }}-macos.zip" Sil.app "Sil-Q v1.5.0.pdf"
+          else
+            zip -r Sil-Q-macos.zip Sil.app "Sil-Q v1.5.0.pdf"
+          fi
 
-      - name: Upload artifact
+      - name: Upload release archive
+        if: inputs.version != ''
+        uses: actions/upload-artifact@v6
+        with:
+          name: macos-native-archive
+          path: Sil-Q-*-macos.zip
+          if-no-files-found: error
+
+      - name: Upload snapshot artifact
+        if: inputs.version == ''
         uses: actions/upload-artifact@v6
         with:
           name: Sil-Q-macos-native

@@ -6,11 +6,17 @@ on:
       - "**"
   pull_request:
     branches: [master]
+  workflow_call:
+    inputs:
+      version:
+        description: 'Release version (example: v1.5.1). If empty, creates a snapshot artifact.'
+        type: string
+        default: ''
 
 # To cancel a currently running workflow from the same PR, branch, or tag
 # when a new workflow is triggered.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  group: src-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -29,7 +35,23 @@ jobs:
       - name: Verify tutorial savefile
         run: bin/verify-tutorial.sh
 
-      - name: Upload artifact
+      - name: Create release archive
+        if: inputs.version != ''
+        run: |
+          # Create a clean copy without .git
+          rsync -a --exclude='.git' . "../Sil-Q-${{ inputs.version }}-src"
+          tar czf "Sil-Q-${{ inputs.version }}-src.tar.gz" -C .. "Sil-Q-${{ inputs.version }}-src"
+
+      - name: Upload release archive
+        if: inputs.version != ''
+        uses: actions/upload-artifact@v6
+        with:
+          name: source-archive
+          path: Sil-Q-*-src.tar.gz
+          if-no-files-found: error
+
+      - name: Upload snapshot artifact
+        if: inputs.version == ''
         uses: actions/upload-artifact@v6
         with:
           name: Sil-Q-src
@@ -39,4 +61,3 @@ jobs:
           # pre-generated directories, the game will have problems at run-time.
           include-hidden-files: true
           if-no-files-found: error
-
