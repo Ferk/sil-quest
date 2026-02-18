@@ -1,7 +1,7 @@
 # File: Makefile.std
 
-# This is a Makefile for Unix/Linux/macOS machines running X11, curses/ncurses,
-# or GTK.
+# This is a Makefile for Unix/Linux/macOS machines running X11 and/or GCU
+# ("Generic Curses Utility", i.e., curses/ncurses).
 #
 # - For the macOS Cocoa port, see `Makefile.cocoa`.
 # - For the Microsoft Windows port, see `Makefile.cyg`.
@@ -42,11 +42,6 @@ ENABLE_GCU ?= 1
 # Override on command line: make ENABLE_X11=0
 ENABLE_X11 ?= 1
 
-# To conveniently set CFLAGS and LIBS for GTK support (untested).
-# Uses "main-gtk.c".
-# Override on command line: make ENABLE_GTK=0
-ENABLE_GTK ?= 0
-
 # OPT can be overridden, e.g.: make OPT="-O2"
 OPT = -O0 -g
 
@@ -66,7 +61,7 @@ endif
 # "CFLAGS", if your machine places files in a weird location.
 #
 # NOTE: Additional flags are added by default a bit further down below depending
-# on whether ENABLE_GCU, ENABLE_X11, and ENABLE_GTK are set to 1.
+# on whether ENABLE_GCU and/or ENABLE_X11 are set to 1.
 #
 # You may have to replace "-lcurses" with "-lncurses" to use the
 # "new curses" library instead of the "old curses" library, and
@@ -88,12 +83,6 @@ CFLAGS += -DUSE_X11
 LIBS += -lX11
 endif
 
-ifeq ($(ENABLE_GTK),1)
-# gtk-config adds GTK and X11 includes and libraries as appropriate.
-CFLAGS += `gtk-config --cflags`
-LIBS += `gtk-config --libs`
-endif
-
 # Additional flags to append, such as when creating debug builds.
 # Example: make EXTRA_CFLAGS="-Werror -fsanitize=address -fsanitize=undefined"
 EXTRA_CFLAGS ?=
@@ -102,7 +91,7 @@ CFLAGS += $(EXTRA_CFLAGS)
 #
 # Unix-specific main files
 #
-UNIX_MAINFILES = main-gcu.o main-x11.o maid-x11.o main-gtk.o main.o
+UNIX_MAINFILES = main-gcu.o main-x11.o maid-x11.o main.o
 
 #
 # Object files
@@ -148,5 +137,4 @@ depend:
 #
 maid-x11.o: maid-x11.c $(INCS) maid-x11.h
 main-gcu.o: main-gcu.c $(INCS) main.h
-main-gtk.o: main-gtk.c $(INCS) main.h maid-x11.h
 main-x11.o: main-x11.c $(INCS) main.h maid-x11.h

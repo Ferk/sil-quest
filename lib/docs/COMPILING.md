@@ -41,7 +41,6 @@ There are several different Linux/Unix (incl. macOS) setups for Sil-Q:
 
 - X11: Allows multiple windows, has correct colours.
 - GCU: Works in a terminal using 'curses', has only 16 or 8 colours.
-- GTK: This is untested as of February 2026.
 
 **Step 1**: Modify the Makefile to match your system.
 

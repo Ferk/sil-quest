@@ -30,12 +30,12 @@ See detailed information below.
 ### Breaking changes
 
 - **Officially supported platforms are now limited to Windows, Mac, Linux.**
-  Removed support for ancient, unused, and/or untested platforms such as Amiga,
-  NeXT, Solaris, SGI, Dec ALPHA, RISC OS, OS/2, DOS. Most of this was left-over
-  code from earlier versions of Sil and Angband, on which Sil-Q is based.
-  Focusing Sil-Q's platform support on Windows, Mac, and Linux helps our small
-  developer team to make the best of our available development time. Users who
-  still need to run Sil-Q on the removed platforms are advised to use prior
+  Removed support for ancient, unused, and/or untested platforms such as GTK,
+  Amiga, NeXT, Solaris, SGI, Dec ALPHA, RISC OS, OS/2, DOS. Most of this was
+  left-over code from earlier versions of Sil and Angband, on which Sil-Q is
+  based. Focusing Sil-Q's platform support on Windows, Mac, and Linux helps our
+  small developer team to make the best of our available development time. Users
+  who still need to run Sil-Q on the removed platforms are advised to use prior
   versions of the game, such as version 1.5.0.
 - **Supported compilers are now limited to gcc (focus), clang, mingw.**
   Removed support for ancient, unused, and/or untested development toolchains
@@ -76,6 +76,8 @@ Added:
 
 Changed:
 
+- Removed GTK support (fixes #177)
+  ([#180](https://github.com/sil-quirk/sil-q/pull/180))
 - Updates to tiles and manual
   ([8c9cd7c](https://github.com/sil-quirk/sil-q/commit/8c9cd7c))
 
