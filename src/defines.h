@@ -665,6 +665,8 @@
 #define ROW_NAME 1
 #define COL_NAME 0 /* <race name> */
 
+/// Feb 2026: ROW_MORTAL_WOUND is not used currently.
+/// If "Mortal wound" needs to be shown, it is done via ROW_CUT.
 #define ROW_MORTAL_WOUND 2
 #define COL_MORTAL_WOUND 0
 
