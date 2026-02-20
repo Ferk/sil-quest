@@ -77,11 +77,12 @@ fi
 # provided out-of-the-box by the respective package managers for each platform.
 echo "== Installing dev toolchain for Sil-Q =="
 if [[ "$OS" = "Darwin" ]]; then
+    # NOTE: Default clang (Xcode) on macOS ships with ASan and UBsan included
     brew install cmake ninja ncurses
 elif [[ "$OS" = "Linux" && "$LINUX_DISTRO" = "fedora" ]]; then
-    sudo dnf install -y gcc cmake ninja-build ncurses-devel libX11-devel
+    sudo dnf install -y gcc cmake ninja-build ncurses-devel libX11-devel libasan libubsan
 elif [[ "$OS" = "Linux" && "$LINUX_DISTRO" = "debian" ]]; then
-    sudo apt-get install -y gcc cmake ninja-build libncursesw5-dev libx11-dev
+    sudo apt-get install -y gcc cmake ninja-build libncursesw5-dev libx11-dev libasan8 libubsan1
 elif [[ "$OS" = "Linux" ]]; then
     echo "ERROR: Linux distribution '$LINUX_DISTRO' not supported"
     exit 1
