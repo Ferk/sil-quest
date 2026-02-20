@@ -74,6 +74,9 @@ jobs:
       - name: Validate data file for races
         run: python bin/data-race.py --validate
 
+      - name: Validate data file for special items
+        run: python bin/data-special.py --validate
+
       - name: Remove outdated PDF manuals
         run: |
           rm lib/docs/*.pdf

@@ -53,6 +53,9 @@ jobs:
       - name: Validate data file for races
         run: python3 bin/data-race.py --validate
 
+      - name: Validate data file for special items
+        run: python3 bin/data-special.py --validate
+
       - name: Verify tutorial savefile
         run: bin/verify-tutorial.sh
 
@@ -126,6 +129,9 @@ jobs:
 
       - name: Validate data file for races
         run: python3 bin/data-race.py --validate
+
+      - name: Validate data file for special items
+        run: python3 bin/data-special.py --validate
 
       - name: Verify tutorial savefile
         run: bin/verify-tutorial.sh
