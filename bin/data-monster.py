@@ -595,6 +595,10 @@ def validate_monster_file(filepath: Path, limits: Limits | None = None) -> Valid
             # Check for unknown line types (letter followed by colon)
             if len(line) >= 2 and line[1] == ":":
                 result.error(f"Line {lineno}: Unknown line type '{line[0]}:' in line '{line}'")
+            else:
+                result.error(
+                    f"Line {lineno}: Unrecognized line (missing '#' comment marker?): '{line}'"
+                )
 
     # Check for required version stamp
     if not has_version:
