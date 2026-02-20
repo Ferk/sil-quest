@@ -3,9 +3,17 @@
 # Format Markdown files
 #
 
+###############################################################################
+# Configuration
+###############################################################################
+
 # shellcheck disable=SC2155
 readonly SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)
 # shellcheck disable=SC2155
 readonly PROJECT_DIR=$(cd "$SCRIPT_DIR/.." && pwd -P)
+
+###############################################################################
+# Format the markdown files
+###############################################################################
 
 (cd "$PROJECT_DIR" && uv run mdformat .)

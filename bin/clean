@@ -1,0 +1,43 @@
+#!/usr/bin/env bash
+#
+# Clean (remove) build artifacts.
+#
+
+set -euo pipefail
+
+###############################################################################
+# Configuration
+###############################################################################
+
+# shellcheck disable=SC2155
+readonly SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)
+# shellcheck disable=SC2155
+readonly PROJECT_DIR=$(cd "$SCRIPT_DIR/.." && pwd -P)
+readonly BUILD_DIR="$PROJECT_DIR/build"
+readonly BUILD_DIR_MACOS_CONSOLE="$PROJECT_DIR/build-macos-console"
+readonly SIL_EXE="$PROJECT_DIR/sil"
+readonly SIL_COCOA_APP="$PROJECT_DIR/Sil.app"
+
+###############################################################################
+# Remove build artifacts
+###############################################################################
+
+if [[ -d $BUILD_DIR ]]; then
+    echo "Deleting $BUILD_DIR"
+    rm -rf "$BUILD_DIR"
+fi
+
+if [[ -d $BUILD_DIR_MACOS_CONSOLE ]]; then
+    echo "Deleting $BUILD_DIR_MACOS_CONSOLE"
+    rm -rf "$BUILD_DIR_MACOS_CONSOLE"
+fi
+
+if [[ -f $SIL_EXE ]]; then
+    echo "Deleting $SIL_EXE"
+    rm -f "$SIL_EXE"
+fi
+
+if [[ -d $SIL_COCOA_APP ]]; then
+    echo "Deleting $SIL_COCOA_APP"
+    rm -rf "$SIL_COCOA_APP"
+fi

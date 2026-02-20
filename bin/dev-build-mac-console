@@ -1,0 +1,49 @@
+#!/usr/bin/env bash
+#
+# Generate a debug build for macOS with GCU support.
+#
+# Requires ASan and UBsan installed.
+#
+
+set -euo pipefail
+
+###############################################################################
+# Configuration
+###############################################################################
+
+# shellcheck disable=SC2155
+readonly SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)
+# shellcheck disable=SC2155
+readonly PROJECT_DIR=$(cd "$SCRIPT_DIR/.." && pwd -P)
+# Use a different build directory than `bin/dev-build-mac` (macOS Cocoa app)
+# so that switching between the two macOS builds doesn't require cleaning the
+# build directory first.
+readonly BUILD_DIR="$PROJECT_DIR/build-macos-console"
+readonly SIL_EXE="sil"
+
+###############################################################################
+# Validate the environment
+###############################################################################
+
+# shellcheck disable=SC2155
+readonly OS="$(uname)"
+if [[ $OS != "Darwin" ]]; then
+    echo "ERROR: This script must be run on macOS"
+    exit 1
+fi
+
+###############################################################################
+# Run the build
+###############################################################################
+
+echo "========================================================================"
+echo "Generating a debug build for macOS with GCU support"
+echo "========================================================================"
+
+cd "$PROJECT_DIR"
+cmake -G Ninja -B "$BUILD_DIR" -DCMAKE_BUILD_TYPE=Debug -DSUPPORT_COCOA_FRONTEND=OFF -DSUPPORT_X11_FRONTEND=OFF -DBUILD_ENABLE_WERROR=ON -DBUILD_ENABLE_SANITIZERS=ON
+cmake --build "$BUILD_DIR"
+cp "$BUILD_DIR/$SIL_EXE" "./$SIL_EXE"
+
+echo "========================================================================"
+echo "Run the game via '$SIL_EXE' in the top-level project folder"
