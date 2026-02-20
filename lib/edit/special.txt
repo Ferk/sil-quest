@@ -1,6 +1,6 @@
 # File: special.txt
 #
-# This file is used to create the 'lib/data/special.raw' file, which is
+# This file is used to create the `lib/data/special.raw` file, which is
 # used to initialize the 'special item' information for Sil.
 #
 # Do not modify this file unless you know exactly what you are doing,
@@ -10,10 +10,11 @@
 # === Understanding special.txt ===
 #
 # N: serial number : special type
-# C: max att : plus damage dice : plus damage sides : max evn : 
+# C: max att : plus damage dice : plus damage sides : max evn :
 #    plus prot dice: plus prot sides : pval
 # W: depth : rarity : max_depth : cost
 # T: tval : min_sval : max_sval
+# B: skill_id / ability_id
 # F: flag | flag | etc
 #
 # 'N' indicates the beginning of an entry. The serial number must
@@ -27,19 +28,21 @@
 # 'C' is for creation bonuses - maximum to-hit, to-dam, to-ac, and
 #     pval. Cursed special items will negate the given value.
 #
-# 'F' is for flags. These are fairly self-explanatory. As many F:
-#     lines may be used as are needed to specify all the flags and flags
-#     are separated by the '|' symbol.
-#
 # 'T' is for possible 'tval' and 'sval' values of the base-item.
 #     Up to four 'T' entries are possible for a single object. The
 #     special item can only be generated from items of this tval, with sval
 #     in the specified range.
 #
+# 'B' is for ability - the ability granted by the special item. The
+#     ability is referenced by skill_id/ability_id from `ability.txt`.
+#
+# 'F' is for flags. As many F: lines may be used as are needed to specify all
+#     the flags. Flags are separated by the '|' symbol.
+#
 #
 # === Important notes ===
 #
-# * The special item indexes are defined in 'defines.h', and must not be 
+# * The special item indexes are defined in 'defines.h', and must not be
 #   changed or savefile compatibility will be lost.
 #
 # * Note that several special item types may share the same 'textual Name',

@@ -1,6 +1,6 @@
 # File: race.txt
 #
-# This file is used to create the "lib/data/race.raw" file, which is
+# This file is used to create the `lib/data/race.raw` file, which is
 # used to initialize the "player race" information for Sil.
 #
 # Do not modify this file unless you know exactly what you are doing,
@@ -14,8 +14,10 @@
 # I: history : agebase : agemax
 # H: hgt : modhgt
 # W: wgt : modwgt
+# C: house | house | etc
 # F: racial flags
 # E: tval : sval : min : max
+# D: description
 #
 # 'N' indicates the beginning of an entry. The serial number must
 #     increase for each new race.
@@ -25,16 +27,20 @@
 # 'I' is for info - starting point of the player history, base age,
 #     max age.
 #
-# 'H' is height info - base height (males), mod height (males),
-#     base height (females), mod height (females).
+# 'H' is height info - base height, mod height.
 #
-# 'W' is weight info - base weight (males), mod weight (males),
-#     base weight (females), mod weight (females).
+# 'W' is weight info - base weight, mod weight.
+#
+# 'C' is for houses - the houses available to this race, separated by the '|'
+      symbol. The houses are referenced by their ID from `house.txt`.
 #
 # 'F' is for racial flags.
 #
 # 'E' is for starting equipment - tval of the item, sval of the item,
 #     minimum amount, maximum amount.
+#
+# 'D' is for description. As many D: lines may be used as are needed
+#     to describe the race.
 
 
 # Version stamp (required)

@@ -1,6 +1,6 @@
 # File: object.txt
 #
-# This file is used to create the 'lib/data/object.raw;' file, which is
+# This file is used to create the `lib/data/object.raw` file, which is
 # used to initialize the 'Object Kind' information for Sil.
 #
 # Do not modify this file unless you know exactly what you are doing,
@@ -14,16 +14,17 @@
 # I: tval : sval : pval
 # W: depth : rarity : weight : cost
 # P: plus to-hit : damage dice : plus to-evasion : protection dice
-# A: depth/rarity : depth/rarity : etc
+# A: depth / rarity : depth / rarity : etc
+# B: skill_id / ability_id
 # F: flag | flag | etc
 # D: description
 #
 # 'N' indicates the beginning of an entry. The serial number must
-#     increase for each new item. The '&' and '~' symbols are use to
-#     include articles and pluralization as necessary to ensure
+#     increase for each new item. The '&' and '~' symbols are optional and
+#     used to include articles and pluralization as necessary to ensure
 #     grammatical correctness in object descriptions.
 #
-# 'G' is for graphics - symbol and color. There are 15 colors, as
+# 'G' is for graphics - symbol and color. There are 15 base colors, as
 #     follows:
 #
 #     D - Dark Gray    w - White          s - Gray          o - Orange
@@ -32,20 +33,23 @@
 #     G - Light Green  B - Light Blue     U - Light Brown
 #     d - 'flavoured' items
 #
+#     Extended colors use a numeric suffix (e.g., D1, g1).
+#
 # 'I' is for basic information. The tval is for the type of item, the
 #     sval identifies the subtype and the pval indicates the amount of
 #     effect the item has, if applicable (a fixed value: variable pvals
-#     are currently hard-coded.) 
+#     are currently hard-coded.)
 #
 # 'W' is for extra information. Depth is the depth the object is normally
-#     found at (and defines what 'level' the object is, when determining how easy 
-#     it is to use a wand, staff or rod, rarity determines how common the object
-#     is (currently unused, thanks to the A: allocation lines), weight is in
-#     tenth-pounds and cost is the item's base value.
+#     found at (and defines what 'level' the object is, when determining how
+#     easy it is to use a wand, staff or rod, rarity determines how common the
+#     object is (currently unused, thanks to the A: allocation lines), weight is
+#     in tenth-pounds and cost is the item's base value.
 #
 # 'P' is for power information. The item's bonuses to attack and evasion
 #     as well as its damage and protection dice. Note that adding damage dice to
 #     armor won't aid your attacks, it will just set the damage done when it is thrown.
+#     Light sources have a 5th value (always 0).
 #
 # 'A' is for allocation - depth and rarity, in pairs. This allows an
 #     item to have multiple natural depths and rarities. It is used to
@@ -53,9 +57,11 @@
 #     are found throughout the dungeon. The 'allocation' depth need not
 #     match the depth as specified in the 'W:' line.
 #
-# 'F' is for flags. These are fairly self-explanatory. As many F:
-#     lines may be used as are needed to specify all the flags and flags
-#     are separated by the '|' symbol.
+# 'B' is for ability references. The format is skill_id/ability_id,
+#     indicating an ability granted by the item.
+#
+# 'F' is for flags. As many F: lines may be used as are needed to specify all
+#     the flags. Flags are separated by the '|' symbol.
 #
 # 'D' is for description. As many D: lines may be used as are needed
 #     to describe the object. Note that lines will need spaces at their
@@ -83,8 +89,7 @@ G:&:w
 # These objects do specify a 'base name, which is used when the object
 # is 'aware' (always true for lites)
 #
-# They specify 'physical colors', which
-# over-ride the 'flavor' colors, if any. 
+# They specify 'physical colors', which over-ride the 'flavor' colors, if any.
 #
 # Note that ALL artifacts are given 'IGNORE_ALL',
 # so we do not need to specify that here.
@@ -260,9 +265,9 @@ W:17:0:70:200
 P:0:0d0:-1:1d8
 A:17/20:22/4
 F:IGNORE_ALL | NO_SMITHING
-D:A suit of armour made of galvorn: a strange shining black metal 
-D:so malleable that it is thin and supple, yet strong enough 
-D:to stop blade and dart.
+D:A suit of armour made of galvorn: a strange shining black metal
+D: so malleable that it is thin and supple, yet strong enough
+D: to stop blade and dart.
 
 
 N:30:& Mail Corslet~
@@ -863,7 +868,7 @@ I:45:2:0
 W:8:0:1:500
 P:0:0d0:0:0d0
 A:8/15
-D:It helps you avoid your enemies' blows. 
+D:It helps you avoid your enemies' blows.
 
 
 N:153:Protection
@@ -872,7 +877,7 @@ I:45:3:0
 W:7:0:1:500
 P:0:0d0:0:0d0
 A:7/4
-D:It provides protection from damage. 
+D:It provides protection from damage.
 
 
 N:154:Strength
@@ -917,7 +922,7 @@ I:45:8:0
 W:12:0:1:500
 P:0:0d0:0:0d0
 A:12/15
-D:It helps you hit your opponents. 
+D:It helps you hit your opponents.
 
 
 N:159:Free Action
@@ -1028,8 +1033,8 @@ I:55:6:0
 W:10:0:50:400
 P:0:0d0:0:0d0
 A:8/2:14/1
-D:It identifies an item. 
-D: (This may be aborted without using up a charge.) 
+D:It identifies an item.
+D: (This may be aborted without using up a charge.)
 
 
 N:197:Revelations
@@ -1120,7 +1125,7 @@ I:55:17:0
 W:7:0:50:0
 P:0:0d0:0:0d0
 A:3/3:12/2
-D:It summons monsters to the stairs on the current level. 
+D:It summons monsters to the stairs on the current level.
 
 
 N:211:Shadows
@@ -1152,7 +1157,7 @@ W:10:0:10:100
 P:0:0d0:0:0d0
 A:10/6
 F:EASY_KNOW
-D:Its sound stuns your enemies. 
+D:Its sound stuns your enemies.
 
 
 N:242:Force
@@ -1162,7 +1167,7 @@ W:12:0:10:100
 P:0:0d0:0:0d0
 A:12/6
 F:EASY_KNOW
-D:Its sound blows your enemies back. 
+D:Its sound blows your enemies back.
 
 
 N:243:Blasting
@@ -1184,7 +1189,7 @@ W:7:0:10:0
 P:0:0d0:0:0d0
 A:7/12
 F:EASY_KNOW
-D:It rings out a challenge to your foes. 
+D:It rings out a challenge to your foes.
 
 
 ##### Potions #####
@@ -1232,7 +1237,7 @@ P:0:0d0:0:0d0
 A:3/1:13/1
 F:EASY_KNOW
 D:It cures stunning, confusion, and hallucination; and ends
-D: your rage. 
+D: your rage.
 
 
 N:318:Healing
@@ -1252,7 +1257,7 @@ W:13:0:5:300
 P:0:0d0:0:0d0
 A:13/1
 F:EASY_KNOW
-D:It renews your voice. 
+D:It renews your voice.
 
 
 N:320:True Sight
@@ -1264,7 +1269,7 @@ A:5/1:15/1
 F:EASY_KNOW
 D:It restores your sight and enables you to resist
 D: blindness, resist hallucination, and see
-D: invisible creatures for 10d4 turns. 
+D: invisible creatures for 10d4 turns.
 
 
 N:321:Antidote
@@ -1360,7 +1365,7 @@ W:3:0:5:0
 P:0:0d0:0:0d0
 A:3/3
 F:EASY_KNOW
-D:It causes 5d4 points of poison. 
+D:It causes 5d4 points of poison.
 
 
 N:345:Blindness
@@ -1390,7 +1395,7 @@ W:9:0:5:0
 P:0:0d0:0:0d0
 A:9/3
 F:EASY_KNOW
-D:It reduces your dexterity by one point. 
+D:It reduces your dexterity by one point.
 
 
 N:350:Disconnection
@@ -1400,7 +1405,7 @@ W:11:0:5:0
 P:0:0d0:0:0d0
 A:11/3
 F:EASY_KNOW
-D:It reduces your grace by one point. 
+D:It reduces your grace by one point.
 
 
 ##### Chests #####
@@ -1484,7 +1489,7 @@ D:It sends you into a dark rage
 D: (+1 Str/Con, -1 Dex/Gra, special melee attack, resistance to fear)
 D: for 10d4 turns.
 D: Herbs provide nourishment for about 250
-D: turns under normal conditions. 
+D: turns under normal conditions.
 
 
 N:381:Sustenance
@@ -1495,7 +1500,7 @@ P:0:0d0:0:0d0
 A:3/2:13/1
 F:EASY_KNOW
 D:It provides nourishment for about 2000 turns
-D: under normal conditions. 
+D: under normal conditions.
 
 # Do not move Herb of Terror from this location, used by quests.
 
@@ -1520,8 +1525,8 @@ P:0:0d0:0:0d0
 A:7/2:17/2
 F:EASY_KNOW
 D:It cures all cuts and heals half of your health.
-D:  Herbs provide nourishment for
-D: about 250 turns under normal conditions. 
+D: Herbs provide nourishment for
+D: about 250 turns under normal conditions.
 
 
 N:384:Restoration
@@ -1531,9 +1536,9 @@ W:5:0:1:1000
 P:0:0d0:0:0d0
 A:5/4:9/2:19/2
 F:EASY_KNOW
-D:It restores all of your statistics by up to 3 points each. 
+D:It restores all of your statistics by up to 3 points each.
 D: Herbs provide nourishment for about 250 turns under normal
-D: conditions. 
+D: conditions.
 
 
 N:385:Emptiness
@@ -1543,7 +1548,7 @@ W:4:0:1:0
 P:0:0d0:0:0d0
 A:4/3
 F:EASY_KNOW
-D:It makes you more hungry (by 1,000 turns under normal conditions). 
+D:It makes you more hungry (by 1,000 turns under normal conditions).
 
 
 N:386:Visions
@@ -1568,7 +1573,7 @@ A:8/3
 F:EASY_KNOW
 D:It induces a trance that lasts for 10d4 turns.
 D: Herbs provide nourishment for about 250 turns under
-D: normal conditions. 
+D: normal conditions.
 
 
 N:388:Weakness
@@ -1580,7 +1585,7 @@ A:8/3
 F:EASY_KNOW
 D:It reduces your strength by one point.
 D: Herbs provide nourishment for about 250
-D: turns under normal conditions. 
+D: turns under normal conditions.
 
 
 N:389:Sickness
@@ -1592,7 +1597,7 @@ A:8/3
 F:EASY_KNOW
 D:It reduces your constitution by one point.
 D: Herbs provide nourishment for
-D: about 250 turns under normal conditions. 
+D: about 250 turns under normal conditions.
 
 
 N:399:& Piece~ of Dark Bread
@@ -1602,7 +1607,7 @@ W:7:0:5:2
 P:0:0d0:0:0d0
 A:7/2:13/1
 F:EASY_KNOW
-D:It provides nourishment for about 1,500 turns under normal conditions. 
+D:It provides nourishment for about 1,500 turns under normal conditions.
 
 
 N:400:& Strip~ of Dried Meat
@@ -1612,7 +1617,7 @@ W:10:0:10:3
 P:0:0d0:0:0d0
 A:10/4:16/1
 F:EASY_KNOW
-D:It provides nourishment for about 2,000 turns under normal conditions. 
+D:It provides nourishment for about 2,000 turns under normal conditions.
 
 
 N:401:& Fragment~ of Lembas
@@ -1623,7 +1628,7 @@ P:0:0d0:0:0d0
 A:7/4:18/2
 F:EASY_KNOW
 D:It restores a point of grace if it has been drained.  It provides
-D: nourishment for about 3,000 turns under normal conditions. 
+D: nourishment for about 3,000 turns under normal conditions.
 
 
 ##### Various #####
@@ -2021,7 +2026,7 @@ W:0:1:1:0
 P:0:0d0:0:0d0
 F:EASY_KNOW
 D:Sometimes you will forget which key does what, or need a new command.
-D: You can see a list of all the key commands by pressing (?). 
+D: You can see a list of all the key commands by pressing (?).
 
 
 N:476:& Note~

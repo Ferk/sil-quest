@@ -1,6 +1,6 @@
 # File: monster.txt
 #
-# This file is used to create the lib/Data/monster.raw; file, which is
+# This file is used to create the `lib/data/monster.raw` file, which is
 # used to initialize the monster race information for Sil.
 #
 # Do not modify this file unless you know exactly what you are doing,
@@ -12,7 +12,7 @@
 # N: serial number : monster name
 # W: depth : rarity
 # G: symbol : color
-# I: speed : health : mana : light radius
+# I: speed : health_dice : light_radius
 # A: sleepiness : perception : stealth : will
 # P: [evasion bonus, protection dice]
 # B: attack method : attack effect : (attack bonus, damage dice)
@@ -27,7 +27,7 @@
 # 'W' is for more information - the depth they are found at and their rarity
 #     (they have a 1 in rarity chance of being generated).
 #
-# 'G' is for graphics - symbol and color. There are 16 colors, as
+# 'G' is for graphics - symbol and color. There are 16 base colors, as
 #     follows:
 #
 #     D - Dark Gray    w - White          s - Gray          o - Orange
@@ -35,33 +35,36 @@
 #     d - Black        W - Light Gray     v - Violet        y - Yellow
 #     R - Light Red    G - Light Green    B - Light Blue    U - Light Brown
 #
+#     Extended colors use a numeric suffix (e.g., D1, v1).
+#
 #     Note that black is the same color as the screen background, and
 #     thus the monster will appear to be an empty black space if its
 #     color is d.
 #
-# 'I' is for information - speed, health, light radius in squares.
+# 'I' is for information - speed, health dice, and light radius in squares.
+#     Light radius can be negative (e.g., -2) to indicate darkness.
 #
-# 'A' is for alertness - their maximum sleep value, their perception score, 
+# 'A' is for alertness - their maximum sleep value, their perception score,
 #     their stealth score, and their will score.
 #
 # 'P' is protection - the evasion bonus and protection dice
 #
 # 'B' is for blows - method of attack, effect of attack, and damage
 #     from attack. There may be up to four of these lines; effect and
-#     damage are optional.
+#     damage are optional. Damage can be just `(+N)` without dice for effects
+#     like TERRIFY.
 #
 # 'S' is for spells. The first S: line must be S:SPELL_PCT_X with X the
 #     percentage chance of casting each turn. X must not be zero. If X is 100,
 #     the monster will
 #     never move while the player is in sight, and will thus never attack
 #     in melee, as it will cast spells every turn: if the monster is to use
-#     a melee attack, then X must be 2 or greater.  Power determines the 
-#     damage and intensity of the attacks.  The format is POW_X with X 
+#     a melee attack, then X must be 2 or greater.  Power determines the
+#     damage and intensity of the attacks.  The format is POW_X with X
 #     being the spell power.
 #
-# 'F' is for flags. These are fairly self-explanatory. As many F:
-#     lines may be used as are needed to specify all the flags and flags
-#     are separated by the '|' symbol.
+# 'F' is for flags. As many F: lines may be used as are needed to specify all
+#     the flags. Flags are separated by the '|' symbol.
 #
 # 'D' is for description. As many D: lines may be used as are needed
 #     to describe the monster.
@@ -224,7 +227,7 @@
 #     - very low perception
 #     - very low evasion/melee
 #     - very high damage
-#Ê    - 1d4 prot, very high health
+#     - 1d4 prot, very high health
 #     - drop items
 #
 # - R   (raukar)
@@ -271,7 +274,7 @@
 #     - mindless
 #     - tunnel
 #     - regenerates
-#Ê    - 6d4 prot, very high health
+#     - 6d4 prot, very high health
 #
 # - V   (valar)
 #
@@ -394,7 +397,7 @@ A:0:10:0:2
 P:[+0]
 F:MALE | ELF | NEVER_MOVE | NEVER_BLOW | SMART | PEACEFUL | SPECIAL_GEN
 D:A chained elf crouches here, filthy hair hanging to his shoulders.
-D: Dried blood encrusts a noble face. His eyes are fixed on you. 
+D: Dried blood encrusts a noble face. His eyes are fixed on you.
 
 
 ##### 2 #####
@@ -650,7 +653,7 @@ A:0:8:3:8
 P:[+5]
 B:TOUCH:TERRIFY:(+15)
 F:INVISIBLE
-F:RAND_50 | UNDEAD | HURT_LITE | RES_COLD 
+F:RAND_50 | UNDEAD | HURT_LITE | RES_COLD
 F:NO_FEAR | RES_POIS | NO_CONF | NO_SLEEP | FRIEND
 S:SPELL_PCT_50
 S:DIM
@@ -951,7 +954,7 @@ I:4:2d4:0
 A:15:7:4:4
 P:[+17,1d4]
 B:BITE:LOSE_CON:(+15,2d5)
-F:FLYING | RAND_50 | TERRITORIAL 
+F:FLYING | RAND_50 | TERRITORIAL
 D:A fluttering bat the size of a large dog. Its head is
 D: misshapen out of any natural proportion, with long curving
 D: fangs hanging from its mouth.
@@ -1746,7 +1749,7 @@ F:DROP_1D2 | DROP_100 | DROP_GREAT
 F:ESCORTS | NO_FEAR | BASH_DOOR
 F:RAUKO | RES_FIRE | HURT_COLD
 D:All of the Balrogs are held among the mighty of Angband and
-D: obeyed swiftly. But Turkano is a true battle-commander, 
+D: obeyed swiftly. But Turkano is a true battle-commander,
 D: leading a host of Raukar to bring
 D: glory after glory for his fell master.
 

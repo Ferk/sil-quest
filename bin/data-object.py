@@ -18,47 +18,13 @@ Based on the format specification in the file's comment header:
 - W: depth : rarity : weight : cost
 - P: plus to-hit : damage dice : plus to-evasion : protection dice
 - A: depth/rarity : depth/rarity : etc
+- B: skill_id/ability_id
 - F: flag | flag | etc
 - D: description
 
 Exit codes:
   0 - All validations passed
   1 - One or more validation errors found
-
-
-Documentation vs. Actual Data Discrepancies
-===========================================
-
-The following discrepancies were found between the documented format in the
-comment header of object.txt and the actual data records in the file:
-
-1. N: line format
-   - Documented: "serial number : & object name~" implying & and ~ markers.
-   - Actual: The & marker is optional. Out of 196 entries, only 119 include it.
-     Examples without &: "Leather Armour~", "Studded Leather~", "Galvorn Armour~"
-   - Actual: The ~ marker is also optional. 85 entries omit it entirely.
-     Examples without ~: "Rage", "Last Chances", "Constitution", "Secrets"
-
-2. P: line format
-   - Documented: "plus to-hit : damage dice : plus to-evasion : protection dice"
-     (4 values after P:)
-   - Actual: 5 light source items have a 5th value (e.g., P:0:0d0:0:0d0:0).
-     These items are: Lesser Jewel, Wooden Torch, Brass Lantern, Feanorian Lamp,
-     Mallorn Torch. The 5th field is always 0; its purpose is unclear.
-
-3. B: line (undocumented)
-   - Not documented in the header comments at all.
-   - Actual: B: lines appear with format "X/Y" representing ability references
-     (skill_id/ability_id pairs). Found 3 occurrences:
-       B:4/2 (ability 4/2 is Keen Senses, on "Amulet of the Vigilant Eye")
-       B:4/4 (ability 4/4 is Alchemy, on "Ring of Secrets")
-       B:2/0 (ability 2/0 is Dodging, on "Ring of Cowardice")
-
-4. G: color codes
-   - Documented: 16 colors listed: D,w,s,o,r,g,b,u,W,v,y,R,G,B,U plus 'd' for
-     flavored items.
-   - Actual: Extended colors with numeric suffixes are also used, which are not
-     documented: D1, g1, s1, U1, v1, W1, y1 (shade/intensity variations?)
 """
 
 import argparse
