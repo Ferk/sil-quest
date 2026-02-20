@@ -30,7 +30,7 @@ echo "Detected operating system: $OS"
 # - "fedora" for Fedora, RHEL, CentOS, etc.
 # - "unknown" for unknown or non-Linux
 LINUX_DISTRO="unknown"
-if [[ "$OS" = "Linux" ]]; then
+if [[ $OS = "Linux" ]]; then
     if [[ -f /etc/os-release ]]; then
         # shellcheck disable=SC1091
         source /etc/os-release
@@ -56,7 +56,7 @@ if [[ "$OS" = "Linux" ]]; then
     fi
 fi
 readonly LINUX_DISTRO
-if [[ "$OS" = "Linux" ]]; then
+if [[ $OS = "Linux" ]]; then
     echo "Detected Linux distribution: $LINUX_DISTRO"
 fi
 
@@ -65,7 +65,7 @@ fi
 ###############################################################################
 
 # Prepare package managers where needed
-if [[ "$OS" = "Darwin" ]]; then
+if [[ $OS = "Darwin" ]]; then
     echo "== Check for homebrew (macOS package manager) =="
     if ! command -v brew &>/dev/null; then
         echo "ERROR: 'brew' command not found. Is homebrew installed? (https://brew.sh)"
@@ -76,14 +76,14 @@ fi
 # Install the dev toolchain for Sil-Q. Fortunately, all these packages are
 # provided out-of-the-box by the respective package managers for each platform.
 echo "== Installing dev toolchain for Sil-Q =="
-if [[ "$OS" = "Darwin" ]]; then
+if [[ $OS = "Darwin" ]]; then
     # NOTE: Default clang (Xcode) on macOS ships with ASan and UBsan included
     brew install cmake ninja ncurses
-elif [[ "$OS" = "Linux" && "$LINUX_DISTRO" = "fedora" ]]; then
+elif [[ $OS = "Linux" && $LINUX_DISTRO = "fedora" ]]; then
     sudo dnf install -y gcc cmake ninja-build ncurses-devel libX11-devel libasan libubsan
-elif [[ "$OS" = "Linux" && "$LINUX_DISTRO" = "debian" ]]; then
+elif [[ $OS = "Linux" && $LINUX_DISTRO = "debian" ]]; then
     sudo apt-get install -y gcc cmake ninja-build libncursesw5-dev libx11-dev libasan8 libubsan1
-elif [[ "$OS" = "Linux" ]]; then
+elif [[ $OS = "Linux" ]]; then
     echo "ERROR: Linux distribution '$LINUX_DISTRO' not supported"
     exit 1
 else
@@ -95,7 +95,7 @@ echo "== Checking for mise (to manage Python) =="
 if ! command -v mise &>/dev/null; then
     echo "WARNING: 'mise' command not found (https://mise.jdx.dev/)"
 
-    if [[ "$OS" = "Darwin" ]]; then
+    if [[ $OS = "Darwin" ]]; then
         read -rp "Install mise via homebrew? [y/N] " answer
         if [[ "${answer,,}" = "y" ]]; then
             brew install mise
@@ -103,7 +103,7 @@ if ! command -v mise &>/dev/null; then
             echo "ERROR: mise is required, please install it manually (https://mise.jdx.dev/)"
             exit 1
         fi
-    elif [[ "$OS" = "Linux" && "$LINUX_DISTRO" = "fedora" ]]; then
+    elif [[ $OS = "Linux" && $LINUX_DISTRO = "fedora" ]]; then
         read -rp "Install mise for Fedora? [y/N] " answer
         if [[ "${answer,,}" = "y" ]]; then
             sudo dnf copr enable -y jdxcode/mise
@@ -112,7 +112,7 @@ if ! command -v mise &>/dev/null; then
             echo "ERROR: mise is required, please install it manually (https://mise.jdx.dev/)"
             exit 1
         fi
-    elif [[ "$OS" = "Linux" && "$LINUX_DISTRO" = "debian" ]]; then
+    elif [[ $OS = "Linux" && $LINUX_DISTRO = "debian" ]]; then
         read -rp "Install mise for Debian/Ubuntu? [y/N] " answer
         if [[ "${answer,,}" = "y" ]]; then
             sudo apt update -y && sudo apt install -y curl
