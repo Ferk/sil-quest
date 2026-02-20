@@ -32,7 +32,7 @@
 # 'W' is weight info - base weight, mod weight.
 #
 # 'C' is for houses - the houses available to this race, separated by the '|'
-      symbol. The houses are referenced by their ID from `house.txt`.
+#     symbol. The houses are referenced by their ID from `house.txt`.
 #
 # 'F' is for racial flags.
 #
