@@ -2305,6 +2305,10 @@ D: eyes.
 # Badly Hurt, 25,      7d4,    30,     7d10,    35,   25
 # Desperate,  30,      7d4,    40,     8d10,    40,   30
 
+# This entry has an intentional duplicate stub N:252 (just below) to prevent
+# using the ID 252 for other purposes. In `graf-tiles.prf`, R:252 is used to
+# define the tile assignment for "Morgoth without crown", whereas R:251 (this
+# record) is for "Morgoth with crown".
 N:251:Morgoth, Lord of Darkness
 W:25:1
 G:V:D
@@ -2330,6 +2334,11 @@ D: Grond, the mighty Hammer of the Underworld. His disgusting visage,
 D: twisted with evil, is crowned with iron, the three Silmarils forever
 D: burning him. You need to get to that crown.
 
+# This entry is an intentional placeholder for N:251 (just above) to prevent
+# using the ID 252 for other purposes. In `graf-tiles.prf`, R:252 is used to
+# define the tile assignment for "Morgoth without crown", whereas R:251 is for
+# "Morgoth with crown".
+N:252:Morgoth, Lord of Darkness (without crown)
 
 
 ##### Surface monster #####
