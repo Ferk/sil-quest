@@ -15,7 +15,7 @@ Based on the format specification in the file's comment header:
 - N: serial number : monster name
 - W: depth : rarity
 - G: symbol : color
-- I: speed : health : mana : light radius
+- I: speed : health_dice : light_radius
 - A: sleepiness : perception : stealth : will
 - P: [evasion bonus, protection dice]
 - B: attack method : attack effect : (attack bonus, damage dice)
@@ -26,34 +26,6 @@ Based on the format specification in the file's comment header:
 Exit codes:
   0 - All validations passed
   1 - One or more validation errors found
-
-
-Documentation vs. Actual Data Discrepancies
-===========================================
-
-The following discrepancies were found between the documented format in the
-comment header of monster.txt and the actual data records in the file:
-
-1. I: line format
-   - Documented: "speed : health : mana : light radius" (4 values)
-   - Actual: "speed : health_dice : light_radius" (3 values after I:).
-     The "mana" field mentioned in docs does not exist in practice.
-
-2. I: light radius values
-   - Documented: No mention of negative values.
-   - Actual: Light radius can be negative (e.g., -2, -3), indicating the
-     creature creates darkness around it rather than light.
-
-3. B: damage format
-   - Documented: "(attack bonus, damage dice)" implying both are required.
-   - Actual: Damage can also be just "(+N)" without dice, used for effects
-     like TERRIFY, LOSE_DEX, LOSE_STR that don't deal direct damage.
-
-4. G: color codes
-   - Documented: 16 colors listed: D,w,s,o,r,g,b,u,d,W,v,y,R,G,B,U
-   - Actual: Extended colors with numeric suffixes are also used, which are not
-     documented in the comment header of monster.txt:
-     D1, v1, y1, U1, G1, B1, b1 (possibly shade/intensity variations?)
 """
 
 import argparse
