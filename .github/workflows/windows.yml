@@ -80,6 +80,9 @@ jobs:
       - name: Validate data file for houses
         run: python bin/data-house.py --validate
 
+      - name: Validate data file for limits
+        run: python bin/data-limits.py --validate
+
       - name: Validate data file for monsters
         run: python bin/data-monster.py --validate
 

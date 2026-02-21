@@ -59,6 +59,9 @@ jobs:
       - name: Validate data file for houses
         run: python3 bin/data-house.py --validate
 
+      - name: Validate data file for limits
+        run: python3 bin/data-limits.py --validate
+
       - name: Validate data file for monsters
         run: python3 bin/data-monster.py --validate
 
@@ -156,6 +159,9 @@ jobs:
 
       - name: Validate data file for houses
         run: python3 bin/data-house.py --validate
+
+      - name: Validate data file for limits
+        run: python3 bin/data-limits.py --validate
 
       - name: Validate data file for monsters
         run: python3 bin/data-monster.py --validate
