@@ -1,18 +1,19 @@
 # File: history.txt
 #
+# -----------------------------------------------------------------------------
+# vim: ft=conf
+#
+# The line above must be within the first 1-5 lines of this file. It is a
+# modeline for vim/neovim to parse this file as a "config" file, which
+# visually highlights `# ...` lines as comments, making this file easier to
+# parse and edit for a human.
+# -----------------------------------------------------------------------------
+#
 # This file is used to create the `lib/data/history.raw` file, which is
 # used to initialize the "player history" information for Sil.
 #
 # Do not modify this file unless you know exactly what you are doing,
 # unless you wish to risk possible system crashes and broken savefiles.
-#
-# -----------------------------------------------------------------------------
-# vim: ft=conf
-#
-# The line above is a modeline for vim/neovim to parse this file as a "config"
-# file, which visually highlights `# ...` lines as comments, making this file
-# easier to parse and edit for a human.
-# -----------------------------------------------------------------------------
 #
 #
 # === Understanding history.txt ===
