@@ -12,6 +12,16 @@
 # The easiest way to understand and work with these tile mappings is
 # using `lib/xtra/graf/TilePicker.html` to visually explore the tileset.
 #
+#
+# === Understanding flvr-tiles.prf ===
+#
+# L: flavor index : attr/char
+#
+# 'L' is for flavored objects. The flavor index ('L:<idx>') corresponds to the
+#     the serial number ('N:' line) in `lib/edit/flavor.txt`.
+#     The attr/char value is a hex pair (e.g., 0x82/0x80) representing the
+#     tile position in the tileset image (attr = row, char = column).
+#
 
 ###############################################################################
 # Rings

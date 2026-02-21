@@ -14,6 +14,33 @@
 # The easiest way to understand and work with these tile mappings is
 # using `lib/xtra/graf/TilePicker.html` to visually explore the tileset.
 #
+#
+# === Understanding graf-tiles.prf ===
+#
+# S: index : attr/char
+# F: feature index : attr/char
+# K: object index : attr/char
+# R: monster/player index : attr/char
+#
+# 'S' is for specials (visual effects). The index identifies the specific
+#     effect type (e.g., digits 0-9, arrows, breath effects, spell impacts).
+#     The attr/char value is a hex pair (e.g., 0x8C/0x80) representing the
+#     tile position in the tileset image (attr = row, char = column).
+#
+# 'F' is for features (dungeon terrain). The feature index corresponds to
+#     the feature type defined in the game code (e.g., floor, walls, doors,
+#     traps, stairs, forges). The attr/char value specifies the tile position.
+#
+# 'K' is for objects (items/equipment). The object index corresponds to the
+#     serial number ('N:' line) in `lib/edit/object.txt`. The attr/char value
+#     specifies the tile position.
+#
+# 'R' is for (races of) player and monsters. For player races (indices 0-3),
+#     the index corresponds to Noldor (0), Sindar (1), Naugrim (2), and
+#     Edain (3). For monsters (indices 11+), the index corresponds to the
+#     serial number ('N:' line) in `lib/edit/monster.txt`. The attr/char value
+#     specifies the tile position.
+#
 
 ###############################################################################
 # Specials
