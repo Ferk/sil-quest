@@ -65,6 +65,9 @@ jobs:
       - name: Verify tutorial savefile
         run: bin/verify-tutorial.sh
 
+      - name: Validate data file for abilities
+        run: python bin/data-ability.py --validate
+
       - name: Validate data file for artefacts
         run: python bin/data-artefact.py --validate
 

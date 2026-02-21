@@ -44,6 +44,9 @@ jobs:
           file sil
           bin/smoke-tests.sh
 
+      - name: Validate data file for abilities
+        run: python3 bin/data-ability.py --validate
+
       - name: Validate data file for artefacts
         run: python3 bin/data-artefact.py --validate
 
@@ -126,6 +129,9 @@ jobs:
         run: |
           ls -la Sil.app
           file Sil.app/Contents/MacOS/sil
+
+      - name: Validate data file for abilities
+        run: python3 bin/data-ability.py --validate
 
       - name: Validate data file for artefacts
         run: python3 bin/data-artefact.py --validate
