@@ -6,7 +6,6 @@
 # Do not modify this file unless you know exactly what you are doing,
 # unless you wish to risk possible system crashes and broken savefiles.
 #
-#
 # === Understanding house.txt ===
 #
 # N: house number : house name
@@ -14,6 +13,7 @@
 # B: short house name
 # F: house flag
 # S: str : dex : con : gra
+# D: description
 #
 # 'N' indicates the beginning of an entry. The serial number must
 #     increase for each new house.
@@ -27,6 +27,8 @@
 # 'F' is the house flags, which modify certain skills
 #
 # 'S' is the bonuses to stats: Str, Dex, Con, Gra
+#
+# 'D' is a textual description of the house
 
 
 # Version stamp (required)
