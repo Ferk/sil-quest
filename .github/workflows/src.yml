@@ -47,6 +47,9 @@ jobs:
       - name: Validate data file for monsters
         run: python3 bin/data-monster.py --validate
 
+      - name: Validate data file for names
+        run: python3 bin/data-names.py --validate
+
       - name: Validate data file for objects
         run: python3 bin/data-object.py --validate
 
