@@ -6,6 +6,15 @@
 # Do not modify this file unless you know exactly what you are doing,
 # unless you wish to risk possible system crashes and broken savefiles.
 #
+# -----------------------------------------------------------------------------
+# vim: ft=conf
+#
+# The line above is a modeline for vim/neovim to parse this file as a "config"
+# file, which visually highlights `# ...` lines as comments, making this file
+# easier to parse and edit for a human.
+# -----------------------------------------------------------------------------
+#
+#
 # === Understanding names.txt ===
 #
 # N : name
