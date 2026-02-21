@@ -2044,7 +2044,7 @@
 
       <!-- Hex coordinate search -->
       <div class="load-row search-row">
-        <span class="form-label">Search tile by <code>char/attr</code> index:</span>
+        <span class="form-label">Search tile by <code>attr/char</code> index:</span>
         <input id="txtHexSearch" type="text" placeholder="0x85/0x9C">
         <button type="button" onclick="searchByHex()">Search</button>
       </div>
@@ -2066,7 +2066,7 @@
             <span class="copy-icon">&#x2398;</span>
           </div>
           <label for="txtHexCode"
-            ><code>(char/attr)</code> tile index for <code>*.prf</code> files</label
+            ><code>(attr/char)</code> tile index for <code>*.prf</code> files</label
           >
         </div>
         <div id="entityListContainer" class="entity-list-container hidden">
@@ -2545,8 +2545,8 @@
             <code>tval</code> (objects and flavors).
           </li>
           <li>
-            <strong>(char/attr) tile indices</strong> — The char(acter) is the
-            row, attr(ibute) is the column in the tileset when the game runs
+            <strong>(attr/char) tile indices</strong> — The char(acter) is the
+            column=x, attr(ibute) is the row=y in the tileset when the game runs
             in tiles graphics mode. Bit flag <code>0x80</code> tells the
             rendering engine to draw a graphical tile rather than an ASCII
             char(acter) with a color attr(ibute).

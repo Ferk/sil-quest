@@ -9,7 +9,7 @@
 # Tile mappings assign game entities such as monsters to tiles in the MicroChasm
 # tileset image. For legacy reasons, these tile mappings are expressed as
 # attr/char mappings, which are interpreted as an index into the tileset image
-# (attr = y = column, char = x = row).
+# (attr = y = row, char = x = column).
 #
 # The easiest way to understand and work with these tile mappings is
 # using `lib/xtra/graf/TilePicker.html` to visually explore the tileset.
