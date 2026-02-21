@@ -1,6 +1,6 @@
 # File: flavor.txt
 #
-# This file is used to create the "lib/data/flavor.raw" file, which is
+# This file is used to create the `lib/data/flavor.raw` file, which is
 # used to initialize the "flavor" information for Sil.
 #
 # Do not modify this file unless you know exactly what you are doing,
@@ -8,18 +8,20 @@
 #
 # === Understanding flavor.txt ===
 #
-# N: index : tval : sval
+# N: index : tval [: sval]
 # G: char : attr
 # D: text
 #
 # 'N' is for the serial number (which must increase for each
-#     new item), the tval (the type of item), and the
-#     sval (the subtype). (See object.txt)
+#     new item), the tval (the type of item), and the optional
+#     sval (the subtype, only for fixed items).
+#     (See object.txt)
 #
-# 'G' is for the graphics. (See object.txt)
+# 'G' is for the graphics (see object.txt). The attr field supports
+#     base colors (D, w, s, o, r, g, b, u, d, W, v, y, R, G, B, U)
+#     and extended colors with numeric suffix (e.g., D1, v1).
 #
 # 'D' is for the name/description.
-
 
 
 # Version stamp (required)
@@ -27,7 +29,9 @@
 V:1.5.1
 
 
-##### Rings #####
+###############################################################################
+# Rings
+###############################################################################
 
 # Fixed: The Ring of Barahir
 N:1:45:32
@@ -119,8 +123,9 @@ D:Pearl
 #D:Mithril
 
 
-
-##### Amulets #####
+###############################################################################
+# Amulets
+###############################################################################
 
 # Fixed: The Pearl 'Nimphelos'
 N:41:40:13
@@ -190,7 +195,9 @@ D:Sea Shell
 #D:Mithril
 
 
-##### Staves #####
+###############################################################################
+# Staves
+###############################################################################
 
 N:68:55
 G:_:U
@@ -268,7 +275,9 @@ N:86:55
 G:_:u1
 D:Twisted
 
-##### Horns #####
+###############################################################################
+# Horns
+###############################################################################
 
 N:101:66
 G:?:W
@@ -290,7 +299,10 @@ N:105:66
 G:?:U1
 D:Engraved
 
-##### Herbs #####
+
+###############################################################################
+# Herbs
+###############################################################################
 
 N:121:80
 G:,:D
@@ -377,11 +389,9 @@ G:,:b1
 D:Bright Blue
 
 
-
-
-
-
-##### Potions #####
+###############################################################################
+# Potions
+###############################################################################
 
 # Fixed: miruvor
 N:193:75:0
