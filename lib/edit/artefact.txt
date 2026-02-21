@@ -1,11 +1,10 @@
 # File: artefact.txt
 #
-# This file is used to create the 'lib/data/artefact.raw' file, which
+# This file is used to create the `lib/data/artefact.raw` file, which
 # is used to initialize the 'artefact' information for Sil.
 #
 # Do not modify this file unless you know exactly what you are doing,
 # unless you wish to risk possible system crashes and broken savefiles.
-#
 #
 # === Understanding artefact.txt ===
 #
@@ -21,35 +20,39 @@
 # 'N' indicates the beginning of an entry. The serial number must
 #     increase for each new item.
 #
-# 'G' is for graphics overrides, if any. The char is the symbol 
-#     and the attr the colour. (See object.txt)
+# 'G' is for graphics overrides, if any. The char is the symbol and the attr
+#     the colour. Extended colors use a numeric suffix (e.g., b1).
+#     (See object.txt)
 #
 # 'I' is for basic information. The tval is for the type of item, the
 #     sval identifies the subtype and the pval indicates the amount of
 #     effect the item has, if applicable.
 #     (See object.txt)
 #
-# 'B' is for granted abilities, represented as pairs of skill 
-#     numbers and ability numbers. (See ability.txt)
+# 'B' is for granted abilities, represented as pairs of skill numbers and
+#     ability numbers. Multiple abilities are separated by colons (e.g.,
+#     B:6/3:6/6).
+#     (See ability.txt)
 #
 # 'W' is for extra information. Depth is the depth the object is
 #     normally found at, rarity determines how common the object is,
 #     weight is in tenth-pounds and cost is the item's value.
 #
 # 'P' is for power information. The item's bonuses to attack and
-#     evasion, as well as its damage and protection dice.
-#     Note that for non-weapons, adding damage dice will not
-#     help with melee, only with the thrown damage.
+#     evasion, as well as its damage and protection dice. Bonuses can
+#     have a + prefix (e.g., +2, +11). Some items (crowns) have a 5th
+#     value (always 0). Note that for non-weapons, adding damage dice
+#     will not help with melee, only with the thrown damage.
 #
-# 'F' is for flags. These are fairly self-explanatory. As many 
-#     F: lines may be used as are needed to specify all the flags
-#     and flags are separated by the '|' symbol.
+# 'F' is for flags. As many F: lines may be used as are needed to specify all
+#     the flags. Flags are separated by the '|' symbol.
 #
 # 'D' is a textual description of the artefact.
-# 
+#
+#
 # === Important Notes ===
 #
-# (1) The artefact indexes are defined in 'defines.h', and must not be changed.
+# (1) The artefact indexes are defined in `defines.h` and must not be changed.
 #
 # (2) Any changes or additions to the file will have influence on randarts
 #     and may break savefile compatibility for old savegames with randarts.  If
@@ -67,66 +70,65 @@
 #     or limits.txt.)
 #
 #
-#
 # === Ideas for Artefacts ===
 #
 # Regarding the dating and cut-offs for the items, Beren and Luthien stole a
 # Silmaril in FA 465, so I'd like to keep roughly to this date.
 #
 # Elves
-# * Feanor		(crown - smithing, fire, will, aggravate)
-#   * Maedhros		(hauberk - combat bonuses, res fire, res poison)
-#                       (crown - will, Majesty, res fear, danger)
-#   * Maglor		(cloak - song, restore voice)
-#   * Celegorm		(bow - will, slay wolf/spider)
-#   * Caranthir		(leather - stealth, dark, rage)
-#   * Curufin		(helm - perception, stealth, will, res confusion)
-#     * Celebrimbor	(gloves - expertise, free action)
-#   * Amrod		(short sword - perception, stealth)
-#   * Amras		
-# * Fingolfin		('ringil' - rcold, light) (shield - con, rfear)
-#   * Fingon		(corslet - resist fear, con)
-#     * Gil-galad	('aeglos' - cold)
-#   * Turgon		('glamdring' - will, slay orc/troll/rauko/dragon)
-#     * Idril		(robe - speed)	
-#       * Earendil	(elessar - con, regenerate, heal) (bow - dex, slay dragon)
-#   * Aredhel		(robe - sustain grace, free action, res dark)
-#     * Maeglin	        (galvorn armour - hunger, channelling, res poison)
+# * Feanor           (crown - smithing, fire, will, aggravate)
+#   * Maedhros       (hauberk - combat bonuses, res fire, res poison)
+#                    (crown - will, Majesty, res fear, danger)
+#   * Maglor         (cloak - song, restore voice)
+#   * Celegorm       (bow - will, slay wolf/spider)
+#   * Caranthir      (leather - stealth, dark, rage)
+#   * Curufin        (helm - perception, stealth, will, res confusion)
+#     * Celebrimbor  (gloves - expertise, free action)
+#   * Amrod          (short sword - perception, stealth)
+#   * Amras
+# * Fingolfin        ('ringil' - rcold, light) (shield - con, rfear)
+#   * Fingon         (corslet - resist fear, con)
+#     * Gil-galad    ('aeglos' - cold)
+#   * Turgon         ('glamdring' - will, slay orc/troll/rauko/dragon)
+#     * Idril        (robe - speed)
+#       * Earendil   (elessar - con, regenerate, heal) (bow - dex, slay dragon)
+#   * Aredhel        (robe - sustain grace, free action, res dark)
+#     * Maeglin      (galvorn armour - hunger, channelling, res poison)
 # - Finarfin
-#   * Finrod		(boots - good evasion, free action)
-#   * Angrod		(helm - res cold, res fear, regen)
-#     * Orodreth	(greaves - dex, res fire)
-#   * Aegnor		(armour - concentration)
+#   * Finrod         (boots - good evasion, free action)
+#   * Angrod         (helm - res cold, res fear, regen)
+#     * Orodreth     (greaves - dex, res fire)
+#   * Aegnor         (armour - concentration)
 #   * Galadriel
-# * Thingol		(cloak - grey, rfire, rcold, free act) (Aranruth - will, rfear, danger)
-#   * Luthien		(shadow cloak - res dark, sust gra, stealth)
+# * Thingol          (cloak - grey, rfire, rcold, free act) (Aranruth - will, rfear, danger)
+#   * Luthien        (shadow cloak - res dark, sust gra, stealth)
 # * also...
-#   * Daeron		(? - song, hunger)
+#   * Daeron         (? - song, hunger)
 #   - Celeborn
-#   * Beleg		(Dailir - bonuses) (Belthronding - dex, stealth, shot)
-#   * Eol		('Ang' - sharpness, danger) ('Ang' - sharpness, hunger)
+#   * Beleg          (Dailir - bonuses) (Belthronding - dex, stealth, shot)
+#   * Eol            ('Ang' - sharpness, danger) ('Ang' - sharpness, hunger)
 #   * Ecthelion
-#   * Tinfang Gelion	(? - song)
+#   * Tinfang Gelion (? - song)
 #
 # Men
-# * Beor		(studded leather - resist poison, resist dark)
-#   * Andreth           (robe - song, sust gra)
-#   * Beren		(dagmor - grace, res fear, res dark)
-#   * Barahir		(Ring - free action, res poison)
-#   * Bregolas		(Gauntlets - power, res cold)
-#   * Tuor		(Dramborleg - slay orc/troll/rauko)
+# * Beor             (studded leather - resist poison, resist dark)
+#   * Andreth        (robe - song, sust gra)
+#   * Beren          (dagmor - grace, res fear, res dark)
+#   * Barahir        (Ring - free action, res poison)
+#   * Bregolas       (Gauntlets - power, res cold)
+#   * Tuor           (Dramborleg - slay orc/troll/rauko)
 # - Marach
-#   * Hador		(shield - res cold, res lightning)
-#   * Hurin		(battle axe - con, will, resist fear, slay troll, rage)
-#     * Turin		(dragon helm - str, will, rfear, rstun) (Anglachel - sharp, danger)
+#   * Hador          (shield - res cold, res lightning)
+#   * Hurin          (battle axe - con, will, resist fear, slay troll, rage)
+#     * Turin        (dragon helm - str, will, rfear, rstun) (Anglachel - sharp, danger)
 #   - Gloredhel
-# * Halmir		(staff - sustain str/con, res poison)
-# * Haldad		(leather armour - str, free act, res fear)
+# * Halmir           (staff - sustain str/con, res poison)
+# * Haldad           (leather armour - str, free act, res fear)
 #
 # Dwarves
-# * Azaghal		(dagger - slay dragon, res fear, res fire)
-# * Durin		(mail corslet - res fire, res cold, regenerate)
-# * Telchar		(hammer - smithing, sust str, res fire)
+# * Azaghal          (dagger - slay dragon, res fear, res fire)
+# * Durin            (mail corslet - res fire, res cold, regenerate)
+# * Telchar          (hammer - smithing, sust str, res fire)
 #
 # Powers
 # * Melian
@@ -135,7 +137,7 @@
 # * Sirion
 # * Taur-nu-fuin
 # * Belegost
-# * Nogrod		(great axe - slay orc/troll/rauko, res fire)
+# * Nogrod           (great axe - slay orc/troll/rauko, res fire)
 # * Amon Rudh
 # - Taur-im-Duinath
 # * Nargothrond
@@ -150,20 +152,20 @@
 #
 # The Iron Helm of Vinyamar (Set Item)
 #
-#D:The helm left by Turgon in Vinyamar for the messenger of Ulmo.  Crowned by 
-#D:three swan's feathers, it greatens the heart and clarifies the purpose of 
-#D:the one who wears it.
+#D:The helm left by Turgon in Vinyamar for the messenger of Ulmo.  Crowned by
+#D: three swan's feathers, it greatens the heart and clarifies the purpose of
+#D: the one who wears it.
 #
 # Also, a Shadow Cloak of Ulmo could be added to complete the Vinyamar set
-
 
 
 # Version stamp (required)
 
 V:1.5.1
 
-#################################################################
-# Here is the list of 'Special' artefacts. 
+###############################################################################
+# 'Special' artefacts
+#
 # They can be:
 #   - Rings
 #   - Amulets
@@ -171,7 +173,7 @@ V:1.5.1
 #   - Crowns
 # Only artefacts 1 to 19 may be of these types.
 # Artefacts from index number 20 onwards must be Armour or Weapons.
-
+###############################################################################
 
 ## The Ring of Barahir
 ## 1st age
@@ -262,7 +264,7 @@ P:0:0d0:0:0d0
 F:CON | GRA
 F:INSTA_ART
 D:The Nauglamir; a carcanet of gold set with a multitude of shining gems
-D: of Valinor. It was made by the dwarves of Ered Luin for Finrod Felagund. 
+D: of Valinor. It was made by the dwarves of Ered Luin for Finrod Felagund.
 
 ## The Ring of Mairon
 ## (ability 3/5 is Vanish)
@@ -327,15 +329,16 @@ D: when he went to parley with him and hung by his right hand from Thangorodrim
 D: for thirty years.
 
 
-
-#################################################################
-# Here is the list of 'Normal' artefacts. 
+###############################################################################
+# 'Normal' artefacts
+#
 # They can be Armour or Weapons.
 # They use indices 20 - 139.
+###############################################################################
 
-
-##### Soft Armor #####
-
+###############################################################################
+# Soft Armor
+###############################################################################
 
 ## The Robe of Andreth
 ## 1st age
@@ -462,9 +465,9 @@ D: armour was wrought years ago by the master smith Eol,
 D: and given as a gift to his son, Maeglin.
 
 
-
-##### Hard Armor #####
-
+###############################################################################
+# Hard Armor
+###############################################################################
 
 ## The Mail Corslet of Fingon
 ## 1st age namesake
@@ -559,8 +562,9 @@ D: almost too small to see, that twinkle in torchlight just
 D: as the stars of Varda twinkle in the night sky.
 
 
-##### Shields #####
-
+###############################################################################
+# Shields
+###############################################################################
 
 ## The Round Shield of the Bloody Hand
 
@@ -657,7 +661,9 @@ D: Untarnished by long years waiting in Turgon's deserted halls of Vinyamar,
 D: it conveys the same powers of endurance to its bearer.
 
 
-##### Edged Weapons #####
+###############################################################################
+# Edged Weapons
+###############################################################################
 
 ## The Dagger of Nargil
 ## 1st age
@@ -692,15 +698,14 @@ W:14:4:5:100000
 P:0:1d5:0:0d0
 F:SHARPNESS2
 F:THROWING
-D:Forged from meteoric iron by Telchar, greatest of Dwarven smiths, 
+D:Forged from meteoric iron by Telchar, greatest of Dwarven smiths,
 D: this dagger slices through metal as easily as flesh, earning its
 D: name: 'Iron Cleaver'.
 
 
-#
-# The Curved Sword 'Nakh'
-# - added since there were no artefact curved blades
-#
+## The Curved Sword 'Nakh'
+## - added since there were no artefact curved blades
+
 N:55:'Nakh'
 I:23:7:2
 W:4:10:60:30000
@@ -710,10 +715,9 @@ D:A dread black blade greatly famed among the orcs. Its cruel
 D: edge was forged in Orodruth long ere the Noldor came
 D: to Beleriand.
 
-#
-# The Curved Sword 'Agarlhang'
-# - Sindarin "blood-cutlass"
-#
+## The Curved Sword 'Agarlhang'
+## - Sindarin "blood-cutlass"
+
 N:56:'Agarlhang'
 I:23:7:-2
 W:8:10:60:30000
@@ -829,6 +833,7 @@ D: in secret made of metal from a star.
 
 ## The Bastard Sword 'Luinmegil'
 ## Sindarin: blue sword
+
 N:72:'Luinmegil'
 G:|:b
 I:23:21:0
@@ -906,10 +911,9 @@ D: unwillingly to meet it of old; his lame foot will remind him of its
 D: might should he face it again.
 
 
-##
-## The Mithril Greatsword 'Ungoliant's Lament' 
+## The Mithril Greatsword 'Ungoliant's Lament'
 ## - added because we lacked any artefact mithril greatswords
-##
+
 N:83:'Ungoliant's Lament'
 I:23:30:0
 W:12:20:40:30000
@@ -920,7 +924,9 @@ D: Many spiders of the Ered Gorgoroth were slain by it in the days following
 D: the arrival of the Noldor in Beleriand.
 
 
-##### Polearms #####
+###############################################################################
+# Polearms
+###############################################################################
 
 ##
 ## The Spear 'Dugrakh'
@@ -933,7 +939,7 @@ P:1:1d11:0:0d0
 F:SLAY_RAUKO | SLAY_MAN_OR_ELF | SEE_INVIS | FREE_ACT
 F:GRA | AGGRAVATE | THROWING
 D:A weapon forged after the Dagor Bragollach by Sauron,
-D: tainted to slay Morgoth's foes whether they be man, elf or Maiar. 
+D: tainted to slay Morgoth's foes whether they be man, elf or Maiar.
 D: Black-hafted, with a bronze head, it throws no shadow.
 
 
@@ -1043,6 +1049,7 @@ D: was for many years an heirloom of the dwarven city of Nogrod.
 D: It grants its wielder strength to wield it and the power to
 D: fight some of Morgoth's foulest servants.
 
+
 ## The Great Axe 'Mazarbulbark'
 ## Khuzdul 'that-which-is-written axe'
 ## (ability 5/8 is Vengeance)
@@ -1098,9 +1105,9 @@ D:A beautiful blade on a long shaft of dark wood. It feels lively
 D: in your hands, its point guiding itself to where it is needed.
 
 
-
-##### Blunt Weapons #####
-
+###############################################################################
+# Blunt Weapons
+###############################################################################
 
 ## The Quarterstaff of Halmir
 ## 1st age namesake
@@ -1143,7 +1150,9 @@ D: following the destruction of the Two Trees, it has a haft and head of
 D: black iron banded about with red gold.
 
 
-##### Digging Tools #####
+###############################################################################
+# Digging Tools
+###############################################################################
 
 ## The Mattock 'Burkfelek'
 ## original to Sil
@@ -1157,8 +1166,9 @@ D:A mighty Dwarven mattock, forged by Gamil Zirak of old,
 D: and enchanted for both battle and mine.
 
 
-
-##### Helms/Crowns #####
+###############################################################################
+# Helms/Crowns
+###############################################################################
 
 ## The Helm of Angrod
 
@@ -1169,6 +1179,7 @@ P:0:0d0:0:1d3
 F:RES_COLD | RES_FEAR | REGEN
 D:The helm of Angrod, son of Finarfin, who perished in
 D: the Dagor Bragollach.
+
 
 ## The Helm of Curufin
 ## 1st age namesake
@@ -1183,6 +1194,7 @@ B:4/7
 D:A helm worn by Curufin, son of Feanor, whose dark schemes
 D: snared many in Beleriand.
 
+
 ## The Helm of the Oathbreaker
 ## (ability 5/8 is Vengeance)
 
@@ -1194,6 +1206,7 @@ F:TRAITOR | LIGHT_CURSE
 B:5/8
 D:A helm wrought of grey metal and the dull bones of some forgotten
 D: orc who once raised his blade against his master.
+
 
 ## The Great Helm of Dor-Lomin
 ## 1st age
@@ -1250,10 +1263,12 @@ P:1:0d0:-1:1d3
 F:SONG | RES_FIRE | RES_FEAR
 B:7/9
 D:A beautiful helm, wrought of mithril and inlaid with white stones.
-D: It rises gracefully to a tall point as sharp as any spear. 
+D: It rises gracefully to a tall point as sharp as any spear.
 
-##### Cloaks #####
 
+###############################################################################
+# Cloaks
+###############################################################################
 
 ## The Cloak of Maglor
 ## 1st age namesake
@@ -1329,7 +1344,9 @@ D:With its great black wings, might this remnant of the vampire
 D: let you pass as a messenger journeying to Morgoth?
 
 
-##### Bows #####
+###############################################################################
+# Bows
+###############################################################################
 
 ## The Shortbow of Celegorm
 ## (ability 1/3 is Ambush)
@@ -1397,8 +1414,9 @@ D:A large exquisite bow fashioned from a single horn of a slain
 D: dragon. Many are the blessings of the Eldar laid over it.
 
 
-##### Arrows #####
-
+###############################################################################
+# Arrows
+###############################################################################
 
 ## The Arrow 'Dailir'
 ## 1st age
@@ -1411,7 +1429,9 @@ P:+11:0d0:0:0d0
 D:The unerring arrow of Beleg Cuthalion.
 
 
-##### Boots #####
+###############################################################################
+# Boots
+###############################################################################
 
 ## The Pair of Boots of Finrod
 
@@ -1477,7 +1497,9 @@ D: none have been more hard-won than the crossing
 D: of the ice of the Helcaraxe.
 
 
-##### Gloves #####
+###############################################################################
+# Gloves
+###############################################################################
 
 ## The Set of Gloves of the Swallow
 ## (ability 1/1 is Fletchery)
@@ -1491,7 +1513,7 @@ B:1/1
 D:This pair of gloves bears the insignia of the House of the Swallow,
 D: who defend Gondolin from harm with their mighty bows.
 
-
+
 ## The Set of Gloves of Celebrimbor
 ## 1st age namesake
 ## (ability 6/4 is Expertise)
@@ -1558,7 +1580,9 @@ D: supple as fine leather. The hands that wear them
 D: can move more delicately and swiftly than if bare.
 
 
-##### Lights #####
+###############################################################################
+# Lights
+###############################################################################
 
 ## The Lesser Jewel of Finwe
 ## 1st age namesake
@@ -1574,8 +1598,9 @@ D: took many jewels from his treasuries. Most are now
 D: lost to the Unlight, but this one shines yet pure.
 
 
-##### Morgoth Artefacts #####
-
+###############################################################################
+# Morgoth Artefacts
+###############################################################################
 
 ## The Massive Iron Crown of Morgoth (no Silmarils)
 ## 1st age
@@ -1585,7 +1610,7 @@ N:175:of Morgoth
 I:33:50:0
 W:20:1:4000:10000000
 P:0:0d0:0:0d0:0
-F:INSTA_ART 
+F:INSTA_ART
 D:Once containing much of the power of he who is the mightiest among the
 D: Ainur, this plain iron crown now bears just three empty sockets:
 D: holes where should be stars.
@@ -1599,7 +1624,7 @@ N:176:of Morgoth
 I:33:50:4
 W:20:1:4000:10000000
 P:0:0d0:0:0d0:0
-F:INSTA_ART 
+F:INSTA_ART
 D:Containing much of the power of he who is the mightiest among the
 D: Ainur, this plain iron crown has mounted upon it the sole remaining
 D: Silmaril, greatest treasure of Middle-Earth.
@@ -1613,7 +1638,7 @@ N:177:of Morgoth
 I:33:50:5
 W:20:1:4000:10000000
 P:0:0d0:0:0d0:0
-F:INSTA_ART 
+F:INSTA_ART
 D:Containing much of the power of he who is the mightiest among the
 D: Ainur, this plain iron crown has mounted upon it the two remaining
 D: Silmarils, greatest treasures of Middle-Earth.
@@ -1627,7 +1652,7 @@ N:178:of Morgoth
 I:33:50:6
 W:20:1:4000:10000000
 P:0:0d0:0:0d0:0
-F:INSTA_ART 
+F:INSTA_ART
 D:Containing much of the power of he who is the mightiest among the
 D: Ainur, this plain iron crown has mounted upon it the three
 D: Silmarils, greatest treasures of Middle-Earth. To attempt to cut
@@ -1649,14 +1674,15 @@ D: whose wielder holds the lives of all Morgoth's servants
 D: in his hand.
 
 
-
-##### Smithing Template Artefacts #####
-##
-## These provide the limits on which flags can appear on which tvals
-##
-## The following additions are hard coded in the source:
-##   - Throwing items get Perfect Balance
-##   - War Hammers get Smithing
+###############################################################################
+# Smithing Template Artefacts
+#
+# These provide the limits on which flags can appear on which tvals.
+#
+# The following additions are hard coded in the source:
+#   - Throwing items get Perfect Balance
+#   - War Hammers get Smithing
+###############################################################################
 
 ## The Ultimate TV_SWORD
 
@@ -1674,7 +1700,7 @@ F:RES_FEAR | RES_BLIND | RES_CONFU | RES_STUN | RES_HALLU
 F:SLOW_DIGEST | LIGHT | REGEN | SEE_INVIS | FREE_ACT
 F:HUNGER | DARKNESS | DANGER | AGGRAVATE | LIGHT_CURSE
 F:HAUNTED | FEAR | VUL_FIRE | VUL_COLD | VUL_POIS
-F:INSTA_ART 
+F:INSTA_ART
 
 
 ## The Ultimate TV_POLEARM
@@ -1693,7 +1719,7 @@ F:RES_FEAR | RES_BLIND | RES_CONFU | RES_STUN | RES_HALLU
 F:SLOW_DIGEST | LIGHT | REGEN | SEE_INVIS | FREE_ACT
 F:HUNGER | DARKNESS | DANGER | AGGRAVATE | LIGHT_CURSE
 F:HAUNTED | FEAR | VUL_FIRE | VUL_COLD | VUL_POIS
-F:INSTA_ART 
+F:INSTA_ART
 
 
 ## The Ultimate TV_HAFTED
@@ -1712,7 +1738,7 @@ F:RES_FEAR | RES_BLIND | RES_CONFU | RES_STUN | RES_HALLU
 F:SLOW_DIGEST | LIGHT | REGEN | SEE_INVIS | FREE_ACT
 F:HUNGER | DARKNESS | DANGER | AGGRAVATE | LIGHT_CURSE
 F:HAUNTED | FEAR | VUL_FIRE | VUL_COLD | VUL_POIS
-F:INSTA_ART 
+F:INSTA_ART
 
 
 ## The Ultimate TV_DIGGING
@@ -1731,7 +1757,7 @@ F:RES_FEAR | RES_BLIND | RES_CONFU | RES_STUN | RES_HALLU
 F:SLOW_DIGEST | LIGHT | REGEN | SEE_INVIS | FREE_ACT
 F:HUNGER | DARKNESS | DANGER | AGGRAVATE | LIGHT_CURSE
 F:HAUNTED | FEAR | VUL_FIRE | VUL_COLD | VUL_POIS
-F:INSTA_ART 
+F:INSTA_ART
 
 
 ## The Ultimate TV_BOW
@@ -1755,7 +1781,7 @@ F:SLAY_ORC | SLAY_TROLL | SLAY_WOLF | SLAY_SPIDER
 F:SLAY_UNDEAD | SLAY_RAUKO | SLAY_DRAGON
 F:BRAND_FIRE | BRAND_COLD | BRAND_POIS
 F:HAUNTED | FEAR | VUL_FIRE | VUL_COLD | VUL_POIS
-F:INSTA_ART 
+F:INSTA_ART
 
 
 ## The Ultimate TV_RING
@@ -1770,7 +1796,7 @@ F:RES_FEAR | RES_BLIND | RES_CONFU | RES_STUN | RES_HALLU
 F:SLOW_DIGEST | REGEN | SEE_INVIS | FREE_ACT | SPEED
 F:HUNGER | DANGER | AGGRAVATE | LIGHT_CURSE
 F:HAUNTED | FEAR | VUL_FIRE | VUL_COLD | VUL_POIS
-F:INSTA_ART 
+F:INSTA_ART
 
 
 ## The Ultimate TV_AMULET
@@ -1784,7 +1810,7 @@ F:RES_FEAR | RES_BLIND | RES_CONFU | RES_STUN | RES_HALLU
 F:SLOW_DIGEST | LIGHT | REGEN | SEE_INVIS | FREE_ACT
 F:HUNGER | DARKNESS | DANGER | AGGRAVATE | LIGHT_CURSE
 F:HAUNTED | FEAR | VUL_FIRE | VUL_COLD | VUL_POIS
-F:INSTA_ART 
+F:INSTA_ART
 
 
 ## The Ultimate TV_LIGHT
@@ -1798,7 +1824,7 @@ F:RES_FEAR | RES_BLIND | RES_HALLU
 F:LIGHT | SEE_INVIS
 F:HUNGER | DARKNESS | DANGER | AGGRAVATE | LIGHT_CURSE
 F:HAUNTED | FEAR | VUL_FIRE | VUL_COLD | VUL_POIS
-F:INSTA_ART 
+F:INSTA_ART
 
 
 ## The Ultimate TV_SOFT_ARMOR
@@ -1813,7 +1839,7 @@ F:RES_FEAR | RES_BLIND | RES_CONFU | RES_STUN | RES_HALLU
 F:SLOW_DIGEST | LIGHT | REGEN | SEE_INVIS | FREE_ACT | SPEED
 F:HUNGER | DARKNESS | DANGER | AGGRAVATE | LIGHT_CURSE
 F:HAUNTED | FEAR | VUL_FIRE | VUL_COLD | VUL_POIS
-F:INSTA_ART 
+F:INSTA_ART
 
 
 ## The Ultimate TV_MAIL
@@ -1828,7 +1854,7 @@ F:RES_FEAR | RES_BLIND | RES_CONFU | RES_STUN | RES_HALLU
 F:SLOW_DIGEST | LIGHT | REGEN | SEE_INVIS | FREE_ACT | SPEED
 F:HUNGER | DARKNESS | DANGER | AGGRAVATE | LIGHT_CURSE
 F:HAUNTED | FEAR | VUL_FIRE | VUL_COLD | VUL_POIS
-F:INSTA_ART 
+F:INSTA_ART
 
 
 ## The Ultimate TV_CLOAK
@@ -1843,7 +1869,7 @@ F:RES_FEAR | RES_CONFU | RES_STUN | RES_HALLU
 F:SLOW_DIGEST | LIGHT | REGEN | FREE_ACT
 F:HUNGER | DARKNESS | DANGER | AGGRAVATE | LIGHT_CURSE
 F:HAUNTED | FEAR | VUL_FIRE | VUL_COLD | VUL_POIS
-F:INSTA_ART 
+F:INSTA_ART
 
 
 ## The Ultimate TV_SHIELD
@@ -1858,7 +1884,7 @@ F:RES_FEAR | RES_BLIND | RES_CONFU | RES_STUN
 F:LIGHT | REGEN | FREE_ACT
 F:HUNGER | DARKNESS | DANGER | AGGRAVATE | LIGHT_CURSE
 F:HAUNTED | FEAR | VUL_FIRE | VUL_COLD | VUL_POIS
-F:INSTA_ART 
+F:INSTA_ART
 
 
 ## The Ultimate TV_HELM
@@ -1873,7 +1899,7 @@ F:RES_FEAR | RES_BLIND | RES_CONFU | RES_STUN | RES_HALLU
 F:LIGHT | REGEN | SEE_INVIS
 F:HUNGER | DARKNESS | DANGER | AGGRAVATE | LIGHT_CURSE
 F:HAUNTED | FEAR | VUL_FIRE | VUL_COLD | VUL_POIS
-F:INSTA_ART 
+F:INSTA_ART
 
 
 ## The Ultimate TV_CROWN
@@ -1888,7 +1914,7 @@ F:RES_FEAR | RES_BLIND | RES_CONFU | RES_STUN | RES_HALLU
 F:LIGHT | REGEN | SEE_INVIS
 F:HUNGER | DARKNESS | DANGER | AGGRAVATE | LIGHT_CURSE
 F:HAUNTED | FEAR | VUL_FIRE | VUL_COLD | VUL_POIS
-F:INSTA_ART 
+F:INSTA_ART
 
 
 ## The Ultimate TV_GLOVES
@@ -1902,7 +1928,7 @@ F:SUST_STR | SUST_DEX
 F:FREE_ACT | RES_FIRE | RES_COLD | RES_POIS | RES_BLEED
 F:HUNGER | DANGER | AGGRAVATE | LIGHT_CURSE | DARKNESS
 F:HAUNTED | FEAR | VUL_FIRE | VUL_COLD | VUL_POIS
-F:INSTA_ART 
+F:INSTA_ART
 
 
 ## The Ultimate TV_BOOTS
@@ -1917,11 +1943,11 @@ F:RES_FEAR | RES_CONFU | REGEN
 F:FREE_ACT | SPEED | AVOID_TRAPS
 F:HUNGER | DARKNESS | DANGER | AGGRAVATE | LIGHT_CURSE
 F:HAUNTED | FEAR | VUL_FIRE | VUL_COLD | VUL_POIS
-F:INSTA_ART 
+F:INSTA_ART
 
-
-# List of all relevant flags...
-#
+##
+## List of all relevant flags
+##
 #F:STR | DEX | CON | GRA | NEG_STR | NEG_DEX | NEG_CON | NEG_GRA
 #F:ARCHERY | STEALTH | PERCEPTION | WILL | SMITHING | SONG
 #F:DAMAGE_SIDES | CHEAT_DEATH
@@ -1934,19 +1960,21 @@ F:INSTA_ART
 #F:RES_FEAR | RES_BLIND | RES_CONFU | RES_STUN | RES_HALLU
 #F:RADIANCE | SLOW_DIGEST | LIGHT | REGEN | SEE_INVIS | FREE_ACT | SPEED
 #F:HUNGER | DARKNESS | SLOWNESS | DANGER | AGGRAVATE | LIGHT_CURSE
-#F:INSTA_ART 
+#F:INSTA_ART
 
 
-#################################################################
+###############################################################################
 # The 'Random' artefacts come next.
+#
 # They use indices 150 - 199.
-# But they are automatically generated so aren't listed here.
+# But they are automatically generated, so aren't listed here.
+###############################################################################
 
 
-#################################################################
+###############################################################################
 # The 'Self-made' artefacts come next.
+#
 # They use indices 200 - 249.
-# But they are automatically generated so aren't listed here.
-
-
+# But they are automatically generated, so aren't listed here.
+###############################################################################
 
