@@ -231,7 +231,17 @@ def validate_layout_dimensions(
         return
 
     actual_rows = len(layout)
-    actual_cols = max(len(line) for line in layout) if layout else 0
+    line_widths = [len(line) for line in layout]
+    actual_cols = max(line_widths) if line_widths else 0
+
+    # Check that all D: lines have consistent width
+    if len(set(line_widths)) > 1:
+        min_width = min(line_widths)
+        max_width = max(line_widths)
+        result.error(
+            f"Vault {vault_id} ({vault_name}): layout has inconsistent line widths "
+            f"(min={min_width}, max={max_width})"
+        )
 
     if expected_rows is not None and actual_rows != expected_rows:
         result.error(
