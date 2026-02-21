@@ -1,6 +1,6 @@
 # File: history.txt
 #
-# This file is used to create the "lib/data/history.raw" file, which is
+# This file is used to create the `lib/data/history.raw` file, which is
 # used to initialize the "player history" information for Sil.
 #
 # Do not modify this file unless you know exactly what you are doing,
@@ -11,14 +11,15 @@
 # N: primary index : secondary index : probability : house
 # D: description
 #
-# 'N' the primary index represents the type of descriptive text
+# 'N' is the primary index that represents the type of descriptive text
 #     being generated (e.g. a Dwarven profession) and the secondary
 #     index gives the particular thing within this type (e.g. craftsman).
 #     The probability is the highest value of a random number from 1 to 100
 #     that will lead to this choice (so these increase through a type).
 #     Note that the races (race.txt) give primary indices into this table.
 #
-# 'D' A piece of descriptive text
+# 'D' is for description. As many D: lines may be used as are needed
+#     to describe the history.
 #
 # Background information (see below)
 #
@@ -30,9 +31,10 @@
 #  Naugrim        --> 16 --> 17 --> 18 --> 57 --> 58 --> 59 --> 60 --> 61
 #
 #
-# * Note that this table *must* be correct or drastic errors may occur!
+# === Notes ==
 #
-# * Note that the "spacing" in the "description" lines is very important!
+# * This table *must* be correct or drastic errors may occur!
+# * The spacing (whitespace) in the `D:` lines is important!
 
 
 # Version stamp (required)
@@ -40,7 +42,9 @@
 V:1.5.1
 
 
+###############################################################################
 # Noldor history
+###############################################################################
 
 N:1:2:30:0
 D:You are one of several children
@@ -70,7 +74,9 @@ N:3:50:100:3
 D:from the house of Finarfin.
 
 
+###############################################################################
 # Sindar history
+###############################################################################
 
 N:4:5:30:0
 D:You are one of several children
@@ -95,7 +101,9 @@ N:5:54:100:0
 D:of a Sindar king.
 
 
+###############################################################################
 # Naugrim History
+###############################################################################
 
 N:16:17:25:0
 D:You are one of two children of a Dwarven
@@ -121,8 +129,9 @@ N:18:57:100:0
 D:You were a well liked child.
 
 
-
+###############################################################################
 # Edain History
+###############################################################################
 
 N:21:22:5:0
 D:You are the illegitimate and unacknowledged child
@@ -146,7 +155,6 @@ D:of a warrior.
 N:22:23:100:0
 D:of a prince.
 
-
 N:23:25:10:0
 D:You are the black sheep of the family.
 N:23:25:80:0
@@ -155,7 +163,9 @@ N:23:25:100:0
 D:You were a well liked child.
 
 
+###############################################################################
 # Edain Description
+###############################################################################
 
 N:25:26:20:0
 D:You have dark brown eyes,
@@ -198,7 +208,9 @@ N:28:0:100:0
 D:and a very fair complexion.
 
 
+###############################################################################
 # Noldor description
+###############################################################################
 
 N:50:51:85:0
 D:You have light grey eyes,
@@ -226,7 +238,9 @@ N:52:0:100:0
 D:silver hair, and a fair complexion.
 
 
+###############################################################################
 # Sindar description
+###############################################################################
 
 N:54:55:85:0
 D:You have light grey eyes,
@@ -252,7 +266,9 @@ N:56:0:100:0
 D:silver hair, and a fair complexion.
 
 
+###############################################################################
 # Naugrim description
+###############################################################################
 
 N:57:58:100:0
 D:You have dark brown eyes,
