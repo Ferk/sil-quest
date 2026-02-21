@@ -47,6 +47,9 @@ jobs:
       - name: Validate data file for history
         run: python3 bin/data-history.py --validate
 
+      - name: Validate data file for houses
+        run: python3 bin/data-house.py --validate
+
       - name: Validate data file for monsters
         run: python3 bin/data-monster.py --validate
 
