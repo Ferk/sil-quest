@@ -1,6 +1,6 @@
 # File: vault.txt
 #
-# This file is used to create the "lib/data/vault.raw" file, which is
+# This file is used to create the `lib/data/vault.raw` file, which is
 # used to initialize the "vault template" information for Sil.
 #
 # Do not modify this file unless you know exactly what you are doing,
@@ -18,7 +18,7 @@
 # === Understanding vault.txt ===
 #
 # N: serial number : vault name
-# X: room type : depth : rarity : rows : columns
+# X: room type : depth : rarity [: rows : columns]
 # F: flag1 | flag2 | flag3 ...
 # D: lines giving full layout of vault using symbols below
 #
@@ -26,7 +26,7 @@
 #     increase for each new vault.
 #
 # 'X' is for extra information - room type, minimum depth, rarity,
-#     rows, and columns.
+#     and optionally rows and columns (inferred from D: lines if omitted?).
 #
 #     type 10 - Gates of Angband
 #     type 6  - interesting room
@@ -43,9 +43,11 @@
 #     LIGHT       - 100% chance of being permanently lit
 #     SURFACE     - generated more seldom in deeper dungeons
 #
-# 'D' lines describe the layout of the vault. Lines must be padded
-#     with spaces to fill the dimensions specified. Vaults are described
-#     with the following symbols:
+# 'D' lines describe the layout of the vault. Whitespace (including trailing
+#     whitespace) are very important and must be preserved when editing this
+#     file! Lines must be padded with spaces to fill the dimensions specified.
+#
+#     Vaults are described with the following symbols:
 #
 #     $ - outside of the vault, where corridors may be connected
 #     # - granite
@@ -96,40 +98,42 @@
 #     C - Carcharoth
 #
 
+
+###############################################################################
 # Future Vault Thoughts
 #
 # Ways to add more variety to the vault format:
 #
-#   Using a symbol such that one of that symbol becomes a secret door
-#   e.g.
+# 1. Using a symbol such that one of that symbol becomes a secret door, such as:
 #
-#   N:81:Ringway 2
-#   X:6:5:8:10:14
-#   D:$$$$$$$$$$$$
-#   D:$..........$
-#   D:$......?...$
-#   D:$..#ssss#..$
-#   D:$.?s.*.2s..$
-#   D:$..s....s..$
-#   D:$..#ssss#..$
-#   D:$..........$
-#   D:$...?......$
-#   D:$$$$$$$$$$$$
+#       N:81:Ringway 2
+#       X:6:5:8:10:14
+#       D:$$$$$$$$$$$$
+#       D:$..........$
+#       D:$......?...$
+#       D:$..#ssss#..$
+#       D:$.?s.*.2s..$
+#       D:$..s....s..$
+#       D:$..#ssss#..$
+#       D:$..........$
+#       D:$...?......$
+#       D:$$$$$$$$$$$$
 #
-#   maybe have lines:
-#   O:y:33
-#   M:u:42
-#   T:):23
+# 2. Maybe have lines:
+#       O:y:33
+#       M:u:42
+#       T:):23
 #
-#   (or O:y:Mail Corslet)
+#    or:
+#       O:y:Mail Corslet
 #
-#   for object, monster, terrain, with a symbol and then this is overridden in the map
-#   so that it represents the index listed. One issue is things at a coarse grained level
-#   currently: chest, archer, flier, wolf, vampire, raukar, spider, dragon
+#   for object, monster, terrain, with a symbol. And then this is overridden in
+#   the map so that it represents the index listed. One issue is things at a
+#   coarse grained level currently: chest, archer, flier, wolf, vampire, raukar,
+#   spider, dragon
 #
-# Maybe add a max-depth for vaults
-#
-
+# 3. Maybe add a max-depth for vaults?
+###############################################################################
 
 
 # Version stamp (required)
@@ -141,7 +145,7 @@ V:1.5.1
 
 N:1:The Gates of Angband
 X:10:0:1
-F:NO_ROTATION 
+F:NO_ROTATION
 D:################################################################
 D:#......#####################.......######################......#
 D:#.oooo.+.........:##########.#...#.###########.:....:...+.oooo.#
@@ -175,8 +179,10 @@ D:##################:.:.........................##################
 D:#################...............................################
 D:#################..................................#############
 
-### interesting rooms (type 6) -- maximum size 44x22 ??? ###
 
+###############################################################################
+# Interesting rooms (type 6) -- maximum size 44x22 ?
+###############################################################################
 
 N:10:Tiny Room
 X:6:1:20
@@ -371,7 +377,7 @@ D:######$$$$$$
 
 N:45:Thin Cross
 X:6:8:4
-F:NO_ROTATION 
+F:NO_ROTATION
 D:      $$$$$$      
 D:      $....$      
 D:      $....$      
@@ -388,7 +394,7 @@ D:      $$$$$$
 
 N:46:Collapsed Cross
 X:6:12:12
-F:NO_ROTATION 
+F:NO_ROTATION
 D:      $$$$$$      
 D:      $....$      
 D:      $..#.$      
@@ -405,7 +411,7 @@ D:      $$$$$$
 
 N:47:Corridor Cross
 X:6:2:3
-F:NO_ROTATION 
+F:NO_ROTATION
 D:     #$$$$$#     
 D:     $.....$     
 D:     $.?...$     
@@ -422,7 +428,7 @@ D:     #$$$$$#
 
 N:48:Hourglass
 X:6:3:3
-F:NO_ROTATION 
+F:NO_ROTATION
 D:$$$$$$$$$
 D:$.......$
 D:$..?....$
@@ -563,7 +569,7 @@ D:$$#########$$
 
 N:59:Slave mine
 X:6:2:1
-F:SURFACE 
+F:SURFACE
 D:#######$$$$$
 D:#:::##%....$
 D:#:z.%%:z.#.$
@@ -577,7 +583,7 @@ D:$$$$$$######
 
 N:60:Maze
 X:6:5:1
-F:NO_ROTATION 
+F:NO_ROTATION
 D:$$$$$$$$$$$$$$$
 D:$.......#.....$
 D:$.#.###.#.#.#.$
@@ -591,7 +597,7 @@ D:$$$$$$$$$$$$$$$
 
 N:61:Maze 2
 X:6:5:1
-F:NO_ROTATION 
+F:NO_ROTATION
 D:$$$$$$$$$$$$$$$$$
 D:$......#....#...$
 D:$#####...##.###.$
@@ -681,7 +687,7 @@ D:       $$$$$$
 
 N:67:Forge Maze
 X:6:10:6
-F:NO_ROTATION 
+F:NO_ROTATION
 D:$$$$$$$$$$$$$$$$
 D:$#...........#.$
 D:$..####.####.#.$
@@ -958,7 +964,6 @@ D:#.###.###.#
 D:#a.......a#
 D:#####.#####
 D:    #$#    
-
 
 
 N:110:Diamond Centre
@@ -1408,6 +1413,7 @@ D:##.?.%%%...##
 D: ##...+...## 
 D:  #$$$$$$$#  
 
+
 N:204:Alcoved forge
 X:6:9:20
 D:#$$$$####
@@ -1465,9 +1471,9 @@ D:#?..#?.#.1#
 D:#####$#####
 
 
-
-####### Dragons
-
+###############################################################################
+# Dragons
+###############################################################################
 
 N:220:Dragon Lair 1
 X:6:12:5
@@ -1492,8 +1498,9 @@ D:$.....#..&#
 D:$$$$$$#####
 
 
-####### Barrows
-
+###############################################################################
+# Barrows
+###############################################################################
 
 N:230:Barrow 1
 X:6:8:5
@@ -1561,9 +1568,9 @@ D: ##...##
 D:  #$$$#  
 
 
-
-####### Chasms
-
+###############################################################################
+# Chasms
+###############################################################################
 
 N:240:A path between
 X:6:2:4
@@ -1742,7 +1749,6 @@ D: ##.............$
 D:  $$$$$$$$$$$$$$$   
 
 
-
 N:268:Chasm gauntlet
 X:6:6:20
 D:#########
@@ -1846,7 +1852,8 @@ D:   #777#
 D:   ##$##   
 
 
-# more:
+###############################################################################
+# More:
 # - a chasm that is only crossable in one direction
 # - a chasm with a treasure only reachable with blasting
 # - a chasm with a room in the middle
@@ -1855,10 +1862,11 @@ D:   ##$##
 # - a Silent Watcher on an island
 # - chasm as a minor feature in a normal interesting room or vault
 # - chasms in Gothmog's vault
+###############################################################################
 
-
-### lesser Vaults (type 7) -- maximum size 44x22 ??? ###
-
+###############################################################################
+# Lesser Vaults (type 7) -- maximum size 44x22 ?
+###############################################################################
 
 N:300:Oval Chambers
 X:7:0:1
@@ -2281,7 +2289,6 @@ D:    ######
 
 
 # (Taken directly from the brickwork of an Oxford college)
-
 N:361:Keble
 X:7:11:10
 F:NO_ROTATION
@@ -2456,14 +2463,11 @@ D:  ##$#$##
 #D:$$$$#######
 
 
-
-
-
-### Greater Vaults (type 8) -- maximum size 66x44 ??? ###
-
+###############################################################################
+# Greater Vaults (type 8) -- maximum size 66x44 ?
+###############################################################################
 
 # Aldor's vault
-
 N:400:the Tomb of the King
 X:8:8:1
 F:NO_ROTATION
@@ -2557,7 +2561,6 @@ D:########################$$$#
 
 
 # Glaurung's vault
-
 N:404:the Hoard of the Worm of Greed
 X:8:18:1
 D:$$$$###################
@@ -2606,11 +2609,13 @@ D:#.*######~s......#....######
 D:###########$$$$$$#$$$$######
 
 
-### Morgoth's vault (type 9) ###
+###############################################################################
+# Morgoth's vault (type 9)
+###############################################################################
 
 N:450:Morgoth's throne room
 X:9:20:1
-F:NO_ROTATION 
+F:NO_ROTATION
 D:###################################
 D:##&...+.####..#####..##......######
 D:#&..#.#...+..#######..#.#..#.######
