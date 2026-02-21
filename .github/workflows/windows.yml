@@ -101,6 +101,9 @@ jobs:
       - name: Validate data file for terrain
         run: python bin/data-terrain.py --validate
 
+      - name: Validate data file for vaults
+        run: python bin/data-vault.py --validate
+
       - name: Remove outdated PDF manuals
         run: |
           rm lib/docs/*.pdf

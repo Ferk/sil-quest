@@ -71,6 +71,9 @@ jobs:
       - name: Validate data file for terrain
         run: python3 bin/data-terrain.py --validate
 
+      - name: Validate data file for vaults
+        run: python3 bin/data-vault.py --validate
+
       - name: Create release archive
         if: inputs.version != ''
         run: |
