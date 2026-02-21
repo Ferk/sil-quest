@@ -1,6 +1,6 @@
 # File: terrain.txt
 #
-# This file is used to create the "lib/data/terrain.raw" file, which is
+# This file is used to create the `lib/data/terrain.raw` file, which is
 # used to initialize the "terrain feature" information for Sil.
 #
 # Do not modify this file unless you know exactly what you are doing,
@@ -16,13 +16,15 @@
 # 'N' indicates the beginning of an entry. The serial number must
 #     increase for each new item.
 #
-# 'G' is for graphics - symbol and color. There are 16 colors, as
+# 'G' is for graphics - symbol and color. There are 16 base colors, as
 #     follows:
 #
 #     D - Dark Gray    w - White          s - Gray          o - Orange
 #     r - Red          g - Green          b - Blue          u - Brown
 #     d - Black        W - Light Gray     v - Violet        y - Yellow
 #     R - Light Red    G - Light Green    B - Light Blue    U - Light Brown
+#
+#     Extended colors use a numeric suffix (e.g., D1, v1).
 #
 # 'M' is the index of a feature to mimic.
 #
