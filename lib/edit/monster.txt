@@ -22,10 +22,12 @@
 # D: Description
 #
 # 'N' indicates the beginning of an entry. The serial number must
-#     increase for each new item. Entry 0 is used for the player.
+#     increase for each new item. Entry 0 is reserved for the player.
 #
-# 'W' is for more information - the depth they are found at and their rarity
-#     (they have a 1 in rarity chance of being generated).
+# 'W' is for the depth (dungeon level) the monsters are found at and their
+#     rarity. They have a 1-in-rarity chance of being generated (spawned).
+#     The depth of monsters must not be 0, because this is used to identify the
+#     player.
 #
 # 'G' is for graphics - symbol and color. There are 16 base colors, as
 #     follows:
@@ -125,7 +127,7 @@
 # Typical Dragon:  30d4 - 50d4
 # Unrelenting H:  100d4
 #       Morgoth:  200d4
-# 
+#
 # Will:
 #
 # Typical value:  dungeon level * 2/3
@@ -291,7 +293,9 @@
 V:1.5.1
 
 
-##### Non-race (contains the player picture) #####
+###############################################################################
+# Player
+###############################################################################
 
 # Noldor
 N:0:<player>
@@ -310,12 +314,17 @@ N:3:<player>
 G:@:w
 
 
-##### Dungeon monsters #####
+###############################################################################
+# Dungeon monsters are defined below.
+#
+# Monsters must not use dungeon level (depth) 0 = W:0, because this is used to
+# identify the player!
+###############################################################################
 
-# Must not have any level 0 creatures, as this is used to identify player
 
-
-##### 1 #####
+###############################################################################
+# Dungeon level 1
+###############################################################################
 
 N:11:Wolf
 W:1:1
@@ -340,7 +349,8 @@ F:NO_FEAR | RES_POIS | NO_CONF | NO_SLEEP | NO_CRIT
 D:'... great writhing, tangled brambles sprawled. Some had long stabbing
 D: thorns, some hooked barbs that rent like knives.'
 
-# Can't move from idx 13 for dungeon generation reasons
+
+# Must leave at index 13 for dungeon generation reaons.
 N:13:Dejected human thrall
 W:1:0
 G:@:g
@@ -351,7 +361,8 @@ F:MALE | MAN | NEVER_MOVE | NEVER_BLOW | SMART | PEACEFUL | SPECIAL_GEN
 D:A scarred and dirty man clad only in a loincloth. A metal collar
 D: is about his neck, and a long chain leads from it to the wall.
 
-# Can't move from idx 14 for dungeon generation reasons
+
+# Must leave at index 14 for dungeon generation reaons.
 N:14:Dejected elven thrall
 W:1:0
 G:@:g
@@ -362,7 +373,8 @@ F:MALE | ELF | NEVER_MOVE | NEVER_BLOW | SMART | PEACEFUL | SPECIAL_GEN
 D:A chained elf slumps here, filthy hair hanging to his shoulders
 D: and eyes vacant. His back and arms bear the marks of a whip.
 
-# Can't move from idx 15 for dungeon generation reasons
+
+# Must leave at index 15 for dungeon generation reaons.
 N:15:Orc thrallmaster
 W:1:0
 G:o:g
@@ -376,7 +388,8 @@ F:ORC | HURT_LITE | SMART | UNLOCK_DOOR | TERRITORIAL
 D:He is one of Morgoth's grim mockeries of the firstborn.
 D: Clad in tattered leather, he wields a cudgel and a whip.
 
-# Can't move from idx 16 for dungeon generation reasons
+
+# Must leave at index 16 for dungeon generation reaons.
 N:16:Alert human thrall
 W:1:0
 G:@:G
@@ -387,7 +400,8 @@ F:MALE | MAN | NEVER_MOVE | NEVER_BLOW | SMART | PEACEFUL | SPECIAL_GEN
 D:A scarred and dirty man shackled to the wall with a long chain.
 D: His head is raised and he takes in his surroundings alertly.
 
-# Can't move from idx 17 for dungeon generation reasons
+
+# Must leave at index 17 for dungeon generation reaons.
 N:17:Alert elven thrall
 W:1:0
 G:@:G
@@ -399,7 +413,9 @@ D:A chained elf crouches here, filthy hair hanging to his shoulders.
 D: Dried blood encrusts a noble face. His eyes are fixed on you.
 
 
-##### 2 #####
+###############################################################################
+# Dungeon level 2
+###############################################################################
 
 N:21:Orc skirmisher
 W:2:1
@@ -440,7 +456,9 @@ D:An evil swamp dwelling creature that feeds on the bones
 D: of those who draw near.
 
 
-##### 3 #####
+###############################################################################
+# Dungeon level 3
+###############################################################################
 
 N:31:Orc scout
 W:3:1
@@ -458,7 +476,7 @@ D: The miserable creature tries to stay away from you and
 D: attract attention. It has a crude spear.
 
 
-# Can't move from idx 32, used by monster ability HATCH_SPIDER
+# Must leave at index 32, used by monster ability HATCH_SPIDER.
 N:32:Spider hatchling
 W:3:2
 G:m:U
@@ -487,7 +505,9 @@ D:A snake the length of a man, with hard blue scales.
 D: There is a chill in the air around it.
 
 
-##### 4 #####
+###############################################################################
+# Dungeon level 4
+###############################################################################
 
 N:41:Orc soldier
 W:4:1
@@ -543,7 +563,9 @@ D:A huge ponderous spider with clusters of eggs on its back.
 D: Its hairy mandibles are wet with a dark fluid.
 
 
-##### 5 #####
+###############################################################################
+# Dungeon level 5
+###############################################################################
 
 
 N:51:Orc archer
@@ -602,8 +624,9 @@ D:A captain of an orcish band, Gorgol keeps his troop in
 D: order with displays of violence.
 
 
-##### 6 #####
-
+###############################################################################
+# Dungeon level 6
+###############################################################################
 
 N:61:Orc warrior
 W:6:1
@@ -660,8 +683,9 @@ D:A faded presence that perhaps once was man or elf,
 D: but is now an insubstantial thing of necromancy and shadow.
 
 
-##### 7 #####
-
+###############################################################################
+# Dungeon level 7
+###############################################################################
 
 N:71:Attercop
 W:7:1
@@ -750,11 +774,11 @@ D:A great captain of the orcs, who led many raids into the
 D: lands of the elves.
 
 
-##### 8 #####
+###############################################################################
+# Dungeon level 8
+###############################################################################
 
-
-# need to leave Orc champion at location 81
-
+# Must leave Orc champion at index 81.
 N:81:Orc champion
 W:8:2
 G:o:b
@@ -824,11 +848,11 @@ D: and carrying a short broad blade which he tosses from
 D: one hand to the other with unsettling dexterity.
 
 
-##### 9 #####
+###############################################################################
+# Dungeon level 9
+###############################################################################
 
-
-# need to leave Orc captain at location 91
-
+# Must leave Orc captain at index 91.
 N:91:Orc captain
 W:9:3
 G:o:r
@@ -899,8 +923,9 @@ S:SPELL_PCT_5 | POW_14 | RALLY
 D:The chief champion of the orcs of Morgoth.
 
 
-##### 10 #####
-
+###############################################################################
+# Dungeon level 10
+###############################################################################
 
 N:101:Whispering shadow
 W:10:1
@@ -976,9 +1001,9 @@ D: the intelligence that has kept him a favourite
 D: of the black enemy for many years.
 
 
-
-##### 11 #####
-
+###############################################################################
+# Dungeon level 11
+###############################################################################
 
 N:111:Snow troll
 W:11:1
@@ -995,8 +1020,7 @@ F:KNOCK_BACK
 D:He is a white troll with powerfully clawed hands.
 
 
-# need to leave Barrow wight at location 112
-
+# Must leave Barrow wight at index 112.
 N:112:Barrow wight
 W:11:100
 G:W:W
@@ -1058,8 +1082,7 @@ D:Son of Ulfang, the Black, and the leader in the treason against
 D: the elves in the Battle of Unnumbered Tears.
 
 
-# need to leave Aldor at location 117
-
+# Must leave Aldor at index 117.
 N:117:Aldor, the Risen King
 W:11:100
 G:W:R
@@ -1080,10 +1103,11 @@ D: this place, far from Mandos' halls. He is arrayed in
 D: finery and holds a long blade in ghostly fingers.
 
 
-##### 12 #####
+###############################################################################
+# Dungeon level 12
+###############################################################################
 
-# need to leave Easterling spy at location 121
-
+# Must leave Easterling spy at index 121.
 N:121:Easterling spy
 W:12:3
 G:@:D
@@ -1158,10 +1182,7 @@ D: their treachery. He and his sons once openly swore allegiance
 D: to the High Elves, but were secretly in the pay of Morgoth.
 
 
-
-
-# (Duruin = red flame of the night)
-
+# Duruin (red flame of the night)
 N:126:Duruin, Least of the Balrogs
 W:12:30
 G:R:o
@@ -1179,10 +1200,10 @@ D: of Morgoth's servants and widely feared. Before you stands
 D: Duruin, Flame of the Night, a great figure wrapped in fire
 D: and shadow. He wields fiery sword and whip.
 
-
 
-##### 13 #####
-
+###############################################################################
+# Dungeon level 13
+###############################################################################
 
 N:131:Werewolf
 W:13:1
@@ -1255,10 +1276,9 @@ D:Known as the giant of winter and the northern reaches,
 D: he is tall even among giants, and his name is cursed in many lands.
 
 
-
-
-##### 14 #####
-
+###############################################################################
+# Dungeon level 14
+###############################################################################
 
 N:141:Ruby serpent
 W:14:3
@@ -1302,8 +1322,7 @@ D:A chill hangs in the air around this figure which is
 D: almost that of a person. A cold gleaming blade is in its hand.
 
 
-# (Delthaur = abominable horror)
-
+# Delthauri (abominable horror)
 N:145:Delthaur, Balrog of Terror
 W:14:20
 G:R:g
@@ -1338,8 +1357,10 @@ D:Known as the giant of summer and the south, he towers above you
 D: like a great tree. In his right hand, he holds the longest
 D: sword you have ever beheld.
 
-
-##### 15 #####
+
+###############################################################################
+# Dungeon level 15
+###############################################################################
 
 N:151:Cave troll
 W:15:1
@@ -1371,7 +1392,7 @@ D:A great serpent with scales of gleaming emerald.
 D: Noxious vapours surround it.
 
 
-# Can't move from idx 153, used by monster Song of Oaths
+# Must leave at index 153, used by monster Song of Oaths.
 N:153:Oathwraith
 W:15:6
 G:W:D
@@ -1388,9 +1409,7 @@ D:A figure that seems made of void, its strangely human shape is cloaked
 D: in shadow.  It reaches out at you.
 
 
-
-# need to leave Cat warrior at location 154
-
+# Must leave Cat warrior at index 154.
 N:154:Cat warrior
 W:15:1
 G:f:U
@@ -1407,8 +1426,9 @@ D: could be natural. It moves with astonishing
 D: speed and agility.
 
 
-##### 16 #####
-
+###############################################################################
+# Dungeon level 16
+###############################################################################
 
 N:161:Amethyst serpent
 W:16:3
@@ -1458,9 +1478,7 @@ D: at every turn they silent loomed
 D: in fitful glares that leaped and died.'
 
 
-
-# need to leave Young cold-drake at location 164
-
+# Must leave Young cold-drake at index 164.
 N:164:Young cold-drake
 W:16:6
 G:d:w
@@ -1494,8 +1512,7 @@ D:This cat seems older than most, and more sly.
 D: He has long guarded the entrance to the fortress of Tevildo.
 
 
-# (Belegwath = mighty shadow)
-
+# Belegwath (mighty shadow)
 N:166:Belegwath, Balrog of Shadow
 W:16:20
 G:R:v
@@ -1529,9 +1546,9 @@ D:An insubstantial and ragged figure, scarcely to be seen.
 D: Its eyes form two dark pits in a ruined face.
 
 
-
-##### 17 #####
-
+###############################################################################
+# Dungeon level 17
+###############################################################################
 
 N:171:Spider of Gorgoroth
 W:17:1
@@ -1591,8 +1608,7 @@ D: although surely no bat could harbour so much malice
 D: behind its eyes.
 
 
-# need to leave Cat assassin at location 175
-
+# Must leave Cat assassin at index 175.
 N:175:Cat assassin
 W:17:3
 G:f:D
@@ -1626,8 +1642,7 @@ D: His claws are sharp, and by some force,  cunning or
 D: treachery his hoard is large for a young worm.
 
 
-# only ever appears in the escort of Tevildo
-
+# Oikeroi only ever appears in the escort of Tevildo.
 N:177:Oikeroi, Guard of Tevildo
 W:17:15
 G:f:o
@@ -1641,11 +1656,11 @@ D:A fierce and warlike cat, thane of Tevildo
 D: and ever at his side.
 
 
-##### 18 #####
+###############################################################################
+# Dungeon level 18
+###############################################################################
 
-
-# need to leave Young fire-drake at location 181
-
+# Must leave Young fire-drake at index 181.
 N:181:Young fire-drake
 W:18:6
 G:d:r
@@ -1717,7 +1732,6 @@ D: flocked to the banner of Melkor when the World was
 D: yet young.
 
 
-
 N:185:Tevildo, Prince of Cats
 W:18:10
 G:f:u
@@ -1733,8 +1747,7 @@ D: cat-people, is it a wonder that this fierce
 D: warrior is royalty?
 
 
-# (Turkano = powerful commander)
-
+# Turkano (powerful commander)
 N:186:Turkano, Balrog of the Hosts
 W:18:20
 G:R:b
@@ -1753,11 +1766,12 @@ D: leading a host of Raukar to bring
 D: glory after glory for his fell master.
 
 
-##### 19 #####
+###############################################################################
+# Dungeon level 19
+###############################################################################
 
-# made more 'rare' than other ancient serpents as they occur
-# natively before Morgoth's throne room and are seen much more
-
+# Made more 'rare' than other ancient serpents because they occur natively
+# before Morgoth's throne room and are seen much more.
 N:191:Ancient sapphire serpent
 W:19:6
 G:S:B
@@ -1773,8 +1787,7 @@ D:A vast serpentine form encrusted with scales of sapphire.
 D: Frost covers it from head to tail.
 
 
-# need to leave Troll guard at location 192
-
+# Must leave Troll guard at index 192.
 N:192:Troll guard
 W:19:1
 G:T:s
@@ -1853,11 +1866,9 @@ D: Who can say what twist of fate has brought him at last
 D: to that dark king's deep halls?
 
 
-
-
-
-##### 20 #####
-
+###############################################################################
+# Dungeon level 20
+###############################################################################
 
 N:201:Ancient ruby serpent
 W:20:3
@@ -1892,8 +1903,7 @@ D: The oldest of the dragons are both vast and cunning beyond
 D: the understanding of mortals.
 
 
-# need to leave Silent watcher at location 203
-
+# Must leave Silent watcher at index 203.
 N:203:Silent watcher
 W:20:10
 G:H:s
@@ -1945,8 +1955,7 @@ D: enormous wolf inhabited with a human spirit.  He is chief of all his
 D: kind.
 
 
-# (Vallach = Powerful leaping flame)
-
+# Vallach (powerful leaping flame)
 N:206:Vallach, Balrog of Sudden Flame
 W:20:20
 G:R:y
@@ -1964,8 +1973,9 @@ D: a cruel fiery axe, and moves more swiftly than should be possible in
 D: such a being.
 
 
-##### 21 #####
-
+###############################################################################
+# Dungeon level 21
+###############################################################################
 
 N:211:Ancient spider
 W:21:3
@@ -2009,7 +2019,6 @@ D:Like a graceful, humanoid bat. Its black eyes regard
 D: everything around it as prey.
 
 
-
 N:214:Dagorhir, the Elfbane
 W:21:15
 G:T:r
@@ -2022,7 +2031,6 @@ F:OPEN_DOOR | BASH_DOOR | TROLL | MALE | HURT_LITE | SMART
 F:ELFBANE | KNOCK_BACK
 D:A mountain of a troll, clad in rusted iron plates.
 D: He leads a patrol of the feared Troll Guard.
-
 
 
 N:215:Gostir, the Dread Glance
@@ -2042,8 +2050,9 @@ D:When the gaze of a worm is so deadly, what need
 D: has he fire?
 
 
-##### 22 #####
-
+###############################################################################
+# Dungeon level 22
+###############################################################################
 
 N:221:Ancient amethyst serpent
 W:22:3
@@ -2109,8 +2118,7 @@ D: spider, for the very dungeon around her is sucked
 D: of its light, that she takes to weave her deadly webs.
 
 
-# The master of the guard in Angband
-
+# Lungorthin (master of the guard in Angband)
 N:225:Lungorthin, Lord of Balrogs
 W:22:20
 G:R:w
@@ -2130,8 +2138,9 @@ D: with eyes that smoulder.  The dungeon floor where he stands is
 D: scorched by the heat of his body.
 
 
-##### 23 #####
-
+###############################################################################
+# Dungeon level 23
+###############################################################################
 
 N:231:Ancient adamant serpent
 W:23:3
@@ -2203,11 +2212,11 @@ D: deadly of her vampire race.  At first she is charming to meet, but
 D: her wings and eyes give away her true form.
 
 
-##### 24 #####
+###############################################################################
+# Dungeon level 24
+###############################################################################
 
-
-# need to leave Gothmog at location 241
-
+# Must leave Gothmog at index 241.
 N:241:Gothmog, High Captain of Balrogs
 W:24:3
 G:R:r
@@ -2227,8 +2236,7 @@ D: of flame and awesome fiery breath he saved his master from
 D: Ungoliant's rage.
 
 
-# need to leave Ungoliant at location 242
-
+# Must leave Ungoliant at index 242.
 N:242:Ungoliant, the Gloomweaver
 W:24:3
 G:M:D
@@ -2248,8 +2256,7 @@ D: blackest of darkness.  She is always ravenously hungry and would even
 D: eat herself to avoid starvation.
 
 
-# need to leave Glaurung at location 243
-
+# Must leave Glaurung at index 243.
 N:243:Glaurung, the Deceiver
 W:24:3
 G:D:y1
@@ -2270,9 +2277,8 @@ D: now to an enormous size, matched only by the size of the
 D: hoard he has gathered around him.
 
 
-# need to leave Gorthaur at location 244
-# Also known as Sauron and Thu
-
+# Gorthaur is also known as Sauron and Thu.
+# Must leave Gorthaur at index 244.
 N:244:Gorthaur, Servant of Morgoth
 W:24:3
 G:C:u
@@ -2295,17 +2301,23 @@ D: now before you as a great wolf with matted fur and glowing
 D: eyes.
 
 
-
-##### 25 #####
+###############################################################################
+# Dungeon level 25
+###############################################################################
 
 # Morgoth is a very special monster (thus the QUESTOR flag).
-# Values when angered:
-# Level,      Evasion, Armour, Attack, Damage,  Will, Perception
-# Starting,   20,      5d4,    20,     6d10,    25,   10
-# Decrowned,  22,      5d4,    20,     6d10,    25,   15
-# Hurt,       25,      5d4,    30,     7d10,    30,   20
-# Badly Hurt, 25,      7d4,    30,     7d10,    35,   25
-# Desperate,  30,      7d4,    40,     8d10,    40,   30
+#
+# His attributes change based on his anger state. The actual attributes are
+# set in `anger_morgoth()` in `src/xtra2.c`. The table below is only for
+# reference and might be outdated.
+#
+#   Level             Evasion  Armour  Attack  Damage   Will  Perception
+#   --------------------------------------------------------------------
+#   Starting              20     5d4      20    6d10     25          10
+#   Decrowned             22     5d4      20    6d10     25          15
+#   Hurt or Sils stolen   25     7d4      30    7d10     30          20
+#   Badly Hurt            25     7d4      30    7d10     35          25
+#   Desperate             30     8d4      40    8d10     40          30
 
 # This entry has an intentional duplicate stub N:252 (just below) to prevent
 # using the ID 252 for other purposes. In `graf-tiles.prf`, R:252 is used to
@@ -2336,6 +2348,7 @@ D: Grond, the mighty Hammer of the Underworld. His disgusting visage,
 D: twisted with evil, is crowned with iron, the three Silmarils forever
 D: burning him. You need to get to that crown.
 
+
 # This entry is an intentional placeholder for N:251 (just above) to prevent
 # using the ID 252 for other purposes. In `graf-tiles.prf`, R:252 is used to
 # define the tile assignment for "Morgoth without crown", whereas R:251 is for
@@ -2343,11 +2356,11 @@ D: burning him. You need to get to that crown.
 N:252:Morgoth, Lord of Darkness (without crown)
 
 
-##### Surface monster #####
+###############################################################################
+# Surface monsters
+###############################################################################
 
-
-# need to leave Carcharoth at location 253
-
+# Must leave Carcharoth at index 253.
 N:253:Carcharoth, the Jaws of Thirst
 W:25:1
 G:C:r
@@ -2375,10 +2388,9 @@ D: no flitting shade nor hunted shape,
 D: seeking from Angband to escape.
 
 
-
-
-##### Hallucinatory #####
-
+###############################################################################
+# Hallucinations
+###############################################################################
 
 N:301:Feanor, High King of the Noldor
 W:30:5
@@ -2517,7 +2529,9 @@ G:V:W
 F:UNIQUE | FEMALE
 
 
+###############################################################################
 # Further ideas...
+###############################################################################
 
 # A    white         Ilmare, Handmaid of Varda
 # A    yellow        Eonwe, Herald of Manwe
