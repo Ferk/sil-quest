@@ -68,7 +68,7 @@ class ValidationResult:
 
     @property
     def is_valid(self) -> bool:
-        return len(self.errors) == 0
+        return len(self.errors) == 0 and len(self.warnings) == 0
 
 
 @dataclass
