@@ -77,6 +77,9 @@ jobs:
       - name: Validate data file for special items
         run: python bin/data-special.py --validate
 
+      - name: Validate data file for terrain
+        run: python bin/data-terrain.py --validate
+
       - name: Remove outdated PDF manuals
         run: |
           rm lib/docs/*.pdf

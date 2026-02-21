@@ -47,6 +47,9 @@ jobs:
       - name: Validate data file for special items
         run: python3 bin/data-special.py --validate
 
+      - name: Validate data file for terrain
+        run: python3 bin/data-terrain.py --validate
+
       - name: Create release archive
         if: inputs.version != ''
         run: |
