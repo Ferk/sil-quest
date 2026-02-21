@@ -1,16 +1,29 @@
 # File: names.txt
 #
-# This file is used to create the "lib/data/names.raw" file, which is
+# This file is used to create the `lib/data/names.raw` file, which is
 # used to initialize the "random name generator" information for Sil.
 #
 # Do not modify this file unless you know exactly what you are doing,
 # unless you wish to risk possible system crashes and broken savefiles.
+#
+# === Understanding names.txt ===
+#
+# N : name
+#
+# 'N' is for the word that can be used for random name generation. Every word
+#     (data record) must be unique.
+#
+# The data records should be in alphabetical order so that this file is easier
+# to maintain.
 
 
-# Format:
-# N:name
+# Version stamp (required)
 
 V:1.5.1
+
+###############################################################################
+# Words that can be used for random name generation
+###############################################################################
 
 N:adanedhel
 N:adurant
