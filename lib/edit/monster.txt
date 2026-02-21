@@ -70,7 +70,6 @@
 #     to describe the monster.
 #
 #
-#
 # === Understanding monster.txt flags ===
 #
 # UNIQUE monsters are just special monster races, with the requirement
