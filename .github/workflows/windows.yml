@@ -71,6 +71,9 @@ jobs:
       - name: Validate data file for artefacts
         run: python bin/data-artefact.py --validate
 
+      - name: Validate data file for flavors
+        run: python bin/data-flavor.py --validate
+
       - name: Validate data file for monsters
         run: python bin/data-monster.py --validate
 
