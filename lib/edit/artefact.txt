@@ -401,7 +401,7 @@ N:25:of Haldad
 I:36:4:1
 W:6:10:40:45000
 P:0:0d0:-1:1d4
-B:STR | RES_FEAR | FREE_ACT
+F:STR | RES_FEAR | FREE_ACT
 D:Leather armour worn by Haldad, father of Haleth,
 D: into his last battle where he fell fighting besieging orcs.
 

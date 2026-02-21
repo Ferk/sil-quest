@@ -104,6 +104,7 @@ Changed:
 
 Fixed:
 
+- fix: use `F:` for feature flags of The Leather Armour of Haldad
 - Fix inconsistent house naming for Falathrim and Haleth (fixes #164)
   ([#173](https://github.com/sil-quirk/sil-q/pull/173))
   - thanks @imraflip
