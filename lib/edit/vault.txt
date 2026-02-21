@@ -19,15 +19,14 @@
 # === Understanding vault.txt ===
 #
 # N: serial number : vault name
-# X: room type : depth : rarity [: rows : columns]
+# X: room type : depth : rarity
 # F: flag1 | flag2 | flag3 ...
 # D: lines giving full layout of vault using symbols below
 #
 # 'N' indicates the beginning of an entry. The serial number must
 #     increase for each new vault.
 #
-# 'X' is for extra information - room type, minimum depth, rarity,
-#     and optionally rows and columns (inferred from D: lines if omitted?).
+# 'X' is for extra information - room type, minimum depth, and rarity.
 #
 #     type 10 - Gates of Angband
 #     type 6  - interesting room
@@ -1809,7 +1808,7 @@ D:    $$$$$$#$$
 
 
 N:281:Maze with chasm
-X:6:5:5:9:15
+X:6:5:5
 F:NO_ROTATION
 D:$$$$$$$$$$$$$$$
 D:$.......#.....$

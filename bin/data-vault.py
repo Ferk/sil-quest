@@ -13,7 +13,7 @@ Data Validation
 
 Based on the format specification in the file's comment header:
 - N: serial number : vault name
-- X: room type : depth : rarity [: rows : columns]
+- X: room type : depth : rarity
 - F: flag1 | flag2 | ...
 - D: layout line (ASCII art defining the vault layout)
 
@@ -99,8 +99,6 @@ class Vault:
     room_type: int | None = None
     depth: int | None = None
     rarity: int | None = None
-    rows: int | None = None
-    columns: int | None = None
     flags: list[str] = field(default_factory=list)
     layout: list[str] = field(default_factory=list)
 
@@ -144,12 +142,12 @@ def validate_n_line(line: str, lineno: int, result: ValidationResult) -> int | N
     return int(id_str)
 
 
-def validate_x_line(line: str, lineno: int, result: ValidationResult) -> tuple[int, int, int, int | None, int | None] | None:
-    """Validate X: line format and return (type, depth, rarity, rows, columns)."""
+def validate_x_line(line: str, lineno: int, result: ValidationResult) -> tuple[int, int, int] | None:
+    """Validate X: line format and return (type, depth, rarity)."""
     parts = line.split(":")
-    # X:type:depth:rarity or X:type:depth:rarity:rows:columns
-    if len(parts) < 4:
-        result.error(f"Line {lineno}: X: line has {len(parts)} fields, expected at least 4: {line}")
+    # X:type:depth:rarity
+    if len(parts) != 4:
+        result.error(f"Line {lineno}: X: line has {len(parts)} fields, expected 4: {line}")
         return None
 
     # Validate type
@@ -175,27 +173,7 @@ def validate_x_line(line: str, lineno: int, result: ValidationResult) -> tuple[i
         return None
     rarity = int(rarity_str)
 
-    rows: int | None = None
-    columns: int | None = None
-
-    # Optional rows and columns
-    if len(parts) >= 5:
-        rows_str = parts[4]
-        if rows_str and not rows_str.isdigit():
-            result.error(f"Line {lineno}: X: rows is not numeric: {rows_str}")
-            return None
-        if rows_str:
-            rows = int(rows_str)
-
-    if len(parts) >= 6:
-        cols_str = parts[5]
-        if cols_str and not cols_str.isdigit():
-            result.error(f"Line {lineno}: X: columns is not numeric: {cols_str}")
-            return None
-        if cols_str:
-            columns = int(cols_str)
-
-    return (room_type, depth, rarity, rows, columns)
+    return (room_type, depth, rarity)
 
 
 def validate_f_line(line: str, lineno: int, result: ValidationResult) -> list[str]:
@@ -220,19 +198,14 @@ def validate_f_line(line: str, lineno: int, result: ValidationResult) -> list[st
 def validate_layout_dimensions(
     vault_id: int,
     vault_name: str,
-    expected_rows: int | None,
-    expected_cols: int | None,
     layout: list[str],
-    layout_start_line: int,
     result: ValidationResult,
 ) -> None:
-    """Validate that layout dimensions match X: line specifications."""
+    """Validate that all layout lines have consistent width."""
     if not layout:
         return
 
-    actual_rows = len(layout)
     line_widths = [len(line) for line in layout]
-    actual_cols = max(line_widths) if line_widths else 0
 
     # Check that all D: lines have consistent width
     if len(set(line_widths)) > 1:
@@ -241,18 +214,6 @@ def validate_layout_dimensions(
         result.error(
             f"Vault {vault_id} ({vault_name}): layout has inconsistent line widths "
             f"(min={min_width}, max={max_width})"
-        )
-
-    if expected_rows is not None and actual_rows != expected_rows:
-        result.error(
-            f"Vault {vault_id} ({vault_name}): layout has {actual_rows} rows, "
-            f"expected {expected_rows} from X: line"
-        )
-
-    if expected_cols is not None and actual_cols != expected_cols:
-        result.error(
-            f"Vault {vault_id} ({vault_name}): layout has max {actual_cols} columns, "
-            f"expected {expected_cols} from X: line"
         )
 
 
@@ -295,10 +256,6 @@ def parse_vaults(filepath: Path) -> list[Vault]:
                     current_vault.room_type = int(parts[1])
                     current_vault.depth = int(parts[2])
                     current_vault.rarity = int(parts[3])
-                    if len(parts) >= 5 and parts[4]:
-                        current_vault.rows = int(parts[4])
-                    if len(parts) >= 6 and parts[5]:
-                        current_vault.columns = int(parts[5])
                 except ValueError:
                     pass
 
@@ -341,10 +298,6 @@ def export_vaults_to_json(vaults: list[Vault]) -> str:
             d["depth"] = vault.depth
         if vault.rarity is not None:
             d["rarity"] = vault.rarity
-        if vault.rows is not None:
-            d["rows"] = vault.rows
-        if vault.columns is not None:
-            d["columns"] = vault.columns
         if vault.flags:
             d["flags"] = vault.flags
         if vault.layout:
@@ -378,10 +331,7 @@ def validate_vault_file(filepath: Path, limits: Limits | None = None) -> Validat
     # Current vault tracking for layout validation
     current_vault_id: int | None = None
     current_vault_name: str = ""
-    current_expected_rows: int | None = None
-    current_expected_cols: int | None = None
     current_layout: list[str] = []
-    current_layout_start: int = 0
 
     for lineno, line in enumerate(lines, start=1):
         stripped = line.strip()
@@ -397,15 +347,12 @@ def validate_vault_file(filepath: Path, limits: Limits | None = None) -> Validat
 
         # N: line - start of vault entry
         if stripped.startswith("N:"):
-            # Validate previous vault's layout dimensions
+            # Validate previous vault's layout consistency
             if current_vault_id is not None and current_layout:
                 validate_layout_dimensions(
                     current_vault_id,
                     current_vault_name,
-                    current_expected_rows,
-                    current_expected_cols,
                     current_layout,
-                    current_layout_start,
                     result,
                 )
 
@@ -438,19 +385,12 @@ def validate_vault_file(filepath: Path, limits: Limits | None = None) -> Validat
                 current_vault_id = vault_id
                 parts = stripped.split(":")
                 current_vault_name = ":".join(parts[2:]) if len(parts) >= 3 else ""
-                current_expected_rows = None
-                current_expected_cols = None
                 current_layout = []
-                current_layout_start = 0
             continue
 
         # X: line
         if stripped.startswith("X:"):
-            parsed = validate_x_line(stripped, lineno, result)
-            if parsed:
-                _, _, _, rows, cols = parsed
-                current_expected_rows = rows
-                current_expected_cols = cols
+            _ = validate_x_line(stripped, lineno, result)
             continue
 
         # F: line
@@ -460,8 +400,6 @@ def validate_vault_file(filepath: Path, limits: Limits | None = None) -> Validat
 
         # D: line
         if stripped.startswith("D:"):
-            if not current_layout:
-                current_layout_start = lineno
             # Preserve exact content after D:
             if line.startswith("D:"):
                 current_layout.append(line[2:])
@@ -483,10 +421,7 @@ def validate_vault_file(filepath: Path, limits: Limits | None = None) -> Validat
         validate_layout_dimensions(
             current_vault_id,
             current_vault_name,
-            current_expected_rows,
-            current_expected_cols,
             current_layout,
-            current_layout_start,
             result,
         )
 
