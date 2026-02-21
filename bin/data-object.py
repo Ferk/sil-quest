@@ -36,13 +36,37 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import cast
 
-# JSON-compatible types
-type JsonValue = str | int | float | bool | None | list[JsonValue] | dict[str, JsonValue]
-type JsonDict = dict[str, JsonValue]
-
 # Handle broken pipe (e.g., when piping to head) - Unix only
 if hasattr(signal, "SIGPIPE"):
     _ = signal.signal(signal.SIGPIPE, signal.SIG_DFL)
+
+###
+### Valid colors per the documented specification (16 colors)
+###
+# D - Dark Gray    w - White          s - Gray          o - Orange
+# r - Red          g - Green          b - Blue          u - Brown
+# d - flavored     W - Light Gray     v - Violet        y - Yellow
+# R - Light Red    G - Light Green    B - Light Blue    U - Light Brown
+#
+# Note: The actual file also uses extended colors with numeric suffixes
+# (e.g., s1, U1, D1) which are not documented in the comment section.
+VALID_BASE_COLORS = {"D", "w", "s", "o", "r", "g", "b", "u", "d", "W", "v", "y", "R", "G", "B", "U"}
+# Extended colors observed in actual data (base color + numeric suffix)
+VALID_EXTENDED_COLORS = {"D1", "g1", "s1", "U1", "v1", "W1", "y1"}
+VALID_COLORS = VALID_BASE_COLORS | VALID_EXTENDED_COLORS
+
+###
+### Regex patterns for validation
+###
+DICE_PATTERN = re.compile(r"^\d+d\d+$")
+# Allocation format: depth/rarity pairs
+ALLOCATION_PATTERN = re.compile(r"^\d+/\d+$")
+# Ability format: skill_id/ability_id
+ABILITY_PATTERN = re.compile(r"^\d+/\d+$")
+
+# JSON-compatible types
+type JsonValue = str | int | float | bool | None | list[JsonValue] | dict[str, JsonValue]
+type JsonDict = dict[str, JsonValue]
 
 
 @dataclass
@@ -63,28 +87,6 @@ class ValidationResult:
     @property
     def is_valid(self) -> bool:
         return len(self.errors) == 0
-
-
-# Valid colors per the documented specification (16 colors):
-# D - Dark Gray    w - White          s - Gray          o - Orange
-# r - Red          g - Green          b - Blue          u - Brown
-# d - flavored     W - Light Gray     v - Violet        y - Yellow
-# R - Light Red    G - Light Green    B - Light Blue    U - Light Brown
-#
-# Note: The actual file also uses extended colors with numeric suffixes
-# (e.g., s1, U1, D1) which are not documented in the comment section.
-DOCUMENTED_COLORS = {"D", "w", "s", "o", "r", "g", "b", "u", "d", "W", "v", "y", "R", "G", "B", "U"}
-EXTENDED_COLORS = {"D1", "g1", "s1", "U1", "v1", "W1", "y1"}
-VALID_COLORS = DOCUMENTED_COLORS | EXTENDED_COLORS
-
-###
-### Regex patterns for validation
-###
-DICE_PATTERN = re.compile(r"^\d+d\d+$")
-# Allocation format: depth/rarity pairs
-ALLOCATION_PATTERN = re.compile(r"^\d+/\d+$")
-# Ability format: skill_id/ability_id
-ABILITY_PATTERN = re.compile(r"^\d+/\d+$")
 
 
 @dataclass

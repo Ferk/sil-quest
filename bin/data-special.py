@@ -34,13 +34,19 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import cast
 
-# JSON-compatible types
-type JsonValue = str | int | float | bool | None | list[JsonValue] | dict[str, JsonValue]
-type JsonDict = dict[str, JsonValue]
-
 # Handle broken pipe (e.g., when piping to head) - Unix only
 if hasattr(signal, "SIGPIPE"):
     _ = signal.signal(signal.SIGPIPE, signal.SIG_DFL)
+
+###
+### Regex patterns for validation
+###
+# Regex pattern for ability format
+ABILITY_PATTERN = re.compile(r"^\d+/\d+$")
+
+# JSON-compatible types
+type JsonValue = str | int | float | bool | None | list[JsonValue] | dict[str, JsonValue]
+type JsonDict = dict[str, JsonValue]
 
 
 @dataclass
@@ -118,10 +124,6 @@ class Special:
     tval_ranges: list[TvalRange] = field(default_factory=list)
     abilities: list[AbilityRef] = field(default_factory=list)
     flags: list[str] = field(default_factory=list)
-
-
-# Regex pattern for ability format
-ABILITY_PATTERN = re.compile(r"^\d+/\d+$")
 
 
 def parse_limits_file(filepath: Path) -> Limits | None:
