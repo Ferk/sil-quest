@@ -54,6 +54,9 @@ jobs:
       - name: Validate data file for flavors
         run: python3 bin/data-flavor.py --validate
 
+      - name: Validate data file for history
+        run: python3 bin/data-history.py --validate
+
       - name: Validate data file for monsters
         run: python3 bin/data-monster.py --validate
 
