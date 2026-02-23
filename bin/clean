@@ -14,7 +14,7 @@ readonly SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && p
 # shellcheck disable=SC2155
 readonly PROJECT_DIR=$(cd "$SCRIPT_DIR/.." && pwd -P)
 readonly BUILD_DIR="$PROJECT_DIR/build"
-readonly BUILD_DIR_MACOS_CONSOLE="$PROJECT_DIR/build-macos-console"
+readonly BUILD_DIR_CONSOLE="$PROJECT_DIR/build-console"
 readonly SIL_EXE="$PROJECT_DIR/sil"
 readonly SIL_COCOA_APP="$PROJECT_DIR/Sil.app"
 
@@ -27,9 +27,9 @@ if [[ -d $BUILD_DIR ]]; then
     rm -rf "$BUILD_DIR"
 fi
 
-if [[ -d $BUILD_DIR_MACOS_CONSOLE ]]; then
-    echo "Deleting $BUILD_DIR_MACOS_CONSOLE"
-    rm -rf "$BUILD_DIR_MACOS_CONSOLE"
+if [[ -d $BUILD_DIR_CONSOLE ]]; then
+    echo "Deleting $BUILD_DIR_CONSOLE"
+    rm -rf "$BUILD_DIR_CONSOLE"
 fi
 
 if [[ -f $SIL_EXE ]]; then
