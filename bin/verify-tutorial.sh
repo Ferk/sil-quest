@@ -7,12 +7,20 @@
 
 set -euo pipefail
 
+###############################################################################
+# Configuration
+###############################################################################
+
 # shellcheck disable=SC2155
 readonly SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)
 # shellcheck disable=SC2155
-readonly PROJECT_DIR=$(readlink -f "$SCRIPT_DIR/..")
+readonly PROJECT_DIR=$(cd "$SCRIPT_DIR/.." && pwd -P)
 readonly DEFINES_H="$PROJECT_DIR/src/defines.h"
 readonly TUTORIAL_SAVEFILE="$PROJECT_DIR/lib/xtra/tutorial"
+
+###############################################################################
+# Verify the tutorial savefile
+###############################################################################
 
 # Get expected a.b.c.d version from src/defines.h.
 expected_major=$(grep '#define VERSION_MAJOR ' "$DEFINES_H" | sed 's/.*MAJOR[[:space:]]*//')

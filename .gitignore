@@ -12,3 +12,6 @@ src/sil.o.x86_64
 /sil
 .DS_Store
 /VERSION.txt
+# cmake build output
+/build/
+/.cache/

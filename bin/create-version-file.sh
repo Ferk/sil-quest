@@ -7,12 +7,27 @@
 
 set -euo pipefail
 
+###############################################################################
+# Configuration
+###############################################################################
+
 # shellcheck disable=SC2155
 readonly SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)
 # shellcheck disable=SC2155
-readonly PROJECT_DIR=$(readlink -f "$SCRIPT_DIR/..")
+readonly PROJECT_DIR=$(cd "$SCRIPT_DIR/.." && pwd -P)
 readonly VERSION_FILE="$PROJECT_DIR/VERSION.txt"
 readonly DEFINES_H="$PROJECT_DIR/src/defines.h"
+
+###############################################################################
+# Validate the environment
+###############################################################################
+
+# shellcheck disable=SC2155
+readonly OS="$(uname)"
+if [[ "$OS" != "Linux" ]]; then
+    echo "ERROR: This script must be run on Linux"
+    exit 1
+fi
 
 if ! command -v git &>/dev/null; then
     echo "ERROR: 'git' command not found"
@@ -23,6 +38,10 @@ if [[ ! -f "$DEFINES_H" ]]; then
     echo "ERROR: '$DEFINES_H' not found"
     exit 1
 fi
+
+###############################################################################
+# Create the version file
+###############################################################################
 
 # Read version information from src/defines.h
 # shellcheck disable=SC2155

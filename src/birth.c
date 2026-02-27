@@ -405,7 +405,7 @@ static void player_wipe(void)
 {
     int i;
     char history[250];
-    int stat[A_MAX];
+    int stat[A_MAX] = { 0 };
 
     /* Backup the player choices */
     // Initialized to soothe compilation warnings
