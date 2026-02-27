@@ -199,7 +199,7 @@ errr path_parse(char* buf, size_t max, cptr file)
 
 #endif /* SET_UID */
 
-#ifndef HAVE_MKSTEMP
+#if !defined(HAVE_MKSTEMP) && !defined(_WIN32)
 
 /*
  * Hack -- acquire a "temporary" file name if possible
@@ -211,17 +211,17 @@ static errr path_temp(char* buf, size_t max)
     cptr s;
 
     /* Temp file */
-#if defined(_WIN32)
+#if defined(_MSC_VER)
 #pragma warning(push)
 #pragma warning(disable : 4996)
-#elif defined(__GNUC__)
+#elif defined(__GNUC__) || defined(__clang__)
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
 #endif
     s = tmpnam(NULL);
-#if defined(_WIN32)
+#if defined(_MSC_VER)
 #pragma warning(pop)
-#elif defined(__GNUC__)
+#elif defined(__GNUC__) || defined(__clang__)
 #pragma GCC diagnostic pop
 #endif
 
@@ -236,7 +236,7 @@ static errr path_temp(char* buf, size_t max)
     return (0);
 }
 
-#endif /* HAVE_MKSTEMP */
+#endif /* !HAVE_MKSTEMP && !_WIN32 */
 
 /*
  * Create a new path by appending a file (or directory) to a path

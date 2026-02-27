@@ -32,11 +32,11 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build with with curses/ncurses support and release flags
+      - name: Build with curses/ncurses support and release flags
         run: |
-          cd src
-          make -f Makefile.std -j$(sysctl -n hw.ncpu) OPT="-O2" ENABLE_X11=0 EXTRA_CFLAGS="-Werror"
-          mv sil ../sil
+          cmake -G Ninja -B build -DCMAKE_BUILD_TYPE=Release -DSUPPORT_COCOA_FRONTEND=OFF -DSUPPORT_X11_FRONTEND=OFF -DBUILD_ENABLE_WERROR=ON
+          cmake --build build
+          cp build/sil sil
 
       - name: Verify build
         run: |
@@ -101,9 +101,7 @@ jobs:
           if-no-files-found: error
 
   macos-native:
-    # NOTE: The macOS version mentioned here must match `DEPLOYMENT_TARGET`
-    # defined in Makefile.cocoa.
-    name: macOS native (Cocoa) for macOS 10.6 and later
+    name: macOS native (Cocoa)
     runs-on: macos-latest
     steps:
       - name: Clone project
@@ -113,8 +111,9 @@ jobs:
 
       - name: Build with release flags (x86_64 and arm64)
         run: |
-          cd src
-          make -f Makefile.cocoa -j$(sysctl -n hw.ncpu) ARCHS="x86_64 arm64" OPT="-O2" EXTRA_CFLAGS="-Werror"
+          cmake -G Ninja -B build -DCMAKE_BUILD_TYPE=Release -DBUILD_ENABLE_WERROR=ON
+          cmake --build build
+          cp -R build/Sil.app Sil.app
 
       - name: Verify build
         run: |

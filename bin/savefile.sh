@@ -6,6 +6,10 @@
 
 set -euo pipefail
 
+###############################################################################
+# Usage help
+###############################################################################
+
 usage() {
     echo "Usage: $(basename "$0") [-h|--help] <file> [<version>]"
     echo
@@ -45,6 +49,10 @@ if [[ $# -lt 1 || $# -gt 2 ]]; then
     usage
 fi
 
+###############################################################################
+# Validate the environment
+###############################################################################
+
 # Verify environment and script arguments
 if ! command -v dd &>/dev/null; then
     echo "ERROR: 'dd' not found in PATH" >&2
@@ -57,6 +65,10 @@ if [[ ! -f "$file" ]]; then
     echo "ERROR: file not found: $file" >&2
     exit 1
 fi
+
+###############################################################################
+# Read/modify the savefile
+###############################################################################
 
 read_version() {
     local bytes
