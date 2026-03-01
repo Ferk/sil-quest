@@ -36,13 +36,13 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import cast
 
-# JSON-compatible types
-type JsonValue = str | int | float | bool | None | list[JsonValue] | dict[str, JsonValue]
-type JsonDict = dict[str, JsonValue]
-
 # Handle broken pipe (e.g., when piping to head) - Unix only
 if hasattr(signal, "SIGPIPE"):
     _ = signal.signal(signal.SIGPIPE, signal.SIG_DFL)
+
+# JSON-compatible types
+type JsonValue = str | int | float | bool | None | list[JsonValue] | dict[str, JsonValue]
+type JsonDict = dict[str, JsonValue]
 
 
 @dataclass
@@ -62,7 +62,7 @@ class ValidationResult:
 
     @property
     def is_valid(self) -> bool:
-        return len(self.errors) == 0
+        return len(self.errors) == 0 and len(self.warnings) == 0
 
 
 @dataclass
