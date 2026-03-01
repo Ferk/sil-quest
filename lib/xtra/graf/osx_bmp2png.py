@@ -61,8 +61,9 @@ numpy (1.7 or later)
 """
 
 import argparse
-import PIL.Image
+
 import numpy
+import PIL.Image
 
 aparser = argparse.ArgumentParser(description='Converts bmp tile set to png.')
 aparser.add_argument('input_file', type=str,

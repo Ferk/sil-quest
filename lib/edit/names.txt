@@ -1,16 +1,39 @@
 # File: names.txt
 #
-# This file is used to create the "lib/data/names.raw" file, which is
+# -----------------------------------------------------------------------------
+# vim: ft=conf
+#
+# The line above must be within the first 1-5 lines of this file. It is a
+# modeline for vim/neovim to parse this file as a "config" file, which
+# visually highlights `# ...` lines as comments, making this file easier to
+# parse and edit for a human.
+# -----------------------------------------------------------------------------
+#
+# This file is used to create the `lib/data/names.raw` file, which is
 # used to initialize the "random name generator" information for Sil.
 #
 # Do not modify this file unless you know exactly what you are doing,
 # unless you wish to risk possible system crashes and broken savefiles.
+#
+#
+# === Understanding names.txt ===
+#
+# N : name
+#
+# 'N' is for the word that can be used for random name generation. Every word
+#     (data record) must be unique.
+#
+# The data records should be in alphabetical order so that this file is easier
+# to maintain.
 
 
-# Format:
-# N:name
+# Version stamp (required)
 
 V:1.5.1
+
+###############################################################################
+# Words that can be used for random name generation
+###############################################################################
 
 N:adanedhel
 N:adurant
@@ -42,9 +65,9 @@ N:amrod
 N:anach
 N:anar
 N:anarion
+N:anarrima
 N:ancalagon
 N:ancalimon
-N:anarrima
 N:andor
 N:andram
 N:androth
@@ -66,6 +89,7 @@ N:annatar
 N:annon
 N:annuminas
 N:apanonar
+N:ar-feiniel
 N:aradan
 N:aragorn
 N:araman
@@ -76,10 +100,9 @@ N:aras
 N:aratan
 N:aratar
 N:arathorn
-N:arda
 N:ard-galen
+N:arda
 N:aredhel
-N:ar-feiniel
 N:argonath
 N:arien
 N:armenelos
@@ -103,12 +126,12 @@ N:avathar
 N:balan
 N:balar
 N:balrog
+N:bar
 N:barad
 N:baragund
 N:barahir
 N:baran
 N:baranduin
-N:bar
 N:bauglir
 N:beleg
 N:belegaer
@@ -187,8 +210,8 @@ N:dorthonion
 N:draugluin
 N:drengist
 N:duath
-N:duinath
 N:duilwen
+N:duinath
 N:dunedain
 N:dungortheb
 N:earendil
@@ -242,8 +265,8 @@ N:eonwe
 N:ephel
 N:erchamion
 N:ereb
-N:ered
 N:erech
+N:ered
 N:eregion
 N:ereinion
 N:erellont
@@ -378,8 +401,8 @@ N:lamath
 N:lammoth
 N:lanthir
 N:laurelin
-N:leithian
 N:legolin
+N:leithian
 N:lembas
 N:lenwe
 N:linaewen
@@ -436,8 +459,8 @@ N:moria
 N:moriquendi
 N:mormegil
 N:morwen
-N:nahar
 N:naeramarth
+N:nahar
 N:namo
 N:nandor
 N:nargothrond
