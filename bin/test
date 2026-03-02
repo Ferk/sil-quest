@@ -1,0 +1,74 @@
+#!/usr/bin/env bash
+#
+# File: test
+#
+# Umbrella script that runs all test-related scripts:
+#   - bin/data-*.py --validate  (data file validation)
+#   - bin/smoke-tests.sh        (basic binary smoke tests)
+#   - bin/verify-tutorial.sh    (tutorial savefile verification)
+
+set -uo pipefail
+
+###############################################################################
+# Configuration
+###############################################################################
+
+# shellcheck disable=SC2155
+readonly SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)
+
+num_passed=0
+num_failed=0
+
+###############################################################################
+# Helper
+###############################################################################
+
+run_step() {
+    local description="$1"
+    shift
+    echo "------------------------------------------------------------"
+    echo "Running: $description"
+    echo "Command: $*"
+    echo "------------------------------------------------------------"
+    if "$@"; then
+        echo "[PASSED] $description"
+        num_passed=$((num_passed + 1))
+    else
+        echo "[FAILED] $description" >&2
+        num_failed=$((num_failed + 1))
+    fi
+    echo
+}
+
+###############################################################################
+# Data file validation
+###############################################################################
+
+for script in "$SCRIPT_DIR"/data-*.py; do
+    run_step "Validate $(basename "$script" .py)" python3 "$script" --validate
+done
+
+###############################################################################
+# Smoke tests
+###############################################################################
+
+run_step "Smoke tests" "$SCRIPT_DIR/smoke-tests.sh"
+
+###############################################################################
+# Tutorial savefile verification
+###############################################################################
+
+run_step "Verify tutorial savefile" "$SCRIPT_DIR/verify-tutorial.sh"
+
+###############################################################################
+# Summary
+###############################################################################
+
+echo "============================================================"
+echo "Test summary: $num_passed passed, $num_failed failed"
+echo "============================================================"
+
+if [[ "$num_failed" -gt 0 ]]; then
+    exit 1
+fi
+exit 0
