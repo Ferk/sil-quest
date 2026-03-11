@@ -1,0 +1,148 @@
+/* global globalThis */
+
+// Initializes the global helper registry used by the web frontend.
+function initWebHelpers(root) {
+  // Escapes user-facing text so it can be safely injected into HTML.
+  function escapeHtml(text) {
+    return text
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;");
+  }
+
+  // Renders ANSI-like colored text by grouping contiguous attribute runs.
+  function renderColoredText(text, attrs, fallbackAttr = 1) {
+    if (!text) return "";
+
+    let html = "";
+    let runAttr = -1;
+    let runStart = 0;
+
+    // Emits the current attribute run as one span for efficient DOM output.
+    const flushRun = (end) => {
+      if (end <= runStart) return;
+      const segment = escapeHtml(text.slice(runStart, end));
+      const attr = runAttr >= 0 ? runAttr : fallbackAttr;
+      html += `<span class="term-c${attr & 0x0f}">${segment}</span>`;
+    };
+
+    for (let i = 0; i < text.length; i++) {
+      const ch = text[i];
+      if (ch === "\n") {
+        flushRun(i);
+        html += "<br>";
+        runAttr = -1;
+        runStart = i + 1;
+        continue;
+      }
+
+      const attr = (attrs && i < attrs.length) ? attrs[i] : fallbackAttr;
+      if (runAttr < 0) {
+        runAttr = attr;
+        runStart = i;
+        continue;
+      }
+      if (attr !== runAttr) {
+        flushRun(i);
+        runAttr = attr;
+        runStart = i;
+      }
+    }
+
+    flushRun(text.length);
+    return html;
+  }
+
+  // Chooses CSS class for right-side panel values based on semantic label/value.
+  function sideValueClass(label, valueRaw) {
+    if (label === "Health:") {
+      const m = valueRaw.match(/(-?\d+)\s*\/\s*(-?\d+)/);
+      if (!m) return "term-c9";
+      const cur = Number.parseInt(m[1], 10);
+      const max = Number.parseInt(m[2], 10);
+      if (!Number.isFinite(cur) || !Number.isFinite(max) || max <= 0) return "term-c9";
+      const ratio = Math.max(0, cur) / max;
+      if (ratio <= 0.25) return "term-c4";
+      if (ratio <= 0.5) return "term-c3";
+      return "term-c13";
+    }
+    if (label === "Voice:") return "term-c14";
+    if (label === "Depth:") return "term-c10";
+    if (label === "Melee:" || label === "Melee2:") return "term-c1";
+    if (label === "Ranged:") return "term-c7";
+    if (label === "Armor:") return "term-c2";
+    if (label === "State:") {
+      if (valueRaw.includes("Entranced")) return "term-c4";
+      if (valueRaw.includes("Stealth")) return "term-c13";
+      return "term-c14";
+    }
+    if (label === "Speed:") {
+      if (valueRaw.includes("Fast")) return "term-c13";
+      if (valueRaw.includes("Slow")) return "term-c3";
+      return "term-c9";
+    }
+    if (label === "Hunger:") {
+      if (valueRaw.includes("Starving")) return "term-c4";
+      if (valueRaw.includes("Weak")) return "term-c3";
+      if (valueRaw.includes("Hungry")) return "term-c11";
+      if (valueRaw.includes("Full")) return "term-c13";
+      return "term-c9";
+    }
+    if (label === "Terrain:") {
+      if (valueRaw.includes("Sunlight")) return "term-c11";
+      if (valueRaw.includes("Pit") || valueRaw.includes("Web")) return "term-c3";
+      return "term-c9";
+    }
+    if (label === "Effects:") {
+      if (valueRaw.includes("(none)")) return "term-c8";
+      return "term-c12";
+    }
+    if (label === "Song:" || label === "Theme:") return "term-c15";
+    return "term-c9";
+  }
+
+  // Renders status-side text with semantic coloring for label/value lines.
+  function renderSideText(text) {
+    if (!text) return "";
+    const lines = text.split("\n");
+    return lines.map((line) => {
+      if (!line) return "";
+      const split = line.indexOf(":");
+      if (split <= 0) {
+        return `<span class="term-c1">${escapeHtml(line)}</span>`;
+      }
+
+      const label = line.slice(0, split + 1);
+      const value = line.slice(split + 1);
+      const valueClass = sideValueClass(label, value);
+      return `<span class="term-c11">${escapeHtml(label)}</span><span class="${valueClass}">${escapeHtml(value)}</span>`;
+    }).join("<br>");
+  }
+
+  // Updates element HTML only when content changes, optionally pinning scroll bottom.
+  function setHtmlIfChanged(el, html, keepBottom = false) {
+    if (el.dataset.htmlCache === html) return;
+
+    el.innerHTML = html;
+    el.dataset.htmlCache = html;
+
+    if (keepBottom) {
+      el.scrollTop = el.scrollHeight;
+    }
+  }
+
+  // Restricts a numeric value to the inclusive range [min, max].
+  function clamp(value, min, max) {
+    return Math.min(max, Math.max(min, value));
+  }
+
+  root.WebHelpers = Object.freeze({
+    clamp,
+    escapeHtml,
+    renderColoredText,
+    renderSideText,
+    setHtmlIfChanged,
+  });
+}
+
+initWebHelpers(globalThis);

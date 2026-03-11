@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sil-Q Web Prototype</title>
+  <link rel="stylesheet" href="./style.css">
+</head>
+<body>
+  <main class="app">
+    <header class="topbar">
+      <div id="log" class="top-log">(message panel)</div>
+      <div id="status">Loading WASM...</div>
+    </header>
+
+    <section class="layout">
+      <div class="map-wrap">
+        <div class="map-stage">
+          <canvas id="map"></canvas>
+        </div>
+      </div>
+      <div class="side-wrap">
+        <div id="side" class="panel">(side panel)</div>
+      </div>
+      <div id="overlay-modal" class="overlay"></div>
+    </section>
+  </main>
+
+  <script src="./helper.js"></script>
+  <script src="./app.js"></script>
+  <script src="./lib/sil.js?v=20260312-3"></script>
+</body>
+</html>

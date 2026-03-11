@@ -76,10 +76,17 @@ endif()
 # =============================================================================
 
 # Platform-specific options with appropriate defaults
-if (APPLE)
+if (EMSCRIPTEN)
+    option(SUPPORT_COCOA_FRONTEND "Build macOS native Cocoa app" OFF)
+    option(SUPPORT_GCU_FRONTEND   "Build with GCU (curses/ncurses) support" OFF)
+    option(SUPPORT_X11_FRONTEND   "Build with X11 support" OFF)
+    option(SUPPORT_WEB_FRONTEND   "Build with Web (Emscripten) support" ON)
+
+elseif (APPLE)
     option(SUPPORT_COCOA_FRONTEND "Build macOS native Cocoa app" ON)
     option(SUPPORT_GCU_FRONTEND   "Build with GCU (curses/ncurses) support" OFF)
     option(SUPPORT_X11_FRONTEND   "Build with X11 support" OFF)
+    option(SUPPORT_WEB_FRONTEND   "Build with Web (Emscripten) support" OFF)
 
     # Cocoa: build a universal binary by default
     if (SUPPORT_COCOA_FRONTEND AND NOT CMAKE_OSX_ARCHITECTURES)
@@ -108,11 +115,13 @@ elseif (UNIX)
     option(SUPPORT_COCOA_FRONTEND "Build macOS native Cocoa app" OFF)
     option(SUPPORT_GCU_FRONTEND   "Build with GCU (curses/ncurses) support" ON)
     option(SUPPORT_X11_FRONTEND   "Build with X11 support" ON)
+    option(SUPPORT_WEB_FRONTEND   "Build with Web (Emscripten) support" OFF)
 
 else()
     option(SUPPORT_COCOA_FRONTEND "Build macOS native Cocoa app" OFF)
     option(SUPPORT_GCU_FRONTEND   "Build with GCU (curses/ncurses) support" OFF)
     option(SUPPORT_X11_FRONTEND   "Build with X11 support" OFF)
+    option(SUPPORT_WEB_FRONTEND   "Build with Web (Emscripten) support" OFF)
 endif()
 
 # Print final values of the above options
@@ -128,6 +137,9 @@ if (SUPPORT_GCU_FRONTEND)
 endif()
 if (SUPPORT_X11_FRONTEND)
     message(STATUS "X11 graphics support enabled")
+endif()
+if (SUPPORT_WEB_FRONTEND)
+    message(STATUS "Web (Emscripten) graphics support enabled")
 endif()
 
 # =============================================================================
@@ -280,6 +292,10 @@ elseif (WIN32)
 # Linux and (non-Cocoa) macOS
 else()
     list(APPEND PLATFORM_SOURCES src/main.c)
+
+    if (SUPPORT_WEB_FRONTEND)
+        list(APPEND PLATFORM_SOURCES src/main-web.c)
+    endif()
 
     if (SUPPORT_GCU_FRONTEND)
         list(APPEND PLATFORM_SOURCES src/main-gcu.c)
@@ -540,6 +556,41 @@ elseif (WIN32)
 
 # Linux and (non-Cocoa) macOS
 else()
+    if (SUPPORT_WEB_FRONTEND)
+        target_compile_definitions(${SIL_TARGET} PRIVATE USE_WEB)
+
+        if (EMSCRIPTEN)
+            set(WEB_ROOT_DIR "${CMAKE_SOURCE_DIR}/web" CACHE PATH
+                "Directory containing web frontend files")
+            set(WEB_LIB_DIR "${WEB_ROOT_DIR}/lib" CACHE PATH
+                "Directory for generated web artifacts (sil.js/sil.wasm/sil.data)")
+            set(WEB_TILESET_SOURCE "${CMAKE_SOURCE_DIR}/lib/xtra/graf/16x16_microchasm.png")
+            set(WEB_TILESET_TARGET "${WEB_LIB_DIR}/16x16_microchasm.png")
+
+            file(MAKE_DIRECTORY "${WEB_LIB_DIR}")
+
+            set_target_properties(${SIL_TARGET} PROPERTIES
+                RUNTIME_OUTPUT_DIRECTORY "${WEB_LIB_DIR}"
+            )
+
+            target_link_options(${SIL_TARGET} PRIVATE
+                "-sASYNCIFY"
+                "-sFORCE_FILESYSTEM=1"
+                "-sEXPORTED_RUNTIME_METHODS=['FS']"
+                "-lidbfs.js"
+                "SHELL:--preload-file ${CMAKE_SOURCE_DIR}/lib@/lib"
+            )
+
+            add_custom_command(TARGET ${SIL_TARGET} POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E make_directory "${WEB_LIB_DIR}"
+                COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                    "${WEB_TILESET_SOURCE}"
+                    "${WEB_TILESET_TARGET}"
+                COMMENT "Syncing web runtime assets to ${WEB_LIB_DIR}"
+            )
+        endif()
+    endif()
+
     if (SUPPORT_GCU_FRONTEND)
         find_package(Curses REQUIRED)
         target_compile_definitions(${SIL_TARGET} PRIVATE USE_GCU)

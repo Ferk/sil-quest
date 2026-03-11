@@ -33,7 +33,7 @@
  * Basically, SET_UID should *only* be set for "Unix" machines.
  */
 
-#if !defined(WINDOWS)
+#if !defined(WINDOWS) && !defined(__EMSCRIPTEN__)
 #define SET_UID
 #endif
 

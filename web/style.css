@@ -1,0 +1,216 @@
+    :root {
+      --bg: #0c0f14;
+      --panel: #141b24;
+      --border: #2f3948;
+      --text: #e6edf3;
+      --muted: #96a3b8;
+      --font-game: "Unscii Fantasy", monospace;
+    }
+
+    * { box-sizing: border-box; }
+
+    @font-face {
+      font-family: "Unscii Fantasy";
+      src: url("./assets/unscii-fantasy.woff") format("woff");
+      font-style: normal;
+      font-weight: 400;
+      font-display: swap;
+    }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+    }
+
+    body {
+      margin: 0;
+      font-family: var(--font-game);
+      background: radial-gradient(circle at top, #182131 0%, var(--bg) 55%);
+      color: var(--text);
+    }
+
+    .app {
+      width: 100vw;
+      height: 100vh;
+      display: grid;
+      grid-template-rows: auto minmax(0, 1fr);
+      border: 0;
+      background: linear-gradient(180deg, #131a25 0%, #0f151e 100%);
+    }
+
+    .topbar {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      align-items: center;
+      gap: 0.75em;
+      padding: 0.35em 0.75em;
+      border-bottom: 1px solid var(--border);
+      color: var(--muted);
+      min-height: 2.2em;
+    }
+
+    #status {
+      font-size: 0.8em;
+      color: var(--muted);
+      white-space: nowrap;
+      text-align: right;
+    }
+
+    .top-log {
+      margin: 0;
+      padding: 0.12em 0.45em;
+      min-height: 1.35em;
+      max-height: 1.35em;
+      overflow-y: auto;
+      overflow-x: hidden;
+      white-space: pre;
+      line-height: 1.2;
+      background: rgba(6, 8, 12, 0.28);
+      border: 1px solid var(--border);
+      color: #d7dde7;
+      font-family: var(--font-game);
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) clamp(220px, 28vw, 360px);
+      gap: 0;
+      min-height: 0;
+      position: relative;
+      height: 100%;
+      overflow: hidden;
+    }
+
+    .map-wrap {
+      padding: 8px;
+      border-right: 1px solid var(--border);
+      overflow: auto;
+      min-width: 0;
+      min-height: 0;
+      display: flex;
+      align-items: flex-start;
+      justify-content: flex-start;
+      touch-action: none;
+      cursor: grab;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    .map-wrap.dragging {
+      cursor: grabbing;
+    }
+
+    .map-stage {
+      position: relative;
+      display: inline-block;
+      line-height: 0;
+      margin: auto;
+    }
+
+    #map {
+      display: block;
+      background: #000;
+      image-rendering: pixelated;
+      image-rendering: crisp-edges;
+      border: 1px solid #202836;
+      position: relative;
+      z-index: 1;
+      max-width: none;
+      max-height: none;
+      width: auto;
+      height: auto;
+    }
+
+    .overlay {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      margin: 0;
+      padding: 0.75em 1em;
+      white-space: pre-wrap;
+      font-family: var(--font-game);
+      color: #f0f4ff;
+      text-shadow: 0 0 2px rgba(0, 0, 0, 0.85);
+      z-index: 2;
+      display: none;
+      max-width: min(80em, calc(100% - 2em));
+      max-height: calc(100% - 2em);
+      width: max-content;
+      pointer-events: auto;
+    }
+
+    #overlay-modal {
+      z-index: 3;
+      background: rgba(7, 10, 16, 0.88);
+      border: 1px solid var(--border);
+      box-shadow: 0 1em 2.5em rgba(0, 0, 0, 0.5);
+      overflow-y: auto;
+      overflow-x: hidden;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      word-break: break-word;
+    }
+
+    .side-wrap {
+      display: grid;
+      grid-template-rows: 1fr;
+      min-height: 0;
+      min-width: 0;
+      overflow: hidden;
+    }
+
+    .panel {
+      margin: 0;
+      padding: 0.75em;
+      overflow: auto;
+      white-space: pre-wrap;
+      font-size: 1em;
+      line-height: 1.15;
+      color: #d7dde7;
+      background: rgba(6, 8, 12, 0.28);
+      border-bottom: 1px solid var(--border);
+      font-family: var(--font-game);
+    }
+
+    .panel:last-child {
+      border-bottom: 0;
+    }
+
+    .term-c0 { color: #000000; }
+    .term-c1 { color: #ffffff; }
+    .term-c2 { color: #9ca3af; }
+    .term-c3 { color: #f59e0b; }
+    .term-c4 { color: #ef4444; }
+    .term-c5 { color: #22c55e; }
+    .term-c6 { color: #3b82f6; }
+    .term-c7 { color: #b45309; }
+    .term-c8 { color: #4b5563; }
+    .term-c9 { color: #d1d5db; }
+    .term-c10 { color: #a855f7; }
+    .term-c11 { color: #fde047; }
+    .term-c12 { color: #fca5a5; }
+    .term-c13 { color: #86efac; }
+    .term-c14 { color: #93c5fd; }
+    .term-c15 { color: #fcd34d; }
+
+    @media (max-width: 900px) {
+      .layout {
+        grid-template-columns: 1fr;
+      }
+
+      .map-wrap {
+        border-right: 0;
+        border-bottom: 1px solid var(--border);
+      }
+
+      .topbar {
+        grid-template-columns: 1fr;
+        gap: 0.35em;
+      }
+
+      #status {
+        text-align: left;
+      }
+    }

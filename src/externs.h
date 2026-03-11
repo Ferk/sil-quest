@@ -951,6 +951,11 @@ extern int color_char_to_attr(char c);
 extern int color_text_to_attr(cptr name);
 extern cptr attr_to_text(byte a);
 
+#ifdef USE_WEB
+extern void web_overlay_override_set(cptr text);
+extern void web_overlay_override_clear(void);
+#endif
+
 #ifdef SUPPORT_GAMMA
 extern void build_gamma_table(int gamma);
 extern byte gamma_table[256];
