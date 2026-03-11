@@ -1814,6 +1814,17 @@ bool load_player(void)
     // Set a flag to show that we are restoring a game
     p_ptr->restoring = TRUE;
 
+#ifdef USE_WEB
+    /*
+     * In web builds, make sure tutorial always resolves from packaged xtra data
+     * rather than any stale persisted save namespace.
+     */
+    if (suffix(savefile, "tutorial"))
+    {
+        path_build(savefile, sizeof(savefile), ANGBAND_DIR_XTRA, "tutorial");
+    }
+#endif
+
     /* Allow empty savefile name */
     if (!savefile[0])
         return (TRUE);
@@ -2117,8 +2128,8 @@ bool load_player(void)
 #endif /* VERIFY_SAVEFILE */
 
     /* Message */
-    msg_format("Error (%s) reading %d.%d.%d savefile.", what, sf_major,
-        sf_minor, sf_patch);
+    msg_format("Error (%s) reading savefile '%s' (%d.%d.%d).", what, savefile,
+        sf_major, sf_minor, sf_patch);
     message_flush();
 
     /* Oops */

@@ -39,6 +39,10 @@
 #include <memory.h>
 #include <fcntl.h>
 
+#if !defined(WINDOWS)
+#include <unistd.h>
+#endif
+
 #ifdef SET_UID
 
 #ifndef _MSC_VER
@@ -50,8 +54,6 @@
 #endif
 
 #include <pwd.h>
-
-#include <unistd.h>
 
 #else /* _MSC_VER */
 

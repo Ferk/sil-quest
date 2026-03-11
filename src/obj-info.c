@@ -947,6 +947,27 @@ static bool screen_out_head(const object_type* o_ptr)
  */
 void note_info_screen(const object_type* o_ptr)
 {
+#ifdef USE_WEB
+    {
+        char web_note_text[2048];
+        size_t web_off = 0;
+        cptr note_text = NULL;
+
+        if (o_ptr && o_ptr->k_idx)
+            note_text = k_text + k_info[o_ptr->k_idx].text;
+
+        strnfcat(web_note_text, sizeof(web_note_text), &web_off,
+            "The note here reads:\n\n");
+        if (note_text && note_text[0])
+            strnfcat(
+                web_note_text, sizeof(web_note_text), &web_off, "%s", note_text);
+        strnfcat(web_note_text, sizeof(web_note_text), &web_off,
+            "\n\n(press any key)\n");
+
+        web_overlay_override_set(web_note_text);
+    }
+#endif
+
     /* Redirect output to the screen */
     text_out_hook = text_out_to_screen;
 
@@ -977,6 +998,10 @@ void note_info_screen(const object_type* o_ptr)
 
     /* Load the screen */
     screen_load();
+
+#ifdef USE_WEB
+    web_overlay_override_clear();
+#endif
 
     return;
 }

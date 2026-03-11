@@ -28,6 +28,10 @@ bool game_in_progress = FALSE;
  * List of the available modules in the order they are tried.
  */
 static const struct module modules[] = {
+#ifdef USE_WEB
+    { "web", help_web, init_web },
+#endif /* USE_WEB */
+
 #ifdef USE_X11
     { "x11", help_x11, init_x11 },
 #endif /* USE_X11 */
@@ -574,7 +578,6 @@ int main(int argc, char* argv[])
         {
             int choice = 0;
             int highlight = 1;
-            char buf[80];
 
             if (p_ptr->is_dead)
                 highlight = 4;
@@ -587,8 +590,8 @@ int main(int argc, char* argv[])
                 switch (choice)
                 {
                 case 1:
-                    path_build(
-                        savefile, sizeof(buf), ANGBAND_DIR_XTRA, "tutorial");
+                    path_build(savefile, sizeof(savefile), ANGBAND_DIR_XTRA,
+                        "tutorial");
                     game_in_progress = TRUE;
                     new_game = FALSE;
                     break;

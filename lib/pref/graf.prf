@@ -28,5 +28,7 @@
 ?:[EQU $SYS win]
 %:graf-win.prf
 
-?:1
+?:[EQU $SYS web]
+%:graf-web.prf
 
+?:1

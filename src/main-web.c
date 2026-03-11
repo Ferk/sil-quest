@@ -1,0 +1,2025 @@
+/* File: main-web.c */
+
+/*
+ * Copyright (c) 2026
+ *
+ * This file provides a web frontend for Emscripten builds.
+ * It exports per-cell render metadata so JavaScript can render text or tiles.
+ */
+
+#include "angband.h"
+
+#ifdef USE_WEB
+
+#include "main.h"
+
+#include <stdint.h>
+#include <string.h>
+
+#ifdef __EMSCRIPTEN__
+#include <emscripten/emscripten.h>
+#else
+#include <unistd.h>
+#ifndef EMSCRIPTEN_KEEPALIVE
+#define EMSCRIPTEN_KEEPALIVE
+#endif
+#endif
+
+typedef struct web_cell web_cell;
+typedef struct term_data term_data;
+
+/* ------------------------------------------------------------------------ */
+/* Cell Metadata                                                            */
+/* ------------------------------------------------------------------------ */
+
+/* Cell render modes */
+#define WEB_CELL_EMPTY 0
+#define WEB_CELL_TEXT 1
+#define WEB_CELL_PICT 2
+
+/* Overlay flags (same semantics as x11/win compositing) */
+#define WEB_FLAG_ALERT 0x01
+#define WEB_FLAG_GLOW 0x02
+#define WEB_FLAG_FG_PICT 0x04
+#define WEB_FLAG_BG_PICT 0x08
+
+struct web_cell
+{
+    byte kind;
+
+    byte text_attr;
+    byte text_char;
+
+    byte fg_attr;
+    byte fg_char;
+
+    byte bg_attr;
+    byte bg_char;
+
+    byte flags;
+};
+
+struct term_data
+{
+    term t;
+
+    int cols;
+    int rows;
+
+    web_cell* cells;
+
+    int cursor_x;
+    int cursor_y;
+    bool cursor_visible;
+
+    bool dirty;
+    int dirty_x1;
+    int dirty_y1;
+    int dirty_x2;
+    int dirty_y2;
+    uint32_t frame_id;
+};
+
+/* ------------------------------------------------------------------------ */
+/* Global Web Frontend State                                                */
+/* ------------------------------------------------------------------------ */
+
+static term_data data;
+
+#define WEB_SIDE_TEXT_MAX 2048
+#define WEB_LOG_TEXT_MAX 4096
+#define WEB_LOG_MESSAGES_MAX 20
+#define WEB_OVERLAY_TEXT_MAX 16384
+
+static char web_side_text[WEB_SIDE_TEXT_MAX];
+static char web_log_text[WEB_LOG_TEXT_MAX];
+static byte web_log_attrs[WEB_LOG_TEXT_MAX];
+static int web_log_attrs_len = 0;
+static uint32_t web_ui_text_frame = UINT32_MAX;
+static char web_overlay_text[WEB_OVERLAY_TEXT_MAX];
+static byte web_overlay_attrs[WEB_OVERLAY_TEXT_MAX];
+static int web_overlay_attrs_len = 0;
+static uint32_t web_overlay_text_frame = UINT32_MAX;
+static uint32_t web_fx_delay_seq = 0;
+static int web_fx_delay_msec = 0;
+static web_cell* web_fx_cells = NULL;
+static int web_fx_cell_count = 0;
+static int web_fx_cols = 0;
+static int web_fx_rows = 0;
+static uint32_t web_fx_cells_seq = 0;
+static int web_overlay_mode = 0;
+static int web_overlay_col = 0;
+static int web_overlay_row = 0;
+static int web_overlay_cols = 0;
+static int web_overlay_rows = 0;
+static byte* web_overlay_capture = NULL;
+static byte* web_overlay_capture_attr = NULL;
+static bool web_overlay_capture_active = FALSE;
+static bool web_overlay_override_active = FALSE;
+static char web_overlay_override_text[WEB_OVERLAY_TEXT_MAX];
+static web_cell* web_map_cells = NULL;
+static int web_map_cell_count = 0;
+static uint32_t web_map_cells_frame = UINT32_MAX;
+
+static void web_refresh_map_cells(void);
+static void web_capture_fx_cells(void);
+static void web_set_text_cell(web_cell* cell, byte attr, byte chr);
+
+/* MicroChasm defaults */
+static int web_tile_wid = 16;
+static int web_tile_hgt = 16;
+
+#define WEB_KEY_QUEUE_SIZE 4096
+
+static int key_queue[WEB_KEY_QUEUE_SIZE];
+static int key_head = 0;
+static int key_tail = 0;
+
+/* ------------------------------------------------------------------------ */
+/* WASM Export Declarations                                                 */
+/* ------------------------------------------------------------------------ */
+
+EMSCRIPTEN_KEEPALIVE int web_get_cols(void);
+EMSCRIPTEN_KEEPALIVE int web_get_rows(void);
+EMSCRIPTEN_KEEPALIVE int web_get_cell_stride(void);
+EMSCRIPTEN_KEEPALIVE uintptr_t web_get_cells_ptr(void);
+EMSCRIPTEN_KEEPALIVE int web_get_tile_wid(void);
+EMSCRIPTEN_KEEPALIVE int web_get_tile_hgt(void);
+EMSCRIPTEN_KEEPALIVE int web_get_map_col(void);
+EMSCRIPTEN_KEEPALIVE int web_get_map_row(void);
+EMSCRIPTEN_KEEPALIVE int web_get_map_cols(void);
+EMSCRIPTEN_KEEPALIVE int web_get_map_rows(void);
+EMSCRIPTEN_KEEPALIVE int web_get_map_x_step(void);
+EMSCRIPTEN_KEEPALIVE int web_get_map_world_x(void);
+EMSCRIPTEN_KEEPALIVE int web_get_map_world_y(void);
+EMSCRIPTEN_KEEPALIVE uintptr_t web_get_map_cells_ptr(void);
+EMSCRIPTEN_KEEPALIVE int web_get_player_map_x(void);
+EMSCRIPTEN_KEEPALIVE int web_get_player_map_y(void);
+EMSCRIPTEN_KEEPALIVE int web_get_icon_alert_attr(void);
+EMSCRIPTEN_KEEPALIVE int web_get_icon_alert_char(void);
+EMSCRIPTEN_KEEPALIVE int web_get_icon_glow_attr(void);
+EMSCRIPTEN_KEEPALIVE int web_get_icon_glow_char(void);
+EMSCRIPTEN_KEEPALIVE uint32_t web_get_frame_id(void);
+EMSCRIPTEN_KEEPALIVE int web_poll_dirty(int* x, int* y, int* w, int* h);
+EMSCRIPTEN_KEEPALIVE uintptr_t web_get_fx_cells_ptr(void);
+EMSCRIPTEN_KEEPALIVE int web_get_fx_cells_cols(void);
+EMSCRIPTEN_KEEPALIVE int web_get_fx_cells_rows(void);
+EMSCRIPTEN_KEEPALIVE uint32_t web_get_fx_cells_seq(void);
+EMSCRIPTEN_KEEPALIVE void web_get_cursor(int* x, int* y, int* visible);
+EMSCRIPTEN_KEEPALIVE int web_push_key(int key);
+EMSCRIPTEN_KEEPALIVE uintptr_t web_get_side_text_ptr(void);
+EMSCRIPTEN_KEEPALIVE int web_get_side_text_len(void);
+EMSCRIPTEN_KEEPALIVE uintptr_t web_get_log_text_ptr(void);
+EMSCRIPTEN_KEEPALIVE int web_get_log_text_len(void);
+EMSCRIPTEN_KEEPALIVE uintptr_t web_get_log_attrs_ptr(void);
+EMSCRIPTEN_KEEPALIVE int web_get_log_attrs_len(void);
+EMSCRIPTEN_KEEPALIVE int web_get_overlay_mode(void);
+EMSCRIPTEN_KEEPALIVE int web_get_overlay_col(void);
+EMSCRIPTEN_KEEPALIVE int web_get_overlay_row(void);
+EMSCRIPTEN_KEEPALIVE int web_get_overlay_cols(void);
+EMSCRIPTEN_KEEPALIVE int web_get_overlay_rows(void);
+EMSCRIPTEN_KEEPALIVE uintptr_t web_get_overlay_text_ptr(void);
+EMSCRIPTEN_KEEPALIVE int web_get_overlay_text_len(void);
+EMSCRIPTEN_KEEPALIVE uintptr_t web_get_overlay_attrs_ptr(void);
+EMSCRIPTEN_KEEPALIVE int web_get_overlay_attrs_len(void);
+EMSCRIPTEN_KEEPALIVE uint32_t web_get_fx_delay_seq(void);
+EMSCRIPTEN_KEEPALIVE int web_get_fx_delay_msec(void);
+void web_overlay_override_set(cptr text);
+void web_overlay_override_clear(void);
+
+/* ------------------------------------------------------------------------ */
+/* Shared Helpers                                                           */
+/* ------------------------------------------------------------------------ */
+
+/*
+ * Clip a single-row span against terminal bounds.
+ * If src_skip is provided, it receives the number of source cells to skip.
+ */
+static bool web_clip_row_span(
+    int cols, int rows, int y, int* x, int* n, int* src_skip)
+{
+    int sx;
+    int sn;
+    int skip = 0;
+
+    if (!x || !n)
+        return FALSE;
+
+    sx = *x;
+    sn = *n;
+
+    if ((y < 0) || (y >= rows) || (sn <= 0))
+        return FALSE;
+
+    if (sx < 0)
+    {
+        skip = -sx;
+        sn += sx;
+        sx = 0;
+    }
+
+    if (sx >= cols)
+        return FALSE;
+
+    if (sx + sn > cols)
+        sn = cols - sx;
+
+    if (sn <= 0)
+        return FALSE;
+
+    *x = sx;
+    *n = sn;
+    if (src_skip)
+        *src_skip = skip;
+
+    return TRUE;
+}
+
+/* Translate angband pict metadata into web-facing flags. */
+static byte web_pict_flags(byte a, byte c, byte ta, byte tc)
+{
+    byte flags = 0;
+
+    if (c & GRAPHICS_ALERT_MASK)
+        flags |= WEB_FLAG_ALERT;
+    if (a & GRAPHICS_GLOW_MASK)
+        flags |= WEB_FLAG_GLOW;
+    if ((a & 0x80) && (c & 0x80))
+        flags |= WEB_FLAG_FG_PICT;
+    if ((ta & 0x80) && (tc & 0x80))
+        flags |= WEB_FLAG_BG_PICT;
+
+    return flags;
+}
+
+/* ------------------------------------------------------------------------ */
+/* Dirty Tracking                                                           */
+/* ------------------------------------------------------------------------ */
+
+static void web_mark_dirty(term_data* td, int x, int y, int w, int h)
+{
+    int x2;
+    int y2;
+
+    if (!td || (w <= 0) || (h <= 0))
+        return;
+
+    x2 = x + w - 1;
+    y2 = y + h - 1;
+
+    if (!td->dirty)
+    {
+        td->dirty = TRUE;
+        td->dirty_x1 = x;
+        td->dirty_y1 = y;
+        td->dirty_x2 = x2;
+        td->dirty_y2 = y2;
+    }
+    else
+    {
+        if (x < td->dirty_x1)
+            td->dirty_x1 = x;
+        if (y < td->dirty_y1)
+            td->dirty_y1 = y;
+        if (x2 > td->dirty_x2)
+            td->dirty_x2 = x2;
+        if (y2 > td->dirty_y2)
+            td->dirty_y2 = y2;
+    }
+
+    td->frame_id++;
+}
+
+static void web_mark_cursor_dirty(term_data* td)
+{
+    if (!td)
+        return;
+
+    if ((td->cursor_x < 0) || (td->cursor_y < 0))
+        return;
+
+    if ((td->cursor_x >= td->cols) || (td->cursor_y >= td->rows))
+        return;
+
+    web_mark_dirty(td, td->cursor_x, td->cursor_y, 1, 1);
+}
+
+/* ------------------------------------------------------------------------ */
+/* FX Snapshot Capture                                                      */
+/* ------------------------------------------------------------------------ */
+
+static void web_ensure_fx_cells(int count)
+{
+    if (count < 0)
+        count = 0;
+
+    if (count == web_fx_cell_count)
+        return;
+
+    FREE(web_fx_cells);
+    web_fx_cells = NULL;
+    web_fx_cell_count = 0;
+
+    if (count <= 0)
+        return;
+
+    C_MAKE(web_fx_cells, (size_t)count, web_cell);
+    web_fx_cell_count = count;
+}
+
+static void web_capture_fx_cells(void)
+{
+    int cols = web_get_map_cols();
+    int rows = web_get_map_rows();
+    int step = use_bigtile ? 2 : 1;
+    int count = cols * rows;
+    int my;
+    int mx;
+
+    web_ensure_fx_cells(count);
+    web_fx_cols = cols;
+    web_fx_rows = rows;
+
+    if (!web_fx_cells || !data.cells || (cols <= 0) || (rows <= 0))
+    {
+        web_fx_cells_seq++;
+        return;
+    }
+
+    for (my = 0; my < rows; my++)
+    {
+        for (mx = 0; mx < cols; mx++)
+        {
+            int sx = COL_MAP + mx * step;
+            int sy = ROW_MAP + my;
+            int idx = my * cols + mx;
+
+            if ((sx >= 0) && (sx < data.cols) && (sy >= 0) && (sy < data.rows))
+            {
+                web_fx_cells[idx] = data.cells[sy * data.cols + sx];
+            }
+            else
+            {
+                web_set_text_cell(&web_fx_cells[idx], TERM_WHITE, (byte)' ');
+            }
+        }
+    }
+
+    web_fx_cells_seq++;
+}
+
+/* ------------------------------------------------------------------------ */
+/* Input Queue                                                              */
+/* ------------------------------------------------------------------------ */
+
+static bool web_key_enqueue(int key)
+{
+    int next = (key_head + 1) % WEB_KEY_QUEUE_SIZE;
+
+    if (next == key_tail)
+        return FALSE;
+
+    key_queue[key_head] = key;
+    key_head = next;
+
+    return TRUE;
+}
+
+static bool web_key_dequeue(int* key)
+{
+    if (key_head == key_tail)
+        return FALSE;
+
+    *key = key_queue[key_tail];
+    key_tail = (key_tail + 1) % WEB_KEY_QUEUE_SIZE;
+
+    return TRUE;
+}
+
+/* ------------------------------------------------------------------------ */
+/* Cell Operations                                                          */
+/* ------------------------------------------------------------------------ */
+
+static void web_set_text_cell(web_cell* cell, byte attr, byte chr)
+{
+    if (!cell)
+        return;
+
+    cell->kind = WEB_CELL_TEXT;
+    cell->text_attr = attr;
+    cell->text_char = chr;
+
+    cell->fg_attr = 0;
+    cell->fg_char = 0;
+    cell->bg_attr = 0;
+    cell->bg_char = 0;
+    cell->flags = 0;
+}
+
+static void web_set_pict_cell(
+    web_cell* cell, byte a, byte c, byte ta, byte tc, byte flags)
+{
+    if (!cell)
+        return;
+
+    cell->kind = WEB_CELL_PICT;
+
+    cell->text_attr = 0;
+    cell->text_char = 0;
+
+    cell->fg_attr = a;
+    cell->fg_char = c;
+    cell->bg_attr = ta;
+    cell->bg_char = tc;
+    cell->flags = flags;
+}
+
+static void web_clear_cells(term_data* td, byte attr, byte chr)
+{
+    int x;
+    int y;
+
+    if (!td || !td->cells)
+        return;
+
+    for (y = 0; y < td->rows; y++)
+    {
+        for (x = 0; x < td->cols; x++)
+        {
+            web_set_text_cell(&td->cells[y * td->cols + x], attr, chr);
+        }
+    }
+}
+
+static void web_sleep_msec(int msec)
+{
+    if (msec <= 0)
+        return;
+
+#ifdef __EMSCRIPTEN__
+    emscripten_sleep(msec);
+#else
+    usleep((unsigned int)msec * 1000U);
+#endif
+}
+
+/* ------------------------------------------------------------------------ */
+/* Semantic Side/Log UI Builders                                            */
+/* ------------------------------------------------------------------------ */
+
+static cptr web_get_race_name(void)
+{
+    if (!z_info || !p_info || !p_name || !p_ptr)
+        return NULL;
+
+    if (p_ptr->prace >= z_info->p_max)
+        return NULL;
+
+    return p_name + p_info[p_ptr->prace].name;
+}
+
+static cptr web_get_house_name(void)
+{
+    if (!z_info || !c_info || !c_name || !p_ptr)
+        return NULL;
+
+    if (p_ptr->phouse >= z_info->c_max)
+        return NULL;
+
+    return c_name + c_info[p_ptr->phouse].name;
+}
+
+static cptr web_get_song_name(byte song)
+{
+    int idx;
+    cptr name;
+
+    if (song == SNG_NOTHING)
+        return NULL;
+
+    if (!z_info || !b_info || !b_name)
+        return NULL;
+
+    idx = ability_index(S_SNG, song);
+    if ((idx < 0) || (idx >= z_info->b_max))
+        return NULL;
+
+    name = b_name + b_info[idx].name;
+    if (!name || !name[0])
+        return NULL;
+
+    if (strncmp(name, "Song of ", 8) == 0)
+        name += 8;
+
+    return name;
+}
+
+static void web_append_tracked_monster_text(size_t* off)
+{
+    monster_type* m_ptr;
+    char m_name[80];
+    char alert_buf[20];
+    char health_bar[9];
+    int len;
+    int color = TERM_WHITE;
+    int i;
+    cptr pattern = "********";
+
+    if (!off || !p_ptr)
+        return;
+
+    strnfcat(web_side_text, sizeof(web_side_text), off, "\n\nTarget: ");
+
+    if (p_ptr->health_who <= 0)
+    {
+        strnfcat(web_side_text, sizeof(web_side_text), off, "(none)");
+        return;
+    }
+
+    m_ptr = &mon_list[p_ptr->health_who];
+    if (!m_ptr->r_idx || !m_ptr->ml || p_ptr->image || (m_ptr->hp <= 0)
+        || (m_ptr->maxhp <= 0))
+    {
+        strnfcat(web_side_text, sizeof(web_side_text), off, "(not visible)");
+        return;
+    }
+
+    monster_desc(m_name, sizeof(m_name), m_ptr, 0);
+    strnfcat(web_side_text, sizeof(web_side_text), off, "%s\n", m_name);
+
+    my_strcpy(health_bar, "--------", sizeof(health_bar));
+
+    len = (8 * m_ptr->hp + m_ptr->maxhp - 1) / m_ptr->maxhp;
+    if (len < 0)
+        len = 0;
+    if (len > 8)
+        len = 8;
+
+    if (m_ptr->confused && m_ptr->stunned)
+        pattern = "cscscscs";
+    else if (m_ptr->confused)
+        pattern = "cccccccc";
+    else if (m_ptr->stunned)
+        pattern = "ssssssss";
+
+    for (i = 0; i < len; i++)
+        health_bar[i] = pattern[i];
+
+    strnfcat(web_side_text, sizeof(web_side_text), off, "HP: [%s]\n", health_bar);
+
+    if (get_alertness_text(m_ptr, sizeof(alert_buf), alert_buf, &color))
+    {
+        strnfcat(web_side_text, sizeof(web_side_text), off, "%s", alert_buf);
+    }
+}
+
+static void web_append_list_item(
+    char* buf, size_t buf_size, size_t* off, cptr item)
+{
+    if (!buf || !off || !item || !item[0])
+        return;
+
+    if (*off > 0)
+        strnfcat(buf, buf_size, off, ", ");
+
+    strnfcat(buf, buf_size, off, "%s", item);
+}
+
+static void web_get_state_text(char* out, size_t out_size)
+{
+    if (!out || (out_size == 0) || !p_ptr)
+        return;
+
+    if (p_ptr->entranced)
+    {
+        my_strcpy(out, "Entranced!", out_size);
+    }
+    else if (p_ptr->smithing)
+    {
+        my_strcpy(out, "Smithing", out_size);
+    }
+    else if (p_ptr->fletching)
+    {
+        my_strcpy(out, "Fletching", out_size);
+    }
+    else if (p_ptr->resting)
+    {
+        int n = p_ptr->resting;
+
+        if (n == -1)
+            my_strcpy(out, "Rest *", out_size);
+        else if (n == -2)
+            my_strcpy(out, "Rest &", out_size);
+        else if (n > 0)
+            strnfmt(out, out_size, "Rest %d", n);
+        else
+            my_strcpy(out, "Resting", out_size);
+    }
+    else if (p_ptr->command_rep)
+    {
+        strnfmt(out, out_size, "Repeat %d", p_ptr->command_rep);
+    }
+    else if (p_ptr->stealth_mode)
+    {
+        my_strcpy(out, "Stealth", out_size);
+    }
+    else
+    {
+        my_strcpy(out, "Normal", out_size);
+    }
+}
+
+static cptr web_get_speed_text(void)
+{
+    if (!p_ptr)
+        return "Normal";
+
+    if (p_ptr->pspeed > 2)
+        return "Fast";
+    if (p_ptr->pspeed < 2)
+        return "Slow";
+    return "Normal";
+}
+
+static cptr web_get_hunger_text(void)
+{
+    if (!p_ptr)
+        return "Normal";
+
+    if (p_ptr->food < PY_FOOD_STARVE)
+        return "Starving";
+    if (p_ptr->food < PY_FOOD_WEAK)
+        return "Weak";
+    if (p_ptr->food < PY_FOOD_ALERT)
+        return "Hungry";
+    if (p_ptr->food < PY_FOOD_FULL)
+        return "Normal";
+    return "Full";
+}
+
+static cptr web_get_terrain_text(void)
+{
+    if (!p_ptr || !in_bounds(p_ptr->py, p_ptr->px))
+        return NULL;
+
+    if (cave_pit_bold(p_ptr->py, p_ptr->px))
+        return "Pit";
+    if (cave_feat[p_ptr->py][p_ptr->px] == FEAT_TRAP_WEB)
+        return "Web";
+    if (cave_feat[p_ptr->py][p_ptr->px] == FEAT_SUNLIGHT)
+        return "Sunlight";
+
+    return NULL;
+}
+
+static void web_get_effects_text(char* out, size_t out_size)
+{
+    size_t off = 0;
+    char tmp[32];
+
+    if (!out || (out_size == 0))
+        return;
+
+    out[0] = '\0';
+    if (!p_ptr)
+        return;
+
+    if (p_ptr->blind)
+        web_append_list_item(out, out_size, &off, "Blind");
+    if (p_ptr->confused)
+        web_append_list_item(out, out_size, &off, "Confused");
+    if (p_ptr->afraid)
+        web_append_list_item(out, out_size, &off, "Afraid");
+
+    if (p_ptr->poisoned > 0)
+    {
+        strnfmt(tmp, sizeof(tmp), "Poisoned %d", p_ptr->poisoned);
+        web_append_list_item(out, out_size, &off, tmp);
+    }
+
+    if (p_ptr->cut >= 100)
+    {
+        web_append_list_item(out, out_size, &off, "Mortal wound");
+    }
+    else if (p_ptr->cut > 0)
+    {
+        strnfmt(tmp, sizeof(tmp), "Bleeding %d", p_ptr->cut);
+        web_append_list_item(out, out_size, &off, tmp);
+    }
+
+    if (p_ptr->stun > 100)
+    {
+        web_append_list_item(out, out_size, &off, "Knocked out");
+    }
+    else if (p_ptr->stun > 50)
+    {
+        web_append_list_item(out, out_size, &off, "Heavy stun");
+    }
+    else if (p_ptr->stun > 0)
+    {
+        web_append_list_item(out, out_size, &off, "Stunned");
+    }
+
+    if (p_ptr->fast > 0)
+    {
+        strnfmt(tmp, sizeof(tmp), "Fast %d", p_ptr->fast);
+        web_append_list_item(out, out_size, &off, tmp);
+    }
+    if (p_ptr->slow > 0)
+    {
+        strnfmt(tmp, sizeof(tmp), "Slow %d", p_ptr->slow);
+        web_append_list_item(out, out_size, &off, tmp);
+    }
+}
+
+/* Build the side panel text from current character/game state. */
+static void web_build_side_text(void)
+{
+    size_t off = 0;
+    cptr player_name;
+    cptr race_name;
+    cptr house_name;
+    cptr song1_name;
+    cptr song2_name;
+    char depth_buf[32];
+    char str_buf[8];
+    char dex_buf[8];
+    char con_buf[8];
+    char gra_buf[8];
+    char state_buf[32];
+    char effects_buf[256];
+    char melee_buf[32];
+    char melee2_buf[32];
+    char arc_buf[32];
+    char armor_buf[32];
+    cptr speed_text;
+    cptr hunger_text;
+    cptr terrain_text;
+    bool dual_wield;
+    bool has_bow;
+    bool rapid_attack;
+    bool blocking;
+    int armor_min;
+    int armor_max;
+    int arc_dd;
+
+    web_side_text[0] = '\0';
+
+    if (!p_ptr || !op_ptr)
+    {
+        strnfcat(web_side_text, sizeof(web_side_text), &off,
+            "(player state not ready)");
+        return;
+    }
+
+    player_name = op_ptr->full_name[0] ? op_ptr->full_name : "(unnamed)";
+    race_name = web_get_race_name();
+    house_name = web_get_house_name();
+    song1_name = web_get_song_name(p_ptr->song1);
+    song2_name = web_get_song_name(p_ptr->song2);
+
+    if (!race_name || !race_name[0])
+        race_name = "Unknown";
+    if (!house_name || !house_name[0])
+        house_name = "Unknown";
+
+    if (!p_ptr->depth)
+        my_strcpy(depth_buf, "Surface", sizeof(depth_buf));
+    else
+        strnfmt(depth_buf, sizeof(depth_buf), "%d ft", p_ptr->depth * 50);
+
+    cnv_stat(p_ptr->stat_use[A_STR], str_buf, sizeof(str_buf));
+    cnv_stat(p_ptr->stat_use[A_DEX], dex_buf, sizeof(dex_buf));
+    cnv_stat(p_ptr->stat_use[A_CON], con_buf, sizeof(con_buf));
+    cnv_stat(p_ptr->stat_use[A_GRA], gra_buf, sizeof(gra_buf));
+
+    strnfcat(web_side_text, sizeof(web_side_text), &off, "Name: %s\n",
+        player_name);
+    strnfcat(
+        web_side_text, sizeof(web_side_text), &off, "Race: %s\n", race_name);
+    strnfcat(
+        web_side_text, sizeof(web_side_text), &off, "House: %s\n", house_name);
+    strnfcat(web_side_text, sizeof(web_side_text), &off, "\n");
+
+    strnfcat(web_side_text, sizeof(web_side_text), &off, "STR: %s\n", str_buf);
+    strnfcat(web_side_text, sizeof(web_side_text), &off, "DEX: %s\n", dex_buf);
+    strnfcat(web_side_text, sizeof(web_side_text), &off, "CON: %s\n", con_buf);
+    strnfcat(web_side_text, sizeof(web_side_text), &off, "GRA: %s\n", gra_buf);
+    strnfcat(web_side_text, sizeof(web_side_text), &off, "\n");
+
+    strnfcat(web_side_text, sizeof(web_side_text), &off, "Health: %d/%d\n",
+        p_ptr->chp, p_ptr->mhp);
+    strnfcat(web_side_text, sizeof(web_side_text), &off, "Voice:  %d/%d\n",
+        p_ptr->csp, p_ptr->msp);
+    strnfcat(
+        web_side_text, sizeof(web_side_text), &off, "Depth:  %s\n", depth_buf);
+
+    dual_wield = ((&inventory[INVEN_ARM])->k_idx)
+        && ((&inventory[INVEN_ARM])->tval != TV_SHIELD);
+    rapid_attack = p_ptr->active_ability[S_MEL][MEL_RAPID_ATTACK] ? TRUE : FALSE;
+    has_bow = ((&inventory[INVEN_BOW])->k_idx) ? TRUE : FALSE;
+
+    strnfmt(melee_buf, sizeof(melee_buf), "(%+d,%dd%d)%s", p_ptr->skill_use[S_MEL],
+        p_ptr->mdd, p_ptr->mds, rapid_attack ? " 2x" : "");
+    if (dual_wield)
+    {
+        strnfmt(melee2_buf, sizeof(melee2_buf), "(%+d,%dd%d)",
+            p_ptr->skill_use[S_MEL] + p_ptr->offhand_mel_mod, p_ptr->mdd2,
+            p_ptr->mds2);
+    }
+    else
+    {
+        my_strcpy(melee2_buf, "(none)", sizeof(melee2_buf));
+    }
+
+    if (has_bow)
+    {
+        arc_dd = p_ptr->add;
+        if (p_ptr->active_ability[S_ARC][ARC_DEADLY_HAIL]
+            && p_ptr->killed_enemy_with_arrow)
+        {
+            arc_dd = 2 * arc_dd;
+        }
+        strnfmt(arc_buf, sizeof(arc_buf), "(%+d,%dd%d)", p_ptr->skill_use[S_ARC],
+            arc_dd, p_ptr->ads);
+    }
+    else
+    {
+        my_strcpy(arc_buf, "(none)", sizeof(arc_buf));
+    }
+
+    blocking = p_ptr->active_ability[S_EVN][EVN_BLOCKING];
+    p_ptr->active_ability[S_EVN][EVN_BLOCKING] = FALSE;
+    armor_min = p_min(GF_HURT, TRUE);
+    armor_max = p_max(GF_HURT, TRUE);
+    p_ptr->active_ability[S_EVN][EVN_BLOCKING] = blocking;
+    strnfmt(armor_buf, sizeof(armor_buf), "[%+d,%d-%d]", p_ptr->skill_use[S_EVN],
+        armor_min, armor_max);
+
+    strnfcat(web_side_text, sizeof(web_side_text), &off, "\n");
+    strnfcat(
+        web_side_text, sizeof(web_side_text), &off, "Melee:  %s\n", melee_buf);
+    strnfcat(
+        web_side_text, sizeof(web_side_text), &off, "Melee2: %s\n", melee2_buf);
+    strnfcat(
+        web_side_text, sizeof(web_side_text), &off, "Ranged: %s\n", arc_buf);
+    strnfcat(
+        web_side_text, sizeof(web_side_text), &off, "Armor:  %s\n", armor_buf);
+
+    if (song1_name || song2_name)
+    {
+        strnfcat(web_side_text, sizeof(web_side_text), &off, "\n");
+        strnfcat(web_side_text, sizeof(web_side_text), &off, "Song:   %s\n",
+            song1_name ? song1_name : "(none)");
+        strnfcat(web_side_text, sizeof(web_side_text), &off, "Theme:  %s",
+            song2_name ? song2_name : "(none)");
+    }
+    else
+    {
+        strnfcat(
+            web_side_text, sizeof(web_side_text), &off, "Song:   (none)");
+    }
+
+    web_get_state_text(state_buf, sizeof(state_buf));
+    web_get_effects_text(effects_buf, sizeof(effects_buf));
+    speed_text = web_get_speed_text();
+    hunger_text = web_get_hunger_text();
+    terrain_text = web_get_terrain_text();
+
+    strnfcat(web_side_text, sizeof(web_side_text), &off, "\n\n");
+    strnfcat(
+        web_side_text, sizeof(web_side_text), &off, "State:   %s\n", state_buf);
+    strnfcat(web_side_text, sizeof(web_side_text), &off, "Speed:   %s\n",
+        speed_text);
+    strnfcat(web_side_text, sizeof(web_side_text), &off, "Hunger:  %s\n",
+        hunger_text);
+    strnfcat(web_side_text, sizeof(web_side_text), &off, "Terrain: %s\n",
+        terrain_text ? terrain_text : "(none)");
+    strnfcat(web_side_text, sizeof(web_side_text), &off, "Effects: %s",
+        effects_buf[0] ? effects_buf : "(none)");
+
+    web_append_tracked_monster_text(&off);
+}
+
+static void web_build_log_text(void)
+{
+    size_t off = 0;
+    int count;
+    int shown;
+    int age;
+    int i;
+    byte attr;
+    cptr msg;
+    cptr empty_msg = "(no messages)";
+
+    web_log_text[0] = '\0';
+    web_log_attrs_len = 0;
+
+    count = (int)message_num();
+    if (count <= 0)
+    {
+        for (i = 0; empty_msg[i] != '\0'; i++)
+        {
+            if (off + 1 >= sizeof(web_log_text))
+                break;
+            web_log_text[off] = empty_msg[i];
+            web_log_attrs[off] = TERM_WHITE;
+            off++;
+        }
+        web_log_text[off] = '\0';
+        web_log_attrs_len = (int)off;
+        return;
+    }
+
+    shown = count;
+    if (shown > WEB_LOG_MESSAGES_MAX)
+        shown = WEB_LOG_MESSAGES_MAX;
+
+    for (age = shown - 1; age >= 0; age--)
+    {
+        msg = message_str((s16b)age);
+        attr = message_color((s16b)age);
+        if (!msg || !msg[0])
+            continue;
+
+        for (i = 0; msg[i] != '\0'; i++)
+        {
+            if (off + 1 >= sizeof(web_log_text))
+                goto done;
+
+            web_log_text[off] = msg[i];
+            web_log_attrs[off] = attr;
+            off++;
+        }
+
+        if (off + 1 >= sizeof(web_log_text))
+            goto done;
+
+        web_log_text[off] = '\n';
+        web_log_attrs[off] = attr;
+        off++;
+    }
+
+done:
+    if ((off > 0) && (web_log_text[off - 1] == '\n'))
+        off--;
+    web_log_text[off] = '\0';
+    web_log_attrs_len = (int)off;
+}
+
+static void web_refresh_ui_text(void)
+{
+    if (web_ui_text_frame == data.frame_id)
+        return;
+
+    web_build_side_text();
+    web_build_log_text();
+
+    web_ui_text_frame = data.frame_id;
+}
+
+/* ------------------------------------------------------------------------ */
+/* Overlay Capture And Semantic Extraction                                  */
+/* ------------------------------------------------------------------------ */
+
+static void web_clear_overlay_text(void)
+{
+    web_overlay_mode = 0;
+    web_overlay_col = 0;
+    web_overlay_row = 0;
+    web_overlay_cols = 0;
+    web_overlay_rows = 0;
+    web_overlay_text[0] = '\0';
+    web_overlay_attrs_len = 0;
+}
+
+static bool web_overlay_semantic_active(void)
+{
+    if (character_icky > 0)
+        return TRUE;
+
+    if (!p_ptr)
+        return TRUE;
+
+    if (!p_ptr->playing)
+        return TRUE;
+
+    return FALSE;
+}
+
+static void web_overlay_capture_clear(void)
+{
+    size_t count;
+
+    if (!web_overlay_capture || !web_overlay_capture_attr || (data.cols <= 0)
+        || (data.rows <= 0))
+        return;
+
+    count = (size_t)data.cols * (size_t)data.rows;
+    memset(web_overlay_capture, (int)' ', count);
+    memset(web_overlay_capture_attr, TERM_WHITE, count);
+}
+
+static void web_overlay_capture_sync_state(void)
+{
+    bool active = web_overlay_semantic_active();
+
+    if (active == web_overlay_capture_active)
+        return;
+
+    web_overlay_capture_clear();
+    web_overlay_capture_active = active;
+}
+
+static void web_overlay_capture_wipe(int x, int y, int n)
+{
+    int i;
+
+    web_overlay_capture_sync_state();
+
+    if (!web_overlay_capture_active || !web_overlay_capture
+        || !web_overlay_capture_attr)
+        return;
+
+    if (!web_clip_row_span(data.cols, data.rows, y, &x, &n, NULL))
+        return;
+
+    for (i = 0; i < n; i++)
+    {
+        web_overlay_capture[y * data.cols + x + i] = (byte)' ';
+        web_overlay_capture_attr[y * data.cols + x + i] = TERM_WHITE;
+    }
+}
+
+static void web_overlay_capture_text(int x, int y, int n, cptr s, byte attr)
+{
+    int i;
+    int src_skip = 0;
+
+    web_overlay_capture_sync_state();
+
+    if (!web_overlay_capture_active || !web_overlay_capture
+        || !web_overlay_capture_attr || !s)
+        return;
+
+    if (!web_clip_row_span(data.cols, data.rows, y, &x, &n, &src_skip))
+        return;
+
+    s += src_skip;
+
+    for (i = 0; i < n; i++)
+    {
+        byte ch = (byte)s[i];
+        if ((ch < 32) || (ch > 126))
+            ch = (byte)' ';
+
+        web_overlay_capture[y * data.cols + x + i] = ch;
+        web_overlay_capture_attr[y * data.cols + x + i] = attr;
+    }
+}
+
+void web_overlay_override_set(cptr text)
+{
+    if (!text)
+        text = "";
+
+    my_strcpy(
+        web_overlay_override_text, text, sizeof(web_overlay_override_text));
+    web_overlay_override_active = TRUE;
+    web_overlay_text_frame = UINT32_MAX;
+}
+
+void web_overlay_override_clear(void)
+{
+    web_overlay_override_active = FALSE;
+    web_overlay_override_text[0] = '\0';
+    web_overlay_text_frame = UINT32_MAX;
+}
+
+static void web_build_overlay_text(void)
+{
+    bool active;
+    int cols = 0;
+    int rows = 0;
+    int x;
+    int y;
+    int line_cols = 0;
+    int min_x = data.cols;
+    int min_y = data.rows;
+    int max_x = -1;
+    int max_y = -1;
+    cptr ov;
+    size_t off = 0;
+
+    web_clear_overlay_text();
+
+    if (!data.cells || (data.cols <= 0) || (data.rows <= 0))
+        return;
+
+    web_overlay_capture_sync_state();
+    active = web_overlay_capture_active;
+
+    if (web_overlay_override_active && web_overlay_override_text[0])
+    {
+        ov = web_overlay_override_text;
+
+        rows = 1;
+        cols = 0;
+        line_cols = 0;
+        off = 0;
+
+        while (*ov)
+        {
+            if (off + 1 >= sizeof(web_overlay_text))
+                break;
+
+            if (*ov == '\n')
+            {
+                if (line_cols > cols)
+                    cols = line_cols;
+                line_cols = 0;
+                rows++;
+            }
+            else
+            {
+                line_cols++;
+            }
+
+            web_overlay_text[off] = *ov;
+            web_overlay_attrs[off] = TERM_WHITE;
+            off++;
+            ov++;
+        }
+
+        web_overlay_text[off] = '\0';
+        web_overlay_attrs_len = (int)off;
+
+        if (line_cols > cols)
+            cols = line_cols;
+
+        if (cols <= 0)
+            cols = 1;
+        if (rows <= 0)
+            rows = 1;
+
+        web_overlay_mode = 1;
+        web_overlay_col = 0;
+        web_overlay_row = 0;
+        web_overlay_cols = cols;
+        web_overlay_rows = rows;
+        return;
+    }
+
+    if (!active || !web_overlay_capture || !web_overlay_capture_attr)
+        return;
+
+    web_overlay_mode = 1;
+    for (y = 0; y < data.rows; y++)
+    {
+        for (x = 0; x < data.cols; x++)
+        {
+            byte ch = web_overlay_capture[y * data.cols + x];
+            if (ch == (byte)' ')
+                continue;
+            if (x < min_x)
+                min_x = x;
+            if (y < min_y)
+                min_y = y;
+            if (x > max_x)
+                max_x = x;
+            if (y > max_y)
+                max_y = y;
+        }
+    }
+
+    if ((max_x < min_x) || (max_y < min_y))
+        return;
+
+    web_overlay_col = min_x;
+    web_overlay_row = min_y;
+    web_overlay_cols = max_x - min_x + 1;
+    web_overlay_rows = max_y - min_y + 1;
+
+    for (y = min_y; y <= max_y; y++)
+    {
+        for (x = min_x; x <= max_x; x++)
+        {
+            char ch = (char)web_overlay_capture[y * data.cols + x];
+            byte attr = web_overlay_capture_attr[y * data.cols + x];
+
+            if ((ch < 32) || (ch > 126))
+                ch = ' ';
+
+            if (off + 1 >= sizeof(web_overlay_text))
+                goto overlay_done;
+
+            web_overlay_text[off] = ch;
+            web_overlay_attrs[off] = attr;
+            off++;
+        }
+
+        if (y != max_y)
+        {
+            if (off + 1 >= sizeof(web_overlay_text))
+                goto overlay_done;
+            web_overlay_text[off] = '\n';
+            web_overlay_attrs[off] = TERM_WHITE;
+            off++;
+        }
+    }
+
+overlay_done:
+    web_overlay_text[off] = '\0';
+    web_overlay_attrs_len = (int)off;
+}
+
+static void web_refresh_overlay_text(void)
+{
+    if (web_overlay_text_frame == data.frame_id)
+        return;
+
+    web_build_overlay_text();
+    web_overlay_text_frame = data.frame_id;
+}
+
+/* ------------------------------------------------------------------------ */
+/* Map Metadata Snapshot                                                    */
+/* ------------------------------------------------------------------------ */
+
+static void web_ensure_map_cells(int count)
+{
+    if (count < 0)
+        count = 0;
+
+    if (count == web_map_cell_count)
+        return;
+
+    FREE(web_map_cells);
+    web_map_cells = NULL;
+    web_map_cell_count = 0;
+
+    if (count <= 0)
+        return;
+
+    C_MAKE(web_map_cells, (size_t)count, web_cell);
+    web_map_cell_count = count;
+}
+
+static void web_clear_map_cells(int count)
+{
+    int i;
+
+    if (!web_map_cells || (count <= 0))
+        return;
+
+    for (i = 0; i < count; i++)
+    {
+        web_set_text_cell(&web_map_cells[i], TERM_WHITE, (byte)' ');
+    }
+}
+
+static void web_refresh_map_cells(void)
+{
+    int cols;
+    int rows;
+    int count;
+    int my;
+    int mx;
+    int saved_graphics;
+
+    if (web_map_cells_frame == data.frame_id)
+        return;
+
+    cols = web_get_map_cols();
+    rows = web_get_map_rows();
+    count = cols * rows;
+
+    web_ensure_map_cells(count);
+    web_clear_map_cells(count);
+
+    if (!web_map_cells || !p_ptr || (cols <= 0) || (rows <= 0))
+    {
+        web_map_cells_frame = data.frame_id;
+        return;
+    }
+
+    saved_graphics = use_graphics;
+
+    /* First pass: force graphics metadata from core map logic. */
+    use_graphics = GRAPHICS_MICROCHASM;
+    for (my = 0; my < rows; my++)
+    {
+        for (mx = 0; mx < cols; mx++)
+        {
+            int y = p_ptr->wy + my;
+            int x = p_ptr->wx + mx;
+            int idx = my * cols + mx;
+            byte a;
+            char c;
+            byte ta;
+            char tc;
+            byte flags;
+
+            if (!in_bounds(y, x))
+                continue;
+
+            map_info(y, x, &a, &c, &ta, &tc);
+
+            flags = web_pict_flags(a, (byte)c, ta, (byte)tc);
+
+            web_set_pict_cell(&web_map_cells[idx], a, (byte)c, ta, (byte)tc, flags);
+        }
+    }
+
+    /* Second pass: capture ASCII fallback metadata from the same logic. */
+    use_graphics = GRAPHICS_NONE;
+    for (my = 0; my < rows; my++)
+    {
+        for (mx = 0; mx < cols; mx++)
+        {
+            int y = p_ptr->wy + my;
+            int x = p_ptr->wx + mx;
+            int idx = my * cols + mx;
+            byte a;
+            char c;
+            byte ta;
+            char tc;
+
+            if (!in_bounds(y, x))
+                continue;
+
+            map_info(y, x, &a, &c, &ta, &tc);
+            web_map_cells[idx].text_attr = a;
+            web_map_cells[idx].text_char = (byte)c;
+
+            if (!(web_map_cells[idx].flags & (WEB_FLAG_FG_PICT | WEB_FLAG_BG_PICT)))
+            {
+                web_map_cells[idx].kind = WEB_CELL_TEXT;
+            }
+            else
+            {
+                web_map_cells[idx].kind = WEB_CELL_PICT;
+            }
+        }
+    }
+
+    use_graphics = saved_graphics;
+    web_map_cells_frame = data.frame_id;
+}
+
+/* ------------------------------------------------------------------------ */
+/* Term Hooks                                                               */
+/* ------------------------------------------------------------------------ */
+
+const char help_web[] =
+    "Web/Emscripten metadata frontend, subopts -s<cols>x<rows>";
+
+static void Term_init_web(term* t)
+{
+    (void)t;
+}
+
+static void Term_nuke_web(term* t)
+{
+    term_data* td = (term_data*)(t->data);
+
+    if (!td)
+        return;
+
+    FREE(td->cells);
+    td->cells = NULL;
+
+    FREE(web_overlay_capture);
+    web_overlay_capture = NULL;
+    FREE(web_overlay_capture_attr);
+    web_overlay_capture_attr = NULL;
+    web_overlay_capture_active = FALSE;
+    web_overlay_override_active = FALSE;
+    web_overlay_override_text[0] = '\0';
+
+    FREE(web_map_cells);
+    web_map_cells = NULL;
+    web_map_cell_count = 0;
+    web_map_cells_frame = UINT32_MAX;
+
+    FREE(web_fx_cells);
+    web_fx_cells = NULL;
+    web_fx_cell_count = 0;
+    web_fx_cols = 0;
+    web_fx_rows = 0;
+    web_fx_cells_seq = 0;
+}
+
+/* Process pending input from JS and feed angband's key queue. */
+static errr Term_xtra_web_event(int v)
+{
+    int key = 0;
+
+    if (!v)
+    {
+        if (!web_key_dequeue(&key))
+            return (1);
+
+        Term_keypress(key);
+        return (0);
+    }
+
+    while (!web_key_dequeue(&key))
+    {
+        web_sleep_msec(1);
+    }
+
+    Term_keypress(key);
+
+    return (0);
+}
+
+static errr Term_xtra_web(int n, int v)
+{
+    term_data* td = (term_data*)(Term->data);
+
+    switch (n)
+    {
+    case TERM_XTRA_EVENT:
+    {
+        return Term_xtra_web_event(v);
+    }
+
+    case TERM_XTRA_FLUSH:
+    {
+        while (Term_xtra_web_event(FALSE) == 0)
+        {
+        }
+        return (0);
+    }
+
+    case TERM_XTRA_CLEAR:
+    {
+        if (!td)
+            return (1);
+
+        web_clear_cells(td, Term->attr_blank, (byte)Term->char_blank);
+        web_overlay_capture_clear();
+        web_mark_dirty(td, 0, 0, td->cols, td->rows);
+        return (0);
+    }
+
+    case TERM_XTRA_SHAPE:
+    {
+        if (!td)
+            return (1);
+
+        web_mark_cursor_dirty(td);
+        td->cursor_visible = (v != 0);
+        web_mark_cursor_dirty(td);
+        return (0);
+    }
+
+    case TERM_XTRA_DELAY:
+    {
+        if (v > 0)
+        {
+            web_fx_delay_msec = v;
+            web_fx_delay_seq++;
+            web_capture_fx_cells();
+        }
+        web_sleep_msec(v);
+        return (0);
+    }
+
+    case TERM_XTRA_REACT:
+    {
+        /* Web frontend always exports/render tiles metadata. */
+        arg_graphics = GRAPHICS_MICROCHASM;
+        use_graphics = GRAPHICS_MICROCHASM;
+        ANGBAND_GRAF = "tiles";
+        return (0);
+    }
+
+    case TERM_XTRA_FROSH:
+    case TERM_XTRA_FRESH:
+    case TERM_XTRA_ALIVE:
+    case TERM_XTRA_LEVEL:
+    case TERM_XTRA_BORED:
+    case TERM_XTRA_NOISE:
+    case TERM_XTRA_SOUND:
+    {
+        return (0);
+    }
+
+    default:
+    {
+        return (1);
+    }
+    }
+}
+
+static errr Term_curs_web(int x, int y)
+{
+    term_data* td = (term_data*)(Term->data);
+
+    if (!td)
+        return (1);
+
+    web_mark_cursor_dirty(td);
+
+    td->cursor_x = x;
+    td->cursor_y = y;
+    td->cursor_visible = TRUE;
+
+    web_mark_cursor_dirty(td);
+
+    return (0);
+}
+
+static errr Term_wipe_web(int x, int y, int n)
+{
+    int i;
+    term_data* td = (term_data*)(Term->data);
+
+    if (!td || !td->cells)
+        return (1);
+
+    if (!web_clip_row_span(td->cols, td->rows, y, &x, &n, NULL))
+        return (0);
+
+    for (i = 0; i < n; i++)
+    {
+        web_set_text_cell(&td->cells[y * td->cols + x + i], Term->attr_blank,
+            (byte)Term->char_blank);
+    }
+
+    web_overlay_capture_wipe(x, y, n);
+    web_mark_dirty(td, x, y, n, 1);
+
+    return (0);
+}
+
+static errr Term_text_web(int x, int y, int n, byte a, cptr s)
+{
+    int i;
+    int src_skip = 0;
+    term_data* td = (term_data*)(Term->data);
+
+    if (!td || !td->cells || !s)
+        return (1);
+
+    if (!web_clip_row_span(td->cols, td->rows, y, &x, &n, &src_skip))
+        return (0);
+
+    s += src_skip;
+
+    for (i = 0; i < n; i++)
+    {
+        web_set_text_cell(&td->cells[y * td->cols + x + i], a, (byte)s[i]);
+    }
+
+    web_overlay_capture_text(x, y, n, s, a);
+    web_mark_dirty(td, x, y, n, 1);
+
+    return (0);
+}
+
+static errr Term_pict_web(int x, int y, int n, const byte* ap, const char* cp,
+    const byte* tap, const char* tcp)
+{
+    int i;
+    int src_skip = 0;
+    term_data* td = (term_data*)(Term->data);
+
+    if (!td || !td->cells || !ap || !cp || !tap || !tcp)
+        return (1);
+
+    if (!web_clip_row_span(td->cols, td->rows, y, &x, &n, &src_skip))
+        return (0);
+
+    ap += src_skip;
+    cp += src_skip;
+    tap += src_skip;
+    tcp += src_skip;
+
+    for (i = 0; i < n; i++)
+    {
+        byte a = ap[i];
+        byte c = (byte)cp[i];
+        byte ta = tap[i];
+        byte tc = (byte)tcp[i];
+        byte flags = web_pict_flags(a, c, ta, tc);
+
+        web_set_pict_cell(&td->cells[y * td->cols + x + i], a, c, ta, tc, flags);
+    }
+
+    web_overlay_capture_wipe(x, y, n);
+    web_mark_dirty(td, x, y, n, 1);
+
+    return (0);
+}
+
+static errr term_data_init_web(term_data* td, int rows, int cols)
+{
+    term* t = &td->t;
+
+    WIPE(td, term_data);
+
+    td->cols = cols;
+    td->rows = rows;
+    td->cursor_x = -1;
+    td->cursor_y = -1;
+
+    C_MAKE(td->cells, (size_t)(rows * cols), web_cell);
+    C_MAKE(web_overlay_capture, (size_t)(rows * cols), byte);
+    C_MAKE(web_overlay_capture_attr, (size_t)(rows * cols), byte);
+
+    term_init(t, cols, rows, 1024);
+
+    t->icky_corner = TRUE;
+    t->higher_pict = TRUE;
+    t->attr_blank = TERM_WHITE;
+    t->char_blank = ' ';
+
+    t->init_hook = Term_init_web;
+    t->nuke_hook = Term_nuke_web;
+
+    t->text_hook = Term_text_web;
+    t->wipe_hook = Term_wipe_web;
+    t->curs_hook = Term_curs_web;
+    t->pict_hook = Term_pict_web;
+    t->xtra_hook = Term_xtra_web;
+
+    t->data = td;
+
+    web_clear_cells(td, t->attr_blank, (byte)t->char_blank);
+    web_overlay_capture_clear();
+    web_mark_dirty(td, 0, 0, cols, rows);
+    Term_activate(t);
+
+    return (0);
+}
+
+/* ------------------------------------------------------------------------ */
+/* Frontend Init                                                            */
+/* ------------------------------------------------------------------------ */
+
+static int web_default_cols = 110;
+static int web_default_rows = 36;
+
+errr init_web(int argc, char** argv)
+{
+    int i;
+
+    for (i = 1; i < argc; i++)
+    {
+        int cols = 0;
+        int rows = 0;
+
+        if (sscanf(argv[i], "-s%dx%d", &cols, &rows) == 2)
+        {
+            if ((cols >= 80) && (rows >= 24))
+            {
+                web_default_cols = cols;
+                web_default_rows = rows;
+            }
+            continue;
+        }
+
+        plog_fmt("Ignoring option: %s", argv[i]);
+    }
+
+    /* Web frontend always exports/render tiles metadata. */
+    arg_graphics = GRAPHICS_MICROCHASM;
+    use_graphics = GRAPHICS_MICROCHASM;
+    ANGBAND_GRAF = "tiles";
+
+    for (i = 0; i < ANGBAND_TERM_MAX; i++)
+        angband_term[i] = NULL;
+
+    if (term_data_init_web(&data, web_default_rows, web_default_cols))
+        return (-1);
+
+    angband_term[0] = &data.t;
+
+    Term_activate(&data.t);
+    term_screen = &data.t;
+
+    web_ui_text_frame = UINT32_MAX;
+    web_overlay_text_frame = UINT32_MAX;
+    web_side_text[0] = '\0';
+    web_log_text[0] = '\0';
+    web_log_attrs_len = 0;
+    web_overlay_text[0] = '\0';
+    web_overlay_attrs_len = 0;
+    web_overlay_capture_active = FALSE;
+    web_overlay_override_active = FALSE;
+    web_overlay_override_text[0] = '\0';
+    web_overlay_capture_clear();
+    web_fx_delay_seq = 0;
+    web_fx_delay_msec = 0;
+    web_fx_cols = 0;
+    web_fx_rows = 0;
+    web_fx_cells_seq = 0;
+    web_map_cells_frame = UINT32_MAX;
+
+    return (0);
+}
+
+/* ------------------------------------------------------------------------ */
+/* JavaScript <-> WASM Bridge                                               */
+/* ------------------------------------------------------------------------ */
+
+/*
+ * JavaScript <-> WASM bridge.
+ *
+ * Cell format (8 bytes per cell):
+ *   kind, text_attr, text_char, fg_attr, fg_char, bg_attr, bg_char, flags
+ */
+EMSCRIPTEN_KEEPALIVE int web_get_cols(void)
+{
+    return data.cols;
+}
+
+EMSCRIPTEN_KEEPALIVE int web_get_rows(void)
+{
+    return data.rows;
+}
+
+EMSCRIPTEN_KEEPALIVE int web_get_cell_stride(void)
+{
+    return (int)sizeof(web_cell);
+}
+
+EMSCRIPTEN_KEEPALIVE uintptr_t web_get_cells_ptr(void)
+{
+    return (uintptr_t)data.cells;
+}
+
+EMSCRIPTEN_KEEPALIVE int web_get_tile_wid(void)
+{
+    return web_tile_wid;
+}
+
+EMSCRIPTEN_KEEPALIVE int web_get_tile_hgt(void)
+{
+    return web_tile_hgt;
+}
+
+EMSCRIPTEN_KEEPALIVE int web_get_map_col(void)
+{
+    return COL_MAP;
+}
+
+EMSCRIPTEN_KEEPALIVE int web_get_map_row(void)
+{
+    return ROW_MAP;
+}
+
+EMSCRIPTEN_KEEPALIVE int web_get_map_cols(void)
+{
+    return (data.cols - COL_MAP - 1) / (use_bigtile ? 2 : 1);
+}
+
+EMSCRIPTEN_KEEPALIVE int web_get_map_rows(void)
+{
+    return data.rows - ROW_MAP - 1;
+}
+
+EMSCRIPTEN_KEEPALIVE int web_get_map_x_step(void)
+{
+    return use_bigtile ? 2 : 1;
+}
+
+EMSCRIPTEN_KEEPALIVE int web_get_map_world_x(void)
+{
+    if (!p_ptr)
+        return 0;
+
+    return p_ptr->wx;
+}
+
+EMSCRIPTEN_KEEPALIVE int web_get_map_world_y(void)
+{
+    if (!p_ptr)
+        return 0;
+
+    return p_ptr->wy;
+}
+
+EMSCRIPTEN_KEEPALIVE uintptr_t web_get_map_cells_ptr(void)
+{
+    web_refresh_map_cells();
+    return (uintptr_t)web_map_cells;
+}
+
+EMSCRIPTEN_KEEPALIVE int web_get_player_map_x(void)
+{
+    int cols;
+    int x;
+
+    if (!p_ptr || !character_dungeon || !p_ptr->playing)
+        return -1;
+
+    cols = web_get_map_cols();
+    x = p_ptr->px - p_ptr->wx;
+
+    if ((x < 0) || (x >= cols))
+        return -1;
+
+    return x;
+}
+
+EMSCRIPTEN_KEEPALIVE int web_get_player_map_y(void)
+{
+    int rows;
+    int y;
+
+    if (!p_ptr || !character_dungeon || !p_ptr->playing)
+        return -1;
+
+    rows = web_get_map_rows();
+    y = p_ptr->py - p_ptr->wy;
+
+    if ((y < 0) || (y >= rows))
+        return -1;
+
+    return y;
+}
+
+EMSCRIPTEN_KEEPALIVE int web_get_icon_alert_attr(void)
+{
+    return (int)misc_to_attr[ICON_ALERT];
+}
+
+EMSCRIPTEN_KEEPALIVE int web_get_icon_alert_char(void)
+{
+    return (int)misc_to_char[ICON_ALERT];
+}
+
+EMSCRIPTEN_KEEPALIVE int web_get_icon_glow_attr(void)
+{
+    return (int)misc_to_attr[ICON_GLOW];
+}
+
+EMSCRIPTEN_KEEPALIVE int web_get_icon_glow_char(void)
+{
+    return (int)misc_to_char[ICON_GLOW];
+}
+
+EMSCRIPTEN_KEEPALIVE uint32_t web_get_frame_id(void)
+{
+    return data.frame_id;
+}
+
+EMSCRIPTEN_KEEPALIVE int web_poll_dirty(int* x, int* y, int* w, int* h)
+{
+    if (!data.dirty)
+        return 0;
+
+    if (x)
+        *x = data.dirty_x1;
+    if (y)
+        *y = data.dirty_y1;
+    if (w)
+        *w = data.dirty_x2 - data.dirty_x1 + 1;
+    if (h)
+        *h = data.dirty_y2 - data.dirty_y1 + 1;
+
+    data.dirty = FALSE;
+
+    return 1;
+}
+
+EMSCRIPTEN_KEEPALIVE uintptr_t web_get_fx_cells_ptr(void)
+{
+    return (uintptr_t)web_fx_cells;
+}
+
+EMSCRIPTEN_KEEPALIVE int web_get_fx_cells_cols(void)
+{
+    return web_fx_cols;
+}
+
+EMSCRIPTEN_KEEPALIVE int web_get_fx_cells_rows(void)
+{
+    return web_fx_rows;
+}
+
+EMSCRIPTEN_KEEPALIVE uint32_t web_get_fx_cells_seq(void)
+{
+    return web_fx_cells_seq;
+}
+
+EMSCRIPTEN_KEEPALIVE void web_get_cursor(int* x, int* y, int* visible)
+{
+    if (x)
+        *x = data.cursor_x;
+    if (y)
+        *y = data.cursor_y;
+    if (visible)
+        *visible = data.cursor_visible ? 1 : 0;
+}
+
+EMSCRIPTEN_KEEPALIVE int web_push_key(int key)
+{
+    return web_key_enqueue(key) ? 1 : 0;
+}
+
+EMSCRIPTEN_KEEPALIVE uintptr_t web_get_side_text_ptr(void)
+{
+    web_refresh_ui_text();
+    return (uintptr_t)web_side_text;
+}
+
+EMSCRIPTEN_KEEPALIVE int web_get_side_text_len(void)
+{
+    web_refresh_ui_text();
+    return (int)strlen(web_side_text);
+}
+
+EMSCRIPTEN_KEEPALIVE uintptr_t web_get_log_text_ptr(void)
+{
+    web_refresh_ui_text();
+    return (uintptr_t)web_log_text;
+}
+
+EMSCRIPTEN_KEEPALIVE int web_get_log_text_len(void)
+{
+    web_refresh_ui_text();
+    return (int)strlen(web_log_text);
+}
+
+EMSCRIPTEN_KEEPALIVE uintptr_t web_get_log_attrs_ptr(void)
+{
+    web_refresh_ui_text();
+    return (uintptr_t)web_log_attrs;
+}
+
+EMSCRIPTEN_KEEPALIVE int web_get_log_attrs_len(void)
+{
+    web_refresh_ui_text();
+    return web_log_attrs_len;
+}
+
+EMSCRIPTEN_KEEPALIVE int web_get_overlay_mode(void)
+{
+    web_refresh_overlay_text();
+    return web_overlay_mode;
+}
+
+EMSCRIPTEN_KEEPALIVE int web_get_overlay_col(void)
+{
+    web_refresh_overlay_text();
+    return web_overlay_col;
+}
+
+EMSCRIPTEN_KEEPALIVE int web_get_overlay_row(void)
+{
+    web_refresh_overlay_text();
+    return web_overlay_row;
+}
+
+EMSCRIPTEN_KEEPALIVE int web_get_overlay_cols(void)
+{
+    web_refresh_overlay_text();
+    return web_overlay_cols;
+}
+
+EMSCRIPTEN_KEEPALIVE int web_get_overlay_rows(void)
+{
+    web_refresh_overlay_text();
+    return web_overlay_rows;
+}
+
+EMSCRIPTEN_KEEPALIVE uintptr_t web_get_overlay_text_ptr(void)
+{
+    web_refresh_overlay_text();
+    return (uintptr_t)web_overlay_text;
+}
+
+EMSCRIPTEN_KEEPALIVE int web_get_overlay_text_len(void)
+{
+    web_refresh_overlay_text();
+    return (int)strlen(web_overlay_text);
+}
+
+EMSCRIPTEN_KEEPALIVE uintptr_t web_get_overlay_attrs_ptr(void)
+{
+    web_refresh_overlay_text();
+    return (uintptr_t)web_overlay_attrs;
+}
+
+EMSCRIPTEN_KEEPALIVE int web_get_overlay_attrs_len(void)
+{
+    web_refresh_overlay_text();
+    return web_overlay_attrs_len;
+}
+
+EMSCRIPTEN_KEEPALIVE uint32_t web_get_fx_delay_seq(void)
+{
+    return web_fx_delay_seq;
+}
+
+EMSCRIPTEN_KEEPALIVE int web_get_fx_delay_msec(void)
+{
+    return web_fx_delay_msec;
+}
+
+#endif /* USE_WEB */
