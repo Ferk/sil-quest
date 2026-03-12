@@ -119,6 +119,68 @@ function initWebHelpers(root) {
     }).join("<br>");
   }
 
+  // Renders side panel HTML from semantic player-state JSON.
+  function renderSideState(state) {
+    if (!state || Number(state.ready) !== 1) {
+      return "<span class=\"term-c2\">(player state not ready)</span>";
+    }
+
+    const lines = [];
+    const emitBlank = () => { lines.push(""); };
+    const emitText = (text, klass = "term-c1") => {
+      lines.push(`<span class="${klass}">${escapeHtml(String(text ?? ""))}</span>`);
+    };
+    const emitPair = (label, value) => {
+      const valueRaw = String(value ?? "");
+      const valueClass = sideValueClass(label, valueRaw);
+      lines.push(
+        `<span class="term-c11">${escapeHtml(label)}</span>` +
+        `<span class="${valueClass}"> ${escapeHtml(valueRaw)}</span>`
+      );
+    };
+
+    emitPair("Name:", state.name || "(unnamed)");
+    emitPair("Race:", state.race || "Unknown");
+    emitPair("House:", state.house || "Unknown");
+    emitBlank();
+
+    emitPair("STR:", state.str || "?");
+    emitPair("DEX:", state.dex || "?");
+    emitPair("CON:", state.con || "?");
+    emitPair("GRA:", state.gra || "?");
+    emitBlank();
+
+    emitPair("Health:", `${state.healthCur ?? 0}/${state.healthMax ?? 0}`);
+    emitPair("Voice:", `${state.voiceCur ?? 0}/${state.voiceMax ?? 0}`);
+    emitPair("Depth:", state.depthText || "Surface");
+    emitBlank();
+
+    emitPair("Melee:", state.melee || "(none)");
+    emitPair("Melee2:", state.melee2 || "(none)");
+    emitPair("Ranged:", state.ranged || "(none)");
+    emitPair("Armor:", state.armor || "(none)");
+    emitBlank();
+
+    emitPair("Song:", state.song || "(none)");
+    emitPair("Theme:", state.theme || "(none)");
+    emitBlank();
+
+    emitPair("State:", state.state || "Normal");
+    emitPair("Speed:", state.speed || "Normal");
+    emitPair("Hunger:", state.hunger || "Normal");
+    emitPair("Terrain:", state.terrain || "(none)");
+    emitPair("Effects:", state.effects || "(none)");
+
+    if (state.targetName) {
+      emitBlank();
+      emitPair("Target:", state.targetName);
+      if (state.targetHpBar) emitPair("HP:", `[${state.targetHpBar}]`);
+      if (state.targetAlert) emitText(state.targetAlert, "term-c12");
+    }
+
+    return lines.join("<br>");
+  }
+
   // Updates element HTML only when content changes, optionally pinning scroll bottom.
   function setHtmlIfChanged(el, html, keepBottom = false) {
     if (el.dataset.htmlCache === html) return;
@@ -141,6 +203,7 @@ function initWebHelpers(root) {
     escapeHtml,
     renderColoredText,
     renderSideText,
+    renderSideState,
     setHtmlIfChanged,
   });
 }

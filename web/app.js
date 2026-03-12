@@ -7,7 +7,7 @@
     const {
       clamp,
       renderColoredText,
-      renderSideText,
+      renderSideState,
       setHtmlIfChanged,
     } = globalThis.WebHelpers;
 
@@ -17,7 +17,7 @@
     const overlayModalEl = document.getElementById("overlay-modal");
     const sideEl = document.getElementById("side");
     const logEl = document.getElementById("log");
-    const WEB_BUILD_TAG = "20260312-3";
+    const WEB_BUILD_TAG = "20260312-8";
     const PERSIST_APEX_DIR = "/persist/apex";
     const PERSIST_SAVE_DIR = "/persist/save-web";
     const PERSIST_USER_DIR = "/persist/user";
@@ -79,6 +79,15 @@
     let mapZoom = MAP_DEFAULT_ZOOM;
     let lastPlayerMapX = -1;
     let lastPlayerMapY = -1;
+    let morePromptActive = false;
+    let morePromptText = "";
+    let topPromptActive = false;
+    let topPromptText = "";
+    let topPromptAttrs = null;
+    let overlayMorePromptActive = false;
+    let overlayMorePromptText = "";
+    let lineMorePromptActive = false;
+    let lineMorePromptText = "";
 
     const iconMeta = {
       alertAttr: 0,
@@ -158,6 +167,29 @@
       const end = ptr + len;
       if (ptr < 0 || end > heap.length) return null;
       return heap.subarray(ptr, end);
+    }
+
+    // Reads and parses semantic player-state payload exported by wasm.
+    function readPlayerState(heap) {
+      if (
+        !api ||
+        typeof api.getPlayerStatePtr !== "function" ||
+        typeof api.getPlayerStateLen !== "function"
+      ) {
+        return null;
+      }
+
+      const ptr = api.getPlayerStatePtr();
+      const len = api.getPlayerStateLen();
+      const payload = readUtf8(heap, ptr, len);
+      if (!payload) return null;
+
+      try {
+        return JSON.parse(payload);
+      } catch (err) {
+        console.warn("Invalid player-state payload from wasm:", err);
+        return null;
+      }
     }
 
     /* ==========================================================================
@@ -617,12 +649,97 @@
      * Renders overlays, side panel, and log from semantic text buffers.
      * ========================================================================== */
 
+    // Merges overlay-driven and top-line-driven more prompts into one active prompt.
+    function syncMorePromptState() {
+      if (lineMorePromptActive) {
+        morePromptActive = true;
+        morePromptText = lineMorePromptText || "-more-";
+        return;
+      }
+
+      if (overlayMorePromptActive) {
+        morePromptActive = true;
+        morePromptText = overlayMorePromptText || "-more-";
+        return;
+      }
+
+      morePromptActive = false;
+      morePromptText = "";
+    }
+
+    // Extracts live top-line prompt text from terminal row 0 (input prompts and -more-).
+    function updateToplinePrompt(heap, cols) {
+      topPromptActive = false;
+      topPromptText = "";
+      topPromptAttrs = null;
+      lineMorePromptActive = false;
+      lineMorePromptText = "";
+
+      if (!api || !heap || cols <= 0) {
+        syncMorePromptState();
+        return;
+      }
+
+      const cellPtr = api.getCellsPtr();
+      if (!cellPtr) {
+        syncMorePromptState();
+        return;
+      }
+
+      const chars = [];
+      const attrs = new Uint8Array(cols);
+      let lastNonSpace = -1;
+
+      for (let x = 0; x < cols; x++) {
+        const cell = readCell(heap, cellPtr, cols, x, 0);
+        let ch = " ";
+        let attr = 1;
+
+        if (cell.kind === WEB_CELL_TEXT) {
+          const code = cell.textChar & 0xff;
+          if (code >= 32 && code <= 126) {
+            ch = String.fromCharCode(code);
+          }
+          attr = cell.textAttr & 0x0f;
+        }
+
+        chars.push(ch);
+        attrs[x] = attr;
+        if (ch !== " ") {
+          lastNonSpace = x;
+        }
+      }
+
+      if (lastNonSpace < 0) {
+        syncMorePromptState();
+        return;
+      }
+
+      const rawText = chars.slice(0, lastNonSpace + 1).join("");
+      const rawAttrs = attrs.slice(0, lastNonSpace + 1);
+
+      if (/-more-/i.test(rawText)) {
+        lineMorePromptActive = true;
+        lineMorePromptText =
+          rawText.replace(/\s*-more-\s*/gi, " ").trim() || "-more-";
+      } else {
+        topPromptActive = true;
+        topPromptText = rawText.trimEnd();
+        topPromptAttrs = rawAttrs;
+      }
+
+      syncMorePromptState();
+    }
+
     // Updates modal overlay text from semantic wasm buffers.
     function updateOverlaySemantic(heap) {
       if (!api) return false;
 
       const mode = api.getOverlayMode();
       if (!mode) {
+        overlayMorePromptActive = false;
+        overlayMorePromptText = "";
+        syncMorePromptState();
         overlayModalEl.style.display = "none";
         setHtmlIfChanged(overlayModalEl, "");
         return false;
@@ -636,10 +753,37 @@
       const attrs = readBytes(heap, attrPtr, attrLen);
 
       if (!text) {
+        overlayMorePromptActive = false;
+        overlayMorePromptText = "";
+        syncMorePromptState();
         overlayModalEl.style.display = "none";
         setHtmlIfChanged(overlayModalEl, "");
         return false;
       }
+
+      const moreLines = text.split("\n");
+      let hasMorePrompt = false;
+      const cleanedLines = moreLines.map((lineRaw) => {
+        const line = lineRaw.replace(/\r/g, "");
+        if (/-more-\s*$/i.test(line)) {
+          hasMorePrompt = true;
+          return line.replace(/\s*-more-\s*$/i, "").trimEnd();
+        }
+        return line;
+      });
+
+      if (hasMorePrompt) {
+        overlayMorePromptActive = true;
+        overlayMorePromptText = cleanedLines.join("\n").trim() || "-more-";
+        syncMorePromptState();
+        overlayModalEl.style.display = "none";
+        setHtmlIfChanged(overlayModalEl, "");
+        return false;
+      }
+
+      overlayMorePromptActive = false;
+      overlayMorePromptText = "";
+      syncMorePromptState();
 
       overlayModalEl.style.display = "block";
       setHtmlIfChanged(overlayModalEl, renderColoredText(text, attrs, 1));
@@ -649,19 +793,36 @@
     // Updates side and log panels using semantic text and color attributes.
     function updateSemanticPanels(heap) {
       if (!api) return;
-      const sidePtr = api.getSideTextPtr();
-      const sideLen = api.getSideTextLen();
+      const state = readPlayerState(heap);
       const logPtr = api.getLogTextPtr();
       const logLen = api.getLogTextLen();
       const logAttrPtr = api.getLogAttrsPtr();
       const logAttrLen = api.getLogAttrsLen();
 
-      const sideText = readUtf8(heap, sidePtr, sideLen).trimEnd();
       const logText = readUtf8(heap, logPtr, logLen).trimEnd();
       const logAttrs = readBytes(heap, logAttrPtr, logAttrLen);
+      const logHasMoreToken = /-more-/i.test(logText);
+      const cleanedLogText = logHasMoreToken
+        ? logText.replace(/\s*-more-\s*/gi, " ").trimEnd()
+        : logText;
 
-      const sideHtml = sideText ? renderSideText(sideText) : "<span class=\"term-c2\">(side panel empty)</span>";
-      const logHtml = logText ? renderColoredText(logText, logAttrs, 1) : "<span class=\"term-c2\">(message panel empty)</span>";
+      const sideHtml = state
+        ? renderSideState(state)
+        : "<span class=\"term-c2\">(side panel empty)</span>";
+      const hasLogText = Boolean(cleanedLogText);
+      let logHtml = hasLogText
+        ? renderColoredText(cleanedLogText, logHasMoreToken ? null : logAttrs, 1)
+        : "<span class=\"term-c2\">(message panel empty)</span>";
+
+      if (topPromptActive && topPromptText) {
+        const promptHtml = renderColoredText(topPromptText, topPromptAttrs, 11);
+        logHtml = hasLogText ? `${logHtml}<br>${promptHtml}` : promptHtml;
+      }
+
+      if (morePromptActive) {
+        const promptHtml = `${renderColoredText(morePromptText || "-more-", null, 11)}<span class="more-indicator">-more-</span>`;
+        logHtml = hasLogText ? `${logHtml}<br>${promptHtml}` : promptHtml;
+      }
 
       setHtmlIfChanged(sideEl, sideHtml);
       setHtmlIfChanged(logEl, logHtml, true);
@@ -694,6 +855,7 @@
       refreshIconMetadata();
 
       const overlayActive = updateOverlaySemantic(heap);
+      updateToplinePrompt(heap, cols);
       const mapPtr = api.getMapCellsPtr();
       let fxPtr = 0;
       let fxCols = 0;
@@ -752,23 +914,37 @@
         Numpad9: "9".charCodeAt(0),
       };
 
+      // Maps one browser key event to a single Sil ASCII command byte.
+      const mapKeyEventToAscii = (ev) => {
+        if (Object.hasOwn(keyMap, ev.key)) return keyMap[ev.key];
+        if (Object.hasOwn(codeMap, ev.code)) return codeMap[ev.code];
+        const altGraph =
+          typeof ev.getModifierState === "function" &&
+          ev.getModifierState("AltGraph");
+        if (ev.key.length === 1 && !ev.metaKey && (!ev.ctrlKey || altGraph)) {
+          return ev.key.charCodeAt(0);
+        }
+        return null;
+      };
+
       document.addEventListener("keydown", (ev) => {
         if (!api) return;
+        const keyCode = mapKeyEventToAscii(ev);
 
-        if (Object.hasOwn(keyMap, ev.key)) {
-          pushAscii(keyMap[ev.key]);
+        if (morePromptActive) {
+          overlayMorePromptActive = false;
+          overlayMorePromptText = "";
+          lineMorePromptActive = false;
+          lineMorePromptText = "";
+          syncMorePromptState();
+          forceRedraw = true;
+          pushAscii(keyCode !== null ? keyCode : " ".charCodeAt(0));
           ev.preventDefault();
           return;
         }
 
-        if (Object.hasOwn(codeMap, ev.code)) {
-          pushAscii(codeMap[ev.code]);
-          ev.preventDefault();
-          return;
-        }
-
-        if (ev.key.length === 1 && !ev.ctrlKey && !ev.metaKey) {
-          pushAscii(ev.key.charCodeAt(0));
+        if (keyCode !== null) {
+          pushAscii(keyCode);
           ev.preventDefault();
         }
       });
@@ -978,8 +1154,8 @@
           typeof Module._web_get_icon_glow_char === "function" &&
           typeof Module._web_get_frame_id === "function" &&
           typeof Module._web_push_key === "function" &&
-          typeof Module._web_get_side_text_ptr === "function" &&
-          typeof Module._web_get_side_text_len === "function" &&
+          typeof Module._web_get_player_state_ptr === "function" &&
+          typeof Module._web_get_player_state_len === "function" &&
           typeof Module._web_get_log_text_ptr === "function" &&
           typeof Module._web_get_log_text_len === "function" &&
           typeof Module._web_get_log_attrs_ptr === "function" &&
@@ -1025,8 +1201,8 @@
           getGlowChar: Module._web_get_icon_glow_char,
           getFrameId: Module._web_get_frame_id,
           pushKey: Module._web_push_key,
-          getSideTextPtr: Module._web_get_side_text_ptr,
-          getSideTextLen: Module._web_get_side_text_len,
+          getPlayerStatePtr: Module._web_get_player_state_ptr,
+          getPlayerStateLen: Module._web_get_player_state_len,
           getLogTextPtr: Module._web_get_log_text_ptr,
           getLogTextLen: Module._web_get_log_text_len,
           getLogAttrsPtr: Module._web_get_log_attrs_ptr,

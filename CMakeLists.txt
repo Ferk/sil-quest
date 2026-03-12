@@ -576,7 +576,7 @@ else()
             target_link_options(${SIL_TARGET} PRIVATE
                 "-sASYNCIFY"
                 "-sFORCE_FILESYSTEM=1"
-                "-sEXPORTED_RUNTIME_METHODS=['FS']"
+                "-sEXPORTED_RUNTIME_METHODS=['FS','HEAPU8']"
                 "-lidbfs.js"
                 "SHELL:--preload-file ${CMAKE_SOURCE_DIR}/lib@/lib"
             )
