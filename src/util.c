@@ -2787,6 +2787,15 @@ static void msg_print_aux(u16b type, cptr msg)
     /* Obtain the size */
     (void)Term_get_size(&w, &h);
 
+#ifdef USE_WEB
+    /*
+     * Keep web message joining behavior aligned with 80-column frontends:
+     * msg_print_aux flushes when message_column + n > (w - 8), so clamp to 88.
+     */
+    if (ANGBAND_SYS && streq(ANGBAND_SYS, "web") && (w > 88))
+        w = 88;
+#endif
+
     /* Hack -- Reset */
     if (!msg_flag)
         message_column = 0;

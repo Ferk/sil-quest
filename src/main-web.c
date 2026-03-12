@@ -86,16 +86,21 @@ struct term_data
 
 static term_data data;
 
-#define WEB_SIDE_TEXT_MAX 2048
 #define WEB_LOG_TEXT_MAX 4096
 #define WEB_LOG_MESSAGES_MAX 20
 #define WEB_OVERLAY_TEXT_MAX 16384
+#define WEB_PLAYER_STATE_MAX 8192
+#define WEB_MORE_TEXT_MAX 512
 
-static char web_side_text[WEB_SIDE_TEXT_MAX];
 static char web_log_text[WEB_LOG_TEXT_MAX];
 static byte web_log_attrs[WEB_LOG_TEXT_MAX];
 static int web_log_attrs_len = 0;
-static uint32_t web_ui_text_frame = UINT32_MAX;
+static uint32_t web_log_text_frame = UINT32_MAX;
+static char web_more_prompt[WEB_MORE_TEXT_MAX];
+static int web_more_prompt_active = 0;
+static uint32_t web_more_prompt_frame = UINT32_MAX;
+static char web_player_state[WEB_PLAYER_STATE_MAX];
+static uint32_t web_player_state_frame = UINT32_MAX;
 static char web_overlay_text[WEB_OVERLAY_TEXT_MAX];
 static byte web_overlay_attrs[WEB_OVERLAY_TEXT_MAX];
 static int web_overlay_attrs_len = 0;
@@ -167,12 +172,15 @@ EMSCRIPTEN_KEEPALIVE int web_get_fx_cells_rows(void);
 EMSCRIPTEN_KEEPALIVE uint32_t web_get_fx_cells_seq(void);
 EMSCRIPTEN_KEEPALIVE void web_get_cursor(int* x, int* y, int* visible);
 EMSCRIPTEN_KEEPALIVE int web_push_key(int key);
-EMSCRIPTEN_KEEPALIVE uintptr_t web_get_side_text_ptr(void);
-EMSCRIPTEN_KEEPALIVE int web_get_side_text_len(void);
 EMSCRIPTEN_KEEPALIVE uintptr_t web_get_log_text_ptr(void);
 EMSCRIPTEN_KEEPALIVE int web_get_log_text_len(void);
 EMSCRIPTEN_KEEPALIVE uintptr_t web_get_log_attrs_ptr(void);
 EMSCRIPTEN_KEEPALIVE int web_get_log_attrs_len(void);
+EMSCRIPTEN_KEEPALIVE int web_get_more_prompt_active(void);
+EMSCRIPTEN_KEEPALIVE uintptr_t web_get_more_prompt_text_ptr(void);
+EMSCRIPTEN_KEEPALIVE int web_get_more_prompt_text_len(void);
+EMSCRIPTEN_KEEPALIVE uintptr_t web_get_player_state_ptr(void);
+EMSCRIPTEN_KEEPALIVE int web_get_player_state_len(void);
 EMSCRIPTEN_KEEPALIVE int web_get_overlay_mode(void);
 EMSCRIPTEN_KEEPALIVE int web_get_overlay_col(void);
 EMSCRIPTEN_KEEPALIVE int web_get_overlay_row(void);
@@ -514,40 +522,38 @@ static cptr web_get_song_name(byte song)
     return name;
 }
 
-static void web_append_tracked_monster_text(size_t* off)
+static void web_get_tracked_monster_state(char* name, size_t name_size,
+    char* hp_bar, size_t hp_bar_size, char* alert, size_t alert_size)
 {
     monster_type* m_ptr;
-    char m_name[80];
-    char alert_buf[20];
-    char health_bar[9];
     int len;
     int color = TERM_WHITE;
     int i;
     cptr pattern = "********";
 
-    if (!off || !p_ptr)
+    if (!name || !name_size || !hp_bar || !hp_bar_size || !alert || !alert_size)
         return;
 
-    strnfcat(web_side_text, sizeof(web_side_text), off, "\n\nTarget: ");
+    my_strcpy(name, "(none)", name_size);
+    hp_bar[0] = '\0';
+    alert[0] = '\0';
+
+    if (!p_ptr)
+        return;
 
     if (p_ptr->health_who <= 0)
-    {
-        strnfcat(web_side_text, sizeof(web_side_text), off, "(none)");
         return;
-    }
 
     m_ptr = &mon_list[p_ptr->health_who];
     if (!m_ptr->r_idx || !m_ptr->ml || p_ptr->image || (m_ptr->hp <= 0)
         || (m_ptr->maxhp <= 0))
     {
-        strnfcat(web_side_text, sizeof(web_side_text), off, "(not visible)");
+        my_strcpy(name, "(not visible)", name_size);
         return;
     }
 
-    monster_desc(m_name, sizeof(m_name), m_ptr, 0);
-    strnfcat(web_side_text, sizeof(web_side_text), off, "%s\n", m_name);
-
-    my_strcpy(health_bar, "--------", sizeof(health_bar));
+    monster_desc(name, name_size, m_ptr, 0);
+    my_strcpy(hp_bar, "--------", hp_bar_size);
 
     len = (8 * m_ptr->hp + m_ptr->maxhp - 1) / m_ptr->maxhp;
     if (len < 0)
@@ -563,14 +569,9 @@ static void web_append_tracked_monster_text(size_t* off)
         pattern = "ssssssss";
 
     for (i = 0; i < len; i++)
-        health_bar[i] = pattern[i];
+        hp_bar[i] = pattern[i];
 
-    strnfcat(web_side_text, sizeof(web_side_text), off, "HP: [%s]\n", health_bar);
-
-    if (get_alertness_text(m_ptr, sizeof(alert_buf), alert_buf, &color))
-    {
-        strnfcat(web_side_text, sizeof(web_side_text), off, "%s", alert_buf);
-    }
+    (void)get_alertness_text(m_ptr, alert_size, alert, &color);
 }
 
 static void web_append_list_item(
@@ -732,15 +733,96 @@ static void web_get_effects_text(char* out, size_t out_size)
     }
 }
 
-/* Build the side panel text from current character/game state. */
-static void web_build_side_text(void)
+static void web_json_append_escaped(
+    char* buf, size_t buf_size, size_t* off, cptr text)
+{
+    const unsigned char* s = (const unsigned char*)(text ? text : "");
+
+    if (!buf || !off || (buf_size == 0))
+        return;
+
+    while (*s)
+    {
+        unsigned char ch = *s++;
+
+        if (ch == '"')
+        {
+            strnfcat(buf, buf_size, off, "\\\"");
+        }
+        else if (ch == '\\')
+        {
+            strnfcat(buf, buf_size, off, "\\\\");
+        }
+        else if (ch == '\n')
+        {
+            strnfcat(buf, buf_size, off, "\\n");
+        }
+        else if (ch == '\r')
+        {
+            strnfcat(buf, buf_size, off, "\\r");
+        }
+        else if (ch == '\t')
+        {
+            strnfcat(buf, buf_size, off, "\\t");
+        }
+        else if (ch < 32)
+        {
+            strnfcat(buf, buf_size, off, " ");
+        }
+        else
+        {
+            strnfcat(buf, buf_size, off, "%c", (char)ch);
+        }
+    }
+}
+
+static void web_json_append_field_sep(
+    char* buf, size_t buf_size, size_t* off, bool* first)
+{
+    if (!buf || !off || !first || (buf_size == 0))
+        return;
+
+    if (!(*first))
+        strnfcat(buf, buf_size, off, ",");
+
+    *first = FALSE;
+}
+
+static void web_json_append_field_string(char* buf, size_t buf_size, size_t* off,
+    bool* first, cptr key, cptr value)
+{
+    if (!key)
+        return;
+
+    web_json_append_field_sep(buf, buf_size, off, first);
+    strnfcat(buf, buf_size, off, "\"%s\":\"", key);
+    web_json_append_escaped(buf, buf_size, off, value);
+    strnfcat(buf, buf_size, off, "\"");
+}
+
+static void web_json_append_field_int(char* buf, size_t buf_size, size_t* off,
+    bool* first, cptr key, int value)
+{
+    if (!key)
+        return;
+
+    web_json_append_field_sep(buf, buf_size, off, first);
+    strnfcat(buf, buf_size, off, "\"%s\":%d", key, value);
+}
+
+/* Builds semantic player status payload for frontend-side layout/rendering. */
+static void web_build_player_state(void)
 {
     size_t off = 0;
+    bool first = TRUE;
     cptr player_name;
     cptr race_name;
     cptr house_name;
     cptr song1_name;
     cptr song2_name;
+    cptr speed_text;
+    cptr hunger_text;
+    cptr terrain_text;
     char depth_buf[32];
     char str_buf[8];
     char dex_buf[8];
@@ -752,9 +834,9 @@ static void web_build_side_text(void)
     char melee2_buf[32];
     char arc_buf[32];
     char armor_buf[32];
-    cptr speed_text;
-    cptr hunger_text;
-    cptr terrain_text;
+    char target_name[80];
+    char target_hp_bar[9];
+    char target_alert[20];
     bool dual_wield;
     bool has_bow;
     bool rapid_attack;
@@ -762,13 +844,14 @@ static void web_build_side_text(void)
     int armor_min;
     int armor_max;
     int arc_dd;
+    int depth_feet;
 
-    web_side_text[0] = '\0';
+    web_player_state[0] = '\0';
 
     if (!p_ptr || !op_ptr)
     {
-        strnfcat(web_side_text, sizeof(web_side_text), &off,
-            "(player state not ready)");
+        my_strcpy(web_player_state, "{\"ready\":0}",
+            sizeof(web_player_state));
         return;
     }
 
@@ -783,36 +866,16 @@ static void web_build_side_text(void)
     if (!house_name || !house_name[0])
         house_name = "Unknown";
 
+    depth_feet = p_ptr->depth * 50;
     if (!p_ptr->depth)
         my_strcpy(depth_buf, "Surface", sizeof(depth_buf));
     else
-        strnfmt(depth_buf, sizeof(depth_buf), "%d ft", p_ptr->depth * 50);
+        strnfmt(depth_buf, sizeof(depth_buf), "%d ft", depth_feet);
 
     cnv_stat(p_ptr->stat_use[A_STR], str_buf, sizeof(str_buf));
     cnv_stat(p_ptr->stat_use[A_DEX], dex_buf, sizeof(dex_buf));
     cnv_stat(p_ptr->stat_use[A_CON], con_buf, sizeof(con_buf));
     cnv_stat(p_ptr->stat_use[A_GRA], gra_buf, sizeof(gra_buf));
-
-    strnfcat(web_side_text, sizeof(web_side_text), &off, "Name: %s\n",
-        player_name);
-    strnfcat(
-        web_side_text, sizeof(web_side_text), &off, "Race: %s\n", race_name);
-    strnfcat(
-        web_side_text, sizeof(web_side_text), &off, "House: %s\n", house_name);
-    strnfcat(web_side_text, sizeof(web_side_text), &off, "\n");
-
-    strnfcat(web_side_text, sizeof(web_side_text), &off, "STR: %s\n", str_buf);
-    strnfcat(web_side_text, sizeof(web_side_text), &off, "DEX: %s\n", dex_buf);
-    strnfcat(web_side_text, sizeof(web_side_text), &off, "CON: %s\n", con_buf);
-    strnfcat(web_side_text, sizeof(web_side_text), &off, "GRA: %s\n", gra_buf);
-    strnfcat(web_side_text, sizeof(web_side_text), &off, "\n");
-
-    strnfcat(web_side_text, sizeof(web_side_text), &off, "Health: %d/%d\n",
-        p_ptr->chp, p_ptr->mhp);
-    strnfcat(web_side_text, sizeof(web_side_text), &off, "Voice:  %d/%d\n",
-        p_ptr->csp, p_ptr->msp);
-    strnfcat(
-        web_side_text, sizeof(web_side_text), &off, "Depth:  %s\n", depth_buf);
 
     dual_wield = ((&inventory[INVEN_ARM])->k_idx)
         && ((&inventory[INVEN_ARM])->tval != TV_SHIELD);
@@ -856,49 +919,104 @@ static void web_build_side_text(void)
     strnfmt(armor_buf, sizeof(armor_buf), "[%+d,%d-%d]", p_ptr->skill_use[S_EVN],
         armor_min, armor_max);
 
-    strnfcat(web_side_text, sizeof(web_side_text), &off, "\n");
-    strnfcat(
-        web_side_text, sizeof(web_side_text), &off, "Melee:  %s\n", melee_buf);
-    strnfcat(
-        web_side_text, sizeof(web_side_text), &off, "Melee2: %s\n", melee2_buf);
-    strnfcat(
-        web_side_text, sizeof(web_side_text), &off, "Ranged: %s\n", arc_buf);
-    strnfcat(
-        web_side_text, sizeof(web_side_text), &off, "Armor:  %s\n", armor_buf);
-
-    if (song1_name || song2_name)
-    {
-        strnfcat(web_side_text, sizeof(web_side_text), &off, "\n");
-        strnfcat(web_side_text, sizeof(web_side_text), &off, "Song:   %s\n",
-            song1_name ? song1_name : "(none)");
-        strnfcat(web_side_text, sizeof(web_side_text), &off, "Theme:  %s",
-            song2_name ? song2_name : "(none)");
-    }
-    else
-    {
-        strnfcat(
-            web_side_text, sizeof(web_side_text), &off, "Song:   (none)");
-    }
-
     web_get_state_text(state_buf, sizeof(state_buf));
     web_get_effects_text(effects_buf, sizeof(effects_buf));
     speed_text = web_get_speed_text();
     hunger_text = web_get_hunger_text();
     terrain_text = web_get_terrain_text();
 
-    strnfcat(web_side_text, sizeof(web_side_text), &off, "\n\n");
-    strnfcat(
-        web_side_text, sizeof(web_side_text), &off, "State:   %s\n", state_buf);
-    strnfcat(web_side_text, sizeof(web_side_text), &off, "Speed:   %s\n",
-        speed_text);
-    strnfcat(web_side_text, sizeof(web_side_text), &off, "Hunger:  %s\n",
-        hunger_text);
-    strnfcat(web_side_text, sizeof(web_side_text), &off, "Terrain: %s\n",
-        terrain_text ? terrain_text : "(none)");
-    strnfcat(web_side_text, sizeof(web_side_text), &off, "Effects: %s",
-        effects_buf[0] ? effects_buf : "(none)");
+    web_get_tracked_monster_state(target_name, sizeof(target_name), target_hp_bar,
+        sizeof(target_hp_bar), target_alert, sizeof(target_alert));
 
-    web_append_tracked_monster_text(&off);
+    strnfcat(web_player_state, sizeof(web_player_state), &off, "{");
+    web_json_append_field_int(
+        web_player_state, sizeof(web_player_state), &off, &first,
+        "ready", 1);
+    web_json_append_field_string(
+        web_player_state, sizeof(web_player_state), &off, &first,
+        "name", player_name);
+    web_json_append_field_string(
+        web_player_state, sizeof(web_player_state), &off, &first,
+        "race", race_name);
+    web_json_append_field_string(
+        web_player_state, sizeof(web_player_state), &off, &first,
+        "house", house_name);
+    web_json_append_field_int(
+        web_player_state, sizeof(web_player_state), &off, &first,
+        "depthFeet", depth_feet);
+    web_json_append_field_string(
+        web_player_state, sizeof(web_player_state), &off, &first,
+        "depthText", depth_buf);
+    web_json_append_field_string(
+        web_player_state, sizeof(web_player_state), &off, &first, "str",
+        str_buf);
+    web_json_append_field_string(
+        web_player_state, sizeof(web_player_state), &off, &first, "dex",
+        dex_buf);
+    web_json_append_field_string(
+        web_player_state, sizeof(web_player_state), &off, &first, "con",
+        con_buf);
+    web_json_append_field_string(
+        web_player_state, sizeof(web_player_state), &off, &first, "gra",
+        gra_buf);
+    web_json_append_field_int(
+        web_player_state, sizeof(web_player_state), &off, &first,
+        "healthCur", p_ptr->chp);
+    web_json_append_field_int(
+        web_player_state, sizeof(web_player_state), &off, &first,
+        "healthMax", p_ptr->mhp);
+    web_json_append_field_int(
+        web_player_state, sizeof(web_player_state), &off, &first,
+        "voiceCur", p_ptr->csp);
+    web_json_append_field_int(
+        web_player_state, sizeof(web_player_state), &off, &first,
+        "voiceMax", p_ptr->msp);
+    web_json_append_field_string(
+        web_player_state, sizeof(web_player_state), &off, &first,
+        "melee", melee_buf);
+    web_json_append_field_string(
+        web_player_state, sizeof(web_player_state), &off, &first,
+        "melee2", melee2_buf);
+    web_json_append_field_string(
+        web_player_state, sizeof(web_player_state), &off, &first,
+        "ranged", arc_buf);
+    web_json_append_field_string(
+        web_player_state, sizeof(web_player_state), &off, &first,
+        "armor", armor_buf);
+    web_json_append_field_string(
+        web_player_state, sizeof(web_player_state), &off, &first, "song",
+        song1_name ? song1_name : "(none)");
+    web_json_append_field_string(
+        web_player_state, sizeof(web_player_state), &off, &first, "theme",
+        song2_name ? song2_name : "(none)");
+    web_json_append_field_string(
+        web_player_state, sizeof(web_player_state), &off, &first,
+        "state", state_buf);
+    web_json_append_field_string(
+        web_player_state, sizeof(web_player_state), &off, &first,
+        "speed", speed_text);
+    web_json_append_field_string(
+        web_player_state, sizeof(web_player_state), &off, &first,
+        "hunger", hunger_text);
+    web_json_append_field_string(
+        web_player_state, sizeof(web_player_state), &off, &first,
+        "terrain", terrain_text ? terrain_text : "(none)");
+    web_json_append_field_string(
+        web_player_state, sizeof(web_player_state), &off, &first,
+        "effects", effects_buf[0] ? effects_buf : "(none)");
+    web_json_append_field_string(
+        web_player_state, sizeof(web_player_state), &off, &first,
+        "targetName", target_name);
+    web_json_append_field_string(
+        web_player_state, sizeof(web_player_state), &off, &first,
+        "targetHpBar", target_hp_bar);
+    web_json_append_field_string(
+        web_player_state, sizeof(web_player_state), &off, &first,
+        "targetAlert", target_alert);
+    web_json_append_field_int(
+        web_player_state, sizeof(web_player_state), &off, &first,
+        "targetVisible", target_hp_bar[0] ? 1 : 0);
+    strnfcat(web_player_state, sizeof(web_player_state), &off, "}");
 }
 
 static void web_build_log_text(void)
@@ -967,15 +1085,106 @@ done:
     web_log_attrs_len = (int)off;
 }
 
-static void web_refresh_ui_text(void)
+static void web_refresh_log_text(void)
 {
-    if (web_ui_text_frame == data.frame_id)
+    if (web_log_text_frame == data.frame_id)
         return;
 
-    web_build_side_text();
     web_build_log_text();
+    web_log_text_frame = data.frame_id;
+}
 
-    web_ui_text_frame = data.frame_id;
+static void web_refresh_player_state(void)
+{
+    if (web_player_state_frame == data.frame_id)
+        return;
+
+    web_build_player_state();
+    web_player_state_frame = data.frame_id;
+}
+
+static void web_build_more_prompt(void)
+{
+    size_t off = 0;
+    int x;
+    int token = -1;
+    size_t i;
+
+    web_more_prompt[0] = '\0';
+    web_more_prompt_active = 0;
+
+    if (!data.cells || (data.cols <= 0) || (data.rows <= 0))
+        return;
+
+    for (x = 0; x < data.cols; x++)
+    {
+        web_cell* cell = &data.cells[x];
+        char ch = ' ';
+
+        if (cell->kind == WEB_CELL_TEXT)
+        {
+            ch = (char)cell->text_char;
+            if ((ch < 32) || (ch > 126))
+                ch = ' ';
+        }
+
+        if (off + 1 >= sizeof(web_more_prompt))
+            break;
+
+        web_more_prompt[off++] = ch;
+    }
+
+    web_more_prompt[off] = '\0';
+    while ((off > 0) && (web_more_prompt[off - 1] == ' '))
+        off--;
+    web_more_prompt[off] = '\0';
+
+    if (off < 6)
+        return;
+
+    for (i = 0; i + 6 <= off; i++)
+    {
+        if (my_strnicmp(web_more_prompt + i, "-more-", 6) == 0)
+        {
+            token = (int)i;
+            break;
+        }
+    }
+
+    if (token < 0)
+    {
+        web_more_prompt[0] = '\0';
+        return;
+    }
+
+    {
+        int start = token;
+        int end = token + 6;
+
+        while ((start > 0) && (web_more_prompt[start - 1] == ' '))
+            start--;
+        while (web_more_prompt[end] == ' ')
+            end++;
+
+        memmove(web_more_prompt + start, web_more_prompt + end,
+            strlen(web_more_prompt + end) + 1);
+    }
+
+    off = strlen(web_more_prompt);
+    while ((off > 0) && (web_more_prompt[off - 1] == ' '))
+        off--;
+    web_more_prompt[off] = '\0';
+
+    web_more_prompt_active = 1;
+}
+
+static void web_refresh_more_prompt(void)
+{
+    if (web_more_prompt_frame == data.frame_id)
+        return;
+
+    web_build_more_prompt();
+    web_more_prompt_frame = data.frame_id;
 }
 
 /* ------------------------------------------------------------------------ */
@@ -1701,10 +1910,14 @@ errr init_web(int argc, char** argv)
     Term_activate(&data.t);
     term_screen = &data.t;
 
-    web_ui_text_frame = UINT32_MAX;
+    web_log_text_frame = UINT32_MAX;
+    web_more_prompt_frame = UINT32_MAX;
+    web_player_state_frame = UINT32_MAX;
     web_overlay_text_frame = UINT32_MAX;
-    web_side_text[0] = '\0';
     web_log_text[0] = '\0';
+    web_more_prompt[0] = '\0';
+    web_more_prompt_active = 0;
+    web_player_state[0] = '\0';
     web_log_attrs_len = 0;
     web_overlay_text[0] = '\0';
     web_overlay_attrs_len = 0;
@@ -1922,40 +2135,58 @@ EMSCRIPTEN_KEEPALIVE int web_push_key(int key)
     return web_key_enqueue(key) ? 1 : 0;
 }
 
-EMSCRIPTEN_KEEPALIVE uintptr_t web_get_side_text_ptr(void)
-{
-    web_refresh_ui_text();
-    return (uintptr_t)web_side_text;
-}
-
-EMSCRIPTEN_KEEPALIVE int web_get_side_text_len(void)
-{
-    web_refresh_ui_text();
-    return (int)strlen(web_side_text);
-}
-
 EMSCRIPTEN_KEEPALIVE uintptr_t web_get_log_text_ptr(void)
 {
-    web_refresh_ui_text();
+    web_refresh_log_text();
     return (uintptr_t)web_log_text;
 }
 
 EMSCRIPTEN_KEEPALIVE int web_get_log_text_len(void)
 {
-    web_refresh_ui_text();
+    web_refresh_log_text();
     return (int)strlen(web_log_text);
 }
 
 EMSCRIPTEN_KEEPALIVE uintptr_t web_get_log_attrs_ptr(void)
 {
-    web_refresh_ui_text();
+    web_refresh_log_text();
     return (uintptr_t)web_log_attrs;
 }
 
 EMSCRIPTEN_KEEPALIVE int web_get_log_attrs_len(void)
 {
-    web_refresh_ui_text();
+    web_refresh_log_text();
     return web_log_attrs_len;
+}
+
+EMSCRIPTEN_KEEPALIVE int web_get_more_prompt_active(void)
+{
+    web_refresh_more_prompt();
+    return web_more_prompt_active;
+}
+
+EMSCRIPTEN_KEEPALIVE uintptr_t web_get_more_prompt_text_ptr(void)
+{
+    web_refresh_more_prompt();
+    return (uintptr_t)web_more_prompt;
+}
+
+EMSCRIPTEN_KEEPALIVE int web_get_more_prompt_text_len(void)
+{
+    web_refresh_more_prompt();
+    return (int)strlen(web_more_prompt);
+}
+
+EMSCRIPTEN_KEEPALIVE uintptr_t web_get_player_state_ptr(void)
+{
+    web_refresh_player_state();
+    return (uintptr_t)web_player_state;
+}
+
+EMSCRIPTEN_KEEPALIVE int web_get_player_state_len(void)
+{
+    web_refresh_player_state();
+    return (int)strlen(web_player_state);
 }
 
 EMSCRIPTEN_KEEPALIVE int web_get_overlay_mode(void)

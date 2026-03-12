@@ -195,6 +195,17 @@
     .term-c14 { color: #93c5fd; }
     .term-c15 { color: #fcd34d; }
 
+    .more-indicator {
+      display: inline-block;
+      margin-left: 0.5em;
+      font-size: 0.72em;
+      line-height: 1;
+      color: #58e6ff;
+      text-shadow: 0 0 0.35em rgba(88, 230, 255, 0.55);
+      vertical-align: text-top;
+      letter-spacing: 0.03em;
+    }
+
     @media (max-width: 900px) {
       .layout {
         grid-template-columns: 1fr;
