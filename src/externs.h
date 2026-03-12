@@ -954,6 +954,10 @@ extern cptr attr_to_text(byte a);
 #ifdef USE_WEB
 extern void web_overlay_override_set(cptr text);
 extern void web_overlay_override_clear(void);
+extern void web_target_marks_begin(void);
+extern void web_target_mark_add(int y, int x, byte attr, char chr);
+extern void web_target_marks_end(void);
+extern void web_target_marks_clear(void);
 #endif
 
 #ifdef SUPPORT_GAMMA

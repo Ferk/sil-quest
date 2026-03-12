@@ -42,6 +42,7 @@ typedef struct term_data term_data;
 #define WEB_FLAG_GLOW 0x02
 #define WEB_FLAG_FG_PICT 0x04
 #define WEB_FLAG_BG_PICT 0x08
+#define WEB_FLAG_MARK 0x10
 
 struct web_cell
 {
@@ -71,12 +72,6 @@ struct term_data
     int cursor_x;
     int cursor_y;
     bool cursor_visible;
-
-    bool dirty;
-    int dirty_x1;
-    int dirty_y1;
-    int dirty_x2;
-    int dirty_y2;
     uint32_t frame_id;
 };
 
@@ -90,15 +85,11 @@ static term_data data;
 #define WEB_LOG_MESSAGES_MAX 20
 #define WEB_OVERLAY_TEXT_MAX 16384
 #define WEB_PLAYER_STATE_MAX 8192
-#define WEB_MORE_TEXT_MAX 512
 
 static char web_log_text[WEB_LOG_TEXT_MAX];
 static byte web_log_attrs[WEB_LOG_TEXT_MAX];
 static int web_log_attrs_len = 0;
 static uint32_t web_log_text_frame = UINT32_MAX;
-static char web_more_prompt[WEB_MORE_TEXT_MAX];
-static int web_more_prompt_active = 0;
-static uint32_t web_more_prompt_frame = UINT32_MAX;
 static char web_player_state[WEB_PLAYER_STATE_MAX];
 static uint32_t web_player_state_frame = UINT32_MAX;
 static char web_overlay_text[WEB_OVERLAY_TEXT_MAX];
@@ -111,12 +102,7 @@ static web_cell* web_fx_cells = NULL;
 static int web_fx_cell_count = 0;
 static int web_fx_cols = 0;
 static int web_fx_rows = 0;
-static uint32_t web_fx_cells_seq = 0;
 static int web_overlay_mode = 0;
-static int web_overlay_col = 0;
-static int web_overlay_row = 0;
-static int web_overlay_cols = 0;
-static int web_overlay_rows = 0;
 static byte* web_overlay_capture = NULL;
 static byte* web_overlay_capture_attr = NULL;
 static bool web_overlay_capture_active = FALSE;
@@ -126,9 +112,23 @@ static web_cell* web_map_cells = NULL;
 static int web_map_cell_count = 0;
 static uint32_t web_map_cells_frame = UINT32_MAX;
 
+#define WEB_TARGET_MARKS_MAX 256
+typedef struct web_target_mark web_target_mark;
+struct web_target_mark
+{
+    int y;
+    int x;
+    byte attr;
+    byte chr;
+};
+static web_target_mark web_target_marks[WEB_TARGET_MARKS_MAX];
+static int web_target_mark_count = 0;
+static bool web_target_marks_batch = FALSE;
+
 static void web_refresh_map_cells(void);
 static void web_capture_fx_cells(void);
 static void web_set_text_cell(web_cell* cell, byte attr, byte chr);
+static void web_mark_dirty(term_data* td, int x, int y, int w, int h);
 
 /* MicroChasm defaults */
 static int web_tile_wid = 16;
@@ -165,27 +165,20 @@ EMSCRIPTEN_KEEPALIVE int web_get_icon_alert_char(void);
 EMSCRIPTEN_KEEPALIVE int web_get_icon_glow_attr(void);
 EMSCRIPTEN_KEEPALIVE int web_get_icon_glow_char(void);
 EMSCRIPTEN_KEEPALIVE uint32_t web_get_frame_id(void);
-EMSCRIPTEN_KEEPALIVE int web_poll_dirty(int* x, int* y, int* w, int* h);
 EMSCRIPTEN_KEEPALIVE uintptr_t web_get_fx_cells_ptr(void);
 EMSCRIPTEN_KEEPALIVE int web_get_fx_cells_cols(void);
 EMSCRIPTEN_KEEPALIVE int web_get_fx_cells_rows(void);
-EMSCRIPTEN_KEEPALIVE uint32_t web_get_fx_cells_seq(void);
-EMSCRIPTEN_KEEPALIVE void web_get_cursor(int* x, int* y, int* visible);
+EMSCRIPTEN_KEEPALIVE int web_get_cursor_x(void);
+EMSCRIPTEN_KEEPALIVE int web_get_cursor_y(void);
+EMSCRIPTEN_KEEPALIVE int web_get_cursor_visible(void);
 EMSCRIPTEN_KEEPALIVE int web_push_key(int key);
 EMSCRIPTEN_KEEPALIVE uintptr_t web_get_log_text_ptr(void);
 EMSCRIPTEN_KEEPALIVE int web_get_log_text_len(void);
 EMSCRIPTEN_KEEPALIVE uintptr_t web_get_log_attrs_ptr(void);
 EMSCRIPTEN_KEEPALIVE int web_get_log_attrs_len(void);
-EMSCRIPTEN_KEEPALIVE int web_get_more_prompt_active(void);
-EMSCRIPTEN_KEEPALIVE uintptr_t web_get_more_prompt_text_ptr(void);
-EMSCRIPTEN_KEEPALIVE int web_get_more_prompt_text_len(void);
 EMSCRIPTEN_KEEPALIVE uintptr_t web_get_player_state_ptr(void);
 EMSCRIPTEN_KEEPALIVE int web_get_player_state_len(void);
 EMSCRIPTEN_KEEPALIVE int web_get_overlay_mode(void);
-EMSCRIPTEN_KEEPALIVE int web_get_overlay_col(void);
-EMSCRIPTEN_KEEPALIVE int web_get_overlay_row(void);
-EMSCRIPTEN_KEEPALIVE int web_get_overlay_cols(void);
-EMSCRIPTEN_KEEPALIVE int web_get_overlay_rows(void);
 EMSCRIPTEN_KEEPALIVE uintptr_t web_get_overlay_text_ptr(void);
 EMSCRIPTEN_KEEPALIVE int web_get_overlay_text_len(void);
 EMSCRIPTEN_KEEPALIVE uintptr_t web_get_overlay_attrs_ptr(void);
@@ -194,6 +187,10 @@ EMSCRIPTEN_KEEPALIVE uint32_t web_get_fx_delay_seq(void);
 EMSCRIPTEN_KEEPALIVE int web_get_fx_delay_msec(void);
 void web_overlay_override_set(cptr text);
 void web_overlay_override_clear(void);
+void web_target_marks_begin(void);
+void web_target_mark_add(int y, int x, byte attr, char chr);
+void web_target_marks_end(void);
+void web_target_marks_clear(void);
 
 /* ------------------------------------------------------------------------ */
 /* Shared Helpers                                                           */
@@ -260,40 +257,119 @@ static byte web_pict_flags(byte a, byte c, byte ta, byte tc)
     return flags;
 }
 
+/* Invalidate the map snapshot cache and request a map-area redraw. */
+static void web_invalidate_map_snapshot(void)
+{
+    if ((data.cols <= 0) || (data.rows <= 0))
+        return;
+
+    web_map_cells_frame = UINT32_MAX;
+    web_mark_dirty(&data, COL_MAP, ROW_MAP,
+        web_get_map_cols() * web_get_map_x_step(), web_get_map_rows());
+}
+
+/* Locate an active target mark by world-grid coordinates. */
+static int web_find_target_mark(int y, int x)
+{
+    int i;
+
+    for (i = 0; i < web_target_mark_count; i++)
+    {
+        if ((web_target_marks[i].y == y) && (web_target_marks[i].x == x))
+            return i;
+    }
+
+    return -1;
+}
+
+/* Read mark metadata for a world-grid cell, if any. */
+static bool web_get_target_mark(int y, int x, byte* attr, byte* chr)
+{
+    int i = web_find_target_mark(y, x);
+
+    if (i < 0)
+        return FALSE;
+
+    if (attr)
+        *attr = web_target_marks[i].attr;
+    if (chr)
+        *chr = web_target_marks[i].chr;
+
+    return TRUE;
+}
+
+void web_target_marks_begin(void)
+{
+    web_target_mark_count = 0;
+    web_target_marks_batch = TRUE;
+}
+
+void web_target_mark_add(int y, int x, byte attr, char chr)
+{
+    int i;
+    bool changed = FALSE;
+
+    if (!in_bounds(y, x))
+        return;
+
+    i = web_find_target_mark(y, x);
+    if (i >= 0)
+    {
+        byte mark_chr = chr ? (byte)chr : (byte)'*';
+
+        if ((web_target_marks[i].attr != attr)
+            || (web_target_marks[i].chr != mark_chr))
+        {
+            web_target_marks[i].attr = attr;
+            web_target_marks[i].chr = mark_chr;
+            changed = TRUE;
+        }
+    }
+    else if (web_target_mark_count < WEB_TARGET_MARKS_MAX)
+    {
+        web_target_marks[web_target_mark_count].y = y;
+        web_target_marks[web_target_mark_count].x = x;
+        web_target_marks[web_target_mark_count].attr = attr;
+        web_target_marks[web_target_mark_count].chr = chr ? (byte)chr : (byte)'*';
+        web_target_mark_count++;
+        changed = TRUE;
+    }
+
+    if (changed && !web_target_marks_batch)
+        web_invalidate_map_snapshot();
+}
+
+void web_target_marks_end(void)
+{
+    if (!web_target_marks_batch)
+        return;
+
+    web_target_marks_batch = FALSE;
+    web_invalidate_map_snapshot();
+}
+
+void web_target_marks_clear(void)
+{
+    bool had_marks = (web_target_mark_count > 0) || web_target_marks_batch;
+
+    web_target_marks_batch = FALSE;
+    web_target_mark_count = 0;
+
+    if (had_marks)
+        web_invalidate_map_snapshot();
+}
+
 /* ------------------------------------------------------------------------ */
-/* Dirty Tracking                                                           */
+/* Render Invalidation                                                      */
 /* ------------------------------------------------------------------------ */
 
 static void web_mark_dirty(term_data* td, int x, int y, int w, int h)
 {
-    int x2;
-    int y2;
-
     if (!td || (w <= 0) || (h <= 0))
         return;
 
-    x2 = x + w - 1;
-    y2 = y + h - 1;
-
-    if (!td->dirty)
-    {
-        td->dirty = TRUE;
-        td->dirty_x1 = x;
-        td->dirty_y1 = y;
-        td->dirty_x2 = x2;
-        td->dirty_y2 = y2;
-    }
-    else
-    {
-        if (x < td->dirty_x1)
-            td->dirty_x1 = x;
-        if (y < td->dirty_y1)
-            td->dirty_y1 = y;
-        if (x2 > td->dirty_x2)
-            td->dirty_x2 = x2;
-        if (y2 > td->dirty_y2)
-            td->dirty_y2 = y2;
-    }
+    (void)x;
+    (void)y;
 
     td->frame_id++;
 }
@@ -349,10 +425,7 @@ static void web_capture_fx_cells(void)
     web_fx_rows = rows;
 
     if (!web_fx_cells || !data.cells || (cols <= 0) || (rows <= 0))
-    {
-        web_fx_cells_seq++;
         return;
-    }
 
     for (my = 0; my < rows; my++)
     {
@@ -372,8 +445,6 @@ static void web_capture_fx_cells(void)
             }
         }
     }
-
-    web_fx_cells_seq++;
 }
 
 /* ------------------------------------------------------------------------ */
@@ -1103,90 +1174,6 @@ static void web_refresh_player_state(void)
     web_player_state_frame = data.frame_id;
 }
 
-static void web_build_more_prompt(void)
-{
-    size_t off = 0;
-    int x;
-    int token = -1;
-    size_t i;
-
-    web_more_prompt[0] = '\0';
-    web_more_prompt_active = 0;
-
-    if (!data.cells || (data.cols <= 0) || (data.rows <= 0))
-        return;
-
-    for (x = 0; x < data.cols; x++)
-    {
-        web_cell* cell = &data.cells[x];
-        char ch = ' ';
-
-        if (cell->kind == WEB_CELL_TEXT)
-        {
-            ch = (char)cell->text_char;
-            if ((ch < 32) || (ch > 126))
-                ch = ' ';
-        }
-
-        if (off + 1 >= sizeof(web_more_prompt))
-            break;
-
-        web_more_prompt[off++] = ch;
-    }
-
-    web_more_prompt[off] = '\0';
-    while ((off > 0) && (web_more_prompt[off - 1] == ' '))
-        off--;
-    web_more_prompt[off] = '\0';
-
-    if (off < 6)
-        return;
-
-    for (i = 0; i + 6 <= off; i++)
-    {
-        if (my_strnicmp(web_more_prompt + i, "-more-", 6) == 0)
-        {
-            token = (int)i;
-            break;
-        }
-    }
-
-    if (token < 0)
-    {
-        web_more_prompt[0] = '\0';
-        return;
-    }
-
-    {
-        int start = token;
-        int end = token + 6;
-
-        while ((start > 0) && (web_more_prompt[start - 1] == ' '))
-            start--;
-        while (web_more_prompt[end] == ' ')
-            end++;
-
-        memmove(web_more_prompt + start, web_more_prompt + end,
-            strlen(web_more_prompt + end) + 1);
-    }
-
-    off = strlen(web_more_prompt);
-    while ((off > 0) && (web_more_prompt[off - 1] == ' '))
-        off--;
-    web_more_prompt[off] = '\0';
-
-    web_more_prompt_active = 1;
-}
-
-static void web_refresh_more_prompt(void)
-{
-    if (web_more_prompt_frame == data.frame_id)
-        return;
-
-    web_build_more_prompt();
-    web_more_prompt_frame = data.frame_id;
-}
-
 /* ------------------------------------------------------------------------ */
 /* Overlay Capture And Semantic Extraction                                  */
 /* ------------------------------------------------------------------------ */
@@ -1194,10 +1181,6 @@ static void web_refresh_more_prompt(void)
 static void web_clear_overlay_text(void)
 {
     web_overlay_mode = 0;
-    web_overlay_col = 0;
-    web_overlay_row = 0;
-    web_overlay_cols = 0;
-    web_overlay_rows = 0;
     web_overlay_text[0] = '\0';
     web_overlay_attrs_len = 0;
 }
@@ -1308,11 +1291,8 @@ void web_overlay_override_clear(void)
 static void web_build_overlay_text(void)
 {
     bool active;
-    int cols = 0;
-    int rows = 0;
     int x;
     int y;
-    int line_cols = 0;
     int min_x = data.cols;
     int min_y = data.rows;
     int max_x = -1;
@@ -1331,28 +1311,12 @@ static void web_build_overlay_text(void)
     if (web_overlay_override_active && web_overlay_override_text[0])
     {
         ov = web_overlay_override_text;
-
-        rows = 1;
-        cols = 0;
-        line_cols = 0;
         off = 0;
 
         while (*ov)
         {
             if (off + 1 >= sizeof(web_overlay_text))
                 break;
-
-            if (*ov == '\n')
-            {
-                if (line_cols > cols)
-                    cols = line_cols;
-                line_cols = 0;
-                rows++;
-            }
-            else
-            {
-                line_cols++;
-            }
 
             web_overlay_text[off] = *ov;
             web_overlay_attrs[off] = TERM_WHITE;
@@ -1362,20 +1326,7 @@ static void web_build_overlay_text(void)
 
         web_overlay_text[off] = '\0';
         web_overlay_attrs_len = (int)off;
-
-        if (line_cols > cols)
-            cols = line_cols;
-
-        if (cols <= 0)
-            cols = 1;
-        if (rows <= 0)
-            rows = 1;
-
         web_overlay_mode = 1;
-        web_overlay_col = 0;
-        web_overlay_row = 0;
-        web_overlay_cols = cols;
-        web_overlay_rows = rows;
         return;
     }
 
@@ -1403,11 +1354,6 @@ static void web_build_overlay_text(void)
 
     if ((max_x < min_x) || (max_y < min_y))
         return;
-
-    web_overlay_col = min_x;
-    web_overlay_row = min_y;
-    web_overlay_cols = max_x - min_x + 1;
-    web_overlay_rows = max_y - min_y + 1;
 
     for (y = min_y; y <= max_y; y++)
     {
@@ -1553,6 +1499,8 @@ static void web_refresh_map_cells(void)
             char c;
             byte ta;
             char tc;
+            byte mark_attr = 0;
+            byte mark_chr = 0;
 
             if (!in_bounds(y, x))
                 continue;
@@ -1568,6 +1516,13 @@ static void web_refresh_map_cells(void)
             else
             {
                 web_map_cells[idx].kind = WEB_CELL_PICT;
+            }
+
+            if (web_get_target_mark(y, x, &mark_attr, &mark_chr))
+            {
+                web_map_cells[idx].flags |= WEB_FLAG_MARK;
+                web_map_cells[idx].text_attr = mark_attr;
+                web_map_cells[idx].text_char = mark_chr;
             }
         }
     }
@@ -1610,13 +1565,14 @@ static void Term_nuke_web(term* t)
     web_map_cells = NULL;
     web_map_cell_count = 0;
     web_map_cells_frame = UINT32_MAX;
+    web_target_mark_count = 0;
+    web_target_marks_batch = FALSE;
 
     FREE(web_fx_cells);
     web_fx_cells = NULL;
     web_fx_cell_count = 0;
     web_fx_cols = 0;
     web_fx_rows = 0;
-    web_fx_cells_seq = 0;
 }
 
 /* Process pending input from JS and feed angband's key queue. */
@@ -1668,6 +1624,7 @@ static errr Term_xtra_web(int n, int v)
             return (1);
 
         web_clear_cells(td, Term->attr_blank, (byte)Term->char_blank);
+        web_target_marks_clear();
         web_overlay_capture_clear();
         web_mark_dirty(td, 0, 0, td->cols, td->rows);
         return (0);
@@ -1911,12 +1868,9 @@ errr init_web(int argc, char** argv)
     term_screen = &data.t;
 
     web_log_text_frame = UINT32_MAX;
-    web_more_prompt_frame = UINT32_MAX;
     web_player_state_frame = UINT32_MAX;
     web_overlay_text_frame = UINT32_MAX;
     web_log_text[0] = '\0';
-    web_more_prompt[0] = '\0';
-    web_more_prompt_active = 0;
     web_player_state[0] = '\0';
     web_log_attrs_len = 0;
     web_overlay_text[0] = '\0';
@@ -1925,11 +1879,12 @@ errr init_web(int argc, char** argv)
     web_overlay_override_active = FALSE;
     web_overlay_override_text[0] = '\0';
     web_overlay_capture_clear();
+    web_target_mark_count = 0;
+    web_target_marks_batch = FALSE;
     web_fx_delay_seq = 0;
     web_fx_delay_msec = 0;
     web_fx_cols = 0;
     web_fx_rows = 0;
-    web_fx_cells_seq = 0;
     web_map_cells_frame = UINT32_MAX;
 
     return (0);
@@ -2081,25 +2036,6 @@ EMSCRIPTEN_KEEPALIVE uint32_t web_get_frame_id(void)
     return data.frame_id;
 }
 
-EMSCRIPTEN_KEEPALIVE int web_poll_dirty(int* x, int* y, int* w, int* h)
-{
-    if (!data.dirty)
-        return 0;
-
-    if (x)
-        *x = data.dirty_x1;
-    if (y)
-        *y = data.dirty_y1;
-    if (w)
-        *w = data.dirty_x2 - data.dirty_x1 + 1;
-    if (h)
-        *h = data.dirty_y2 - data.dirty_y1 + 1;
-
-    data.dirty = FALSE;
-
-    return 1;
-}
-
 EMSCRIPTEN_KEEPALIVE uintptr_t web_get_fx_cells_ptr(void)
 {
     return (uintptr_t)web_fx_cells;
@@ -2115,19 +2051,19 @@ EMSCRIPTEN_KEEPALIVE int web_get_fx_cells_rows(void)
     return web_fx_rows;
 }
 
-EMSCRIPTEN_KEEPALIVE uint32_t web_get_fx_cells_seq(void)
+EMSCRIPTEN_KEEPALIVE int web_get_cursor_x(void)
 {
-    return web_fx_cells_seq;
+    return data.cursor_x;
 }
 
-EMSCRIPTEN_KEEPALIVE void web_get_cursor(int* x, int* y, int* visible)
+EMSCRIPTEN_KEEPALIVE int web_get_cursor_y(void)
 {
-    if (x)
-        *x = data.cursor_x;
-    if (y)
-        *y = data.cursor_y;
-    if (visible)
-        *visible = data.cursor_visible ? 1 : 0;
+    return data.cursor_y;
+}
+
+EMSCRIPTEN_KEEPALIVE int web_get_cursor_visible(void)
+{
+    return data.cursor_visible ? 1 : 0;
 }
 
 EMSCRIPTEN_KEEPALIVE int web_push_key(int key)
@@ -2159,24 +2095,6 @@ EMSCRIPTEN_KEEPALIVE int web_get_log_attrs_len(void)
     return web_log_attrs_len;
 }
 
-EMSCRIPTEN_KEEPALIVE int web_get_more_prompt_active(void)
-{
-    web_refresh_more_prompt();
-    return web_more_prompt_active;
-}
-
-EMSCRIPTEN_KEEPALIVE uintptr_t web_get_more_prompt_text_ptr(void)
-{
-    web_refresh_more_prompt();
-    return (uintptr_t)web_more_prompt;
-}
-
-EMSCRIPTEN_KEEPALIVE int web_get_more_prompt_text_len(void)
-{
-    web_refresh_more_prompt();
-    return (int)strlen(web_more_prompt);
-}
-
 EMSCRIPTEN_KEEPALIVE uintptr_t web_get_player_state_ptr(void)
 {
     web_refresh_player_state();
@@ -2193,30 +2111,6 @@ EMSCRIPTEN_KEEPALIVE int web_get_overlay_mode(void)
 {
     web_refresh_overlay_text();
     return web_overlay_mode;
-}
-
-EMSCRIPTEN_KEEPALIVE int web_get_overlay_col(void)
-{
-    web_refresh_overlay_text();
-    return web_overlay_col;
-}
-
-EMSCRIPTEN_KEEPALIVE int web_get_overlay_row(void)
-{
-    web_refresh_overlay_text();
-    return web_overlay_row;
-}
-
-EMSCRIPTEN_KEEPALIVE int web_get_overlay_cols(void)
-{
-    web_refresh_overlay_text();
-    return web_overlay_cols;
-}
-
-EMSCRIPTEN_KEEPALIVE int web_get_overlay_rows(void)
-{
-    web_refresh_overlay_text();
-    return web_overlay_rows;
 }
 
 EMSCRIPTEN_KEEPALIVE uintptr_t web_get_overlay_text_ptr(void)
