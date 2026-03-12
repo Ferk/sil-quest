@@ -101,24 +101,6 @@ function initWebHelpers(root) {
     return "term-c9";
   }
 
-  // Renders status-side text with semantic coloring for label/value lines.
-  function renderSideText(text) {
-    if (!text) return "";
-    const lines = text.split("\n");
-    return lines.map((line) => {
-      if (!line) return "";
-      const split = line.indexOf(":");
-      if (split <= 0) {
-        return `<span class="term-c1">${escapeHtml(line)}</span>`;
-      }
-
-      const label = line.slice(0, split + 1);
-      const value = line.slice(split + 1);
-      const valueClass = sideValueClass(label, value);
-      return `<span class="term-c11">${escapeHtml(label)}</span><span class="${valueClass}">${escapeHtml(value)}</span>`;
-    }).join("<br>");
-  }
-
   // Renders side panel HTML from semantic player-state JSON.
   function renderSideState(state) {
     if (!state || Number(state.ready) !== 1) {
@@ -200,9 +182,7 @@ function initWebHelpers(root) {
 
   root.WebHelpers = Object.freeze({
     clamp,
-    escapeHtml,
     renderColoredText,
-    renderSideText,
     renderSideState,
     setHtmlIfChanged,
   });

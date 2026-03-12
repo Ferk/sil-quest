@@ -17,11 +17,11 @@
     const overlayModalEl = document.getElementById("overlay-modal");
     const sideEl = document.getElementById("side");
     const logEl = document.getElementById("log");
-    const WEB_BUILD_TAG = "20260312-8";
     const PERSIST_APEX_DIR = "/persist/apex";
     const PERSIST_SAVE_DIR = "/persist/save-web";
     const PERSIST_USER_DIR = "/persist/user";
     const PERSIST_DATA_DIR = "/persist/data";
+    const IDB_SYNC_INTERVAL_MSEC = 5000;
 
     /* ==========================================================================
      * Rendering Constants
@@ -43,6 +43,7 @@
     const WEB_FLAG_GLOW = 0x02;
     const WEB_FLAG_FG_PICT = 0x04;
     const WEB_FLAG_BG_PICT = 0x08;
+    const WEB_FLAG_MARK = 0x10;
 
     const colors = [
       "#000000", "#ffffff", "#9ca3af", "#f59e0b",
@@ -79,6 +80,8 @@
     let mapZoom = MAP_DEFAULT_ZOOM;
     let lastPlayerMapX = -1;
     let lastPlayerMapY = -1;
+    let initialViewportPlaced = false;
+    let lastDepthText = null;
     let morePromptActive = false;
     let morePromptText = "";
     let topPromptActive = false;
@@ -88,6 +91,11 @@
     let overlayMorePromptText = "";
     let lineMorePromptActive = false;
     let lineMorePromptText = "";
+    let persistFsEnabled = false;
+    let idbSyncTimer = null;
+    let idbSyncInFlight = false;
+    let idbSyncPending = false;
+    let idbSyncHooksBound = false;
 
     const iconMeta = {
       alertAttr: 0,
@@ -96,6 +104,77 @@
       glowChar: 0,
     };
     const utf8Decoder = new TextDecoder("utf-8");
+
+    // Disables IndexedDB-backed persistence and clears any related timers.
+    function disablePersistFs(reason, error = null) {
+      persistFsEnabled = false;
+      idbSyncInFlight = false;
+      idbSyncPending = false;
+
+      if (idbSyncTimer !== null) {
+        globalThis.clearInterval(idbSyncTimer);
+        idbSyncTimer = null;
+      }
+
+      if (error) {
+        console.warn(reason, error);
+      } else {
+        console.warn(reason);
+      }
+    }
+
+    // Flushes persistent IDBFS state to IndexedDB with single-flight semantics.
+    function flushPersistFs(force = false) {
+      const FS = globalThis.FS;
+      if (!persistFsEnabled || !FS || typeof FS.syncfs !== "function") return;
+
+      if (idbSyncInFlight) {
+        idbSyncPending = idbSyncPending || force;
+        return;
+      }
+
+      idbSyncInFlight = true;
+      FS.syncfs(false, (err) => {
+        idbSyncInFlight = false;
+        if (err) {
+          disablePersistFs("syncfs flush failed; disabling persistence fallback", err);
+          return;
+        }
+
+        if (idbSyncPending) {
+          idbSyncPending = false;
+          flushPersistFs(true);
+        }
+      });
+    }
+
+    // Starts periodic and lifecycle-triggered persistence flushes for IDBFS.
+    function startPersistSyncLoop() {
+      if (!persistFsEnabled) return;
+
+      if (idbSyncTimer === null) {
+        idbSyncTimer = globalThis.setInterval(() => {
+          flushPersistFs(false);
+        }, IDB_SYNC_INTERVAL_MSEC);
+      }
+
+      if (idbSyncHooksBound) return;
+      idbSyncHooksBound = true;
+
+      globalThis.addEventListener("pagehide", () => {
+        flushPersistFs(true);
+      });
+
+      globalThis.addEventListener("beforeunload", () => {
+        flushPersistFs(true);
+      });
+
+      document.addEventListener("visibilitychange", () => {
+        if (document.visibilityState === "hidden") {
+          flushPersistFs(true);
+        }
+      });
+    }
 
     /* ==========================================================================
      * WASM Buffer Access
@@ -472,7 +551,7 @@
      * ========================================================================== */
 
     // Renders the full map layer, actor facing flips, and transient FX overlays.
-    function drawMap(mapPtr, fxPtr, fxCols, fxRows, fxBlocked, heap) {
+    function drawMap(mapPtr, fxPtr, fxCols, fxRows, fxBlocked, heap, overlayActive) {
       const drawCols = Math.max(0, mapCols);
       const drawRows = Math.max(0, mapRows);
       const cellCount = drawCols * drawRows;
@@ -480,10 +559,16 @@
       const facingRight = new Uint8Array(cellCount);
       const actorEntries = [];
       const currentActorPositions = new Set();
+      const mapCol = api ? api.getMapCol() : 0;
+      const mapRow = api ? api.getMapRow() : 0;
+      const mapXStep = api ? Math.max(1, api.getMapXStep()) : 1;
       const mapWorldX = api ? api.getMapWorldX() : 0;
       const mapWorldY = api ? api.getMapWorldY() : 0;
       const playerMapX = api ? api.getPlayerMapX() : -1;
       const playerMapY = api ? api.getPlayerMapY() : -1;
+      const cursorVisible = api ? (!overlayActive && api.getCursorVisible() !== 0) : false;
+      let cursorMapX = -1;
+      let cursorMapY = -1;
       const playerVisible =
         playerMapX >= 0 &&
         playerMapX < drawCols &&
@@ -495,6 +580,20 @@
         const pdx = playerWorldX - prevPlayerWorldX;
         if (pdx > 0) playerFacingRight = 1;
         else if (pdx < 0) playerFacingRight = 0;
+      }
+
+      if (cursorVisible) {
+        const cursorX = api.getCursorX();
+        const cursorY = api.getCursorY();
+        const relX = cursorX - mapCol;
+        const relY = cursorY - mapRow;
+        if (relY >= 0 && relY < drawRows && relX >= 0) {
+          const mx = Math.floor(relX / mapXStep);
+          if (mx >= 0 && mx < drawCols) {
+            cursorMapX = mx;
+            cursorMapY = relY;
+          }
+        }
       }
 
       mapCanvas.width = drawCols * tileW;
@@ -628,7 +727,25 @@
               }
             }
           }
+
+          if ((cell.flags & WEB_FLAG_MARK) !== 0) {
+            drawAsciiAttrChar(cell.textAttr, cell.textChar, x, y);
+          }
         }
+      }
+
+      if (cursorMapX >= 0 && cursorMapY >= 0) {
+        const base = Math.max(1, Math.floor(Math.min(tileW, tileH) * 0.08));
+        ctx.save();
+        ctx.strokeStyle = "#00ffff";
+        ctx.lineWidth = Math.max(1, base);
+        ctx.strokeRect(
+          cursorMapX * tileW + 0.5,
+          cursorMapY * tileH + 0.5,
+          tileW - 1,
+          tileH - 1
+        );
+        ctx.restore();
       }
 
       prevPlayerWorldX = playerWorldX;
@@ -791,9 +908,9 @@
     }
 
     // Updates side and log panels using semantic text and color attributes.
-    function updateSemanticPanels(heap) {
+    function updateSemanticPanels(heap, state = null) {
       if (!api) return;
-      const state = readPlayerState(heap);
+      if (!state) state = readPlayerState(heap);
       const logPtr = api.getLogTextPtr();
       const logLen = api.getLogTextLen();
       const logAttrPtr = api.getLogAttrsPtr();
@@ -855,6 +972,16 @@
       refreshIconMetadata();
 
       const overlayActive = updateOverlaySemantic(heap);
+      const state = readPlayerState(heap);
+      if (state && Number(state.ready) === 1) {
+        const depthText = String(state.depthText || "");
+        if (lastDepthText !== null && depthText !== lastDepthText) {
+          initialViewportPlaced = false;
+          lastPlayerMapX = -1;
+          lastPlayerMapY = -1;
+        }
+        lastDepthText = depthText;
+      }
       updateToplinePrompt(heap, cols);
       const mapPtr = api.getMapCellsPtr();
       let fxPtr = 0;
@@ -868,8 +995,14 @@
       }
 
       const blockFx = overlayActive || !mapFxActive;
-      drawMap(mapPtr, fxPtr, fxCols, fxRows, blockFx, heap);
-      updateSemanticPanels(heap);
+      drawMap(mapPtr, fxPtr, fxCols, fxRows, blockFx, heap, overlayActive);
+      updateSemanticPanels(heap, state);
+
+      if (!initialViewportPlaced) {
+        followPlayerInViewport(false, true);
+        initialViewportPlaced = true;
+      }
+
       followPlayerInViewport(overlayActive);
     }
 
@@ -1086,10 +1219,10 @@
       forceRedraw = true;
       lastFrameId = -1;
     };
-    tileImage.src = `./lib/16x16_microchasm.png?v=${WEB_BUILD_TAG}`;
+    tileImage.src = "./lib/16x16_microchasm.png";
 
     window.Module = {
-      locateFile: (path) => `./lib/${path}?v=${WEB_BUILD_TAG}`,
+      locateFile: (path) => `./lib/${path}`,
       arguments: [
         "-mweb",
         "-g",
@@ -1102,7 +1235,7 @@
         const FS = globalThis.FS;
         const IDBFS = globalThis.IDBFS;
 
-        if (!FS || !IDBFS) {
+        if (!FS) {
           console.error("Emscripten FS runtime is not available");
           return;
         }
@@ -1110,22 +1243,37 @@
         const ensureDir = (path) => {
           try { FS.mkdir(path); } catch (_) {}
         };
+        const ensurePersistDirs = () => {
+          ensureDir(PERSIST_APEX_DIR);
+          ensureDir(PERSIST_SAVE_DIR);
+          ensureDir(PERSIST_USER_DIR);
+          ensureDir(PERSIST_DATA_DIR);
+        };
 
         ensureDir("/persist");
+
+        if (!IDBFS) {
+          ensurePersistDirs();
+          console.warn("IndexedDB persistence is unavailable; continuing with session storage only");
+          return;
+        }
+
+        if (!globalThis.isSecureContext) {
+          ensurePersistDirs();
+          console.warn("IndexedDB persistence requires a secure origin; continuing with session storage only");
+          return;
+        }
+
         FS.mount(IDBFS, {}, "/persist");
 
         Module.addRunDependency("syncfs");
         FS.syncfs(true, (err) => {
+          ensurePersistDirs();
           if (err) {
-            console.error("syncfs init failed:", err);
+            disablePersistFs("syncfs init failed; continuing with session storage only", err);
           } else {
-            ensureDir(PERSIST_APEX_DIR);
-            ensureDir(PERSIST_SAVE_DIR);
-            ensureDir(PERSIST_USER_DIR);
-            ensureDir(PERSIST_DATA_DIR);
-            FS.syncfs(false, (flushErr) => {
-              if (flushErr) console.error("syncfs flush failed:", flushErr);
-            });
+            persistFsEnabled = true;
+            flushPersistFs(true);
           }
           Module.removeRunDependency("syncfs");
         });
@@ -1143,11 +1291,17 @@
           typeof Module._web_get_tile_hgt === "function" &&
           typeof Module._web_get_map_cols === "function" &&
           typeof Module._web_get_map_rows === "function" &&
+          typeof Module._web_get_map_col === "function" &&
+          typeof Module._web_get_map_row === "function" &&
+          typeof Module._web_get_map_x_step === "function" &&
           typeof Module._web_get_map_world_x === "function" &&
           typeof Module._web_get_map_world_y === "function" &&
           typeof Module._web_get_map_cells_ptr === "function" &&
           typeof Module._web_get_player_map_x === "function" &&
           typeof Module._web_get_player_map_y === "function" &&
+          typeof Module._web_get_cursor_x === "function" &&
+          typeof Module._web_get_cursor_y === "function" &&
+          typeof Module._web_get_cursor_visible === "function" &&
           typeof Module._web_get_icon_alert_attr === "function" &&
           typeof Module._web_get_icon_alert_char === "function" &&
           typeof Module._web_get_icon_glow_attr === "function" &&
@@ -1161,10 +1315,6 @@
           typeof Module._web_get_log_attrs_ptr === "function" &&
           typeof Module._web_get_log_attrs_len === "function" &&
           typeof Module._web_get_overlay_mode === "function" &&
-          typeof Module._web_get_overlay_col === "function" &&
-          typeof Module._web_get_overlay_row === "function" &&
-          typeof Module._web_get_overlay_cols === "function" &&
-          typeof Module._web_get_overlay_rows === "function" &&
           typeof Module._web_get_overlay_text_ptr === "function" &&
           typeof Module._web_get_overlay_text_len === "function" &&
           typeof Module._web_get_overlay_attrs_ptr === "function" &&
@@ -1172,7 +1322,6 @@
           typeof Module._web_get_fx_cells_ptr === "function" &&
           typeof Module._web_get_fx_cells_cols === "function" &&
           typeof Module._web_get_fx_cells_rows === "function" &&
-          typeof Module._web_get_fx_cells_seq === "function" &&
           typeof Module._web_get_fx_delay_seq === "function" &&
           typeof Module._web_get_fx_delay_msec === "function";
 
@@ -1188,13 +1337,19 @@
           getCellStride: Module._web_get_cell_stride,
           getTileWid: Module._web_get_tile_wid,
           getTileHgt: Module._web_get_tile_hgt,
+          getMapCol: Module._web_get_map_col,
+          getMapRow: Module._web_get_map_row,
           getMapCols: Module._web_get_map_cols,
           getMapRows: Module._web_get_map_rows,
+          getMapXStep: Module._web_get_map_x_step,
           getMapWorldX: Module._web_get_map_world_x,
           getMapWorldY: Module._web_get_map_world_y,
           getMapCellsPtr: Module._web_get_map_cells_ptr,
           getPlayerMapX: Module._web_get_player_map_x,
           getPlayerMapY: Module._web_get_player_map_y,
+          getCursorX: Module._web_get_cursor_x,
+          getCursorY: Module._web_get_cursor_y,
+          getCursorVisible: Module._web_get_cursor_visible,
           getAlertAttr: Module._web_get_icon_alert_attr,
           getAlertChar: Module._web_get_icon_alert_char,
           getGlowAttr: Module._web_get_icon_glow_attr,
@@ -1208,10 +1363,6 @@
           getLogAttrsPtr: Module._web_get_log_attrs_ptr,
           getLogAttrsLen: Module._web_get_log_attrs_len,
           getOverlayMode: Module._web_get_overlay_mode,
-          getOverlayCol: Module._web_get_overlay_col,
-          getOverlayRow: Module._web_get_overlay_row,
-          getOverlayCols: Module._web_get_overlay_cols,
-          getOverlayRows: Module._web_get_overlay_rows,
           getOverlayTextPtr: Module._web_get_overlay_text_ptr,
           getOverlayTextLen: Module._web_get_overlay_text_len,
           getOverlayAttrsPtr: Module._web_get_overlay_attrs_ptr,
@@ -1219,7 +1370,6 @@
           getFxCellsPtr: Module._web_get_fx_cells_ptr,
           getFxCellsCols: Module._web_get_fx_cells_cols,
           getFxCellsRows: Module._web_get_fx_cells_rows,
-          getFxCellsSeq: Module._web_get_fx_cells_seq,
           getFxDelaySeq: Module._web_get_fx_delay_seq,
           getFxDelayMsec: Module._web_get_fx_delay_msec,
         };
@@ -1233,6 +1383,7 @@
         statusEl.textContent = "Running (-mweb). Click page and type to play. Wheel/pinch map to zoom.";
         bindInput();
         bindMapZoomInput();
+        startPersistSyncLoop();
         fitMapToViewport();
 
         // Schedules continuous rendering with requestAnimationFrame.
