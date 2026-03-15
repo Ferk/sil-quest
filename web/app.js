@@ -59,6 +59,8 @@
 
     let api = null;
     let lastFrameId = -1;
+    let lastMenuRevision = -1;
+    let lastModalRevision = -1;
     let cellStride = 8;
     let tileSrcW = 16;
     let tileSrcH = 16;
@@ -96,6 +98,13 @@
     let idbSyncInFlight = false;
     let idbSyncPending = false;
     let idbSyncHooksBound = false;
+    let activeMenuItems = [];
+    let activeMenuText = "";
+    let activeMenuTextAttrs = null;
+    let activeMenuDetailsText = "";
+    let activeMenuDetailsAttrs = null;
+    let semanticMenuSnapshot = null;
+    let hoveredMenuIndex = -1;
 
     const iconMeta = {
       alertAttr: 0,
@@ -240,12 +249,239 @@
       return utf8Decoder.decode(heap.subarray(ptr, end));
     }
 
+    // Escapes plain text for safe HTML rendering inside semantic overlays.
+    function escapeHtml(text) {
+      return String(text)
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;");
+    }
+
     // Returns a byte slice from wasm memory for per-character color attributes.
     function readBytes(heap, ptr, len) {
       if (!ptr || !len || len <= 0) return null;
       const end = ptr + len;
       if (ptr < 0 || end > heap.length) return null;
       return heap.subarray(ptr, end);
+    }
+
+    // Copies an attribute buffer out of wasm-backed memory for stable reuse across frames.
+    function cloneAttrBytes(attrs) {
+      return attrs ? new Uint8Array(attrs) : null;
+    }
+
+    // Items with a non-Enter activation key are treated as direct actions rather than hover-driven selections.
+    function isDirectMenuItem(item) {
+      return !!item && item.key !== 13;
+    }
+
+    // Groups menu items by their terminal x-position so multi-column menus can keep their parent/child structure.
+    function getMenuColumns(items) {
+      const columns = new Map();
+
+      for (const item of items) {
+        const key = String(item.x);
+        if (!columns.has(key)) columns.set(key, []);
+        columns.get(key).push(item);
+      }
+
+      return [...columns.entries()]
+        .sort((a, b) => Number(a[0]) - Number(b[0]))
+        .map((entry) => entry[1].sort((a, b) => a.y - b.y || a.x - b.x));
+    }
+
+    // The rightmost menu column is treated as the active submenu for passive hover.
+    function getActiveMenuColumnX(items = activeMenuItems) {
+      if (!items.length) return null;
+      let maxX = items[0].x;
+      for (const item of items) {
+        if (item.x > maxX) maxX = item.x;
+      }
+      return maxX;
+    }
+
+    // Only the active/rightmost submenu should react to passive hover; older columns remain clickable.
+    function isPassiveHoverMenuItem(index) {
+      if (
+        index < 0 ||
+        index >= activeMenuItems.length ||
+        !Number.isInteger(index)
+      ) {
+        return false;
+      }
+
+      return activeMenuItems[index].x === getActiveMenuColumnX();
+    }
+
+    // After a semantic menu redraw, bias the horizontal scroll to the newest/rightmost submenu.
+    function scrollMenuColumnsToActiveEdge() {
+      if (!overlayModalEl.classList.contains("overlay-menu")) return;
+      const container = overlayModalEl.querySelector(".menu-columns");
+      if (!container) return;
+      container.scrollLeft = Math.max(0, container.scrollWidth - container.clientWidth);
+    }
+
+    // Keeps a selected overlay menu item within the visible scroll region of its menu container.
+    function scrollMenuItemIntoView(itemEl) {
+      const container = itemEl?.closest(".menu-columns");
+      if (!container) return;
+
+      const itemRect = itemEl.getBoundingClientRect();
+      const containerRect = container.getBoundingClientRect();
+      const pad = 8;
+
+      if (itemRect.top < containerRect.top) {
+        container.scrollTop -= (containerRect.top - itemRect.top) + pad;
+      } else if (itemRect.bottom > containerRect.bottom) {
+        container.scrollTop += (itemRect.bottom - containerRect.bottom) + pad;
+      }
+
+      if (itemRect.left < containerRect.left) {
+        container.scrollLeft -= (containerRect.left - itemRect.left) + pad;
+      } else if (itemRect.right > containerRect.right) {
+        container.scrollLeft += (itemRect.right - containerRect.right) + pad;
+      }
+    }
+
+    // After re-rendering a semantic menu, keeps the selected button visible inside the scroll area.
+    function syncSelectedMenuItemsIntoView() {
+      if (!overlayModalEl.classList.contains("overlay-menu")) return;
+      scrollMenuColumnsToActiveEdge();
+      let selectedItems = overlayModalEl.querySelectorAll(
+        ".menu-column-active .menu-item-selected"
+      );
+      if (!selectedItems.length) {
+        selectedItems = overlayModalEl.querySelectorAll(".menu-item-selected");
+      }
+      for (const itemEl of selectedItems) {
+        scrollMenuItemIntoView(itemEl);
+      }
+    }
+
+    // Saves the last live semantic menu so transient prompts can reuse it without falling back to terminal capture.
+    function snapshotSemanticMenu(items, text, textAttrs, detailsText, detailsAttrs) {
+      if (!items.length) return;
+      semanticMenuSnapshot = {
+        items: items.map((item) => ({ ...item })),
+        text,
+        textAttrs: cloneAttrBytes(textAttrs),
+        detailsText,
+        detailsAttrs: cloneAttrBytes(detailsAttrs),
+      };
+    }
+
+    // Only interactive prompts should keep the last semantic menu visible as context.
+    function shouldKeepSemanticMenuSnapshot() {
+      if (!semanticMenuSnapshot || activeMenuItems.length || !topPromptActive) {
+        return false;
+      }
+
+      const prompt = String(topPromptText || "").trimEnd();
+      return /\[[^\]]+\]\s*$/.test(prompt) || /\?\s*$/.test(prompt);
+    }
+
+    // Picks the menu state to render: live wasm-exported data, or the last semantic menu during a prompt.
+    function getRenderableMenuState() {
+      if (activeMenuItems.length) {
+        snapshotSemanticMenu(
+          activeMenuItems,
+          activeMenuText,
+          activeMenuTextAttrs,
+          activeMenuDetailsText,
+          activeMenuDetailsAttrs
+        );
+        return {
+          items: activeMenuItems,
+          text: activeMenuText,
+          textAttrs: activeMenuTextAttrs,
+          detailsText: activeMenuDetailsText,
+          detailsAttrs: activeMenuDetailsAttrs,
+        };
+      }
+
+      if (shouldKeepSemanticMenuSnapshot()) {
+        return semanticMenuSnapshot;
+      }
+
+      return null;
+    }
+
+    // Reads the active semantic menu items exported by the wasm frontend.
+    function refreshMenuItems(heap) {
+      if (
+        !api ||
+        typeof api.getMenuItemsPtr !== "function" ||
+        typeof api.getMenuItemCount !== "function" ||
+        typeof api.getMenuItemStride !== "function"
+      ) {
+        activeMenuItems = [];
+        activeMenuText = "";
+        activeMenuTextAttrs = null;
+        activeMenuDetailsText = "";
+        activeMenuDetailsAttrs = null;
+        hoveredMenuIndex = -1;
+        return;
+      }
+
+      const ptr = api.getMenuItemsPtr();
+      const count = api.getMenuItemCount();
+      const stride = api.getMenuItemStride();
+      const byteLen = count * stride;
+      const textPtr =
+        typeof api.getMenuTextPtr === "function" ? api.getMenuTextPtr() : 0;
+      const textLen =
+        typeof api.getMenuTextLen === "function" ? api.getMenuTextLen() : 0;
+      const attrPtr =
+        typeof api.getMenuAttrsPtr === "function" ? api.getMenuAttrsPtr() : 0;
+      const attrLen =
+        typeof api.getMenuAttrsLen === "function" ? api.getMenuAttrsLen() : 0;
+      const detailsPtr =
+        typeof api.getMenuDetailsPtr === "function" ? api.getMenuDetailsPtr() : 0;
+      const detailsLen =
+        typeof api.getMenuDetailsLen === "function" ? api.getMenuDetailsLen() : 0;
+      const detailsAttrPtr =
+        typeof api.getMenuDetailsAttrsPtr === "function" ? api.getMenuDetailsAttrsPtr() : 0;
+      const detailsAttrLen =
+        typeof api.getMenuDetailsAttrsLen === "function" ? api.getMenuDetailsAttrsLen() : 0;
+
+      activeMenuText = readUtf8(heap, textPtr, textLen);
+      activeMenuTextAttrs = readBytes(heap, attrPtr, attrLen);
+      activeMenuDetailsText = readUtf8(heap, detailsPtr, detailsLen);
+      activeMenuDetailsAttrs = readBytes(heap, detailsAttrPtr, detailsAttrLen);
+
+      if (!ptr || count <= 0 || stride < 28 || ptr < 0 || (ptr + byteLen) > heap.length) {
+        activeMenuItems = [];
+        activeMenuDetailsText = "";
+        activeMenuDetailsAttrs = null;
+        hoveredMenuIndex = -1;
+        return;
+      }
+
+      const view = new DataView(heap.buffer, heap.byteOffset + ptr, byteLen);
+      const items = new Array(count);
+
+      for (let i = 0; i < count; i++) {
+        const off = i * stride;
+        const labelBytes = heap.subarray(ptr + off + 28, ptr + off + stride);
+        const labelEnd = labelBytes.indexOf(0);
+        items[i] = {
+          x: view.getInt32(off + 0, true),
+          y: view.getInt32(off + 4, true),
+          w: view.getInt32(off + 8, true),
+          h: view.getInt32(off + 12, true),
+          key: view.getInt32(off + 16, true),
+          selected: view.getInt32(off + 20, true) !== 0,
+          attr: view.getInt32(off + 24, true),
+          label: utf8Decoder.decode(
+            labelBytes.subarray(0, labelEnd >= 0 ? labelEnd : labelBytes.length)
+          ),
+        };
+      }
+
+      activeMenuItems = items;
+      if (hoveredMenuIndex >= activeMenuItems.length) {
+        hoveredMenuIndex = -1;
+      }
     }
 
     // Reads and parses semantic player-state payload exported by wasm.
@@ -848,8 +1084,107 @@
       syncMorePromptState();
     }
 
+    // Renders an active semantic menu as an HTML overlay instead of raw captured text.
+    function updateMenuSemantic() {
+      const menuState = getRenderableMenuState();
+      if (!menuState) return false;
+
+      const columns = getMenuColumns(menuState.items);
+      const hasCopy = !!menuState.text;
+      const hasDetails = !!menuState.detailsText;
+      const renderMenuButton = (item, index) => {
+        const selectedClass = item.selected ? " menu-item-selected" : "";
+        const attrClass = item.selected ? "" : ` term-c${item.attr & 0x0f}`;
+        const directClass = isDirectMenuItem(item) ? " menu-item-direct" : "";
+        const label = escapeHtml(item.label || String.fromCharCode(item.key));
+        return `<button type="button" class="menu-item${selectedClass}${attrClass}${directClass}" data-menu-index="${index}">${label}</button>`;
+      };
+      const introHtml = `<div class="menu-copy${hasCopy ? "" : " menu-copy-empty"}">${
+        hasCopy ? renderColoredText(menuState.text, menuState.textAttrs, 1) : ""
+      }</div>`;
+      const detailsHtml = `<div class="menu-item-details${hasDetails ? "" : " menu-item-details-empty"}">${
+        hasDetails
+          ? renderColoredText(menuState.detailsText, menuState.detailsAttrs, 1)
+          : ""
+      }</div>`;
+      const menuColumnsHtml = columns
+        .map((column, columnIndex) => {
+          const columnStateClass =
+            columns.length > 1 && columnIndex !== columns.length - 1
+              ? " menu-column-inactive"
+              : " menu-column-active";
+          const itemsHtml = column
+            .map((item, itemIndex) => renderMenuButton(item, menuState.items.indexOf(item)))
+            .join("");
+          return `<div class="menu-column${columnStateClass}">${itemsHtml}</div>`;
+        })
+        .join("");
+      const shellClass = hasCopy ? "menu-shell-with-copy" : "menu-shell-no-copy";
+      const bodyClass = hasDetails ? "menu-body-with-details" : "menu-body-no-details";
+      const menuHtml = `<div class="menu-shell ${shellClass}">${introHtml}<div class="menu-body ${bodyClass}"><div class="menu-columns-wrap"><div class="menu-columns">${menuColumnsHtml}</div></div>${detailsHtml}</div></div>`;
+
+      overlayMorePromptActive = false;
+      overlayMorePromptText = "";
+      syncMorePromptState();
+      overlayModalEl.style.display = "block";
+      overlayModalEl.classList.remove("overlay-dismissable");
+      overlayModalEl.classList.add("overlay-menu");
+      setHtmlIfChanged(overlayModalEl, menuHtml);
+      syncSelectedMenuItemsIntoView();
+      return true;
+    }
+
+    // Renders an active semantic modal dialog as an HTML overlay.
+    function updateModalSemantic(heap) {
+      if (
+        !api ||
+        typeof api.getModalTextPtr !== "function" ||
+        typeof api.getModalTextLen !== "function" ||
+        typeof api.getModalAttrsPtr !== "function" ||
+        typeof api.getModalAttrsLen !== "function"
+      ) {
+        return false;
+      }
+
+      const textPtr = api.getModalTextPtr();
+      const textLen = api.getModalTextLen();
+      const attrPtr = api.getModalAttrsPtr();
+      const attrLen = api.getModalAttrsLen();
+      const dismissKey =
+        typeof api.getModalDismissKey === "function" ? api.getModalDismissKey() : 0;
+      const text = readUtf8(heap, textPtr, textLen);
+      const attrs = readBytes(heap, attrPtr, attrLen);
+
+      if (!text) {
+        overlayModalEl.classList.remove("overlay-dismissable");
+        return false;
+      }
+
+      overlayMorePromptActive = false;
+      overlayMorePromptText = "";
+      syncMorePromptState();
+
+      overlayModalEl.style.display = "block";
+      overlayModalEl.classList.remove("overlay-menu");
+      overlayModalEl.classList.toggle("overlay-dismissable", dismissKey > 0);
+      setHtmlIfChanged(overlayModalEl, renderColoredText(text, attrs, 1));
+      return true;
+    }
+
     // Updates modal overlay text from semantic wasm buffers.
     function updateOverlaySemantic(heap) {
+      if (updateModalSemantic(heap)) {
+        return true;
+      }
+
+      if (updateMenuSemantic()) {
+        return true;
+      }
+
+      if (!activeMenuItems.length && !shouldKeepSemanticMenuSnapshot()) {
+        semanticMenuSnapshot = null;
+      }
+
       if (!api) return false;
 
       const mode = api.getOverlayMode();
@@ -858,6 +1193,8 @@
         overlayMorePromptText = "";
         syncMorePromptState();
         overlayModalEl.style.display = "none";
+        overlayModalEl.classList.remove("overlay-dismissable");
+        overlayModalEl.classList.remove("overlay-menu");
         setHtmlIfChanged(overlayModalEl, "");
         return false;
       }
@@ -874,6 +1211,7 @@
         overlayMorePromptText = "";
         syncMorePromptState();
         overlayModalEl.style.display = "none";
+        overlayModalEl.classList.remove("overlay-dismissable");
         setHtmlIfChanged(overlayModalEl, "");
         return false;
       }
@@ -894,6 +1232,8 @@
         overlayMorePromptText = cleanedLines.join("\n").trim() || "-more-";
         syncMorePromptState();
         overlayModalEl.style.display = "none";
+        overlayModalEl.classList.remove("overlay-dismissable");
+        overlayModalEl.classList.remove("overlay-menu");
         setHtmlIfChanged(overlayModalEl, "");
         return false;
       }
@@ -903,6 +1243,8 @@
       syncMorePromptState();
 
       overlayModalEl.style.display = "block";
+      overlayModalEl.classList.remove("overlay-dismissable");
+      overlayModalEl.classList.remove("overlay-menu");
       setHtmlIfChanged(overlayModalEl, renderColoredText(text, attrs, 1));
       return true;
     }
@@ -957,9 +1299,23 @@
       const now = performance.now();
       const mapFxActive = updateMapFxWindow(now);
       const frameId = api.getFrameId();
-      if (!forceRedraw && frameId === lastFrameId && !mapFxActive) return;
+      const menuRevision =
+        typeof api.getMenuRevision === "function" ? api.getMenuRevision() : 0;
+      const modalRevision =
+        typeof api.getModalRevision === "function" ? api.getModalRevision() : 0;
+      if (
+        !forceRedraw &&
+        frameId === lastFrameId &&
+        menuRevision === lastMenuRevision &&
+        modalRevision === lastModalRevision &&
+        !mapFxActive
+      ) {
+        return;
+      }
       forceRedraw = false;
       lastFrameId = frameId;
+      lastMenuRevision = menuRevision;
+      lastModalRevision = modalRevision;
 
       const cols = api.getCols();
       const rows = api.getRows();
@@ -970,6 +1326,8 @@
 
       refreshLayoutMetadata(cols, rows);
       refreshIconMetadata();
+      refreshMenuItems(heap);
+      updateToplinePrompt(heap, cols);
 
       const overlayActive = updateOverlaySemantic(heap);
       const state = readPlayerState(heap);
@@ -982,7 +1340,6 @@
         }
         lastDepthText = depthText;
       }
-      updateToplinePrompt(heap, cols);
       const mapPtr = api.getMapCellsPtr();
       let fxPtr = 0;
       let fxCols = 0;
@@ -1017,6 +1374,169 @@
       api.pushKey(code & 0xff);
     }
 
+    // Converts a client-space pointer position into an active semantic menu item index.
+    function findMenuItemIndexAtClientPoint(clientX, clientY) {
+      if (!activeMenuItems.length || !mapCols || !mapRows) return -1;
+
+      const rect = mapCanvas.getBoundingClientRect();
+      if (!rect.width || !rect.height) return -1;
+      if (
+        clientX < rect.left ||
+        clientX >= rect.right ||
+        clientY < rect.top ||
+        clientY >= rect.bottom
+      ) {
+        return -1;
+      }
+
+      const cellX = Math.floor(((clientX - rect.left) / rect.width) * mapCols);
+      const cellY = Math.floor(((clientY - rect.top) / rect.height) * mapRows);
+
+      for (let i = 0; i < activeMenuItems.length; i++) {
+        const item = activeMenuItems[i];
+        if (
+          cellX >= item.x &&
+          cellX < item.x + item.w &&
+          cellY >= item.y &&
+          cellY < item.y + item.h
+        ) {
+          return i;
+        }
+      }
+
+      return -1;
+    }
+
+    // Binds semantic hover/click handling for menus exported by the wasm frontend.
+    function bindMenuPointerInput() {
+      const hoverMenuAtPoint = (clientX, clientY) => {
+        if (topPromptActive || lineMorePromptActive) {
+          hoveredMenuIndex = -1;
+          return -1;
+        }
+
+        const index = findMenuItemIndexAtClientPoint(clientX, clientY);
+        if (
+          index < 0 ||
+          !isPassiveHoverMenuItem(index) ||
+          !api ||
+          typeof api.menuHover !== "function"
+        ) {
+          hoveredMenuIndex = -1;
+          return index;
+        }
+
+        if (index === hoveredMenuIndex) return index;
+
+        hoveredMenuIndex = index;
+
+        if (api.menuHover(index)) {
+          forceRedraw = true;
+        }
+
+        return index;
+      };
+
+      mapCanvas.addEventListener("pointermove", (ev) => {
+        if (ev.pointerType !== "mouse") return;
+        hoverMenuAtPoint(ev.clientX, ev.clientY);
+      });
+
+      mapCanvas.addEventListener("pointerleave", () => {
+        hoveredMenuIndex = -1;
+      });
+
+      mapCanvas.addEventListener("pointerdown", (ev) => {
+        if (ev.button !== 0) return;
+        if (topPromptActive || lineMorePromptActive) return;
+
+        const index = findMenuItemIndexAtClientPoint(ev.clientX, ev.clientY);
+        if (index < 0 || !api) return;
+
+        hoveredMenuIndex = index;
+        if (typeof api.menuActivate === "function" && api.menuActivate(index)) {
+          activeMenuItems = [];
+          hoveredMenuIndex = -1;
+          forceRedraw = true;
+        }
+
+        ev.preventDefault();
+        ev.stopPropagation();
+      });
+    }
+
+    // Binds semantic hover/click handling for HTML menu overlays.
+    function bindOverlayMenuInput() {
+      const hoverFromOverlayEvent = (target) => {
+        if (topPromptActive || lineMorePromptActive) {
+          hoveredMenuIndex = -1;
+          return;
+        }
+
+        const itemEl = target.closest("[data-menu-index]");
+        if (!itemEl || !api || typeof api.menuHover !== "function") return;
+
+        const index = Number(itemEl.dataset.menuIndex);
+        if (
+          !Number.isInteger(index) ||
+          !isPassiveHoverMenuItem(index)
+        ) {
+          hoveredMenuIndex = -1;
+          return;
+        }
+
+        if (index === hoveredMenuIndex) {
+          return;
+        }
+
+        hoveredMenuIndex = index;
+        if (api.menuHover(index)) {
+          forceRedraw = true;
+        }
+      };
+
+      overlayModalEl.addEventListener("pointermove", (ev) => {
+        if (!overlayModalEl.classList.contains("overlay-menu")) return;
+        hoverFromOverlayEvent(ev.target);
+      });
+
+      overlayModalEl.addEventListener("click", (ev) => {
+        if (!overlayModalEl.classList.contains("overlay-menu")) return;
+        if (topPromptActive || lineMorePromptActive) return;
+
+        const itemEl = ev.target.closest("[data-menu-index]");
+        if (!itemEl || !api || typeof api.menuActivate !== "function") return;
+
+        const index = Number(itemEl.dataset.menuIndex);
+        if (!Number.isInteger(index)) return;
+
+        hoveredMenuIndex = index;
+        if (api.menuActivate(index)) {
+          activeMenuItems = [];
+          hoveredMenuIndex = -1;
+          forceRedraw = true;
+        }
+
+        ev.preventDefault();
+        ev.stopPropagation();
+      });
+    }
+
+    // Binds click-to-dismiss for semantic modal dialogs such as discovered notes.
+    function bindOverlayModalInput() {
+      overlayModalEl.addEventListener("click", (ev) => {
+        if (overlayModalEl.classList.contains("overlay-menu")) return;
+        if (!overlayModalEl.classList.contains("overlay-dismissable")) return;
+        if (!api || typeof api.modalActivate !== "function") return;
+
+        if (api.modalActivate()) {
+          forceRedraw = true;
+          ev.preventDefault();
+          ev.stopPropagation();
+        }
+      });
+    }
+
     // Binds keyboard input and maps browser keys to Sil command bytes.
     function bindInput() {
       const keyMap = {
@@ -1047,6 +1567,13 @@
         Numpad9: "9".charCodeAt(0),
       };
 
+      const isEditableTarget = (target) => {
+        if (!(target instanceof Element)) return false;
+        if (target.isContentEditable) return true;
+        const tag = target.tagName;
+        return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT";
+      };
+
       // Maps one browser key event to a single Sil ASCII command byte.
       const mapKeyEventToAscii = (ev) => {
         if (Object.hasOwn(keyMap, ev.key)) return keyMap[ev.key];
@@ -1054,6 +1581,15 @@
         const altGraph =
           typeof ev.getModifierState === "function" &&
           ev.getModifierState("AltGraph");
+
+        if (ev.ctrlKey && !ev.metaKey && !altGraph && ev.key.length === 1) {
+          const upper = ev.key.toUpperCase();
+          const code = upper.charCodeAt(0);
+          if (code >= 64 && code <= 95) {
+            return code & 0x1f;
+          }
+        }
+
         if (ev.key.length === 1 && !ev.metaKey && (!ev.ctrlKey || altGraph)) {
           return ev.key.charCodeAt(0);
         }
@@ -1062,6 +1598,7 @@
 
       document.addEventListener("keydown", (ev) => {
         if (!api) return;
+        if (isEditableTarget(ev.target)) return;
         const keyCode = mapKeyEventToAscii(ev);
 
         if (morePromptActive) {
@@ -1080,7 +1617,7 @@
           pushAscii(keyCode);
           ev.preventDefault();
         }
-      });
+      }, { capture: true });
     }
 
     // Binds mouse/touch interactions for map zooming and drag-to-pan.
@@ -1323,7 +1860,27 @@
           typeof Module._web_get_fx_cells_cols === "function" &&
           typeof Module._web_get_fx_cells_rows === "function" &&
           typeof Module._web_get_fx_delay_seq === "function" &&
-          typeof Module._web_get_fx_delay_msec === "function";
+          typeof Module._web_get_fx_delay_msec === "function" &&
+          typeof Module._web_get_menu_items_ptr === "function" &&
+          typeof Module._web_get_menu_item_count === "function" &&
+          typeof Module._web_get_menu_item_stride === "function" &&
+          typeof Module._web_get_menu_text_ptr === "function" &&
+          typeof Module._web_get_menu_text_len === "function" &&
+          typeof Module._web_get_menu_attrs_ptr === "function" &&
+          typeof Module._web_get_menu_attrs_len === "function" &&
+          typeof Module._web_get_menu_details_ptr === "function" &&
+          typeof Module._web_get_menu_details_len === "function" &&
+          typeof Module._web_get_menu_details_attrs_ptr === "function" &&
+          typeof Module._web_get_menu_details_attrs_len === "function" &&
+          typeof Module._web_get_modal_text_ptr === "function" &&
+          typeof Module._web_get_modal_text_len === "function" &&
+          typeof Module._web_get_modal_attrs_ptr === "function" &&
+          typeof Module._web_get_modal_attrs_len === "function" &&
+          typeof Module._web_get_modal_dismiss_key === "function" &&
+          typeof Module._web_get_modal_revision === "function" &&
+          typeof Module._web_menu_hover === "function" &&
+          typeof Module._web_menu_activate === "function" &&
+          typeof Module._web_modal_activate === "function";
 
         if (!hasAPI) {
           statusEl.textContent = "WASM started, but web_* API missing";
@@ -1372,6 +1929,27 @@
           getFxCellsRows: Module._web_get_fx_cells_rows,
           getFxDelaySeq: Module._web_get_fx_delay_seq,
           getFxDelayMsec: Module._web_get_fx_delay_msec,
+          getMenuItemsPtr: Module._web_get_menu_items_ptr,
+          getMenuItemCount: Module._web_get_menu_item_count,
+          getMenuItemStride: Module._web_get_menu_item_stride,
+          getMenuTextPtr: Module._web_get_menu_text_ptr,
+          getMenuTextLen: Module._web_get_menu_text_len,
+          getMenuAttrsPtr: Module._web_get_menu_attrs_ptr,
+          getMenuAttrsLen: Module._web_get_menu_attrs_len,
+          getMenuRevision: Module._web_get_menu_revision,
+          getMenuDetailsPtr: Module._web_get_menu_details_ptr,
+          getMenuDetailsLen: Module._web_get_menu_details_len,
+          getMenuDetailsAttrsPtr: Module._web_get_menu_details_attrs_ptr,
+          getMenuDetailsAttrsLen: Module._web_get_menu_details_attrs_len,
+          getModalTextPtr: Module._web_get_modal_text_ptr,
+          getModalTextLen: Module._web_get_modal_text_len,
+          getModalAttrsPtr: Module._web_get_modal_attrs_ptr,
+          getModalAttrsLen: Module._web_get_modal_attrs_len,
+          getModalDismissKey: Module._web_get_modal_dismiss_key,
+          getModalRevision: Module._web_get_modal_revision,
+          menuHover: Module._web_menu_hover,
+          menuActivate: Module._web_menu_activate,
+          modalActivate: Module._web_modal_activate,
         };
 
         cellStride = api.getCellStride();
@@ -1382,6 +1960,9 @@
 
         statusEl.textContent = "Running (-mweb). Click page and type to play. Wheel/pinch map to zoom.";
         bindInput();
+        bindMenuPointerInput();
+        bindOverlayMenuInput();
+        bindOverlayModalInput();
         bindMapZoomInput();
         startPersistSyncLoop();
         fitMapToViewport();

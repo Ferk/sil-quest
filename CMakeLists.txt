@@ -262,6 +262,7 @@ set(SIL_SOURCES
     src/spells2.c
     src/squelch.c
     src/tables.c
+    src/ui-model.c
     src/use-obj.c
     src/util.c
     src/variable.c
@@ -397,7 +398,8 @@ if (NOT WIN32 AND NOT SUPPORT_COCOA_FRONTEND)
 endif()
 
 # Whether to treat compiler warnings as errors
-option(BUILD_ENABLE_WERROR "Treat compiler warnings as errors" OFF)
+# Default to ON for Emscripten so local web builds catch the same issues CI catches.
+option(BUILD_ENABLE_WERROR "Treat compiler warnings as errors" ${EMSCRIPTEN})
 if (BUILD_ENABLE_WERROR)
     target_compile_options(${SIL_TARGET} PRIVATE -Werror)
 endif()

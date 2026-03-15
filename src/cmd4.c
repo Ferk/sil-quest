@@ -9,6 +9,7 @@
  */
 
 #include "angband.h"
+#include "ui-model.h"
 
 /* String used to show a color sample */
 #define COLOR_SAMPLE "###"
@@ -243,6 +244,7 @@ void do_cmd_redraw(void)
 
     /* Clear screen */
     Term_clear();
+    Term_fresh();
 
     /* Hack -- update */
     handle_stuff();
@@ -453,6 +455,336 @@ static bool prereqs(int skilltype, int abilitynum)
     return (TRUE);
 }
 
+extern char* oath_desc2[];
+extern char* oath_reward[];
+static int bane_type_killed(int i);
+static int bane_bonus_aux(void);
+
+static byte ability_menu_attr(int skilltype, ability_type* b_ptr)
+{
+    if (p_ptr->have_ability[skilltype][b_ptr->abilitynum])
+    {
+        if (p_ptr->innate_ability[skilltype][b_ptr->abilitynum])
+        {
+            if (p_ptr->active_ability[skilltype][b_ptr->abilitynum])
+                return TERM_WHITE;
+            else
+                return TERM_RED;
+        }
+        else
+        {
+            if (p_ptr->active_ability[skilltype][b_ptr->abilitynum])
+                return TERM_L_GREEN;
+            else
+                return TERM_RED;
+        }
+    }
+
+    if (prereqs(skilltype, b_ptr->abilitynum))
+        return TERM_SLATE;
+
+    return TERM_L_DARK;
+}
+
+static void ability_menu_label(
+    int skilltype, ability_type* b_ptr, char* buf, size_t buf_size)
+{
+    if ((skilltype == S_PER) && (b_ptr->abilitynum == PER_BANE)
+        && (p_ptr->bane_type > 0))
+    {
+        strnfmt(buf, buf_size, "%c) %s-%s", (char)'a' + b_ptr->abilitynum,
+            bane_name[p_ptr->bane_type], (b_name + b_ptr->name));
+    }
+    else if ((skilltype == S_WIL) && (b_ptr->abilitynum == WIL_OATH)
+        && (p_ptr->oath_type > 0))
+    {
+        strnfmt(buf, buf_size, "%c) %s: %s", (char)'a' + b_ptr->abilitynum,
+            (b_name + b_ptr->name), oath_name[p_ptr->oath_type]);
+    }
+    else
+    {
+        strnfmt(buf, buf_size, "%c) %s", (char)'a' + b_ptr->abilitynum,
+            (b_name + b_ptr->name));
+    }
+}
+
+static int build_ability_menu_semantic_text(
+    int skilltype, ability_type* b_ptr, byte attr, char* text, byte* attrs,
+    size_t size)
+{
+    ui_text_builder builder;
+    char buf[160];
+
+    if (!b_ptr || !text || !attrs || (size == 0))
+        return 0;
+
+    ui_text_builder_init(&builder, text, attrs, size);
+    ui_text_builder_append_line(&builder, "Abilities", TERM_WHITE);
+    ui_text_builder_newline(&builder, TERM_WHITE);
+
+    ability_menu_label(skilltype, b_ptr, buf, sizeof(buf));
+    ui_text_builder_append_line(&builder, buf, attr);
+    ui_text_builder_newline(&builder, TERM_WHITE);
+
+    if (b_text && b_ptr->text)
+    {
+        ui_text_builder_append(&builder, b_text + b_ptr->text, TERM_L_WHITE);
+        if ((builder.off > 0) && (builder.text[builder.off - 1] != '\n'))
+            ui_text_builder_newline(&builder, TERM_L_WHITE);
+        ui_text_builder_newline(&builder, TERM_WHITE);
+    }
+
+    if (!p_ptr->have_ability[skilltype][b_ptr->abilitynum])
+    {
+        ui_text_builder_append_line(&builder, "Prerequisites:", attr);
+
+        strnfmt(buf, sizeof(buf), "%d skill points (you have %d)", b_ptr->level,
+            p_ptr->skill_base[skilltype]);
+        ui_text_builder_append_line(&builder, buf, TERM_L_DARK);
+        if (b_ptr->level <= p_ptr->skill_base[skilltype])
+        {
+            strnfmt(buf, sizeof(buf), "%d skill points", b_ptr->level);
+            ui_text_builder_append_line(&builder, buf, TERM_SLATE);
+        }
+
+        if (!p_ptr->active_ability[S_PER][PER_QUICK_STUDY])
+        {
+            int j;
+
+            for (j = 0; j < b_ptr->prereqs; j++)
+            {
+                cptr prereq_name = b_name
+                    + (&b_info[ability_index(b_ptr->prereq_skilltype[j],
+                           b_ptr->prereq_abilitynum[j])])
+                          ->name;
+                byte prereq_attr = p_ptr->innate_ability[b_ptr->prereq_skilltype[j]]
+                                                     [b_ptr->prereq_abilitynum[j]]
+                    ? TERM_SLATE
+                    : TERM_L_DARK;
+
+                if (j == 0)
+                    strnfmt(buf, sizeof(buf), "%s", prereq_name);
+                else
+                    strnfmt(buf, sizeof(buf), "or %s", prereq_name);
+                ui_text_builder_append_line(&builder, buf, prereq_attr);
+            }
+        }
+        else if (b_ptr->prereqs > 0)
+        {
+            ui_text_builder_append_line(&builder, "Quick Study", TERM_GREEN);
+        }
+
+        if (prereqs(skilltype, b_ptr->abilitynum))
+        {
+            int exp_cost = (abilities_in_skill(skilltype) + 1) * 500;
+            byte cost_attr = TERM_L_DARK;
+
+            exp_cost -= 500 * affinity_level(skilltype);
+            if (exp_cost < 0)
+                exp_cost = 0;
+            if (exp_cost <= p_ptr->new_exp)
+                cost_attr = TERM_SLATE;
+
+            ui_text_builder_newline(&builder, TERM_WHITE);
+            ui_text_builder_append_line(&builder, "Current price:", cost_attr);
+            strnfmt(buf, sizeof(buf), "%d experience (you have %d)", exp_cost,
+                p_ptr->new_exp);
+            ui_text_builder_append_line(&builder, buf, TERM_L_DARK);
+            if (exp_cost <= p_ptr->new_exp)
+            {
+                strnfmt(buf, sizeof(buf), "%d experience", exp_cost);
+                ui_text_builder_append_line(&builder, buf, TERM_SLATE);
+            }
+        }
+    }
+    else if ((skilltype == S_PER) && (b_ptr->abilitynum == PER_BANE)
+        && (p_ptr->bane_type > 0))
+    {
+        strnfmt(buf, sizeof(buf), "%s-Bane:", bane_name[p_ptr->bane_type]);
+        ui_text_builder_append_line(&builder, buf, TERM_WHITE);
+        strnfmt(buf, sizeof(buf), "%d slain, giving a %+d bonus",
+            bane_type_killed(p_ptr->bane_type), bane_bonus_aux());
+        ui_text_builder_append_line(&builder, buf, TERM_WHITE);
+    }
+    else if ((skilltype == S_WIL) && (b_ptr->abilitynum == WIL_OATH)
+        && (p_ptr->oath_type > 0))
+    {
+        ui_text_builder_append(&builder, "Oath: ", TERM_WHITE);
+        ui_text_builder_append_line(&builder, oath_name[p_ptr->oath_type],
+            TERM_L_BLUE);
+
+        strnfmt(buf, sizeof(buf), "You have sworn not to %s.",
+            oath_desc2[p_ptr->oath_type]);
+        ui_text_builder_append_line(&builder, buf, TERM_L_WHITE);
+
+        if (oath_invalid(p_ptr->oath_type))
+            ui_text_builder_append_line(
+                &builder, "You are an oathbreaker.", TERM_RED);
+        else
+        {
+            strnfmt(buf, sizeof(buf), "Bonus: %s.", oath_reward[p_ptr->oath_type]);
+            ui_text_builder_append_line(&builder, buf, TERM_WHITE);
+        }
+    }
+
+    return ui_text_builder_length(&builder);
+}
+
+typedef struct command_menu_entry command_menu_entry;
+struct command_menu_entry
+{
+    int key;
+    int row;
+    cptr label;
+    cptr details;
+};
+
+static void render_command_menu(cptr title, int title_row, int col,
+    const command_menu_entry* entries, int entry_count, int highlight,
+    cptr extra_details);
+static int command_menu_read_action(
+    int* highlight, const command_menu_entry* entries, int entry_count);
+
+static cptr song_menu_name(int song)
+{
+    int idx;
+
+    if ((song < 0) || (song >= SNG_WOVEN_THEMES))
+        return NULL;
+
+    idx = ability_index(S_SNG, song);
+    if (idx < 0)
+        return NULL;
+
+    return b_name + b_info[idx].name;
+}
+
+static int song_menu_default_highlight(void)
+{
+    int i;
+    int highlight = 1;
+
+    if (p_ptr->song1 != SNG_NOTHING)
+    {
+        for (i = 0; i < SNG_WOVEN_THEMES; i++)
+        {
+            if (!p_ptr->active_ability[S_SNG][i])
+                continue;
+
+            highlight++;
+            if (i == p_ptr->song1)
+                return highlight;
+        }
+    }
+
+    for (i = 0; i < SNG_WOVEN_THEMES; i++)
+    {
+        if (p_ptr->active_ability[S_SNG][i])
+            return highlight + 1;
+    }
+
+    return 1;
+}
+
+static void build_song_menu_extra_details(char* details, size_t details_size)
+{
+    cptr song1_name = song_menu_name(p_ptr->song1);
+    cptr song2_name = song_menu_name(p_ptr->song2);
+
+    if (!details || (details_size == 0))
+        return;
+
+    details[0] = '\0';
+
+    if (song1_name || song2_name)
+    {
+        strnfmt(details, details_size, "Current song: %s",
+            song1_name ? song1_name : "(none)");
+        if (song2_name)
+        {
+            my_strcat(details, "\nMinor theme: ", details_size);
+            my_strcat(details, song2_name, details_size);
+        }
+    }
+    else
+    {
+        my_strcpy(details, "You are not currently singing.", details_size);
+    }
+}
+
+static int build_song_menu_entries(command_menu_entry* entries,
+    char labels[][80], char details[][1024], int max_entries)
+{
+    int i;
+    int entry_count = 0;
+
+    if (!entries || !labels || !details || (max_entries <= 0))
+        return 0;
+
+    entries[entry_count].key = 's';
+    entries[entry_count].row = 2;
+    strnfmt(labels[entry_count], sizeof(labels[entry_count]), "s) Stop singing");
+    strnfmt(details[entry_count], sizeof(details[entry_count]),
+        "End your current song. If you are weaving themes, this also ends "
+        "the minor theme.");
+    entries[entry_count].label = labels[entry_count];
+    entries[entry_count].details = details[entry_count];
+    entry_count++;
+
+    for (i = 0; (i < SNG_WOVEN_THEMES) && (entry_count < max_entries); i++)
+    {
+        ability_type* b_ptr;
+
+        if (!p_ptr->active_ability[S_SNG][i])
+            continue;
+
+        b_ptr = &b_info[ability_index(S_SNG, i)];
+        strnfmt(labels[entry_count], sizeof(labels[entry_count]), "%c) %s",
+            (char)'a' + i, b_name + b_ptr->name);
+        details[entry_count][0] = '\0';
+        if (b_text && b_ptr->text)
+            my_strcpy(details[entry_count], b_text + b_ptr->text,
+                sizeof(details[entry_count]));
+        if (p_ptr->song1 == i)
+        {
+            my_strcat(details[entry_count], "\n\nThis is your current song.",
+                sizeof(details[entry_count]));
+        }
+        else if (p_ptr->song2 == i)
+        {
+            my_strcat(details[entry_count],
+                "\n\nThis is your current minor theme.",
+                sizeof(details[entry_count]));
+        }
+        if (chosen_oath(OATH_SILENCE) && !oath_invalid(OATH_SILENCE))
+        {
+            my_strcat(details[entry_count],
+                "\n\nSinging will break your oath of silence.",
+                sizeof(details[entry_count]));
+        }
+        entries[entry_count].key = 'a' + i;
+        entries[entry_count].row = entry_count + 2;
+        entries[entry_count].label = labels[entry_count];
+        entries[entry_count].details = details[entry_count];
+        entry_count++;
+    }
+
+    if ((p_ptr->song2 != SNG_NOTHING) && (entry_count < max_entries))
+    {
+        entries[entry_count].key = 'x';
+        entries[entry_count].row = entry_count + 2;
+        strnfmt(labels[entry_count], sizeof(labels[entry_count]),
+            "x) Exchange themes");
+        strnfmt(details[entry_count], sizeof(details[entry_count]),
+            "Swap your main song and minor theme.");
+        entries[entry_count].label = labels[entry_count];
+        entries[entry_count].details = details[entry_count];
+        entry_count++;
+    }
+
+    return entry_count;
+}
+
 /*
  * Display the available songs (modelled on show_inven).
  */
@@ -543,6 +875,7 @@ void do_cmd_change_song(void)
 
     int options = 0;
     int song_choice = -1;
+    int highlight = 0;
 
     char out_val[80];
     char tmp_val[80];
@@ -566,6 +899,8 @@ void do_cmd_change_song(void)
         return;
     }
 
+    highlight = song_menu_default_highlight();
+
     /* Flush the prompt */
     Term_fresh();
 
@@ -585,9 +920,25 @@ void do_cmd_change_song(void)
     /* Repeat until done */
     while (!done)
     {
+        command_menu_entry entries[16];
+        char labels[16][80];
+        char details[16][1024];
+        char extra_details[256];
+        int entry_count = 0;
+
         /* Redraw if needed */
         if (p_ptr->command_see)
             show_songs();
+
+        entry_count = build_song_menu_entries(
+            entries, labels, details, (int)(sizeof(entries) / sizeof(entries[0])));
+        if (highlight < 1)
+            highlight = 1;
+        if (highlight > entry_count)
+            highlight = entry_count;
+        build_song_menu_extra_details(extra_details, sizeof(extra_details));
+        render_command_menu(
+            "Songs", 2, 26, entries, entry_count, highlight, extra_details);
 
         /* Begin the prompt */
         strnfmt(out_val, sizeof(out_val), "Songs: s");
@@ -623,8 +974,7 @@ void do_cmd_change_song(void)
         /* Show the prompt */
         prt(tmp_val, 0, 0);
 
-        /* Get a key */
-        which = inkey();
+        which = (char)command_menu_read_action(&highlight, entries, entry_count);
 
         /* Parse it */
         switch (which)
@@ -733,6 +1083,7 @@ void do_cmd_change_song(void)
                 }
                 else
                 {
+                    ui_menu_clear();
                     return;
                 }
             }
@@ -742,6 +1093,8 @@ void do_cmd_change_song(void)
 
         change_song(song_choice);
     }
+
+    ui_menu_clear();
 }
 
 static void wipe_screen_from(int col)
@@ -861,17 +1214,26 @@ static int bane_menu(int* highlight)
     int i, k;
 
     int ch;
-    int options;
+    int options = 0;
 
     char buf[80];
+    char menu_text[512];
+    byte menu_attrs[512];
 
     byte attr;
+    ui_text_builder builder;
 
     // bane title
     Term_putstr(COL_DESCRIPTION, 2, -1, TERM_WHITE, "Enemy types");
 
     // clear the description area
     wipe_screen_from(COL_DESCRIPTION);
+
+    ui_text_builder_init(&builder, menu_text, menu_attrs, sizeof(menu_text));
+    ui_text_builder_append_line(&builder, "Enemy types", TERM_WHITE);
+    ui_text_builder_newline(&builder, TERM_WHITE);
+
+    ui_menu_begin();
 
     // list the enemies
     for (i = 1; i < BANE_TYPES; i++)
@@ -890,12 +1252,18 @@ static int bane_menu(int* highlight)
 
         strnfmt(buf, 80, "%c) %s", (char)'a' + i - 1, bane_name[i]);
         Term_putstr(COL_DESCRIPTION, i + 3, -1, attr, buf);
+        ui_menu_add(COL_DESCRIPTION, i + 3, (int)strlen(buf), 1, '\r',
+            (*highlight == i), attr, buf);
 
         if (*highlight == i)
         {
             // highlight the label
             strnfmt(buf, 80, "%c)", (char)'a' + i - 1);
             Term_putstr(COL_DESCRIPTION, i + 3, -1, TERM_L_BLUE, buf);
+
+            strnfmt(buf, 80, "%c) %s", (char)'a' + i - 1, bane_name[i]);
+            ui_text_builder_append_line(&builder, buf, attr);
+            ui_text_builder_newline(&builder, TERM_WHITE);
 
             /* Indent output by 2 character, and wrap at column 70 */
             text_out_wrap = 79;
@@ -908,6 +1276,7 @@ static int bane_menu(int* highlight)
             {
                 strnfmt(buf, 80, "You have slain %d of these foes.", k);
                 text_out_to_screen(TERM_SLATE, buf);
+                ui_text_builder_append_line(&builder, buf, TERM_SLATE);
             }
             else
             {
@@ -916,6 +1285,7 @@ static int bane_menu(int* highlight)
                     "more.",
                     k, 4 - k);
                 text_out_to_screen(TERM_L_DARK, buf);
+                ui_text_builder_append_line(&builder, buf, TERM_L_DARK);
             }
 
             /* Reset text_out() vars */
@@ -926,6 +1296,9 @@ static int bane_menu(int* highlight)
         // keep track of the number of options
         options = i;
     }
+
+    ui_menu_set_text(menu_text, menu_attrs, ui_text_builder_length(&builder));
+    ui_menu_end();
 
     /* Flush the prompt */
     Term_fresh();
@@ -950,17 +1323,20 @@ static int bane_menu(int* highlight)
     if ((ch >= 'A') && (ch <= (char)'A' + options - 1))
     {
         *highlight = (int)ch - 'A' + 1;
+        ui_menu_clear();
         return (*highlight);
     }
 
     if ((ch == ESCAPE) || (ch == 'q') || (ch == '4'))
     {
+        ui_menu_clear();
         return (BANE_TYPES + 1);
     }
 
     /* Choose current  */
     if ((ch == '\r') || (ch == '\n') || (ch == ' ') || (ch == '6'))
     {
+        ui_menu_clear();
         return (*highlight);
     }
 
@@ -1022,16 +1398,25 @@ static int oath_menu(int* highlight)
 {
     int i;
     int ch;
-    int options;
+    int options = 0;
 
     char buf[120];
+    char menu_text[768];
+    byte menu_attrs[768];
 
     byte attr;
+    ui_text_builder builder;
 
     Term_putstr(COL_DESCRIPTION, 2, -1, TERM_WHITE, "Oath");
 
     // clear the description area
     wipe_screen_from(COL_DESCRIPTION);
+
+    ui_text_builder_init(&builder, menu_text, menu_attrs, sizeof(menu_text));
+    ui_text_builder_append_line(&builder, "Oath", TERM_WHITE);
+    ui_text_builder_newline(&builder, TERM_WHITE);
+
+    ui_menu_begin();
 
     // list the oaths
     for (i = 1; i < OATH_TYPES; i++)
@@ -1047,12 +1432,18 @@ static int oath_menu(int* highlight)
 
         strnfmt(buf, 120, "%c) %s", (char)'a' + i - 1, oath_name[i]);
         Term_putstr(COL_DESCRIPTION, i + 3, -1, attr, buf);
+        ui_menu_add(COL_DESCRIPTION, i + 3, (int)strlen(buf), 1, '\r',
+            (*highlight == i), attr, buf);
 
         if (*highlight == i)
         {
             // highlight the label
             strnfmt(buf, 120, "%c)", (char)'a' + i - 1);
             Term_putstr(COL_DESCRIPTION, i + 3, -1, TERM_L_BLUE, buf);
+
+            strnfmt(buf, 120, "%c) %s", (char)'a' + i - 1, oath_name[i]);
+            ui_text_builder_append_line(&builder, buf, attr);
+            ui_text_builder_newline(&builder, TERM_WHITE);
 
             /* Indent output by 2 character, and wrap at column 70 */
             text_out_wrap = 79;
@@ -1065,17 +1456,27 @@ static int oath_menu(int* highlight)
                 strnfmt(buf, 120, "It is too late to vow %s.",
                     oath_desc1[i]);
                 text_out_to_screen(attr, buf);
+                ui_text_builder_append_line(&builder, buf, attr);
             }
             else
             {
-                strnfmt(buf, 120, "You vow %s.\n\n",
-                    oath_desc1[i]);
+                strnfmt(buf, 120, "You vow %s.\n\n", oath_desc1[i]);
                 text_out_to_screen(attr, buf);
+                strnfmt(buf, 120, "You vow %s.", oath_desc1[i]);
+                ui_text_builder_append_line(&builder, buf, attr);
+                ui_text_builder_newline(&builder, TERM_WHITE);
+
                 strnfmt(buf, 120, "You may not %s.\n", oath_desc2[i]);
                 text_out_to_screen(attr, buf);
+                strnfmt(buf, 120, "You may not %s.", oath_desc2[i]);
+                ui_text_builder_append_line(&builder, buf, attr);
+
                 strnfmt(buf, 120, "As long as you keep this oath, gain %s.\n\n",
                     oath_reward[i]);
                 text_out_to_screen(attr, buf);
+                strnfmt(buf, 120, "As long as you keep this oath, gain %s.",
+                    oath_reward[i]);
+                ui_text_builder_append_line(&builder, buf, attr);
             }
 
             /* Reset text_out() vars */
@@ -1086,6 +1487,9 @@ static int oath_menu(int* highlight)
         // keep track of the number of options
         options = i;
     }
+
+    ui_menu_set_text(menu_text, menu_attrs, ui_text_builder_length(&builder));
+    ui_menu_end();
 
     /* Flush the prompt */
     Term_fresh();
@@ -1110,17 +1514,20 @@ static int oath_menu(int* highlight)
     if ((ch >= 'A') && (ch <= (char)'A' + options - 1))
     {
         *highlight = (int)ch - 'A' + 1;
+        ui_menu_clear();
         return (*highlight);
     }
 
     if ((ch == ESCAPE) || (ch == 'q') || (ch == '4'))
     {
+        ui_menu_clear();
         return (OATH_TYPES + 1);
     }
 
     /* Choose current  */
     if ((ch == '\r') || (ch == '\n') || (ch == ' ') || (ch == '6'))
     {
+        ui_menu_clear();
         return (*highlight);
     }
 
@@ -1149,6 +1556,8 @@ static int abilities_menu1(int* highlight)
 
     // title
     Term_putstr(COL_SKILL, 2, -1, TERM_WHITE, "Skills");
+    ui_menu_begin();
+    ui_menu_set_text("Skills", NULL, 0);
 
     // list the skills
     for (i = 0; i < options; i++)
@@ -1157,7 +1566,10 @@ static int abilities_menu1(int* highlight)
 
         Term_putstr(COL_SKILL, i + 4, -1,
             (*highlight == i + 1) ? TERM_L_BLUE : TERM_WHITE, buf);
+        ui_menu_add(COL_SKILL, i + 4, (int)strlen(buf), 1, '\r',
+            (*highlight == i + 1), TERM_WHITE, buf);
     }
+    ui_menu_end();
 
     // clear the abilities area
     wipe_screen_from(COL_ABILITY);
@@ -1207,12 +1619,14 @@ static int abilities_menu1(int* highlight)
 
     if ((ch == ESCAPE) || (ch == 'q') || (ch == '\t'))
     {
+        ui_menu_clear();
         return (options + 1);
     }
 
     /* Choose current  */
     if ((ch == '\r') || (ch == '\n') || (ch == ' ') || (ch == '6'))
     {
+        ui_menu_clear();
         return (*highlight);
     }
 
@@ -1241,14 +1655,19 @@ static int abilities_menu2(int skilltype, int* highlight)
     int options = 0; // a default value to soothe compilation warnings
 
     char buf[80];
+    char menu_text[4096];
+    byte menu_attrs[4096];
+    int menu_text_len = 0;
 
     byte attr;
 
     // clear the abilities and description area
     wipe_screen_from(COL_ABILITY);
+    menu_text[0] = '\0';
 
     // abilities title
     Term_putstr(COL_ABILITY, 2, -1, TERM_WHITE, "Abilities");
+    ui_menu_begin();
 
     // list the abilities
     for (i = 0; i < z_info->b_max; i++)
@@ -1263,58 +1682,11 @@ static int abilities_menu2(int skilltype, int* highlight)
         if (b_ptr->skilltype != skilltype)
             continue;
 
-        // Determine the appropriate colour
-        if (p_ptr->have_ability[skilltype][b_ptr->abilitynum])
-        {
-            if (p_ptr->innate_ability[skilltype][b_ptr->abilitynum])
-            {
-                if (p_ptr->active_ability[skilltype][b_ptr->abilitynum])
-                {
-                    attr = TERM_WHITE;
-                }
-                else
-                {
-                    attr = TERM_RED;
-                }
-            }
-            else
-            {
-                if (p_ptr->active_ability[skilltype][b_ptr->abilitynum])
-                {
-                    attr = TERM_L_GREEN;
-                }
-                else
-                {
-                    attr = TERM_RED;
-                }
-            }
-        }
-        else
-        {
-            if (prereqs(skilltype, b_ptr->abilitynum))
-                attr = TERM_SLATE;
-            else
-                attr = TERM_L_DARK;
-        }
-
-        if ((skilltype == S_PER) && (b_ptr->abilitynum == PER_BANE)
-            && (p_ptr->bane_type > 0))
-        {
-            strnfmt(buf, 80, "%c) %s-%s", (char)'a' + b_ptr->abilitynum,
-                bane_name[p_ptr->bane_type], (b_name + b_ptr->name));
-        }
-        else if ((skilltype == S_WIL) && (b_ptr->abilitynum == WIL_OATH)
-            && (p_ptr->oath_type > 0))
-        {
-            strnfmt(buf, 80, "%c) %s: %s", (char)'a' + b_ptr->abilitynum,
-                (b_name + b_ptr->name), oath_name[p_ptr->oath_type]);
-        }
-        else
-        {
-            strnfmt(buf, 80, "%c) %s", (char)'a' + b_ptr->abilitynum,
-                (b_name + b_ptr->name));
-        }
+        attr = ability_menu_attr(skilltype, b_ptr);
+        ability_menu_label(skilltype, b_ptr, buf, sizeof(buf));
         Term_putstr(COL_ABILITY, b_ptr->abilitynum + 4, -1, attr, buf);
+        ui_menu_add(COL_ABILITY, b_ptr->abilitynum + 4, (int)strlen(buf), 1,
+            '\r', (*highlight == b_ptr->abilitynum + 1), attr, buf);
 
         if (*highlight == b_ptr->abilitynum + 1)
         {
@@ -1322,6 +1694,9 @@ static int abilities_menu2(int skilltype, int* highlight)
             strnfmt(buf, 80, "%c)", (char)'a' + b_ptr->abilitynum);
             Term_putstr(
                 COL_ABILITY, b_ptr->abilitynum + 4, -1, TERM_L_BLUE, buf);
+
+            menu_text_len = build_ability_menu_semantic_text(
+                skilltype, b_ptr, attr, menu_text, menu_attrs, sizeof(menu_text));
 
             // print the description of the highlighted ability
             if (b_text && b_ptr->text)
@@ -1478,6 +1853,9 @@ static int abilities_menu2(int skilltype, int* highlight)
         options = b_ptr->abilitynum + 1;
     }
 
+    ui_menu_set_text(menu_text, menu_attrs, menu_text_len);
+    ui_menu_end();
+
     /* Flush the prompt */
     Term_fresh();
 
@@ -1505,17 +1883,20 @@ static int abilities_menu2(int skilltype, int* highlight)
 
     if ((ch == ESCAPE) || (ch == 'q') || (ch == '4'))
     {
+        ui_menu_clear();
         return (ABILITIES_MAX + 1);
     }
 
     if (ch == '\t')
     {
+        ui_menu_clear();
         return (ABILITIES_MAX + 2);
     }
 
     /* Choose current  */
     if ((ch == '\r') || (ch == '\n') || (ch == ' ') || (ch == '6'))
     {
+        ui_menu_clear();
         return (*highlight);
     }
 
@@ -1559,6 +1940,7 @@ void do_cmd_ability_screen(void)
 
     /* Clear screen */
     Term_clear();
+    Term_fresh();
 
     /* Process Events until "Return to Game" is selected */
     while (!return_to_game)
@@ -3849,6 +4231,337 @@ static void pay_costs(void)
     p_ptr->redraw |= (PR_EXP | PR_BASIC);
 }
 
+#define SMITHING_MENU_TEXT_MAX 8192
+
+static ui_text_builder* smithing_menu_builder = NULL;
+
+static void text_out_to_ui_builder(byte attr, cptr str)
+{
+    if (!smithing_menu_builder || !str)
+        return;
+
+    ui_text_builder_append(smithing_menu_builder, str, attr);
+}
+
+static void smithing_menu_text_init(
+    ui_text_builder* builder, char* text, byte* attrs, size_t size, cptr title)
+{
+    ui_text_builder_init(builder, text, attrs, size);
+
+    if (title && title[0])
+    {
+        ui_text_builder_append_line(builder, title, TERM_WHITE);
+        ui_text_builder_newline(builder, TERM_WHITE);
+    }
+}
+
+static void smithing_menu_publish(const ui_text_builder* menu_builder,
+    const ui_text_builder* details_builder)
+{
+    if (menu_builder)
+    {
+        ui_menu_set_text(menu_builder->text, menu_builder->attrs,
+            ui_text_builder_length(menu_builder));
+    }
+
+    if (details_builder)
+    {
+        ui_menu_set_details(details_builder->text, details_builder->attrs,
+            ui_text_builder_length(details_builder));
+    }
+
+    ui_menu_end();
+}
+
+static void smithing_menu_append_requirement_details(ui_text_builder* builder, int dif)
+{
+    char buf[80];
+    int turn_multiplier = 10;
+    byte attr;
+    bool can_afford = TRUE;
+    size_t title_pos;
+
+    if (!builder)
+        return;
+
+    ui_text_builder_newline(builder, TERM_WHITE);
+    title_pos = builder->off;
+    ui_text_builder_append_line(builder, "Cost:", TERM_SLATE);
+
+    if (smithing_cost.weaponsmith)
+    {
+        ui_text_builder_append_line(builder, "Weaponsmith", TERM_RED);
+        can_afford = FALSE;
+    }
+    if (smithing_cost.armoursmith)
+    {
+        ui_text_builder_append_line(builder, "Armoursmith", TERM_RED);
+        can_afford = FALSE;
+    }
+    if (smithing_cost.jeweller)
+    {
+        ui_text_builder_append_line(builder, "Jeweller", TERM_RED);
+        can_afford = FALSE;
+    }
+    if (smithing_cost.enchantment)
+    {
+        ui_text_builder_append_line(builder, "Enchantment", TERM_RED);
+        can_afford = FALSE;
+    }
+    if (smithing_cost.artifice)
+    {
+        ui_text_builder_append_line(builder, "Artifice", TERM_RED);
+        can_afford = FALSE;
+    }
+    if (smithing_cost.uses > 0)
+    {
+        if (forge_uses(p_ptr->py, p_ptr->px) >= smithing_cost.uses)
+            attr = TERM_SLATE;
+        else
+        {
+            attr = TERM_L_DARK;
+            can_afford = FALSE;
+        }
+
+        if (smithing_cost.uses == 1)
+            strnfmt(buf, sizeof(buf), "%d Use (of %d)", smithing_cost.uses,
+                forge_uses(p_ptr->py, p_ptr->px));
+        else
+            strnfmt(buf, sizeof(buf), "%d Uses (of %d)", smithing_cost.uses,
+                forge_uses(p_ptr->py, p_ptr->px));
+        ui_text_builder_append_line(builder, buf, attr);
+    }
+    if (smithing_cost.drain > 0)
+    {
+        if (smithing_cost.drain <= p_ptr->skill_base[S_SMT])
+            attr = TERM_BLUE;
+        else
+        {
+            attr = TERM_L_DARK;
+            can_afford = FALSE;
+        }
+        strnfmt(buf, sizeof(buf), "%d Smithing", smithing_cost.drain);
+        ui_text_builder_append_line(builder, buf, attr);
+    }
+    if (smithing_cost.mithril > 0)
+    {
+        if (smithing_cost.mithril <= mithril_carried())
+            attr = TERM_SLATE;
+        else
+        {
+            attr = TERM_L_DARK;
+            can_afford = FALSE;
+        }
+        strnfmt(buf, sizeof(buf), "%d.%d lb Mithril", smithing_cost.mithril / 10,
+            smithing_cost.mithril % 10);
+        ui_text_builder_append_line(builder, buf, attr);
+    }
+    if (smithing_cost.str > 0)
+    {
+        if (p_ptr->stat_base[A_STR] + p_ptr->stat_drain[A_STR]
+                - smithing_cost.str
+            >= -5)
+        {
+            attr = TERM_SLATE;
+        }
+        else
+        {
+            attr = TERM_L_DARK;
+            can_afford = FALSE;
+        }
+        strnfmt(buf, sizeof(buf), "%d Str", smithing_cost.str);
+        ui_text_builder_append_line(builder, buf, attr);
+    }
+    if (smithing_cost.dex > 0)
+    {
+        if (p_ptr->stat_base[A_DEX] + p_ptr->stat_drain[A_DEX]
+                - smithing_cost.dex
+            >= -5)
+        {
+            attr = TERM_SLATE;
+        }
+        else
+        {
+            attr = TERM_L_DARK;
+            can_afford = FALSE;
+        }
+        strnfmt(buf, sizeof(buf), "%d Dex", smithing_cost.dex);
+        ui_text_builder_append_line(builder, buf, attr);
+    }
+    if (smithing_cost.con > 0)
+    {
+        if (p_ptr->stat_base[A_CON] + p_ptr->stat_drain[A_CON]
+                - smithing_cost.con
+            >= -5)
+        {
+            attr = TERM_SLATE;
+        }
+        else
+        {
+            attr = TERM_L_DARK;
+            can_afford = FALSE;
+        }
+        strnfmt(buf, sizeof(buf), "%d Con", smithing_cost.con);
+        ui_text_builder_append_line(builder, buf, attr);
+    }
+    if (smithing_cost.gra > 0)
+    {
+        if (p_ptr->stat_base[A_GRA] + p_ptr->stat_drain[A_GRA]
+                - smithing_cost.gra
+            >= -5)
+        {
+            attr = TERM_SLATE;
+        }
+        else
+        {
+            attr = TERM_L_DARK;
+            can_afford = FALSE;
+        }
+        strnfmt(buf, sizeof(buf), "%d Gra", smithing_cost.gra);
+        ui_text_builder_append_line(builder, buf, attr);
+    }
+    if (smithing_cost.exp > 0)
+    {
+        if (p_ptr->new_exp >= smithing_cost.exp)
+            attr = TERM_SLATE;
+        else
+        {
+            attr = TERM_L_DARK;
+            can_afford = FALSE;
+        }
+        strnfmt(buf, sizeof(buf), "%d Exp", smithing_cost.exp);
+        ui_text_builder_append_line(builder, buf, attr);
+    }
+
+    if (p_ptr->active_ability[S_SMT][SMT_EXPERTISE])
+        turn_multiplier /= 2;
+
+    strnfmt(buf, sizeof(buf), "%d Turns", MAX(10, dif * turn_multiplier));
+    ui_text_builder_append_line(builder, buf, TERM_SLATE);
+    if (!can_afford)
+    {
+        int i;
+
+        for (i = 0; i < 5; i++)
+            builder->attrs[title_pos + i] = TERM_L_DARK;
+    }
+}
+
+static void smithing_menu_append_details(ui_text_builder* builder)
+{
+    char o_desc[160];
+    char buf[160];
+    int display_flag;
+    int dif;
+    byte dif_attr;
+    void (*old_text_out_hook)(byte a, cptr str);
+    int old_text_out_indent;
+    int old_text_out_wrap;
+
+    if (!builder)
+        return;
+
+    if (p_ptr->smithing_leftover)
+    {
+        ui_text_builder_append_line(builder, "In progress:", TERM_L_BLUE);
+        strnfmt(buf, sizeof(buf), "%3d turns left", p_ptr->smithing_leftover);
+        ui_text_builder_append_line(builder, buf, TERM_BLUE);
+        ui_text_builder_newline(builder, TERM_WHITE);
+    }
+
+    if (smith_o_ptr->tval == 0)
+        return;
+
+    display_flag = (smith_o_ptr->number > 1) ? TRUE : FALSE;
+    object_desc(o_desc, sizeof(o_desc), smith_o_ptr, display_flag, 2);
+    my_strcat(o_desc,
+        format("   %d.%d lb", smith_o_ptr->weight * smith_o_ptr->number / 10,
+            (smith_o_ptr->weight * smith_o_ptr->number) % 10),
+        sizeof(o_desc));
+
+    ui_text_builder_append_line(builder, o_desc, TERM_L_WHITE);
+
+    dif = object_difficulty(smith_o_ptr);
+    dif_attr = too_difficult(smith_o_ptr) ? TERM_L_DARK : TERM_SLATE;
+    if ((smithing_cost.drain > 0)
+        && (smithing_cost.drain <= p_ptr->skill_base[S_SMT]))
+    {
+        dif_attr = TERM_BLUE;
+    }
+
+    strnfmt(buf, sizeof(buf), "Difficulty: %d (max %d)", dif,
+        p_ptr->skill_use[S_SMT] + forge_bonus(p_ptr->py, p_ptr->px));
+    ui_text_builder_append_line(builder, buf, dif_attr);
+    smithing_menu_append_requirement_details(builder, dif);
+    ui_text_builder_newline(builder, TERM_WHITE);
+
+    old_text_out_hook = text_out_hook;
+    old_text_out_indent = text_out_indent;
+    old_text_out_wrap = text_out_wrap;
+
+    object_info_out_flags = object_flags;
+    smithing_menu_builder = builder;
+    text_out_hook = text_out_to_ui_builder;
+    text_out_indent = 0;
+    text_out_wrap = 0;
+
+    if ((k_text + k_info[smith_o_ptr->k_idx].text)[0] != '\0')
+    {
+        text_out_c(TERM_WHITE, k_text + k_info[smith_o_ptr->k_idx].text);
+        text_out(" ");
+    }
+
+    if (object_info_out(smith_o_ptr))
+        text_out("\n");
+
+    text_out_hook = old_text_out_hook;
+    text_out_indent = old_text_out_indent;
+    text_out_wrap = old_text_out_wrap;
+    smithing_menu_builder = NULL;
+
+}
+
+static bool smithing_tval_valid(int index, byte* attr_out)
+{
+    bool valid = FALSE;
+    byte attr = TERM_L_DARK;
+
+    if ((index < 0) || (index >= MAX_SMITHING_TVALS))
+        return FALSE;
+
+    if (smithing_tvals[index].category == CAT_WEAPON)
+    {
+        valid = TRUE;
+        attr = p_ptr->active_ability[S_SMT][SMT_WEAPONSMITH] ? TERM_WHITE
+                                                             : TERM_RED;
+    }
+    else if (smithing_tvals[index].category == CAT_ARMOUR)
+    {
+        valid = TRUE;
+        attr = p_ptr->active_ability[S_SMT][SMT_ARMOURSMITH] ? TERM_WHITE
+                                                             : TERM_RED;
+    }
+    else if (smithing_tvals[index].category == CAT_JEWELRY)
+    {
+        valid = TRUE;
+        attr = p_ptr->active_ability[S_SMT][SMT_JEWELLER] ? TERM_WHITE
+                                                          : TERM_RED;
+    }
+
+    if (attr_out)
+        *attr_out = valid ? attr : TERM_L_DARK;
+
+    return valid;
+}
+
+static void smithing_tval_menu_label(int index, char* buf, size_t buf_size)
+{
+    if (!buf || (buf_size == 0) || (index < 0) || (index >= MAX_SMITHING_TVALS))
+        return;
+
+    strnfmt(buf, buf_size, "%c) %s", (char)'a' + index, smithing_tvals[index].desc);
+}
+
 /*
  * Creates the base object (not in the dungeon, but just as a work in progress).
  */
@@ -3880,16 +4593,48 @@ static void create_base_object(int tval, int sval)
  * Performs the interface and selection work for the sval part of the base item
  * menu.
  */
-static int create_sval_menu_aux(int tval, int* highlight)
+static int create_sval_menu_aux(int* tval_highlight, int* highlight)
 {
     char ch;
     int i, num;
+    int tval;
     char buf[80];
+    char labels[20][80];
+    char parent_labels[MAX_SMITHING_TVALS][80];
+    char menu_text[SMITHING_MENU_TEXT_MAX];
+    byte menu_attrs[SMITHING_MENU_TEXT_MAX];
+    char menu_details[SMITHING_MENU_TEXT_MAX];
+    byte menu_details_attrs[SMITHING_MENU_TEXT_MAX];
     bool valid[20];
+    bool parent_valid[MAX_SMITHING_TVALS];
     int sval[20];
+    byte item_attr[20];
+    byte parent_attr[MAX_SMITHING_TVALS];
+    ui_text_builder builder;
+    ui_text_builder details_builder;
+
+    if (!tval_highlight)
+        return -1;
+
+    tval = smithing_tvals[*tval_highlight - 1].tval;
 
     // clear the right of the screen
-    wipe_screen_from(COL_SMT4);
+    wipe_screen_from(COL_SMT3);
+    smithing_menu_text_init(
+        &builder, menu_text, menu_attrs, sizeof(menu_text), "Base Item");
+    ui_text_builder_init(&details_builder, menu_details, menu_details_attrs,
+        sizeof(menu_details));
+    ui_menu_begin();
+
+    for (i = 0; i < MAX_SMITHING_TVALS; i++)
+    {
+        parent_valid[i] = smithing_tval_valid(i, &parent_attr[i]);
+        smithing_tval_menu_label(i, parent_labels[i], sizeof(parent_labels[i]));
+        Term_putstr(COL_SMT2, i + 2, -1, parent_valid[i] ? parent_attr[i] : TERM_L_DARK,
+            parent_labels[i]);
+        ui_menu_add(COL_SMT2, i + 2, (int)strlen(parent_labels[i]), 1,
+            'A' + i, (*tval_highlight == i + 1), parent_attr[i], parent_labels[i]);
+    }
 
     /* We have to search the whole itemlist. */
     for (num = 0, i = 1; i < z_info->k_max; i++)
@@ -3919,11 +4664,14 @@ static int create_sval_menu_aux(int tval, int* highlight)
                 valid[num] = TRUE;
             else
                 valid[num] = FALSE;
+            item_attr[num] = valid[num] ? TERM_WHITE : TERM_SLATE;
 
             /* Print it */
             strnfmt(buf, 80, "%c) %s", (char)'a' + num, name);
-            Term_putstr(COL_SMT3, num + 2, -1,
-                valid[num] ? TERM_WHITE : TERM_SLATE, buf);
+            Term_putstr(COL_SMT3, num + 2, -1, item_attr[num], buf);
+            my_strcpy(labels[num], buf, sizeof(labels[num]));
+            ui_menu_add(COL_SMT3, num + 2, (int)strlen(buf), 1, '\r',
+                (*highlight == num + 1), item_attr[num], buf);
 
             /* Remember the object sval */
             sval[num] = k_ptr->sval;
@@ -3933,12 +4681,42 @@ static int create_sval_menu_aux(int tval, int* highlight)
         }
     }
 
+    if (num <= 0)
+        *highlight = 1;
+    else if (*highlight > num)
+        *highlight = num;
+
     // highlight the label
-    strnfmt(buf, 80, "%c)", (char)'a' + *highlight - 1);
-    Term_putstr(COL_SMT3, *highlight + 1, -1, TERM_L_BLUE, buf);
+    strnfmt(buf, 80, "%c)", (char)'a' + *tval_highlight - 1);
+    Term_putstr(COL_SMT2, *tval_highlight + 1, -1, TERM_L_BLUE, buf);
+    if (num > 0)
+    {
+        strnfmt(buf, 80, "%c)", (char)'a' + *highlight - 1);
+        Term_putstr(COL_SMT3, *highlight + 1, -1, TERM_L_BLUE, buf);
+    }
 
     // make a simple version of the object
-    create_base_object(tval, sval[*highlight - 1]);
+    if ((num > 0) && (*highlight >= 1) && (*highlight <= num))
+        create_base_object(tval, sval[*highlight - 1]);
+
+    if ((num > 0) && (*highlight >= 1) && (*highlight <= num))
+    {
+        ui_text_builder_append(&builder, parent_labels[*tval_highlight - 1],
+            parent_attr[*tval_highlight - 1]);
+        ui_text_builder_append(&builder, " > ", TERM_SLATE);
+        ui_text_builder_append_line(
+            &builder, labels[*highlight - 1], item_attr[*highlight - 1]);
+        smithing_menu_append_details(&details_builder);
+    }
+    else
+    {
+        ui_text_builder_append_line(&builder, parent_labels[*tval_highlight - 1],
+            parent_attr[*tval_highlight - 1]);
+        ui_text_builder_newline(&builder, TERM_WHITE);
+        ui_text_builder_append_line(
+            &builder, "No craftable base items in this category.", TERM_L_DARK);
+    }
+    smithing_menu_publish(&builder, &details_builder);
 
     // display the object description
     prt_object_description();
@@ -3957,32 +4735,58 @@ static int create_sval_menu_aux(int tval, int* highlight)
     ch = inkey();
     hide_cursor = FALSE;
 
-    if ((ch >= 'a') && (ch <= (char)'a' + MAX_SMITHING_TVALS - 1))
+    if ((ch >= 'A') && (ch <= (char)'A' + MAX_SMITHING_TVALS - 1))
+    {
+        int new_tval = (int)ch - 'A' + 1;
+
+        if (parent_valid[new_tval - 1])
+        {
+            *tval_highlight = new_tval;
+            *highlight = 1;
+        }
+        else
+        {
+            bell("Invalid choice.");
+        }
+        return 0;
+    }
+
+    if ((ch >= 'a') && (ch <= (char)'a' + num - 1))
     {
         *highlight = (int)ch - 'a' + 1;
 
         // make a simple version of the object
         create_base_object(tval, sval[*highlight - 1]);
 
+        ui_menu_clear();
         return (*highlight);
     }
 
     /* Choose current  */
     if ((ch == '\r') || (ch == '\n') || (ch == ' ') || (ch == '6'))
     {
-        return (*highlight);
+        if (num > 0)
+        {
+            ui_menu_clear();
+            return (*highlight);
+        }
+        bell("Invalid choice.");
     }
 
     if ((ch == '4') || (ch == ESCAPE))
     {
         *highlight = -1;
+        ui_menu_clear();
         return (*highlight);
     }
 
     /* Prev item */
     if (ch == '8')
     {
-        if (*highlight > 1)
+        if (num <= 0)
+        {
+        }
+        else if (*highlight > 1)
             (*highlight)--;
         else if (*highlight == 1)
             *highlight = num;
@@ -3991,7 +4795,10 @@ static int create_sval_menu_aux(int tval, int* highlight)
     /* Next item */
     if (ch == '2')
     {
-        if (*highlight < num)
+        if (num <= 0)
+        {
+        }
+        else if (*highlight < num)
             (*highlight)++;
         else if (*highlight == num)
             *highlight = 1;
@@ -4003,7 +4810,7 @@ static int create_sval_menu_aux(int tval, int* highlight)
 /*
  * Displays a menu for choosing a base item's sval.
  */
-static bool create_sval_menu(int tval)
+static bool create_sval_menu(int* tval_highlight)
 {
     int choice = -1;
     int highlight = 1;
@@ -4017,7 +4824,7 @@ static bool create_sval_menu(int tval)
     /* Process Events until "Return to Game" is selected */
     while (!leave_menu)
     {
-        choice = create_sval_menu_aux(tval, &highlight);
+        choice = create_sval_menu_aux(tval_highlight, &highlight);
 
         if (choice >= 1)
         {
@@ -4048,8 +4855,15 @@ static int create_tval_menu_aux(int* highlight)
     char ch;
     int i;
     char buf[80];
+    char menu_text[SMITHING_MENU_TEXT_MAX];
+    byte menu_attrs[SMITHING_MENU_TEXT_MAX];
+    char menu_details[SMITHING_MENU_TEXT_MAX];
+    byte menu_details_attrs[SMITHING_MENU_TEXT_MAX];
     bool valid[MAX_SMITHING_TVALS];
+    byte item_attr[MAX_SMITHING_TVALS];
     byte valid_attr = TERM_WHITE; // default to soothe compilation warnings
+    ui_text_builder builder;
+    ui_text_builder details_builder;
 
     // clear the right of the screen
     wipe_screen_from(COL_SMT2);
@@ -4059,6 +4873,11 @@ static int create_tval_menu_aux(int* highlight)
 
     /* Wipe the smithing object */
     object_wipe(smith_o_ptr);
+    smithing_menu_text_init(
+        &builder, menu_text, menu_attrs, sizeof(menu_text), "Base Item");
+    ui_text_builder_init(&details_builder, menu_details, menu_details_attrs,
+        sizeof(menu_details));
+    ui_menu_begin();
 
     for (i = 0; i < MAX_SMITHING_TVALS; i++)
     {
@@ -4085,9 +4904,42 @@ static int create_tval_menu_aux(int* highlight)
                                                                     : TERM_RED;
         }
 
-        Term_putstr(
-            COL_SMT2, i + 2, -1, valid[i] ? valid_attr : TERM_L_DARK, buf);
+        item_attr[i] = valid[i] ? valid_attr : TERM_L_DARK;
+        Term_putstr(COL_SMT2, i + 2, -1, item_attr[i], buf);
+        ui_menu_add(COL_SMT2, i + 2, (int)strlen(buf), 1, '\r',
+            (*highlight == i + 1), item_attr[i], buf);
     }
+
+    if ((*highlight >= 1) && (*highlight <= MAX_SMITHING_TVALS))
+    {
+        strnfmt(buf, 80, "%c) %s", (char)'a' + *highlight - 1,
+            smithing_tvals[*highlight - 1].desc);
+        ui_text_builder_append_line(&builder, buf, item_attr[*highlight - 1]);
+        if (valid[*highlight - 1])
+        {
+            ui_text_builder_append_line(
+                &details_builder, "Choose a base item in this category.",
+                TERM_SLATE);
+        }
+        else if (smithing_tvals[*highlight - 1].category == CAT_WEAPON)
+        {
+            ui_text_builder_append_line(
+                &details_builder, "Requires the Weaponsmith ability.",
+                TERM_RED);
+        }
+        else if (smithing_tvals[*highlight - 1].category == CAT_ARMOUR)
+        {
+            ui_text_builder_append_line(
+                &details_builder, "Requires the Armoursmith ability.",
+                TERM_RED);
+        }
+        else if (smithing_tvals[*highlight - 1].category == CAT_JEWELRY)
+        {
+            ui_text_builder_append_line(
+                &details_builder, "Requires the Jeweller ability.", TERM_RED);
+        }
+    }
+    smithing_menu_publish(&builder, &details_builder);
 
     // highlight the label
     strnfmt(buf, 80, "%c)", (char)'a' + *highlight - 1);
@@ -4113,11 +4965,14 @@ static int create_tval_menu_aux(int* highlight)
 
         // move the light blue highlight
         move_displayed_highlight(old_highlight,
-            valid[old_highlight] ? TERM_WHITE : TERM_L_DARK, *highlight,
+            valid[old_highlight - 1] ? TERM_WHITE : TERM_L_DARK, *highlight,
             COL_SMT2);
 
         if (valid[*highlight - 1])
+        {
+            ui_menu_clear();
             return (*highlight);
+        }
         else
             bell("Invalid choice.");
     }
@@ -4126,7 +4981,10 @@ static int create_tval_menu_aux(int* highlight)
     if ((ch == '\r') || (ch == '\n') || (ch == ' ') || (ch == '6'))
     {
         if (valid[*highlight - 1])
+        {
+            ui_menu_clear();
             return (*highlight);
+        }
         else
             bell("Invalid choice.");
     }
@@ -4152,6 +5010,7 @@ static int create_tval_menu_aux(int* highlight)
     /* Exit */
     if ((ch == '4') || (ch == ESCAPE))
     {
+        ui_menu_clear();
         return (-1);
     }
 
@@ -4178,7 +5037,7 @@ static void create_tval_menu(void)
 
         if (choice >= 1)
         {
-            if (create_sval_menu(smithing_tvals[choice - 1].tval))
+            if (create_sval_menu(&highlight))
             {
                 leave_menu = TRUE;
             }
@@ -4258,15 +5117,40 @@ static void modify_numbers(int choice)
  */
 static int numbers_menu_aux(int* highlight)
 {
+    static const char* const numbers_menu_labels[SMT_NUM_MENU_MAX] = {
+        "a) increase attack bonus",
+        "b) decrease attack bonus",
+        "c) increase damage sides",
+        "d) decrease damage sides",
+        "e) increase evasion bonus",
+        "f) decrease evasion bonus",
+        "g) increase protection sides",
+        "h) decrease protection sides",
+        "i) increase special bonus",
+        "j) decrease special bonus",
+        "k) increase weight",
+        "l) decrease weight",
+    };
     int i;
     char ch;
     char buf[80];
+    char menu_text[SMITHING_MENU_TEXT_MAX];
+    byte menu_attrs[SMITHING_MENU_TEXT_MAX];
+    char menu_details[SMITHING_MENU_TEXT_MAX];
+    byte menu_details_attrs[SMITHING_MENU_TEXT_MAX];
     byte attr[SMT_NUM_MENU_MAX];
     bool valid[SMT_NUM_MENU_MAX];
     bool can_afford[SMT_NUM_MENU_MAX];
+    ui_text_builder builder;
+    ui_text_builder details_builder;
 
     // clear the right of the screen
     wipe_screen_from(COL_SMT2);
+    smithing_menu_text_init(
+        &builder, menu_text, menu_attrs, sizeof(menu_text), "Numbers");
+    ui_text_builder_init(&details_builder, menu_details, menu_details_attrs,
+        sizeof(menu_details));
+    ui_menu_begin();
 
     valid[SMT_NUM_MENU_I_ATT - 1]
         = att_valid() && (smith_o_ptr->att < att_max());
@@ -4306,30 +5190,20 @@ static int numbers_menu_aux(int* highlight)
                            : TERM_L_DARK;
     }
 
-    Term_putstr(COL_SMT2, 2, -1, attr[SMT_NUM_MENU_I_ATT - 1],
-        "a) increase attack bonus");
-    Term_putstr(COL_SMT2, 3, -1, attr[SMT_NUM_MENU_D_ATT - 1],
-        "b) decrease attack bonus");
-    Term_putstr(COL_SMT2, 4, -1, attr[SMT_NUM_MENU_I_DS - 1],
-        "c) increase damage sides");
-    Term_putstr(COL_SMT2, 5, -1, attr[SMT_NUM_MENU_D_DS - 1],
-        "d) decrease damage sides");
-    Term_putstr(COL_SMT2, 6, -1, attr[SMT_NUM_MENU_I_EVN - 1],
-        "e) increase evasion bonus");
-    Term_putstr(COL_SMT2, 7, -1, attr[SMT_NUM_MENU_D_EVN - 1],
-        "f) decrease evasion bonus");
-    Term_putstr(COL_SMT2, 8, -1, attr[SMT_NUM_MENU_I_PS - 1],
-        "g) increase protection sides");
-    Term_putstr(COL_SMT2, 9, -1, attr[SMT_NUM_MENU_D_PS - 1],
-        "h) decrease protection sides");
-    Term_putstr(COL_SMT2, 10, -1, attr[SMT_NUM_MENU_I_PVAL - 1],
-        "i) increase special bonus");
-    Term_putstr(COL_SMT2, 11, -1, attr[SMT_NUM_MENU_D_PVAL - 1],
-        "j) decrease special bonus");
-    Term_putstr(
-        COL_SMT2, 12, -1, attr[SMT_NUM_MENU_I_WGT - 1], "k) increase weight");
-    Term_putstr(
-        COL_SMT2, 13, -1, attr[SMT_NUM_MENU_D_WGT - 1], "l) decrease weight");
+    for (i = 0; i < SMT_NUM_MENU_MAX; i++)
+    {
+        Term_putstr(COL_SMT2, i + 2, -1, attr[i], numbers_menu_labels[i]);
+        ui_menu_add(COL_SMT2, i + 2, (int)strlen(numbers_menu_labels[i]), 1,
+            '\r', (*highlight == i + 1), attr[i], numbers_menu_labels[i]);
+    }
+
+    if ((*highlight >= 1) && (*highlight <= SMT_NUM_MENU_MAX))
+    {
+        ui_text_builder_append_line(
+            &builder, numbers_menu_labels[*highlight - 1], attr[*highlight - 1]);
+        smithing_menu_append_details(&details_builder);
+    }
+    smithing_menu_publish(&builder, &details_builder);
 
     // highlight the label
     strnfmt(buf, 80, "%c)", (char)'a' + *highlight - 1);
@@ -4361,10 +5235,13 @@ static int numbers_menu_aux(int* highlight)
 
         // move the light blue highlight
         move_displayed_highlight(
-            old_highlight, attr[old_highlight], *highlight, COL_SMT2);
+            old_highlight, attr[old_highlight - 1], *highlight, COL_SMT2);
 
         if (valid[*highlight - 1])
+        {
+            ui_menu_clear();
             return (*highlight);
+        }
         else
             bell("Invalid choice.");
     }
@@ -4373,7 +5250,10 @@ static int numbers_menu_aux(int* highlight)
     if ((ch == '\r') || (ch == '\n') || (ch == ' ') || (ch == '6'))
     {
         if (valid[*highlight - 1])
+        {
+            ui_menu_clear();
             return (*highlight);
+        }
         else
             bell("Invalid choice.");
     }
@@ -4400,6 +5280,7 @@ static int numbers_menu_aux(int* highlight)
     if ((ch == '4') || (ch == ESCAPE))
     {
         *highlight = -1;
+        ui_menu_clear();
         return (*highlight);
     }
 
@@ -4469,11 +5350,24 @@ static int enchant_menu_aux(int* highlight)
     char ch;
     int i, j, num;
     char buf[80];
+    char labels[20][80];
+    char menu_text[SMITHING_MENU_TEXT_MAX];
+    byte menu_attrs[SMITHING_MENU_TEXT_MAX];
+    char menu_details[SMITHING_MENU_TEXT_MAX];
+    byte menu_details_attrs[SMITHING_MENU_TEXT_MAX];
     bool valid[20];
     int choice[20];
+    byte item_attr[20];
+    ui_text_builder builder;
+    ui_text_builder details_builder;
 
     // clear the right of the screen
     wipe_screen_from(COL_SMT2);
+    smithing_menu_text_init(
+        &builder, menu_text, menu_attrs, sizeof(menu_text), "Enchant");
+    ui_text_builder_init(&details_builder, menu_details, menu_details_attrs,
+        sizeof(menu_details));
+    ui_menu_begin();
 
     /* We have to search the whole special item list. */
     for (num = 0, i = 1; i < z_info->e_max; i++)
@@ -4523,8 +5417,11 @@ static int enchant_menu_aux(int* highlight)
 
             /* Print it */
             strnfmt(buf, 80, "%c) %s", (char)'a' + num, e_name + e_ptr->name);
-            Term_putstr(COL_SMT2, num + 2, -1,
-                valid[num] ? TERM_WHITE : TERM_SLATE, buf);
+            item_attr[num] = valid[num] ? TERM_WHITE : TERM_SLATE;
+            Term_putstr(COL_SMT2, num + 2, -1, item_attr[num], buf);
+            my_strcpy(labels[num], buf, sizeof(labels[num]));
+            ui_menu_add(COL_SMT2, num + 2, (int)strlen(buf), 1, '\r',
+                (*highlight == num + 1), item_attr[num], buf);
 
             /* Remember the object index */
             choice[num] = i;
@@ -4538,8 +5435,24 @@ static int enchant_menu_aux(int* highlight)
     strnfmt(buf, 80, "%c)", (char)'a' + *highlight - 1);
     Term_putstr(COL_SMT2, *highlight + 1, -1, TERM_L_BLUE, buf);
 
-    // make a 'special' version of the object
-    create_special(choice[*highlight - 1]);
+    if (num > 0)
+    {
+        // make a 'special' version of the object
+        create_special(choice[*highlight - 1]);
+    }
+
+    if ((num > 0) && (*highlight >= 1) && (*highlight <= num))
+    {
+        ui_text_builder_append_line(
+            &builder, labels[*highlight - 1], item_attr[*highlight - 1]);
+        smithing_menu_append_details(&details_builder);
+    }
+    else
+    {
+        ui_text_builder_append_line(
+            &builder, "No valid enchantments are available.", TERM_L_DARK);
+    }
+    smithing_menu_publish(&builder, &details_builder);
 
     // display the object description
     prt_object_description();
@@ -4558,6 +5471,12 @@ static int enchant_menu_aux(int* highlight)
     ch = inkey();
     hide_cursor = FALSE;
 
+    if (num == 0)
+    {
+        ui_menu_clear();
+        return (-1);
+    }
+
     /* Choose by letter */
     if ((ch >= 'a') && (ch <= (char)'a' + num - 1))
     {
@@ -4566,12 +5485,14 @@ static int enchant_menu_aux(int* highlight)
         // make a 'special' version of the object
         create_special(choice[*highlight - 1]);
 
+        ui_menu_clear();
         return (*highlight);
     }
 
     /* Choose current  */
     if ((ch == '\r') || (ch == '\n') || (ch == ' ') || (ch == '6'))
     {
+        ui_menu_clear();
         return (*highlight);
     }
 
@@ -4579,6 +5500,7 @@ static int enchant_menu_aux(int* highlight)
     if ((ch == '4') || (ch == ESCAPE))
     {
         *highlight = -1;
+        ui_menu_clear();
         return (*highlight);
     }
 
@@ -4797,15 +5719,31 @@ static int artefact_flag_menu_aux(int category, int* highlight)
     char ch;
     int i, num = 0;
     char buf[80];
+    char labels[MAX_SMITHING_FLAGS][80];
+    char menu_text[SMITHING_MENU_TEXT_MAX];
+    byte menu_attrs[SMITHING_MENU_TEXT_MAX];
+    char menu_details[SMITHING_MENU_TEXT_MAX];
+    byte menu_details_attrs[SMITHING_MENU_TEXT_MAX];
     bool flag_present[MAX_SMITHING_FLAGS] = { FALSE };
     bool flag_valid[MAX_SMITHING_FLAGS] = { FALSE };
     bool flag_affordable[MAX_SMITHING_FLAGS] = { FALSE };
     u32b flag[MAX_SMITHING_FLAGS];
     int flagset[MAX_SMITHING_FLAGS];
-    byte attr;
+    byte item_attr[MAX_SMITHING_FLAGS];
+    ui_text_builder builder;
+    ui_text_builder details_builder;
+    cptr category_desc = "Artifice";
 
     // clear the right of the screen
     wipe_screen_from(COL_SMT3);
+    smithing_menu_text_init(
+        &builder, menu_text, menu_attrs, sizeof(menu_text), "Artifice");
+    ui_text_builder_init(&details_builder, menu_details, menu_details_attrs,
+        sizeof(menu_details));
+    ui_menu_begin();
+
+    if ((category >= 1) && (category <= MAX_CATS))
+        category_desc = smithing_flag_cats[category - 1].desc;
 
     // display the categories
     for (i = 0; smithing_flag_types[i].flag != 0; i++)
@@ -4842,7 +5780,7 @@ static int artefact_flag_menu_aux(int category, int* highlight)
                 }
             }
 
-            attr = flag_present[num]
+            item_attr[num] = flag_present[num]
                 ? TERM_BLUE
                 : (flag_valid[num]
                         ? (flag_affordable[num] ? TERM_WHITE : TERM_SLATE)
@@ -4851,18 +5789,43 @@ static int artefact_flag_menu_aux(int category, int* highlight)
             /* Display the line */
             strnfmt(buf, 80, "%c) %s", (char)'a' + num,
                 smithing_flag_types[i].desc);
-            Term_putstr(COL_SMT3, num + 2, -1, attr, buf);
+            Term_putstr(COL_SMT3, num + 2, -1, item_attr[num], buf);
+            my_strcpy(labels[num], buf, sizeof(labels[num]));
+            ui_menu_add(COL_SMT3, num + 2, (int)strlen(buf), 1, '\r',
+                (*highlight == num + 1), item_attr[num], buf);
 
             num++;
         }
     }
 
-    // highlight the label
-    strnfmt(buf, 80, "%c)", (char)'a' + *highlight - 1);
-    Term_putstr(COL_SMT3, *highlight + 1, -1, TERM_L_BLUE, buf);
+    if ((num > 0) && (*highlight > num))
+        *highlight = num;
+    else if (*highlight < 1)
+        *highlight = 1;
 
-    // add this flag to the dummy artefact under construction
-    add_artefact_flag(flag[*highlight - 1], flagset[*highlight - 1]);
+    if ((num > 0) && (*highlight >= 1) && (*highlight <= num))
+    {
+        // highlight the label
+        strnfmt(buf, 80, "%c)", (char)'a' + *highlight - 1);
+        Term_putstr(COL_SMT3, *highlight + 1, -1, TERM_L_BLUE, buf);
+
+        // add this flag to the dummy artefact under construction
+        add_artefact_flag(flag[*highlight - 1], flagset[*highlight - 1]);
+
+        ui_text_builder_append(&builder, category_desc, TERM_WHITE);
+        ui_text_builder_append(&builder, " > ", TERM_SLATE);
+        ui_text_builder_append_line(
+            &builder, labels[*highlight - 1], item_attr[*highlight - 1]);
+        smithing_menu_append_details(&details_builder);
+    }
+    else
+    {
+        ui_text_builder_append_line(&builder, category_desc, TERM_WHITE);
+        ui_text_builder_newline(&builder, TERM_WHITE);
+        ui_text_builder_append_line(&builder,
+            "No applicable artifice powers in this category.", TERM_L_DARK);
+    }
+    smithing_menu_publish(&builder, &details_builder);
 
     // display the object description
     prt_object_description();
@@ -4884,6 +5847,7 @@ static int artefact_flag_menu_aux(int category, int* highlight)
     /* Abort if there are no choices */
     if (num == 0)
     {
+        ui_menu_clear();
         return (-1);
     }
 
@@ -4922,6 +5886,7 @@ static int artefact_flag_menu_aux(int category, int* highlight)
             // backup the new artefact
             artefact_copy(smith2_a_ptr, smith_a_ptr);
 
+            ui_menu_clear();
             return (*highlight);
         }
         else
@@ -4943,6 +5908,7 @@ static int artefact_flag_menu_aux(int category, int* highlight)
             // backup the new artefact
             artefact_copy(smith2_a_ptr, smith_a_ptr);
 
+            ui_menu_clear();
             return (*highlight);
         }
 
@@ -4960,6 +5926,7 @@ static int artefact_flag_menu_aux(int category, int* highlight)
         // restore the backup artefact
         artefact_copy(smith_a_ptr, smith2_a_ptr);
 
+        ui_menu_clear();
         return (*highlight);
     }
 
@@ -5169,15 +6136,33 @@ static int artefact_ability_menu_aux(int skill, int* highlight)
     char ch;
     int i, num = 0;
     char buf[80];
+    char labels[20][80];
+    char menu_text[SMITHING_MENU_TEXT_MAX];
+    byte menu_attrs[SMITHING_MENU_TEXT_MAX];
+    char menu_details[SMITHING_MENU_TEXT_MAX];
+    byte menu_details_attrs[SMITHING_MENU_TEXT_MAX];
     bool ability_present[20] = { FALSE };
     bool ability_valid[20] = { FALSE };
     bool ability_affordable[20] = { FALSE };
+    int ability_num[20];
     ability_type* b_ptr;
     ability_type* b2_ptr;
-    byte attr;
+    ability_type* ability_choice[20];
+    byte item_attr[20];
+    ui_text_builder builder;
+    ui_text_builder details_builder;
+    cptr skill_name = "Ability";
 
     // clear the right of the screen
     wipe_screen_from(COL_SMT3);
+    smithing_menu_text_init(
+        &builder, menu_text, menu_attrs, sizeof(menu_text), "Artifice");
+    ui_text_builder_init(&details_builder, menu_details, menu_details_attrs,
+        sizeof(menu_details));
+    ui_menu_begin();
+
+    if ((skill >= 0) && (skill < S_MAX))
+        skill_name = skill_names_full[skill];
 
     // list the abilities
     for (i = 0; i < z_info->b_max - 1; i++)
@@ -5199,7 +6184,10 @@ static int artefact_ability_menu_aux(int skill, int* highlight)
             continue;
 
         // Determine the appropriate colour
-        if (has_ability(smith2_a_ptr, skill, num))
+        ability_num[num] = b_ptr->abilitynum;
+        ability_choice[num] = b_ptr;
+
+        if (has_ability(smith2_a_ptr, skill, ability_num[num]))
         {
             ability_present[num] = TRUE;
             ability_valid[num] = TRUE;
@@ -5212,10 +6200,10 @@ static int artefact_ability_menu_aux(int skill, int* highlight)
                 ability_valid[num] = TRUE;
 
                 // add this flag to the dummy artefact under construction
-                add_artefact_ability(skill, num);
+                add_artefact_ability(skill, ability_num[num]);
 
                 // require that the ability was successfully added
-                if (has_ability(smith_a_ptr, skill, num))
+                if (has_ability(smith_a_ptr, skill, ability_num[num]))
                 {
                     // Check whether it is a valid choice for creating (needs to
                     // be affordable and successful)
@@ -5234,7 +6222,7 @@ static int artefact_ability_menu_aux(int skill, int* highlight)
             }
         }
 
-        attr = ability_present[num]
+        item_attr[num] = ability_present[num]
             ? TERM_BLUE
             : (ability_valid[num]
                     ? (ability_affordable[num] ? TERM_WHITE : TERM_SLATE)
@@ -5242,17 +6230,56 @@ static int artefact_ability_menu_aux(int skill, int* highlight)
 
         /* Display the line */
         strnfmt(buf, 80, "%c) %s", (char)'a' + num, b_name + b_ptr->name);
-        Term_putstr(COL_SMT3, num + 2, -1, attr, buf);
+        Term_putstr(COL_SMT3, num + 2, -1, item_attr[num], buf);
+        my_strcpy(labels[num], buf, sizeof(labels[num]));
+        ui_menu_add(COL_SMT3, num + 2, (int)strlen(buf), 1, '\r',
+            (*highlight == num + 1), item_attr[num], buf);
 
         num++;
     }
 
-    // highlight the label
-    strnfmt(buf, 80, "%c)", (char)'a' + *highlight - 1);
-    Term_putstr(COL_SMT3, *highlight + 1, -1, TERM_L_BLUE, buf);
+    if ((num > 0) && (*highlight > num))
+        *highlight = num;
+    else if (*highlight < 1)
+        *highlight = 1;
 
-    // add this ability to the dummy artefact under construction
-    add_artefact_ability(skill, *highlight - 1);
+    if ((num > 0) && (*highlight >= 1) && (*highlight <= num))
+    {
+        // highlight the label
+        strnfmt(buf, 80, "%c)", (char)'a' + *highlight - 1);
+        Term_putstr(COL_SMT3, *highlight + 1, -1, TERM_L_BLUE, buf);
+
+        // add this ability to the dummy artefact under construction
+        add_artefact_ability(skill, ability_num[*highlight - 1]);
+
+        ui_text_builder_append(&builder, skill_name, TERM_WHITE);
+        ui_text_builder_append(&builder, " > ", TERM_SLATE);
+        ui_text_builder_append_line(
+            &builder, labels[*highlight - 1], item_attr[*highlight - 1]);
+
+        ui_text_builder_append_line(&details_builder,
+            b_name + ability_choice[*highlight - 1]->name, TERM_L_WHITE);
+        if (b_text && ability_choice[*highlight - 1]->text)
+        {
+            ui_text_builder_newline(&details_builder, TERM_WHITE);
+            ui_text_builder_append(&details_builder,
+                b_text + ability_choice[*highlight - 1]->text, TERM_L_WHITE);
+            if ((details_builder.off > 0)
+                && (details_builder.text[details_builder.off - 1] != '\n'))
+            {
+                ui_text_builder_newline(&details_builder, TERM_L_WHITE);
+            }
+        }
+        smithing_menu_append_details(&details_builder);
+    }
+    else
+    {
+        ui_text_builder_append_line(&builder, skill_name, TERM_WHITE);
+        ui_text_builder_newline(&builder, TERM_WHITE);
+        ui_text_builder_append_line(&builder,
+            "No applicable artifice abilities for this item.", TERM_L_DARK);
+    }
+    smithing_menu_publish(&builder, &details_builder);
 
     // display the object description
     prt_object_description();
@@ -5274,6 +6301,7 @@ static int artefact_ability_menu_aux(int skill, int* highlight)
     /* Abort if there are no choices */
     if (num == 0)
     {
+        ui_menu_clear();
         return (-1);
     }
 
@@ -5288,7 +6316,8 @@ static int artefact_ability_menu_aux(int skill, int* highlight)
             {
                 // remove an ability if it already existed
                 if (ability_present[*highlight - 1])
-                    remove_artefact_ability(skill, *highlight - 1);
+                    remove_artefact_ability(
+                        skill, ability_num[*highlight - 1]);
             }
             else
             {
@@ -5299,16 +6328,18 @@ static int artefact_ability_menu_aux(int skill, int* highlight)
 
                 // remove an ability if it already existed
                 if (ability_present[*highlight - 1])
-                    remove_artefact_ability(skill, *highlight - 1);
+                    remove_artefact_ability(
+                        skill, ability_num[*highlight - 1]);
 
                 // otherwise add it
                 else
-                    add_artefact_ability(skill, *highlight - 1);
+                    add_artefact_ability(skill, ability_num[*highlight - 1]);
             }
 
             // backup the new artefact
             artefact_copy(smith2_a_ptr, smith_a_ptr);
 
+            ui_menu_clear();
             return (*highlight);
         }
         else
@@ -5324,11 +6355,12 @@ static int artefact_ability_menu_aux(int skill, int* highlight)
         {
             // remove an ability if it already existed
             if (ability_present[*highlight - 1])
-                remove_artefact_ability(skill, *highlight - 1);
+                remove_artefact_ability(skill, ability_num[*highlight - 1]);
 
             // backup the new artefact
             artefact_copy(smith2_a_ptr, smith_a_ptr);
 
+            ui_menu_clear();
             return (*highlight);
         }
         else
@@ -5342,13 +6374,14 @@ static int artefact_ability_menu_aux(int skill, int* highlight)
     {
         // remove any tentatively-added ability from the object
         if (!ability_present[*highlight - 1])
-            remove_artefact_ability(skill, *highlight - 1);
+            remove_artefact_ability(skill, ability_num[*highlight - 1]);
 
         // restore the backup artefact
         artefact_copy(smith_a_ptr, smith2_a_ptr);
 
         *highlight = -1;
 
+        ui_menu_clear();
         return (*highlight);
     }
 
@@ -5471,15 +6504,30 @@ static int artefact_menu_aux(int* highlight)
     char ch;
     int i, num;
     char buf[80];
+    char labels[MAX_CATS + S_MAX + 1][80];
+    char menu_text[SMITHING_MENU_TEXT_MAX];
+    byte menu_attrs[SMITHING_MENU_TEXT_MAX];
+    char menu_details[SMITHING_MENU_TEXT_MAX];
+    byte menu_details_attrs[SMITHING_MENU_TEXT_MAX];
+    ui_text_builder builder;
+    ui_text_builder details_builder;
 
     // clear the right of the screen
     wipe_screen_from(COL_SMT2);
+    smithing_menu_text_init(
+        &builder, menu_text, menu_attrs, sizeof(menu_text), "Artifice");
+    ui_text_builder_init(&details_builder, menu_details, menu_details_attrs,
+        sizeof(menu_details));
+    ui_menu_begin();
 
     // display the categories for flags
     for (i = 0; i < MAX_CATS; i++)
     {
         strnfmt(buf, 80, "%c) %s", (char)'a' + i, smithing_flag_cats[i].desc);
         Term_putstr(COL_SMT2, i + 2, -1, TERM_WHITE, buf);
+        my_strcpy(labels[i], buf, sizeof(labels[i]));
+        ui_menu_add(COL_SMT2, i + 2, (int)strlen(buf), 1, '\r',
+            (*highlight == i + 1), TERM_WHITE, buf);
     }
 
     // display the categories for abilities
@@ -5488,6 +6536,9 @@ static int artefact_menu_aux(int* highlight)
         strnfmt(
             buf, 80, "%c) %s", (char)'a' + MAX_CATS + i, skill_names_full[i]);
         Term_putstr(COL_SMT2, i + MAX_CATS + 2, -1, TERM_WHITE, buf);
+        my_strcpy(labels[MAX_CATS + i], buf, sizeof(labels[MAX_CATS + i]));
+        ui_menu_add(COL_SMT2, i + MAX_CATS + 2, (int)strlen(buf), 1, '\r',
+            (*highlight == MAX_CATS + i + 1), TERM_WHITE, buf);
     }
 
     num = MAX_CATS + S_MAX + 1;
@@ -5495,6 +6546,16 @@ static int artefact_menu_aux(int* highlight)
     // Menu item for naming artefacts
     strnfmt(buf, 80, "%c) %s", (char)'a' + num - 1, "Name Artefact");
     Term_putstr(COL_SMT2, num + 1, -1, TERM_WHITE, buf);
+    my_strcpy(labels[num - 1], buf, sizeof(labels[num - 1]));
+    ui_menu_add(COL_SMT2, num + 1, (int)strlen(buf), 1, '\r',
+        (*highlight == num), TERM_WHITE, buf);
+
+    if ((*highlight >= 1) && (*highlight <= num))
+    {
+        ui_text_builder_append_line(&builder, labels[*highlight - 1], TERM_WHITE);
+        smithing_menu_append_details(&details_builder);
+    }
+    smithing_menu_publish(&builder, &details_builder);
 
     // highlight the label
     strnfmt(buf, 80, "%c)", (char)'a' + *highlight - 1);
@@ -5528,12 +6589,14 @@ static int artefact_menu_aux(int* highlight)
         move_displayed_highlight(
             old_highlight, TERM_WHITE, *highlight, COL_SMT2);
 
+        ui_menu_clear();
         return (*highlight);
     }
 
     /* Choose current  */
     if ((ch == '\r') || (ch == '\n') || (ch == ' ') || (ch == '6'))
     {
+        ui_menu_clear();
         return (*highlight);
     }
 
@@ -5541,6 +6604,7 @@ static int artefact_menu_aux(int* highlight)
     if ((ch == '4') || (ch == ESCAPE))
     {
         *highlight = -1;
+        ui_menu_clear();
         return (*highlight);
     }
 
@@ -5655,12 +6719,25 @@ static int melt_menu_aux(int* highlight)
     u32b f1, f2, f3;
     char desc[80];
     char buf[80];
+    char labels[INVEN_TOTAL][80];
+    char menu_text[SMITHING_MENU_TEXT_MAX];
+    byte menu_attrs[SMITHING_MENU_TEXT_MAX];
+    char menu_details[SMITHING_MENU_TEXT_MAX];
+    byte menu_details_attrs[SMITHING_MENU_TEXT_MAX];
+    int inventory_index[INVEN_TOTAL];
+    ui_text_builder builder;
+    ui_text_builder details_builder;
 
     // clear the right of the screen
     wipe_screen_from(COL_SMT2);
+    smithing_menu_text_init(
+        &builder, menu_text, menu_attrs, sizeof(menu_text), "Melt");
 
     // clear bottom of the screen
     wipe_object_description();
+    ui_menu_begin();
+    ui_text_builder_init(&details_builder, menu_details, menu_details_attrs,
+        sizeof(menu_details));
 
     for (i = 0; i < INVEN_TOTAL; i++)
     {
@@ -5674,6 +6751,10 @@ static int melt_menu_aux(int* highlight)
             strnfmt(buf, 80, "%c) %s", (char)'a' + num, desc);
 
             Term_putstr(COL_SMT2, num + 2, -1, TERM_WHITE, buf);
+            my_strcpy(labels[num], buf, sizeof(labels[num]));
+            ui_menu_add(COL_SMT2, num + 2, (int)strlen(buf), 1, '\r',
+                (*highlight == num + 1), TERM_WHITE, buf);
+            inventory_index[num] = i;
 
             strnfmt(
                 buf, 80, "%2d.%d lb", o_ptr->weight / 10, o_ptr->weight % 10);
@@ -5682,6 +6763,27 @@ static int melt_menu_aux(int* highlight)
             num++;
         }
     }
+
+    if ((num > 0) && (*highlight >= 1) && (*highlight <= num))
+    {
+        ui_text_builder_append_line(&builder, labels[*highlight - 1], TERM_WHITE);
+        o_ptr = &inventory[inventory_index[*highlight - 1]];
+
+        object_desc(desc, sizeof(desc), o_ptr, FALSE, 2);
+        ui_text_builder_append_line(&details_builder, desc, TERM_L_WHITE);
+        ui_text_builder_newline(&details_builder, TERM_WHITE);
+        strnfmt(buf, sizeof(buf), "Weight: %d.%d lb", o_ptr->weight / 10,
+            o_ptr->weight % 10);
+        ui_text_builder_append_line(&details_builder, buf, TERM_SLATE);
+        strnfmt(buf, sizeof(buf), "Yield: %d pieces of mithril", o_ptr->weight);
+        ui_text_builder_append_line(&details_builder, buf, TERM_SLATE);
+    }
+    else
+    {
+        ui_text_builder_append_line(
+            &builder, "Choose a mithril item to melt down.", TERM_SLATE);
+    }
+    smithing_menu_publish(&builder, &details_builder);
 
     // highlight the label
     strnfmt(buf, 80, "%c)", (char)'a' + *highlight - 1);
@@ -5709,12 +6811,14 @@ static int melt_menu_aux(int* highlight)
         move_displayed_highlight(
             old_highlight, TERM_WHITE, *highlight, COL_SMT2);
 
+        ui_menu_clear();
         return (*highlight);
     }
 
     /* Choose current  */
     if ((ch == '\r') || (ch == '\n') || (ch == ' ') || (ch == '6'))
     {
+        ui_menu_clear();
         return (*highlight);
     }
 
@@ -5739,6 +6843,7 @@ static int melt_menu_aux(int* highlight)
     /* Exit */
     if ((ch == '4') || (ch == ESCAPE))
     {
+        ui_menu_clear();
         return (-1);
     }
 
@@ -5785,13 +6890,34 @@ static void melt_menu(void)
  */
 static int smithing_menu_aux(int* highlight)
 {
+    static const char* const smithing_menu_labels[SMT_MENU_MAX] = {
+        "a) Base Item",
+        "b) Enchant",
+        "c) Artifice",
+        "d) Numbers",
+        "e) Melt",
+        "f) Accept",
+    };
     char ch;
+    int i;
     byte valid_attr;
+    byte item_attr[SMT_MENU_MAX];
     bool valid[SMT_MENU_MAX];
     char buf[80];
+    char menu_text[SMITHING_MENU_TEXT_MAX];
+    byte menu_attrs[SMITHING_MENU_TEXT_MAX];
+    char menu_details[SMITHING_MENU_TEXT_MAX];
+    byte menu_details_attrs[SMITHING_MENU_TEXT_MAX];
+    ui_text_builder builder;
+    ui_text_builder details_builder;
 
     // clear the right of the screen
     wipe_screen_from(COL_SMT2);
+    smithing_menu_text_init(
+        &builder, menu_text, menu_attrs, sizeof(menu_text), "Smithing");
+    ui_text_builder_init(&details_builder, menu_details, menu_details_attrs,
+        sizeof(menu_details));
+    ui_menu_begin();
 
     // determine whether or not we can actually make objects here
     if (!cave_forge_bold(p_ptr->py, p_ptr->px))
@@ -5831,30 +6957,68 @@ static int smithing_menu_aux(int* highlight)
                      || p_ptr->active_ability[S_SMT][SMT_JEWELLER])
         ? TERM_WHITE
         : TERM_RED;
+    item_attr[SMT_MENU_CREATE - 1]
+        = valid[SMT_MENU_CREATE - 1] ? valid_attr : TERM_L_DARK;
     Term_putstr(COL_SMT1, 2, -1,
-        valid[SMT_MENU_CREATE - 1] ? valid_attr : TERM_L_DARK, "a) Base Item");
+        item_attr[SMT_MENU_CREATE - 1], smithing_menu_labels[SMT_MENU_CREATE - 1]);
     valid_attr = (p_ptr->active_ability[S_SMT][SMT_ENCHANTMENT]) ? TERM_WHITE
                                                                  : TERM_RED;
+    item_attr[SMT_MENU_ENCHANT - 1]
+        = valid[SMT_MENU_ENCHANT - 1] ? valid_attr : TERM_L_DARK;
     Term_putstr(COL_SMT1, 3, -1,
-        valid[SMT_MENU_ENCHANT - 1] ? valid_attr : TERM_L_DARK, "b) Enchant");
+        item_attr[SMT_MENU_ENCHANT - 1],
+        smithing_menu_labels[SMT_MENU_ENCHANT - 1]);
     valid_attr
         = (p_ptr->active_ability[S_SMT][SMT_ARTEFACT]) ? TERM_WHITE : TERM_RED;
+    item_attr[SMT_MENU_ARTEFACT - 1]
+        = valid[SMT_MENU_ARTEFACT - 1] ? valid_attr : TERM_L_DARK;
     Term_putstr(COL_SMT1, 4, -1,
-        valid[SMT_MENU_ARTEFACT - 1] ? valid_attr : TERM_L_DARK, "c) Artifice");
+        item_attr[SMT_MENU_ARTEFACT - 1],
+        smithing_menu_labels[SMT_MENU_ARTEFACT - 1]);
+    item_attr[SMT_MENU_NUMBERS - 1]
+        = valid[SMT_MENU_NUMBERS - 1] ? TERM_WHITE : TERM_L_DARK;
     Term_putstr(COL_SMT1, 5, -1,
-        valid[SMT_MENU_NUMBERS - 1] ? TERM_WHITE : TERM_L_DARK, "d) Numbers");
+        item_attr[SMT_MENU_NUMBERS - 1],
+        smithing_menu_labels[SMT_MENU_NUMBERS - 1]);
+    item_attr[SMT_MENU_MELT - 1]
+        = valid[SMT_MENU_MELT - 1] ? TERM_WHITE : TERM_L_DARK;
     Term_putstr(COL_SMT1, 6, -1,
-        valid[SMT_MENU_MELT - 1] ? TERM_WHITE : TERM_L_DARK, "e) Melt");
+        item_attr[SMT_MENU_MELT - 1], smithing_menu_labels[SMT_MENU_MELT - 1]);
 
     if (p_ptr->smithing_leftover == 0)
     {
+        item_attr[SMT_MENU_ACCEPT - 1]
+            = valid[SMT_MENU_ACCEPT - 1] ? TERM_WHITE : TERM_L_DARK;
         Term_putstr(COL_SMT1, 7, -1,
-            valid[SMT_MENU_ACCEPT - 1] ? TERM_WHITE : TERM_L_DARK, "f) Accept");
+            item_attr[SMT_MENU_ACCEPT - 1], "f) Accept");
     }
     else
     {
+        item_attr[SMT_MENU_ACCEPT - 1]
+            = valid[SMT_MENU_ACCEPT - 1] ? TERM_WHITE : TERM_L_DARK;
         Term_putstr(COL_SMT1, 7, -1,
-            valid[SMT_MENU_ACCEPT - 1] ? TERM_WHITE : TERM_L_DARK, "f) Resume");
+            item_attr[SMT_MENU_ACCEPT - 1], "f) Resume");
+    }
+
+    for (i = 0; i < SMT_MENU_MAX; i++)
+    {
+        cptr label = smithing_menu_labels[i];
+
+        if ((i + 1 == SMT_MENU_ACCEPT) && (p_ptr->smithing_leftover > 0))
+            label = "f) Resume";
+
+        ui_menu_add(COL_SMT1, i + 2, (int)strlen(label), 1, '\r',
+            (*highlight == i + 1), item_attr[i], label);
+    }
+
+    if ((*highlight >= 1) && (*highlight <= SMT_MENU_MAX))
+    {
+        cptr selected_label = smithing_menu_labels[*highlight - 1];
+
+        if ((*highlight == SMT_MENU_ACCEPT) && (p_ptr->smithing_leftover > 0))
+            selected_label = "f) Resume";
+        ui_text_builder_append_line(
+            &builder, selected_label, item_attr[*highlight - 1]);
     }
 
     // display information about the selected item
@@ -5931,6 +7095,79 @@ static int smithing_menu_aux(int* highlight)
     }
     }
 
+    switch (*highlight)
+    {
+    case SMT_MENU_CREATE:
+        ui_text_builder_append_line(
+            &details_builder, "Start with a new base item.", TERM_SLATE);
+        break;
+    case SMT_MENU_ENCHANT:
+        ui_text_builder_append_line(
+            &details_builder,
+            "Choose a special enchantment to add to the base item.",
+            TERM_SLATE);
+        if (smith_o_ptr->name1)
+            ui_text_builder_append_line(
+                &details_builder, "(not compatible with Artifice)", TERM_L_DARK);
+        if (enchant_then_numbers)
+        {
+            ui_text_builder_append_line(
+                &details_builder,
+                "(Enchantment cannot be changed after using the",
+                TERM_L_DARK);
+            ui_text_builder_append_line(
+                &details_builder, "Numbers menu)", TERM_L_DARK);
+        }
+        break;
+    case SMT_MENU_ARTEFACT:
+        ui_text_builder_append_line(
+            &details_builder, "Design your own artefact.", TERM_SLATE);
+        if (smith_o_ptr->name2)
+            ui_text_builder_append_line(
+                &details_builder, "(not compatible with Enchant)", TERM_L_DARK);
+        break;
+    case SMT_MENU_NUMBERS:
+        ui_text_builder_append_line(
+            &details_builder, "Change the item's key numbers.", TERM_SLATE);
+        break;
+    case SMT_MENU_MELT:
+        ui_text_builder_append_line(
+            &details_builder, "Choose a mithril item to melt down.", TERM_SLATE);
+        break;
+    case SMT_MENU_ACCEPT:
+        if (forge_uses(p_ptr->py, p_ptr->px) > 0)
+        {
+            ui_text_builder_append_line(
+                &details_builder, "Create the item you have designed.",
+                TERM_SLATE);
+            ui_text_builder_newline(&details_builder, TERM_WHITE);
+            ui_text_builder_append_line(&details_builder,
+                "(to cancel it instead, just press Escape)", TERM_SLATE);
+        }
+        else if (cave_forge_bold(p_ptr->py, p_ptr->px))
+        {
+            ui_text_builder_append_line(&details_builder,
+                "This forge has no resources left, so you cannot create items.",
+                TERM_SLATE);
+            ui_text_builder_append_line(
+                &details_builder, "To exit, press Escape.", TERM_SLATE);
+        }
+        else
+        {
+            ui_text_builder_append_line(&details_builder,
+                "You are not at a forge and thus cannot create items.",
+                TERM_SLATE);
+            ui_text_builder_append_line(
+                &details_builder, "To exit, press Escape.", TERM_SLATE);
+        }
+        break;
+    }
+
+    if (ui_text_builder_length(&details_builder) > 0)
+        ui_text_builder_newline(&details_builder, TERM_WHITE);
+    smithing_menu_append_details(&details_builder);
+    smithing_menu_publish(&builder, &details_builder);
+
     // highlight the label
     strnfmt(buf, 80, "%c)", (char)'a' + *highlight - 1);
     Term_putstr(COL_SMT1, *highlight + 1, -1, TERM_L_BLUE, buf);
@@ -5961,11 +7198,14 @@ static int smithing_menu_aux(int* highlight)
 
         // move the light blue highlight
         move_displayed_highlight(old_highlight,
-            valid[old_highlight] ? TERM_WHITE : TERM_L_DARK, *highlight,
+            valid[old_highlight - 1] ? TERM_WHITE : TERM_L_DARK, *highlight,
             COL_SMT1);
 
         if (valid[*highlight - 1])
+        {
+            ui_menu_clear();
             return (*highlight);
+        }
         else
             bell("Invalid choice.");
     }
@@ -5974,7 +7214,10 @@ static int smithing_menu_aux(int* highlight)
     if ((ch == '\r') || (ch == '\n') || (ch == ' ') || (ch == '6'))
     {
         if (valid[*highlight - 1])
+        {
+            ui_menu_clear();
             return (*highlight);
+        }
         else
             bell("Invalid choice.");
     }
@@ -6000,6 +7243,7 @@ static int smithing_menu_aux(int* highlight)
     /* Leave menu */
     if ((ch == ESCAPE) || (ch == '4'))
     {
+        ui_menu_clear();
         return (-1);
     }
 
@@ -6036,6 +7280,7 @@ void do_cmd_smithing_screen(void)
 
     /* Clear screen */
     Term_clear();
+    Term_fresh();
 
     // Hack: flag that we are in the middle of smithing
     p_ptr->smithing = 1;
@@ -6324,6 +7569,27 @@ void create_smithing_item(void)
 
 #define COL_MAIN 29
 
+static const char* const main_menu_labels[MAIN_MENU_MAX] = {
+    "a) Return to game",
+    "b) Character sheet",
+    "c) Options",
+    "d) Map",
+    "e) Names of the fallen",
+    "f) Known objects",
+    "g) Known artefacts",
+    "h) Known monsters",
+    "i) Slain monsters",
+    "j) Write a note",
+    "k) Take HTML screenshot",
+    "l) Set macros",
+    "m) Set colours",
+    "n) Show old messages",
+    "o) Sil version info",
+    "p) Abort current game",
+    "q) Save game",
+    "r) Save and quit",
+};
+
 /*
  * Performs the interface and selection work for the main menu.
  */
@@ -6338,42 +7604,18 @@ static int main_menu_aux(int* highlight)
             COL_MAIN - 2, i, -1, TERM_WHITE, "                           ");
     }
 
-    Term_putstr(COL_MAIN, 2, -1, (*highlight == 1) ? TERM_L_BLUE : TERM_WHITE,
-        "a) Return to game");
-    Term_putstr(COL_MAIN, 3, -1, (*highlight == 2) ? TERM_L_BLUE : TERM_WHITE,
-        "b) Character sheet");
-    Term_putstr(COL_MAIN, 4, -1, (*highlight == 3) ? TERM_L_BLUE : TERM_WHITE,
-        "c) Options");
-    Term_putstr(COL_MAIN, 5, -1, (*highlight == 4) ? TERM_L_BLUE : TERM_WHITE,
-        "d) Map");
-    Term_putstr(COL_MAIN, 6, -1, (*highlight == 5) ? TERM_L_BLUE : TERM_WHITE,
-        "e) Names of the fallen");
-    Term_putstr(COL_MAIN, 7, -1, (*highlight == 6) ? TERM_L_BLUE : TERM_WHITE,
-        "f) Known objects");
-    Term_putstr(COL_MAIN, 8, -1, (*highlight == 7) ? TERM_L_BLUE : TERM_WHITE,
-        "g) Known artefacts");
-    Term_putstr(COL_MAIN, 9, -1, (*highlight == 8) ? TERM_L_BLUE : TERM_WHITE,
-        "h) Known monsters");
-    Term_putstr(COL_MAIN, 10, -1, (*highlight == 9) ? TERM_L_BLUE : TERM_WHITE,
-        "i) Slain monsters");
-    Term_putstr(COL_MAIN, 11, -1, (*highlight == 10) ? TERM_L_BLUE : TERM_WHITE,
-        "j) Write a note");
-    Term_putstr(COL_MAIN, 12, -1, (*highlight == 11) ? TERM_L_BLUE : TERM_WHITE,
-        "k) Take HTML screenshot");
-    Term_putstr(COL_MAIN, 13, -1, (*highlight == 12) ? TERM_L_BLUE : TERM_WHITE,
-        "l) Set macros");
-    Term_putstr(COL_MAIN, 14, -1, (*highlight == 13) ? TERM_L_BLUE : TERM_WHITE,
-        "m) Set colours");
-    Term_putstr(COL_MAIN, 15, -1, (*highlight == 14) ? TERM_L_BLUE : TERM_WHITE,
-        "n) Show old messages");
-    Term_putstr(COL_MAIN, 16, -1, (*highlight == 15) ? TERM_L_BLUE : TERM_WHITE,
-        "o) Sil version info");
-    Term_putstr(COL_MAIN, 17, -1, (*highlight == 16) ? TERM_L_BLUE : TERM_WHITE,
-        "p) Abort current game");
-    Term_putstr(COL_MAIN, 18, -1, (*highlight == 17) ? TERM_L_BLUE : TERM_WHITE,
-        "q) Save game");
-    Term_putstr(COL_MAIN, 19, -1, (*highlight == 18) ? TERM_L_BLUE : TERM_WHITE,
-        "r) Save and quit");
+    ui_menu_begin();
+    for (i = 0; i < MAIN_MENU_MAX; i++)
+    {
+        bool selected = (*highlight == i + 1);
+        int row = 2 + i;
+
+        Term_putstr(COL_MAIN, row, -1, selected ? TERM_L_BLUE : TERM_WHITE,
+            main_menu_labels[i]);
+        ui_menu_add(COL_MAIN, row, (int)strlen(main_menu_labels[i]), 1, '\r',
+            selected, TERM_WHITE, main_menu_labels[i]);
+    }
+    ui_menu_end();
 
     /* Flush the prompt */
     Term_fresh();
@@ -6390,13 +7632,14 @@ static int main_menu_aux(int* highlight)
     if ((ch >= 'a') && (ch <= (char)'a' + MAIN_MENU_MAX - 1))
     {
         *highlight = (int)ch - 'a' + 1;
-
+        ui_menu_clear();
         return (*highlight);
     }
 
     /* Choose current  */
     if ((ch == '\r') || (ch == '\n') || (ch == ' ') || (ch == '6'))
     {
+        ui_menu_clear();
         return (*highlight);
     }
 
@@ -6421,6 +7664,7 @@ static int main_menu_aux(int* highlight)
     /* Leave menu */
     if ((ch == ESCAPE) || (ch == '4'))
     {
+        ui_menu_clear();
         return (-1);
     }
 
@@ -6889,6 +8133,13 @@ extern void do_cmd_options_aux(int page, cptr info)
     char buf[80];
 
     int dir;
+    char labels[OPT_PAGE_PER][80];
+    char menu_text[1024];
+    byte menu_attrs[1024];
+    char menu_details[2048];
+    byte menu_details_attrs[2048];
+    ui_text_builder menu_builder;
+    ui_text_builder details_builder;
 
     /* Scan the options */
     for (i = 0; i < OPT_PAGE_PER; i++)
@@ -6902,13 +8153,21 @@ extern void do_cmd_options_aux(int page, cptr info)
 
     /* Clear screen */
     Term_clear();
+    Term_fresh();
 
     /* Interact with the player */
     while (TRUE)
     {
+        ui_text_builder_init(
+            &menu_builder, menu_text, menu_attrs, sizeof(menu_text));
+        ui_text_builder_init(&details_builder, menu_details, menu_details_attrs,
+            sizeof(menu_details));
+
         /* Prompt XXX XXX XXX */
         strnfmt(buf, sizeof(buf), "%s", info);
         Term_putstr(2, 1, -1, TERM_WHITE, buf);
+        ui_text_builder_append_line(&menu_builder, info, TERM_WHITE);
+        ui_menu_begin();
 
         /* Display the options */
         for (i = 0; i < n; i++)
@@ -6937,8 +8196,10 @@ extern void do_cmd_options_aux(int page, cptr info)
                 strnfmt(buf, sizeof(buf), "%-48s: %s", option_desc[opt[i]],
                     op_ptr->opt[opt[i]] ? "yes" : "no ");
             }
+            my_strcpy(labels[i], buf, sizeof(labels[i]));
 
             c_prt(a, buf, i + 3, 2);
+            ui_menu_add(2, i + 3, (int)strlen(buf), 1, '5', i == k, a, buf);
         }
 
         if (page == CHALLENGE_PAGE)
@@ -6965,6 +8226,61 @@ extern void do_cmd_options_aux(int page, cptr info)
             Term_putstr(2, n + 4, -1, TERM_SLATE,
                 "(direction keys to set, Return/Escape to accept)");
         }
+
+        if ((k >= 0) && (k < n))
+        {
+            ui_text_builder_append_line(&details_builder, labels[k], TERM_L_WHITE);
+            ui_text_builder_newline(&details_builder, TERM_WHITE);
+
+            if (opt[k] == OPT_delay_factor)
+            {
+                strnfmt(buf, sizeof(buf), "Current value: %d",
+                    op_ptr->delay_factor);
+                ui_text_builder_append_line(&details_builder, buf, TERM_SLATE);
+                ui_text_builder_append_line(&details_builder,
+                    "Use 4/6 to decrease or increase. Click to toggle/cycle.",
+                    TERM_SLATE);
+            }
+            else if (opt[k] == OPT_hitpoint_warning)
+            {
+                strnfmt(buf, sizeof(buf), "Current value: %d%%",
+                    op_ptr->hitpoint_warn * 10);
+                ui_text_builder_append_line(&details_builder, buf, TERM_SLATE);
+                ui_text_builder_append_line(&details_builder,
+                    "Use 4/6 to decrease or increase. Click to toggle/cycle.",
+                    TERM_SLATE);
+            }
+            else
+            {
+                strnfmt(buf, sizeof(buf), "Current value: %s",
+                    op_ptr->opt[opt[k]] ? "yes" : "no");
+                ui_text_builder_append_line(&details_builder, buf, TERM_SLATE);
+                ui_text_builder_append_line(&details_builder,
+                    "Press Space/5 or click to toggle this option.",
+                    TERM_SLATE);
+            }
+        }
+
+        ui_text_builder_newline(&details_builder, TERM_WHITE);
+        if ((page == CHALLENGE_PAGE) && (playerturn != 0))
+        {
+            ui_text_builder_append_line(&details_builder,
+                "Challenge options can only be altered during character",
+                TERM_L_DARK);
+            ui_text_builder_append_line(
+                &details_builder, "creation or on the first turn.", TERM_L_DARK);
+        }
+        else
+        {
+            ui_text_builder_append_line(&details_builder,
+                "Use 8/2 to move, 4/6 to set, and Return/Escape to accept.",
+                TERM_SLATE);
+        }
+        ui_menu_set_text(
+            menu_text, menu_attrs, ui_text_builder_length(&menu_builder));
+        ui_menu_set_details(menu_details, menu_details_attrs,
+            ui_text_builder_length(&details_builder));
+        ui_menu_end();
 
         /* Hilite current option */
         move_cursor(k + 3, 52);
@@ -6999,6 +8315,7 @@ extern void do_cmd_options_aux(int page, cptr info)
                 }
             }
 
+            ui_menu_clear();
             return;
         }
 
@@ -7211,32 +8528,39 @@ static errr option_dump(cptr fname)
 
 static int options_menu(int* highlight)
 {
+    static const char* const options_menu_labels[] = {
+        "a) Interface Options",
+        "b) Visual Options",
+        "c) Challenge Options",
+        "d) Load a 'Pref' File",
+        "e) Append Options to a 'Pref' File",
+        "f) Return to Game",
+        "g) Debugging Options",
+    };
+
     int ch;
     int options = 6;
+    int i;
 
     if (p_ptr->noscore)
         options++;
+    if (*highlight > options)
+        *highlight = options;
 
     Term_putstr(2, 1, -1, TERM_WHITE, "Options");
-
-    Term_putstr(2, 3, -1, (*highlight == 1) ? TERM_L_BLUE : TERM_WHITE,
-        "a) Interface Options");
-    Term_putstr(2, 4, -1, (*highlight == 2) ? TERM_L_BLUE : TERM_WHITE,
-        "b) Visual Options");
-    Term_putstr(2, 5, -1, (*highlight == 3) ? TERM_L_BLUE : TERM_WHITE,
-        "c) Challenge Options");
-    Term_putstr(2, 6, -1, (*highlight == 4) ? TERM_L_BLUE : TERM_WHITE,
-        "d) Load a 'Pref' File");
-    Term_putstr(2, 7, -1, (*highlight == 5) ? TERM_L_BLUE : TERM_WHITE,
-        "e) Append Options to a 'Pref' File");
-    Term_putstr(2, 8, -1, (*highlight == 6) ? TERM_L_BLUE : TERM_WHITE,
-        "f) Return to Game");
-
-    if (p_ptr->noscore)
+    ui_menu_begin();
+    ui_menu_set_text("Options", NULL, 0);
+    for (i = 0; i < options; i++)
     {
-        Term_putstr(2, 9, -1, (*highlight == 7) ? TERM_L_BLUE : TERM_WHITE,
-            "g) Debugging Options");
+        int row = 3 + i;
+        bool selected = (*highlight == i + 1);
+
+        Term_putstr(2, row, -1, selected ? TERM_L_BLUE : TERM_WHITE,
+            options_menu_labels[i]);
+        ui_menu_add(2, row, (int)strlen(options_menu_labels[i]), 1, '\r',
+            selected, TERM_WHITE, options_menu_labels[i]);
     }
+    ui_menu_end();
 
     /* Flush the prompt */
     Term_fresh();
@@ -7249,51 +8573,31 @@ static int options_menu(int* highlight)
     ch = inkey();
     hide_cursor = FALSE;
 
-    if ((ch == 'a') || (ch == 'A'))
+    if ((ch >= 'a') && (ch <= (char)'a' + options - 1))
     {
-        *highlight = 1;
-        return (1);
+        *highlight = (int)ch - 'a' + 1;
+        ui_menu_clear();
+        return (*highlight);
     }
 
-    if ((ch == 'b') || (ch == 'B'))
+    if ((ch >= 'A') && (ch <= (char)'A' + options - 1))
     {
-        *highlight = 2;
-        return (2);
-    }
-
-    if ((ch == 'c') || (ch == 'C'))
-    {
-        *highlight = 3;
-        return (3);
-    }
-
-    if ((ch == 'd') || (ch == 'D'))
-    {
-        *highlight = 4;
-        return (4);
-    }
-
-    if ((ch == 'e') || (ch == 'E'))
-    {
-        *highlight = 5;
-        return (5);
+        *highlight = (int)ch - 'A' + 1;
+        ui_menu_clear();
+        return (*highlight);
     }
 
     if ((ch == 'f') || (ch == 'F') || (ch == ESCAPE) || (ch == 'q'))
     {
         *highlight = 6;
+        ui_menu_clear();
         return (6);
-    }
-
-    if ((ch == 'g') || (ch == 'G'))
-    {
-        *highlight = 7;
-        return (7);
     }
 
     /* Choose current  */
     if ((ch == '\r') || (ch == '\n') || (ch == ' '))
     {
+        ui_menu_clear();
         return (*highlight);
     }
 
@@ -7332,6 +8636,7 @@ void do_cmd_options(void)
 
     /* Clear screen */
     Term_clear();
+    Term_fresh();
 
     /* Process Events until "Return to Game" is selected */
     while (!return_to_game)
@@ -7344,18 +8649,21 @@ void do_cmd_options(void)
         {
             do_cmd_options_aux(INTERFACE_PAGE, "Interface Options");
             Term_clear();
+            Term_fresh();
             break;
         }
         case 2:
         {
             do_cmd_options_aux(VISUAL_PAGE, "Visual Options");
             Term_clear();
+            Term_fresh();
             break;
         }
         case 3:
         {
             do_cmd_options_aux(CHALLENGE_PAGE, "Challenge Options");
             Term_clear();
+            Term_fresh();
             break;
         }
         case 4:
@@ -7363,6 +8671,7 @@ void do_cmd_options(void)
             /* Ask for and load a user pref file */
             do_cmd_pref_file_hack(12);
             Term_clear();
+            Term_fresh();
             break;
         }
         case 5:
@@ -7380,6 +8689,7 @@ void do_cmd_options(void)
             if (!askfor_aux(ftmp, sizeof(ftmp)))
             {
                 Term_clear();
+                Term_fresh();
                 continue;
             }
 
@@ -7396,18 +8706,21 @@ void do_cmd_options(void)
             }
 
             Term_clear();
+            Term_fresh();
             break;
         }
         case 6:
         {
             return_to_game = TRUE;
             Term_clear();
+            Term_fresh();
             break;
         }
         case 7:
         {
             do_cmd_options_aux(DEBUG_PAGE, "Debugging Options");
             Term_clear();
+            Term_fresh();
             break;
         }
         }
@@ -7676,6 +8989,116 @@ static errr keymap_dump(cptr fname)
 
 #endif
 
+static void render_command_menu(cptr title, int title_row, int col,
+    const command_menu_entry* entries, int entry_count, int highlight,
+    cptr extra_details)
+{
+    int i;
+    char menu_text[1024];
+    byte menu_attrs[1024];
+    char menu_details[2048];
+    byte menu_details_attrs[2048];
+    ui_text_builder menu_builder;
+    ui_text_builder details_builder;
+
+    ui_text_builder_init(&menu_builder, menu_text, menu_attrs, sizeof(menu_text));
+    ui_text_builder_init(
+        &details_builder, menu_details, menu_details_attrs, sizeof(menu_details));
+
+    Term_putstr(col - 3, title_row, -1, TERM_WHITE, title);
+    ui_text_builder_append_line(&menu_builder, title, TERM_WHITE);
+    ui_text_builder_newline(&menu_builder, TERM_WHITE);
+    ui_text_builder_append_line(&menu_builder,
+        "Use 8/2 to move, Enter to choose, or click an option.", TERM_SLATE);
+
+    ui_menu_begin();
+    ui_menu_set_text(
+        menu_text, menu_attrs, ui_text_builder_length(&menu_builder));
+
+    for (i = 0; i < entry_count; i++)
+    {
+        byte attr = (i + 1 == highlight) ? TERM_L_BLUE : TERM_WHITE;
+        size_t label_len = strlen(entries[i].label);
+
+        Term_putstr(col, entries[i].row, -1, attr, entries[i].label);
+        ui_menu_add(col, entries[i].row, (int)label_len, 1, entries[i].key,
+            (i + 1 == highlight), TERM_WHITE, entries[i].label);
+    }
+
+    if ((highlight >= 1) && (highlight <= entry_count))
+    {
+        const command_menu_entry* selected = &entries[highlight - 1];
+
+        ui_text_builder_append_line(
+            &details_builder, selected->label, TERM_L_WHITE);
+        ui_text_builder_newline(&details_builder, TERM_WHITE);
+        ui_text_builder_append_line(
+            &details_builder, selected->details, TERM_SLATE);
+    }
+
+    if (extra_details && extra_details[0] != '\0')
+    {
+        if (ui_text_builder_length(&details_builder) > 0)
+        {
+            ui_text_builder_newline(&details_builder, TERM_WHITE);
+            ui_text_builder_newline(&details_builder, TERM_WHITE);
+        }
+        ui_text_builder_append_line(&details_builder, extra_details, TERM_SLATE);
+    }
+
+    ui_menu_set_details(
+        menu_details, menu_details_attrs, ui_text_builder_length(&details_builder));
+    ui_menu_end();
+}
+
+static int command_menu_read_action(
+    int* highlight, const command_menu_entry* entries, int entry_count)
+{
+    int i;
+    char ch;
+
+    if (entry_count <= 0)
+        return ESCAPE;
+
+    if (*highlight < 1)
+        *highlight = 1;
+    if (*highlight > entry_count)
+        *highlight = entry_count;
+
+    hide_cursor = TRUE;
+    ch = inkey();
+    hide_cursor = FALSE;
+
+    if (ch == ESCAPE)
+        return ESCAPE;
+
+    if (ch == '8')
+    {
+        *highlight = (*highlight + entry_count - 2) % entry_count + 1;
+        return 0;
+    }
+
+    if (ch == '2')
+    {
+        *highlight = *highlight % entry_count + 1;
+        return 0;
+    }
+
+    if ((ch == '\r') || (ch == '\n') || (ch == ' '))
+        return entries[*highlight - 1].key;
+
+    for (i = 0; i < entry_count; i++)
+    {
+        if (ch == entries[i].key)
+        {
+            *highlight = i + 1;
+            return entries[i].key;
+        }
+    }
+
+    return -1;
+}
+
 /*
  * Interact with "macros"
  *
@@ -7690,6 +9113,7 @@ void do_cmd_macros(void)
     char pat[1024];
 
     int mode;
+    int highlight = 1;
 
     // Determine the keyset
     if (!hjkl_movement && !angband_keyset)
@@ -7710,48 +9134,111 @@ void do_cmd_macros(void)
     /* Process requests until done */
     while (1)
     {
+        command_menu_entry entries[10];
+        int entry_count = 0;
+        char details[1400];
+
         /* Clear screen */
         Term_clear();
-
-        /* Describe */
-        prt("Interact with Macros", 2, 0);
-
-        /* Describe that action */
-        prt("Current action (if any) shown below:", 20, 0);
+        Term_fresh();
 
         /* Analyze the current action */
         ascii_to_text(tmp, sizeof(tmp), macro_buffer);
 
+        /* Describe that action */
+        prt("Current action (if any) shown below:", 20, 0);
+
         /* Display the current action */
         prt(tmp, 22, 0);
 
-        /* Selections */
-        prt("(1) Load a user pref file", 4, 5);
+        entries[entry_count].key = '1';
+        entries[entry_count].row = 4;
+        entries[entry_count].label = "(1) Load a user pref file";
+        entries[entry_count].details
+            = "Load macro and keymap settings from one of your pref files.";
+        entry_count++;
 #ifdef ALLOW_MACROS
-        prt("(2) Append macros to a file", 5, 5);
-        prt("(3) Query a macro", 6, 5);
-        prt("(4) Create a macro", 7, 5);
-        prt("(5) Remove a macro", 8, 5);
-        prt("(6) Append keymaps to a file", 9, 5);
-        prt("(7) Query a keymap", 10, 5);
-        prt("(8) Create a keymap", 11, 5);
-        prt("(9) Remove a keymap", 12, 5);
-        prt("(0) Enter a new action", 13, 5);
+        entries[entry_count].key = '2';
+        entries[entry_count].row = 5;
+        entries[entry_count].label = "(2) Append macros to a file";
+        entries[entry_count].details
+            = "Write the current macro definitions to a pref file.";
+        entry_count++;
+        entries[entry_count].key = '3';
+        entries[entry_count].row = 6;
+        entries[entry_count].label = "(3) Query a macro";
+        entries[entry_count].details
+            = "Look up a macro trigger and show the bound action.";
+        entry_count++;
+        entries[entry_count].key = '4';
+        entries[entry_count].row = 7;
+        entries[entry_count].label = "(4) Create a macro";
+        entries[entry_count].details
+            = "Bind a trigger sequence to the current action text.";
+        entry_count++;
+        entries[entry_count].key = '5';
+        entries[entry_count].row = 8;
+        entries[entry_count].label = "(5) Remove a macro";
+        entries[entry_count].details
+            = "Delete a macro by selecting its trigger sequence.";
+        entry_count++;
+        entries[entry_count].key = '6';
+        entries[entry_count].row = 9;
+        entries[entry_count].label = "(6) Append keymaps to a file";
+        entries[entry_count].details
+            = "Write the current keymap bindings to a pref file.";
+        entry_count++;
+        entries[entry_count].key = '7';
+        entries[entry_count].row = 10;
+        entries[entry_count].label = "(7) Query a keymap";
+        entries[entry_count].details
+            = "Inspect the command sequence bound to one keypress.";
+        entry_count++;
+        entries[entry_count].key = '8';
+        entries[entry_count].row = 11;
+        entries[entry_count].label = "(8) Create a keymap";
+        entries[entry_count].details
+            = "Bind a single keypress to the current action text.";
+        entry_count++;
+        entries[entry_count].key = '9';
+        entries[entry_count].row = 12;
+        entries[entry_count].label = "(9) Remove a keymap";
+        entries[entry_count].details
+            = "Delete a keymap binding for a chosen keypress.";
+        entry_count++;
+        entries[entry_count].key = '0';
+        entries[entry_count].row = 13;
+        entries[entry_count].label = "(0) Enter a new action";
+        entries[entry_count].details
+            = "Edit the action text used by the macro and keymap tools.";
+        entry_count++;
 #endif /* ALLOW_MACROS */
+
+        strnfmt(details, sizeof(details),
+            "Current action:\n%s\n\nPress Escape to return to the game.", tmp);
+        render_command_menu(
+            "Interact with Macros", 2, 5, entries, entry_count, highlight, details);
 
         /* Prompt */
         prt("Command: ", 16, 0);
 
         /* Get a command */
-        ch = inkey();
+        ch = (char)command_menu_read_action(&highlight, entries, entry_count);
 
         /* Leave */
         if (ch == ESCAPE)
+        {
+            ui_menu_clear();
             break;
+        }
+
+        if (ch == 0)
+            continue;
 
         /* Load a user pref file */
         if (ch == '1')
         {
+            ui_menu_clear();
             /* Ask for and load a user pref file */
             do_cmd_pref_file_hack(16);
         }
@@ -7763,6 +9250,7 @@ void do_cmd_macros(void)
         {
             char ftmp[80];
 
+            ui_menu_clear();
             /* Prompt */
             prt("Command: Append macros to a file", 16, 0);
 
@@ -7788,6 +9276,7 @@ void do_cmd_macros(void)
         {
             int k;
 
+            ui_menu_clear();
             /* Prompt */
             prt("Command: Query a macro", 16, 0);
 
@@ -7827,6 +9316,7 @@ void do_cmd_macros(void)
         /* Create a macro */
         else if (ch == '4')
         {
+            ui_menu_clear();
             /* Prompt */
             prt("Command: Create a macro", 16, 0);
 
@@ -7862,6 +9352,7 @@ void do_cmd_macros(void)
         /* Remove a macro */
         else if (ch == '5')
         {
+            ui_menu_clear();
             /* Prompt */
             prt("Command: Remove a macro", 16, 0);
 
@@ -7883,6 +9374,7 @@ void do_cmd_macros(void)
         {
             char ftmp[80];
 
+            ui_menu_clear();
             /* Prompt */
             prt("Command: Append keymaps to a file", 16, 0);
 
@@ -7908,6 +9400,7 @@ void do_cmd_macros(void)
         {
             cptr act;
 
+            ui_menu_clear();
             /* Prompt */
             prt("Command: Query a keymap", 16, 0);
 
@@ -7947,6 +9440,7 @@ void do_cmd_macros(void)
         /* Create a keymap */
         else if (ch == '8')
         {
+            ui_menu_clear();
             /* Prompt */
             prt("Command: Create a keymap", 16, 0);
 
@@ -7985,6 +9479,7 @@ void do_cmd_macros(void)
         /* Remove a keymap */
         else if (ch == '9')
         {
+            ui_menu_clear();
             /* Prompt */
             prt("Command: Remove a keymap", 16, 0);
 
@@ -8007,6 +9502,7 @@ void do_cmd_macros(void)
         /* Enter a new action */
         else if (ch == '0')
         {
+            ui_menu_clear();
             /* Prompt */
             prt("Command: Enter a new action", 16, 0);
 
@@ -8038,6 +9534,7 @@ void do_cmd_macros(void)
     }
 
     /* Load screen */
+    ui_menu_clear();
     screen_load();
 }
 
@@ -8194,6 +9691,7 @@ void do_cmd_visuals(void)
     int cx;
 
     int i;
+    int highlight = 1;
 
     FILE* fff;
 
@@ -8208,39 +9706,99 @@ void do_cmd_visuals(void)
     /* Interact until done */
     while (1)
     {
+        command_menu_entry entries[10];
+        int entry_count = 0;
+
         /* Clear screen */
         Term_clear();
+        Term_fresh();
 
-        /* Ask for a choice */
-        prt("Interact with Visuals", 2, 0);
-
-        /* Give some choices */
-        prt("(1) Load a user pref file", 4, 5);
+        entries[entry_count].key = '1';
+        entries[entry_count].row = 4;
+        entries[entry_count].label = "(1) Load a user pref file";
+        entries[entry_count].details
+            = "Load visual definitions from one of your pref files.";
+        entry_count++;
 #ifdef ALLOW_VISUALS
-        prt("(2) Dump monster attr/chars", 5, 5);
-        prt("(3) Dump object attr/chars", 6, 5);
-        prt("(4) Dump feature attr/chars", 7, 5);
-        prt("(5) Dump flavor attr/chars", 8, 5);
-        prt("(6) Change monster attr/chars", 9, 5);
-        prt("(7) Change object attr/chars", 10, 5);
-        prt("(8) Change feature attr/chars", 11, 5);
-        prt("(9) Change flavor attr/chars", 12, 5);
+        entries[entry_count].key = '2';
+        entries[entry_count].row = 5;
+        entries[entry_count].label = "(2) Dump monster attr/chars";
+        entries[entry_count].details
+            = "Write the current monster tile/character mappings to a pref file.";
+        entry_count++;
+        entries[entry_count].key = '3';
+        entries[entry_count].row = 6;
+        entries[entry_count].label = "(3) Dump object attr/chars";
+        entries[entry_count].details
+            = "Write the current object tile/character mappings to a pref file.";
+        entry_count++;
+        entries[entry_count].key = '4';
+        entries[entry_count].row = 7;
+        entries[entry_count].label = "(4) Dump feature attr/chars";
+        entries[entry_count].details
+            = "Write the current terrain tile/character mappings to a pref file.";
+        entry_count++;
+        entries[entry_count].key = '5';
+        entries[entry_count].row = 8;
+        entries[entry_count].label = "(5) Dump flavor attr/chars";
+        entries[entry_count].details
+            = "Write the current flavor tile/character mappings to a pref file.";
+        entry_count++;
+        entries[entry_count].key = '6';
+        entries[entry_count].row = 9;
+        entries[entry_count].label = "(6) Change monster attr/chars";
+        entries[entry_count].details
+            = "Open the interactive monster visuals editor.";
+        entry_count++;
+        entries[entry_count].key = '7';
+        entries[entry_count].row = 10;
+        entries[entry_count].label = "(7) Change object attr/chars";
+        entries[entry_count].details
+            = "Open the interactive object visuals editor.";
+        entry_count++;
+        entries[entry_count].key = '8';
+        entries[entry_count].row = 11;
+        entries[entry_count].label = "(8) Change feature attr/chars";
+        entries[entry_count].details
+            = "Open the interactive terrain visuals editor.";
+        entry_count++;
+        entries[entry_count].key = '9';
+        entries[entry_count].row = 12;
+        entries[entry_count].label = "(9) Change flavor attr/chars";
+        entries[entry_count].details
+            = "Open the interactive flavor visuals editor.";
+        entry_count++;
 #endif
-        prt("(0) Reset visuals", 13, 5);
+        entries[entry_count].key = '0';
+        entries[entry_count].row = 13;
+        entries[entry_count].label = "(0) Reset visuals";
+        entries[entry_count].details
+            = "Restore the default visual attr/char tables.";
+        entry_count++;
+
+        render_command_menu("Interact with Visuals", 2, 5, entries, entry_count,
+            highlight, "Press Escape to return to the game.");
 
         /* Prompt */
         prt("Command: ", 15, 0);
 
         /* Prompt */
-        ch = inkey();
+        ch = (char)command_menu_read_action(&highlight, entries, entry_count);
 
         /* Done */
         if (ch == ESCAPE)
+        {
+            ui_menu_clear();
             break;
+        }
+
+        if (ch == 0)
+            continue;
 
         /* Load a user pref file */
         if (ch == '1')
         {
+            ui_menu_clear();
             /* Ask for and load a user pref file */
             do_cmd_pref_file_hack(15);
         }
@@ -8253,6 +9811,7 @@ void do_cmd_visuals(void)
             static cptr mark = "Monster attr/chars";
             char ftmp[80];
 
+            ui_menu_clear();
             /* Prompt */
             prt("Command: Dump monster attr/chars", 15, 0);
 
@@ -8324,6 +9883,7 @@ void do_cmd_visuals(void)
             static cptr mark = "Object attr/chars";
             char ftmp[80];
 
+            ui_menu_clear();
             /* Prompt */
             prt("Command: Dump object attr/chars", 15, 0);
 
@@ -8395,6 +9955,7 @@ void do_cmd_visuals(void)
             static cptr mark = "Feature attr/chars";
             char ftmp[80];
 
+            ui_menu_clear();
             /* Prompt */
             prt("Command: Dump feature attr/chars", 15, 0);
 
@@ -8466,6 +10027,7 @@ void do_cmd_visuals(void)
             static cptr mark = "Flavor attr/chars";
             char ftmp[80];
 
+            ui_menu_clear();
             /* Prompt */
             prt("Command: Dump flavor attr/chars", 15, 0);
 
@@ -8532,6 +10094,7 @@ void do_cmd_visuals(void)
         {
             static int r = 0;
 
+            ui_menu_clear();
             /* Prompt */
             prt("Command: Change monster attr/chars", 15, 0);
 
@@ -8614,6 +10177,7 @@ void do_cmd_visuals(void)
         {
             static int k = 0;
 
+            ui_menu_clear();
             /* Prompt */
             prt("Command: Change object attr/chars", 15, 0);
 
@@ -8696,6 +10260,7 @@ void do_cmd_visuals(void)
         {
             static int f = 0;
 
+            ui_menu_clear();
             /* Prompt */
             prt("Command: Change feature attr/chars", 15, 0);
 
@@ -8778,6 +10343,7 @@ void do_cmd_visuals(void)
         {
             static int f = 0;
 
+            ui_menu_clear();
             /* Prompt */
             prt("Command: Change flavor attr/chars", 15, 0);
 
@@ -8861,6 +10427,7 @@ void do_cmd_visuals(void)
         /* Reset visuals */
         else if (ch == '0')
         {
+            ui_menu_clear();
             /* Reset */
             reset_visuals(TRUE);
 
@@ -8879,6 +10446,7 @@ void do_cmd_visuals(void)
     }
 
     /* Load screen */
+    ui_menu_clear();
     screen_load();
 }
 
@@ -9370,6 +10938,7 @@ void do_cmd_colors(void)
     int ch;
 
     int i;
+    int highlight = 1;
 
     FILE* fff;
 
@@ -9384,32 +10953,57 @@ void do_cmd_colors(void)
     /* Interact until done */
     while (1)
     {
+        command_menu_entry entries[3];
+        int entry_count = 0;
+
         /* Clear screen */
         Term_clear();
+        Term_fresh();
 
-        /* Ask for a choice */
-        prt("Interact with Colors", 2, 0);
-
-        /* Give some choices */
-        prt("(1) Load a user pref file", 4, 5);
+        entries[entry_count].key = '1';
+        entries[entry_count].row = 4;
+        entries[entry_count].label = "(1) Load a user pref file";
+        entries[entry_count].details
+            = "Load color definitions from one of your pref files.";
+        entry_count++;
 #ifdef ALLOW_COLORS
-        prt("(2) Dump colors", 5, 5);
-        prt("(3) Modify colors", 6, 5);
+        entries[entry_count].key = '2';
+        entries[entry_count].row = 5;
+        entries[entry_count].label = "(2) Dump colors";
+        entries[entry_count].details
+            = "Write the current color table to a pref file.";
+        entry_count++;
+        entries[entry_count].key = '3';
+        entries[entry_count].row = 6;
+        entries[entry_count].label = "(3) Modify colors";
+        entries[entry_count].details
+            = "Open the interactive color editor.";
+        entry_count++;
 #endif /* ALLOW_COLORS */
+
+        render_command_menu("Interact with Colors", 2, 5, entries, entry_count,
+            highlight, "Press Escape to return to the game.");
 
         /* Prompt */
         prt("Command: ", 8, 0);
 
         /* Prompt */
-        ch = inkey();
+        ch = (char)command_menu_read_action(&highlight, entries, entry_count);
 
         /* Done */
         if (ch == ESCAPE)
+        {
+            ui_menu_clear();
             break;
+        }
+
+        if (ch == 0)
+            continue;
 
         /* Load a user pref file */
         if (ch == '1')
         {
+            ui_menu_clear();
             /* Ask for and load a user pref file */
             do_cmd_pref_file_hack(8);
 
@@ -9430,6 +11024,7 @@ void do_cmd_colors(void)
             static cptr mark = "Colors";
             char ftmp[80];
 
+            ui_menu_clear();
             /* Prompt */
             prt("Command: Dump colors", 8, 0);
 
@@ -9507,6 +11102,7 @@ void do_cmd_colors(void)
         /* Edit colors */
         else if (ch == '3')
         {
+            ui_menu_clear();
             modify_colors();
         }
 
@@ -9523,6 +11119,7 @@ void do_cmd_colors(void)
     }
 
     /* Load screen */
+    ui_menu_clear();
     screen_load();
 }
 
@@ -10287,6 +11884,14 @@ void do_cmd_knowledge_artefacts(void)
 
     /* Terminate the list */
     grp_idx[grp_cnt] = -1;
+
+    /* Nothing to browse yet */
+    if (!grp_cnt)
+    {
+        msg_print("No artefacts are known.");
+        KILL(artefact_idx);
+        return;
+    }
 
     grp_cur = grp_top = 0;
     artefact_cur = artefact_top = 0;
@@ -11213,6 +12818,13 @@ void do_cmd_knowledge_objects(void)
 
     /* Terminate the list */
     grp_idx[grp_cnt] = -1;
+
+    /* Nothing to browse yet */
+    if (!grp_cnt)
+    {
+        msg_print("No objects are known.");
+        return;
+    }
 
     /* Allocate the "object_idx" array */
     C_MAKE(object_idx, 1 + grp_max, object_list_entry);

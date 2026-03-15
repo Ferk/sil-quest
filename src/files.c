@@ -9,6 +9,7 @@
  */
 
 #include "angband.h"
+#include "ui-model.h"
 
 // These are copied from birth.c and needed for displaying the character sheet
 #define INSTRUCT_ROW 21
@@ -4692,7 +4693,19 @@ errr file_character(cptr name, bool full)
 
 static int final_menu(int* highlight)
 {
+    static const char* const final_menu_labels[] = {
+        "a) View scores",
+        "b) View inventory and equipment",
+        "c) View dungeon",
+        "d) View final messages",
+        "e) View character sheet",
+        "f) Add comment to notes",
+        "g) Save character sheet",
+        "h) Exit",
+    };
+
     char ch;
+    int i;
 
     // char buf[80];
 
@@ -4704,22 +4717,18 @@ static int final_menu(int* highlight)
 
     Term_putstr(3, 10, -1, TERM_L_DARK,
         "____________________________________________________");
-    Term_putstr(15, 12, -1, (*highlight == 1) ? TERM_L_BLUE : TERM_WHITE,
-        "a) View scores");
-    Term_putstr(15, 13, -1, (*highlight == 2) ? TERM_L_BLUE : TERM_WHITE,
-        "b) View inventory and equipment");
-    Term_putstr(15, 14, -1, (*highlight == 3) ? TERM_L_BLUE : TERM_WHITE,
-        "c) View dungeon");
-    Term_putstr(15, 15, -1, (*highlight == 4) ? TERM_L_BLUE : TERM_WHITE,
-        "d) View final messages");
-    Term_putstr(15, 16, -1, (*highlight == 5) ? TERM_L_BLUE : TERM_WHITE,
-        "e) View character sheet");
-    Term_putstr(15, 17, -1, (*highlight == 6) ? TERM_L_BLUE : TERM_WHITE,
-        "f) Add comment to notes");
-    Term_putstr(15, 18, -1, (*highlight == 7) ? TERM_L_BLUE : TERM_WHITE,
-        "g) Save character sheet");
-    Term_putstr(
-        15, 19, -1, (*highlight == 8) ? TERM_L_BLUE : TERM_WHITE, "h) Exit");
+    ui_menu_begin();
+    for (i = 0; i < 8; i++)
+    {
+        int row = 12 + i;
+        bool selected = (*highlight == i + 1);
+
+        Term_putstr(15, row, -1, selected ? TERM_L_BLUE : TERM_WHITE,
+            final_menu_labels[i]);
+        ui_menu_add(15, row, (int)strlen(final_menu_labels[i]), 1, '\r',
+            selected, TERM_WHITE, final_menu_labels[i]);
+    }
+    ui_menu_end();
 
     /* Flush the prompt */
     Term_fresh();
@@ -4735,54 +4744,63 @@ static int final_menu(int* highlight)
     if (ch == 'a')
     {
         *highlight = 1;
+        ui_menu_clear();
         return (1);
     }
 
     if (ch == 'b')
     {
         *highlight = 2;
+        ui_menu_clear();
         return (2);
     }
 
     if (ch == 'c')
     {
         *highlight = 3;
+        ui_menu_clear();
         return (3);
     }
 
     if (ch == 'd')
     {
         *highlight = 4;
+        ui_menu_clear();
         return (4);
     }
 
     if (ch == 'e')
     {
         *highlight = 5;
+        ui_menu_clear();
         return (5);
     }
 
     if (ch == 'f')
     {
         *highlight = 6;
+        ui_menu_clear();
         return (6);
     }
 
     if (ch == 'g')
     {
         *highlight = 7;
+        ui_menu_clear();
         return (7);
     }
 
     if ((ch == 'h') || (ch == 'q') || (ch == 'Q'))
     {
         *highlight = 8;
+        ui_menu_clear();
         return (8);
     }
 
     /* Choose current  */
     if ((ch == '\r') || (ch == '\n') || (ch == ' '))
     {
+        ui_menu_clear();
         return (*highlight);
     }
 

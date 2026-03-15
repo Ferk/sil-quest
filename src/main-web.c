@@ -12,6 +12,7 @@
 #ifdef USE_WEB
 
 #include "main.h"
+#include "ui-model.h"
 
 #include <stdint.h>
 #include <string.h>
@@ -43,7 +44,6 @@ typedef struct term_data term_data;
 #define WEB_FLAG_FG_PICT 0x04
 #define WEB_FLAG_BG_PICT 0x08
 #define WEB_FLAG_MARK 0x10
-
 struct web_cell
 {
     byte kind;
@@ -106,8 +106,6 @@ static int web_overlay_mode = 0;
 static byte* web_overlay_capture = NULL;
 static byte* web_overlay_capture_attr = NULL;
 static bool web_overlay_capture_active = FALSE;
-static bool web_overlay_override_active = FALSE;
-static char web_overlay_override_text[WEB_OVERLAY_TEXT_MAX];
 static web_cell* web_map_cells = NULL;
 static int web_map_cell_count = 0;
 static uint32_t web_map_cells_frame = UINT32_MAX;
@@ -168,6 +166,27 @@ EMSCRIPTEN_KEEPALIVE uint32_t web_get_frame_id(void);
 EMSCRIPTEN_KEEPALIVE uintptr_t web_get_fx_cells_ptr(void);
 EMSCRIPTEN_KEEPALIVE int web_get_fx_cells_cols(void);
 EMSCRIPTEN_KEEPALIVE int web_get_fx_cells_rows(void);
+EMSCRIPTEN_KEEPALIVE uintptr_t web_get_menu_items_ptr(void);
+EMSCRIPTEN_KEEPALIVE int web_get_menu_item_count(void);
+EMSCRIPTEN_KEEPALIVE int web_get_menu_item_stride(void);
+EMSCRIPTEN_KEEPALIVE uintptr_t web_get_menu_text_ptr(void);
+EMSCRIPTEN_KEEPALIVE int web_get_menu_text_len(void);
+EMSCRIPTEN_KEEPALIVE uintptr_t web_get_menu_attrs_ptr(void);
+EMSCRIPTEN_KEEPALIVE int web_get_menu_attrs_len(void);
+EMSCRIPTEN_KEEPALIVE unsigned int web_get_menu_revision(void);
+EMSCRIPTEN_KEEPALIVE uintptr_t web_get_menu_details_ptr(void);
+EMSCRIPTEN_KEEPALIVE int web_get_menu_details_len(void);
+EMSCRIPTEN_KEEPALIVE uintptr_t web_get_menu_details_attrs_ptr(void);
+EMSCRIPTEN_KEEPALIVE int web_get_menu_details_attrs_len(void);
+EMSCRIPTEN_KEEPALIVE int web_menu_hover(int index);
+EMSCRIPTEN_KEEPALIVE int web_menu_activate(int index);
+EMSCRIPTEN_KEEPALIVE uintptr_t web_get_modal_text_ptr(void);
+EMSCRIPTEN_KEEPALIVE int web_get_modal_text_len(void);
+EMSCRIPTEN_KEEPALIVE uintptr_t web_get_modal_attrs_ptr(void);
+EMSCRIPTEN_KEEPALIVE int web_get_modal_attrs_len(void);
+EMSCRIPTEN_KEEPALIVE int web_get_modal_dismiss_key(void);
+EMSCRIPTEN_KEEPALIVE unsigned int web_get_modal_revision(void);
+EMSCRIPTEN_KEEPALIVE int web_modal_activate(void);
 EMSCRIPTEN_KEEPALIVE int web_get_cursor_x(void);
 EMSCRIPTEN_KEEPALIVE int web_get_cursor_y(void);
 EMSCRIPTEN_KEEPALIVE int web_get_cursor_visible(void);
@@ -185,8 +204,6 @@ EMSCRIPTEN_KEEPALIVE uintptr_t web_get_overlay_attrs_ptr(void);
 EMSCRIPTEN_KEEPALIVE int web_get_overlay_attrs_len(void);
 EMSCRIPTEN_KEEPALIVE uint32_t web_get_fx_delay_seq(void);
 EMSCRIPTEN_KEEPALIVE int web_get_fx_delay_msec(void);
-void web_overlay_override_set(cptr text);
-void web_overlay_override_clear(void);
 void web_target_marks_begin(void);
 void web_target_mark_add(int y, int x, byte attr, char chr);
 void web_target_marks_end(void);
@@ -1270,24 +1287,6 @@ static void web_overlay_capture_text(int x, int y, int n, cptr s, byte attr)
     }
 }
 
-void web_overlay_override_set(cptr text)
-{
-    if (!text)
-        text = "";
-
-    my_strcpy(
-        web_overlay_override_text, text, sizeof(web_overlay_override_text));
-    web_overlay_override_active = TRUE;
-    web_overlay_text_frame = UINT32_MAX;
-}
-
-void web_overlay_override_clear(void)
-{
-    web_overlay_override_active = FALSE;
-    web_overlay_override_text[0] = '\0';
-    web_overlay_text_frame = UINT32_MAX;
-}
-
 static void web_build_overlay_text(void)
 {
     bool active;
@@ -1297,7 +1296,6 @@ static void web_build_overlay_text(void)
     int min_y = data.rows;
     int max_x = -1;
     int max_y = -1;
-    cptr ov;
     size_t off = 0;
 
     web_clear_overlay_text();
@@ -1307,28 +1305,6 @@ static void web_build_overlay_text(void)
 
     web_overlay_capture_sync_state();
     active = web_overlay_capture_active;
-
-    if (web_overlay_override_active && web_overlay_override_text[0])
-    {
-        ov = web_overlay_override_text;
-        off = 0;
-
-        while (*ov)
-        {
-            if (off + 1 >= sizeof(web_overlay_text))
-                break;
-
-            web_overlay_text[off] = *ov;
-            web_overlay_attrs[off] = TERM_WHITE;
-            off++;
-            ov++;
-        }
-
-        web_overlay_text[off] = '\0';
-        web_overlay_attrs_len = (int)off;
-        web_overlay_mode = 1;
-        return;
-    }
 
     if (!active || !web_overlay_capture || !web_overlay_capture_attr)
         return;
@@ -1558,13 +1534,12 @@ static void Term_nuke_web(term* t)
     FREE(web_overlay_capture_attr);
     web_overlay_capture_attr = NULL;
     web_overlay_capture_active = FALSE;
-    web_overlay_override_active = FALSE;
-    web_overlay_override_text[0] = '\0';
 
     FREE(web_map_cells);
     web_map_cells = NULL;
     web_map_cell_count = 0;
     web_map_cells_frame = UINT32_MAX;
+    ui_menu_clear();
     web_target_mark_count = 0;
     web_target_marks_batch = FALSE;
 
@@ -1624,6 +1599,7 @@ static errr Term_xtra_web(int n, int v)
             return (1);
 
         web_clear_cells(td, Term->attr_blank, (byte)Term->char_blank);
+        ui_menu_clear();
         web_target_marks_clear();
         web_overlay_capture_clear();
         web_mark_dirty(td, 0, 0, td->cols, td->rows);
@@ -1816,6 +1792,7 @@ static errr term_data_init_web(term_data* td, int rows, int cols)
 
     web_clear_cells(td, t->attr_blank, (byte)t->char_blank);
     web_overlay_capture_clear();
+    ui_menu_clear();
     web_mark_dirty(td, 0, 0, cols, rows);
     Term_activate(t);
 
@@ -1876,9 +1853,8 @@ errr init_web(int argc, char** argv)
     web_overlay_text[0] = '\0';
     web_overlay_attrs_len = 0;
     web_overlay_capture_active = FALSE;
-    web_overlay_override_active = FALSE;
-    web_overlay_override_text[0] = '\0';
     web_overlay_capture_clear();
+    ui_menu_clear();
     web_target_mark_count = 0;
     web_target_marks_batch = FALSE;
     web_fx_delay_seq = 0;
@@ -2049,6 +2025,149 @@ EMSCRIPTEN_KEEPALIVE int web_get_fx_cells_cols(void)
 EMSCRIPTEN_KEEPALIVE int web_get_fx_cells_rows(void)
 {
     return web_fx_rows;
+}
+
+EMSCRIPTEN_KEEPALIVE uintptr_t web_get_menu_items_ptr(void)
+{
+    return (uintptr_t)(const void*)ui_menu_get_items();
+}
+
+EMSCRIPTEN_KEEPALIVE int web_get_menu_item_count(void)
+{
+    return ui_menu_get_item_count();
+}
+
+EMSCRIPTEN_KEEPALIVE int web_get_menu_item_stride(void)
+{
+    return (int)sizeof(ui_menu_item);
+}
+
+EMSCRIPTEN_KEEPALIVE uintptr_t web_get_menu_text_ptr(void)
+{
+    return (uintptr_t)(const void*)ui_menu_get_text();
+}
+
+EMSCRIPTEN_KEEPALIVE int web_get_menu_text_len(void)
+{
+    return ui_menu_get_text_len();
+}
+
+EMSCRIPTEN_KEEPALIVE uintptr_t web_get_menu_attrs_ptr(void)
+{
+    return (uintptr_t)(const void*)ui_menu_get_attrs();
+}
+
+EMSCRIPTEN_KEEPALIVE int web_get_menu_attrs_len(void)
+{
+    return ui_menu_get_attrs_len();
+}
+
+EMSCRIPTEN_KEEPALIVE unsigned int web_get_menu_revision(void)
+{
+    return ui_menu_get_revision();
+}
+
+EMSCRIPTEN_KEEPALIVE uintptr_t web_get_menu_details_ptr(void)
+{
+    return (uintptr_t)(const void*)ui_menu_get_details();
+}
+
+EMSCRIPTEN_KEEPALIVE int web_get_menu_details_len(void)
+{
+    return ui_menu_get_details_len();
+}
+
+EMSCRIPTEN_KEEPALIVE uintptr_t web_get_menu_details_attrs_ptr(void)
+{
+    return (uintptr_t)(const void*)ui_menu_get_details_attrs();
+}
+
+EMSCRIPTEN_KEEPALIVE int web_get_menu_details_attrs_len(void)
+{
+    return ui_menu_get_details_attrs_len();
+}
+
+EMSCRIPTEN_KEEPALIVE int web_menu_hover(int index)
+{
+    int count = ui_menu_get_item_count();
+    int selected;
+    int step;
+    int target;
+
+    if ((index < 0) || (index >= count))
+        return 0;
+
+    selected = ui_menu_get_selected_index();
+    if (selected < 0)
+        return 0;
+
+    if (selected == index)
+        return 1;
+
+    step = (index > selected) ? 1 : -1;
+    for (target = selected; target != index; target += step)
+    {
+        if (!web_key_enqueue((step > 0) ? '2' : '8'))
+            return 0;
+    }
+
+    ui_menu_select_index(index);
+
+    return 1;
+}
+
+EMSCRIPTEN_KEEPALIVE int web_menu_activate(int index)
+{
+    const ui_menu_item* items = ui_menu_get_items();
+    int count = ui_menu_get_item_count();
+
+    if ((index < 0) || (index >= count))
+        return 0;
+
+    if (!web_menu_hover(index))
+        return 0;
+
+    return web_key_enqueue(items[index].key) ? 1 : 0;
+}
+
+EMSCRIPTEN_KEEPALIVE uintptr_t web_get_modal_text_ptr(void)
+{
+    return (uintptr_t)(const void*)ui_modal_get_text();
+}
+
+EMSCRIPTEN_KEEPALIVE int web_get_modal_text_len(void)
+{
+    return ui_modal_get_text_len();
+}
+
+EMSCRIPTEN_KEEPALIVE uintptr_t web_get_modal_attrs_ptr(void)
+{
+    return (uintptr_t)(const void*)ui_modal_get_attrs();
+}
+
+EMSCRIPTEN_KEEPALIVE int web_get_modal_attrs_len(void)
+{
+    return ui_modal_get_attrs_len();
+}
+
+EMSCRIPTEN_KEEPALIVE int web_get_modal_dismiss_key(void)
+{
+    return ui_modal_get_dismiss_key();
+}
+
+EMSCRIPTEN_KEEPALIVE unsigned int web_get_modal_revision(void)
+{
+    return ui_modal_get_revision();
+}
+
+EMSCRIPTEN_KEEPALIVE int web_modal_activate(void)
+{
+    int key = ui_modal_get_dismiss_key();
+
+    if ((ui_modal_get_text_len() <= 0) || (key <= 0))
+        return 0;
+
+    return web_key_enqueue(key) ? 1 : 0;
 }
 
 EMSCRIPTEN_KEEPALIVE int web_get_cursor_x(void)

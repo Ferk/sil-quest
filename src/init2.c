@@ -11,6 +11,7 @@
 #include "angband.h"
 
 #include "init.h"
+#include "ui-model.h"
 
 #ifdef RUNTIME_PRIVATE_USER_PATH
 /*
@@ -1516,31 +1517,38 @@ static void init_angband_aux(cptr why)
         "See the manual for more information.");
 }
 
+typedef struct intro_line intro_line;
+struct intro_line
+{
+    int y;
+    byte attr;
+    cptr text;
+};
+
+static const intro_line introduction_lines[] = {
+    { 3, TERM_L_BLUE, "  The world was young, the mountains green," },
+    { 4, TERM_L_BLUE, "     No stain yet on the moon was seen..." },
+    { 7, TERM_WHITE, "Welcome to Sil, a game of adventure set" },
+    { 8, TERM_WHITE, "  in the First Age of Middle-earth," },
+    { 9, TERM_WHITE, "    when the world still rang with elven song" },
+    { 10, TERM_WHITE, "      and gleamed with dwarven mail." },
+    { 11, TERM_WHITE, "Walk the dark halls of Angband." },
+    { 12, TERM_WHITE, "  Slay creatures black and fell." },
+    { 13, TERM_WHITE, "    Wrest a shining Silmaril from Morgoth's iron crown." },
+};
+
 extern void display_introduction(void)
 {
+    size_t i;
+
     /* Clear screen */
     Term_clear();
 
-    Term_putstr(14, 3, -1, TERM_L_BLUE,
-        "  The world was young, the mountains green,            ");
-    Term_putstr(14, 4, -1, TERM_L_BLUE,
-        "     No stain yet on the moon was seen...              ");
-
-    Term_putstr(14, 7, -1, TERM_WHITE,
-        "Welcome to Sil, a game of adventure set                ");
-    Term_putstr(14, 8, -1, TERM_WHITE,
-        "  in the First Age of Middle-earth,                    ");
-    Term_putstr(14, 9, -1, TERM_WHITE,
-        "    when the world still rang with elven song          ");
-    Term_putstr(14, 10, -1, TERM_WHITE,
-        "      and gleamed with dwarven mail.                   ");
-
-    Term_putstr(14, 11, -1, TERM_WHITE,
-        "Walk the dark halls of Angband.                        ");
-    Term_putstr(14, 12, -1, TERM_WHITE,
-        "  Slay creatures black and fell.                       ");
-    Term_putstr(14, 13, -1, TERM_WHITE,
-        "    Wrest a shining Silmaril from Morgoth's iron crown.");
+    for (i = 0; i < N_ELEMENTS(introduction_lines); i++)
+    {
+        Term_putstr(14, introduction_lines[i].y, -1, introduction_lines[i].attr,
+            introduction_lines[i].text);
+    }
 
     /* Flush it */
     Term_fresh();
@@ -1738,9 +1746,63 @@ void init_angband(void)
     note("                                              ");
 }
 
+#define INITIAL_MENU_CHOICES 4
+
+static const char* const initial_menu_labels[INITIAL_MENU_CHOICES] = {
+    "a) Tutorial",
+    "b) New character",
+    "c) Open saved character",
+    "d) Quit",
+};
+
+static int build_initial_menu_semantic_text(
+    char* buf, byte* attrs, size_t buf_size, bool wizard_mode)
+{
+    size_t i;
+    int prev_y = -1;
+    ui_text_builder builder;
+
+    if (!buf || !attrs || (buf_size == 0))
+        return 0;
+
+    ui_text_builder_init(&builder, buf, attrs, buf_size);
+
+    for (i = 0; i < N_ELEMENTS(introduction_lines); i++)
+    {
+        int y = introduction_lines[i].y;
+
+        while ((prev_y >= 0) && (prev_y + 1 < y))
+        {
+            ui_text_builder_newline(&builder, TERM_WHITE);
+            prev_y++;
+        }
+
+        ui_text_builder_append(
+            &builder, introduction_lines[i].text, introduction_lines[i].attr);
+        ui_text_builder_newline(&builder, introduction_lines[i].attr);
+        prev_y = y;
+    }
+
+    if (wizard_mode)
+    {
+        ui_text_builder_newline(&builder, TERM_BLUE);
+        ui_text_builder_append(&builder,
+            "Resurrecting a character is a form of cheating.", TERM_BLUE);
+        ui_text_builder_newline(&builder, TERM_BLUE);
+        ui_text_builder_append(&builder,
+            "You cannot get a high score with this character.", TERM_BLUE);
+    }
+
+    return ui_text_builder_length(&builder);
+}
+
 extern int initial_menu(int* highlight)
 {
     int ch;
+    int i;
+    char menu_text[1024];
+    byte menu_attrs[1024];
+    int menu_text_len;
 
     if (arg_wizard)
     {
@@ -1759,14 +1821,21 @@ extern int initial_menu(int* highlight)
 
     Term_putstr(
         15, 17, 60, TERM_L_DARK, "________________________________________");
-    Term_putstr(20, 19, 25, (*highlight == 1) ? TERM_L_BLUE : TERM_WHITE,
-        "a) Tutorial");
-    Term_putstr(20, 20, 25, (*highlight == 2) ? TERM_L_BLUE : TERM_WHITE,
-        "b) New character");
-    Term_putstr(20, 21, 25, (*highlight == 3) ? TERM_L_BLUE : TERM_WHITE,
-        "c) Open saved character");
-    Term_putstr(
-        20, 22, 25, (*highlight == 4) ? TERM_L_BLUE : TERM_WHITE, "d) Quit");
+    ui_menu_begin();
+    menu_text_len = build_initial_menu_semantic_text(
+        menu_text, menu_attrs, sizeof(menu_text), arg_wizard);
+    ui_menu_set_text(menu_text, menu_attrs, menu_text_len);
+    for (i = 0; i < INITIAL_MENU_CHOICES; i++)
+    {
+        bool selected = (*highlight == i + 1);
+        int row = 19 + i;
+
+        Term_putstr(20, row, 25, selected ? TERM_L_BLUE : TERM_WHITE,
+            initial_menu_labels[i]);
+        ui_menu_add(20, row, 25, 1, '\r', selected, TERM_WHITE,
+            initial_menu_labels[i]);
+    }
+    ui_menu_end();
 
     /* Flush the prompt */
     Term_fresh();
@@ -1783,6 +1852,7 @@ extern int initial_menu(int* highlight)
     if ((ch == 'a') || (ch == 'T') || (ch == 't'))
     {
         *highlight = 1;
+        ui_menu_clear();
         return (1);
     }
 
@@ -1790,6 +1860,7 @@ extern int initial_menu(int* highlight)
     if ((ch == 'b') || (ch == 'N') || (ch == 'n'))
     {
         *highlight = 2;
+        ui_menu_clear();
         return (2);
     }
 
@@ -1797,18 +1868,21 @@ extern int initial_menu(int* highlight)
     if ((ch == 'c') || (ch == 'O') || (ch == 'o'))
     {
         *highlight = 3;
+        ui_menu_clear();
         return (3);
     }
 
     /* Quit  */
     if ((ch == 'd') || (ch == 'Q') || (ch == 'q'))
     {
+        ui_menu_clear();
         return (4);
     }
 
     /* Choose current  */
     if ((ch == '\r') || (ch == '\n') || (ch == ' '))
     {
+        ui_menu_clear();
         return (*highlight);
     }
 
