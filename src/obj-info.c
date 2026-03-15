@@ -9,6 +9,7 @@
  */
 
 #include "angband.h"
+#include "ui-model.h"
 
 /* TRUE if a paragraph break should be output before next p_text_out() */
 static bool new_paragraph = FALSE;
@@ -947,26 +948,33 @@ static bool screen_out_head(const object_type* o_ptr)
  */
 void note_info_screen(const object_type* o_ptr)
 {
-#ifdef USE_WEB
+    char modal_text[2048];
+    byte modal_attrs[2048];
+    cptr note_text = NULL;
+    ui_text_builder modal_builder;
+
+    if (o_ptr && o_ptr->k_idx)
+        note_text = k_text + k_info[o_ptr->k_idx].text;
+
+    ui_text_builder_init(
+        &modal_builder, modal_text, modal_attrs, sizeof(modal_text));
+    ui_text_builder_append_line(
+        &modal_builder, "The note here reads:", TERM_L_WHITE + TERM_SHADE);
+    ui_text_builder_newline(&modal_builder, TERM_WHITE);
+    if (note_text && note_text[0])
     {
-        char web_note_text[2048];
-        size_t web_off = 0;
-        cptr note_text = NULL;
-
-        if (o_ptr && o_ptr->k_idx)
-            note_text = k_text + k_info[o_ptr->k_idx].text;
-
-        strnfcat(web_note_text, sizeof(web_note_text), &web_off,
-            "The note here reads:\n\n");
-        if (note_text && note_text[0])
-            strnfcat(
-                web_note_text, sizeof(web_note_text), &web_off, "%s", note_text);
-        strnfcat(web_note_text, sizeof(web_note_text), &web_off,
-            "\n\n(press any key)\n");
-
-        web_overlay_override_set(web_note_text);
+        ui_text_builder_append(&modal_builder, note_text, TERM_WHITE);
+        if ((modal_builder.off > 0)
+            && (modal_builder.text[modal_builder.off - 1] != '\n'))
+        {
+            ui_text_builder_newline(&modal_builder, TERM_WHITE);
+        }
     }
-#endif
+    ui_text_builder_newline(&modal_builder, TERM_WHITE);
+    ui_text_builder_append_line(
+        &modal_builder, "(press any key)", TERM_L_WHITE + TERM_SHADE);
+    ui_modal_set(modal_text, modal_attrs, ui_text_builder_length(&modal_builder),
+        '\r');
 
     /* Redirect output to the screen */
     text_out_hook = text_out_to_screen;
@@ -998,10 +1006,7 @@ void note_info_screen(const object_type* o_ptr)
 
     /* Load the screen */
     screen_load();
-
-#ifdef USE_WEB
-    web_overlay_override_clear();
-#endif
+    ui_modal_clear();
 
     return;
 }
