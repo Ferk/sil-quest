@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Redirecting...</title>
+  <link rel="icon" href="./web/icon.ico">
+  <script>
+    (() => {
+      const target = new URL("./web/", window.location.href);
+      target.search = window.location.search;
+      target.hash = window.location.hash;
+      window.location.replace(target.href);
+    })();
+  </script>
+</head>
+<body>
+  <p><a id="web-link" href="./web/">Redirecting...</a></p>
+  <script>
+    (() => {
+      const link = document.getElementById("web-link");
+      const target = new URL("./web/", window.location.href);
+      target.search = window.location.search;
+      target.hash = window.location.hash;
+      link.href = target.href;
+      link.textContent = target.pathname;
+    })();
+  </script>
+</body>
+</html>

@@ -1,0 +1,76 @@
+name: Pages
+
+on:
+  push:
+    branches:
+      - master
+  workflow_dispatch:
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  build:
+    name: Build web site
+    runs-on: ubuntu-latest
+    env:
+      EMSCRIPTEN_VERSION: 4.0.20
+    steps:
+      - name: Clone project
+        uses: actions/checkout@v6
+
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v5
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake ninja-build
+
+      - name: Build web app
+        run: |
+          git clone https://github.com/emscripten-core/emsdk.git "$RUNNER_TEMP/emsdk"
+          cd "$RUNNER_TEMP/emsdk"
+          ./emsdk install "${EMSCRIPTEN_VERSION}"
+          ./emsdk activate "${EMSCRIPTEN_VERSION}"
+          . ./emsdk_env.sh
+
+          cd "$GITHUB_WORKSPACE"
+          rm -rf web/lib
+          cmake -G Ninja -S . -B build-pages-wasm \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_TOOLCHAIN_FILE="$EMSDK/upstream/emscripten/cmake/Modules/Platform/Emscripten.cmake" \
+            -DSUPPORT_WEB_FRONTEND=ON \
+            -DSUPPORT_GCU_FRONTEND=OFF \
+            -DSUPPORT_X11_FRONTEND=OFF \
+            -DSUPPORT_COCOA_FRONTEND=OFF
+          cmake --build build-pages-wasm --config Release
+
+      - name: Stage GitHub Pages site
+        run: |
+          mkdir -p _site
+          cp -a web/. _site/
+          touch _site/.nojekyll
+
+      - name: Upload GitHub Pages artifact
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: _site
+
+  deploy:
+    name: Deploy to GitHub Pages
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
