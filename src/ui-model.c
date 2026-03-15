@@ -17,6 +17,8 @@
 static ui_menu_item ui_menu_items[UI_MENU_ITEMS_MAX];
 static int ui_menu_item_count = 0;
 static int ui_menu_selected_hint = -1;
+static int ui_menu_active_x = 0;
+static bool ui_menu_active_x_valid = FALSE;
 static unsigned int ui_menu_revision = 1;
 static char ui_menu_text[UI_MENU_TEXT_MAX];
 static byte ui_menu_attrs[UI_MENU_TEXT_MAX];
@@ -24,6 +26,10 @@ static int ui_menu_attrs_len = 0;
 static char ui_menu_details[UI_MENU_TEXT_MAX];
 static byte ui_menu_details_attrs[UI_MENU_TEXT_MAX];
 static int ui_menu_details_attrs_len = 0;
+static int ui_menu_details_width = 0;
+static int ui_menu_details_visual_kind = UI_MENU_VISUAL_NONE;
+static int ui_menu_details_visual_attr = TERM_WHITE;
+static int ui_menu_details_visual_char = 0;
 static unsigned int ui_modal_revision = 1;
 static char ui_modal_text[UI_MENU_TEXT_MAX];
 static byte ui_modal_attrs[UI_MENU_TEXT_MAX];
@@ -138,19 +144,32 @@ void ui_menu_begin(void)
 {
     ui_menu_item_count = 0;
     ui_menu_selected_hint = -1;
+    ui_menu_active_x = 0;
+    ui_menu_active_x_valid = FALSE;
     ui_menu_text[0] = '\0';
     ui_menu_attrs_len = 0;
     ui_menu_details[0] = '\0';
     ui_menu_details_attrs_len = 0;
+    ui_menu_details_width = 0;
+    ui_menu_details_visual_kind = UI_MENU_VISUAL_NONE;
+    ui_menu_details_visual_attr = TERM_WHITE;
+    ui_menu_details_visual_char = 0;
     ui_menu_touch();
 }
 
 void ui_menu_add(
     int x, int y, int w, int h, int key, int selected, int attr, cptr label)
 {
-    ui_menu_item* item;
+    ui_menu_add_with_nav(x, y, w, h, key, selected, attr, label, NULL);
+}
 
-    if ((w <= 0) || (h <= 0) || (key <= 0))
+void ui_menu_add_with_nav(int x, int y, int w, int h, int key, int selected,
+    int attr, cptr label, cptr nav)
+{
+    ui_menu_item* item;
+    size_t nav_len = 0;
+
+    if ((w <= 0) || (h <= 0) || (key < 0))
         return;
 
     if (ui_menu_item_count >= UI_MENU_ITEMS_MAX)
@@ -165,6 +184,18 @@ void ui_menu_add(
     item->selected = selected ? 1 : 0;
     item->attr = attr;
     my_strcpy(item->label, label ? label : "", sizeof(item->label));
+    item->nav_len = 0;
+    item->nav[0] = '\0';
+    if (nav)
+    {
+        nav_len = strlen(nav);
+        if (nav_len >= sizeof(item->nav))
+            nav_len = sizeof(item->nav) - 1;
+        if (nav_len > 0)
+            memcpy(item->nav, nav, nav_len);
+        item->nav[nav_len] = '\0';
+        item->nav_len = (int)nav_len;
+    }
     if (selected)
         ui_menu_selected_hint = ui_menu_item_count;
     ui_menu_item_count++;
@@ -186,8 +217,32 @@ void ui_menu_set_details(cptr text, const byte* attrs, int attrs_len)
     ui_menu_touch();
 }
 
+void ui_menu_set_details_width(int chars)
+{
+    ui_menu_details_width = (chars > 0) ? chars : 0;
+    ui_menu_touch();
+}
+
+void ui_menu_set_details_visual(int kind, int attr, int chr)
+{
+    if ((kind < UI_MENU_VISUAL_NONE) || (kind > UI_MENU_VISUAL_TILE))
+        kind = UI_MENU_VISUAL_NONE;
+
+    ui_menu_details_visual_kind = kind;
+    ui_menu_details_visual_attr = attr;
+    ui_menu_details_visual_char = chr;
+    ui_menu_touch();
+}
+
 void ui_menu_end(void)
 {
+    ui_menu_touch();
+}
+
+void ui_menu_set_active_column(int x)
+{
+    ui_menu_active_x = x;
+    ui_menu_active_x_valid = TRUE;
     ui_menu_touch();
 }
 
@@ -195,10 +250,16 @@ void ui_menu_clear(void)
 {
     ui_menu_item_count = 0;
     ui_menu_selected_hint = -1;
+    ui_menu_active_x = 0;
+    ui_menu_active_x_valid = FALSE;
     ui_menu_text[0] = '\0';
     ui_menu_attrs_len = 0;
     ui_menu_details[0] = '\0';
     ui_menu_details_attrs_len = 0;
+    ui_menu_details_width = 0;
+    ui_menu_details_visual_kind = UI_MENU_VISUAL_NONE;
+    ui_menu_details_visual_attr = TERM_WHITE;
+    ui_menu_details_visual_char = 0;
     ui_menu_touch();
 }
 
@@ -243,9 +304,35 @@ int ui_menu_select_index(int index)
             ui_menu_items[i].selected = (i == index) ? 1 : 0;
     }
     ui_menu_selected_hint = index;
+    ui_menu_active_x = column_x;
+    ui_menu_active_x_valid = TRUE;
     ui_menu_touch();
 
     return 1;
+}
+
+int ui_menu_get_active_column(void)
+{
+    int i;
+    int max_x;
+
+    if (ui_menu_active_x_valid)
+        return ui_menu_active_x;
+
+    if ((ui_menu_selected_hint >= 0) && (ui_menu_selected_hint < ui_menu_item_count))
+        return ui_menu_items[ui_menu_selected_hint].x;
+
+    if (ui_menu_item_count <= 0)
+        return 0;
+
+    max_x = ui_menu_items[0].x;
+    for (i = 1; i < ui_menu_item_count; i++)
+    {
+        if (ui_menu_items[i].x > max_x)
+            max_x = ui_menu_items[i].x;
+    }
+
+    return max_x;
 }
 
 unsigned int ui_menu_get_revision(void)
@@ -291,6 +378,26 @@ const byte* ui_menu_get_details_attrs(void)
 int ui_menu_get_details_attrs_len(void)
 {
     return ui_menu_details_attrs_len;
+}
+
+int ui_menu_get_details_width(void)
+{
+    return ui_menu_details_width;
+}
+
+int ui_menu_get_details_visual_kind(void)
+{
+    return ui_menu_details_visual_kind;
+}
+
+int ui_menu_get_details_visual_attr(void)
+{
+    return ui_menu_details_visual_attr;
+}
+
+int ui_menu_get_details_visual_char(void)
+{
+    return ui_menu_details_visual_char;
 }
 
 void ui_modal_set(cptr text, const byte* attrs, int attrs_len, int dismiss_key)

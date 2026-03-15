@@ -254,6 +254,8 @@ extern bool save_game_quietly;
 extern bool stop_stealth_mode;
 extern bool use_background_colors;
 
+struct ui_text_builder;
+
 /*
  * Automatically generated "function declarations"
  */
@@ -627,6 +629,8 @@ extern void message_pain(int m_idx, int dam);
 
 /* obj-info.c */
 extern bool object_info_out(const object_type* o_ptr);
+extern void object_info_append_ui_text(
+    struct ui_text_builder* builder, const object_type* o_ptr, bool known_info);
 extern void note_info_screen(const object_type* o_ptr);
 extern void object_info_screen(const object_type* o_ptr);
 

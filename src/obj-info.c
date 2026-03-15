@@ -13,6 +13,16 @@
 
 /* TRUE if a paragraph break should be output before next p_text_out() */
 static bool new_paragraph = FALSE;
+static ui_text_builder* object_info_builder = NULL;
+static bool screen_out_head(const object_type* o_ptr);
+
+static void text_out_to_ui_builder(byte attr, cptr str)
+{
+    if (!object_info_builder || !str)
+        return;
+
+    ui_text_builder_append(object_info_builder, str, attr);
+}
 
 static void p_text_out(cptr str)
 {
@@ -886,6 +896,55 @@ bool object_info_out(const object_type* o_ptr)
 
     /* We are done. */
     return something;
+}
+
+void object_info_append_ui_text(
+    ui_text_builder* builder, const object_type* o_ptr, bool known_info)
+{
+    bool has_description;
+    bool has_info;
+    void (*old_text_out_hook)(byte a, cptr str);
+    int old_text_out_wrap;
+    int old_text_out_indent;
+    void (*old_object_info_out_flags)(
+        const object_type* o_ptr, u32b* f1, u32b* f2, u32b* f3);
+
+    if (!builder || !o_ptr)
+        return;
+
+    old_text_out_hook = text_out_hook;
+    old_text_out_wrap = text_out_wrap;
+    old_text_out_indent = text_out_indent;
+    old_object_info_out_flags = object_info_out_flags;
+
+    object_info_builder = builder;
+    text_out_hook = text_out_to_ui_builder;
+    text_out_wrap = 0;
+    text_out_indent = 0;
+
+    has_description = screen_out_head(o_ptr);
+
+    object_info_out_flags = known_info ? object_flags_known : object_flags;
+
+    new_paragraph = TRUE;
+    has_info = object_info_out(o_ptr);
+    new_paragraph = FALSE;
+
+    if (!object_known_p(o_ptr))
+    {
+        p_text_out("\n\n   This item has not been identified.");
+    }
+    else if ((!has_description) && (!has_info))
+    {
+        p_text_out(
+            "\n\n   This item does not seem to possess any special abilities.");
+    }
+
+    object_info_out_flags = old_object_info_out_flags;
+    text_out_hook = old_text_out_hook;
+    text_out_wrap = old_text_out_wrap;
+    text_out_indent = old_text_out_indent;
+    object_info_builder = NULL;
 }
 
 /*

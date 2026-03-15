@@ -173,11 +173,16 @@ EMSCRIPTEN_KEEPALIVE uintptr_t web_get_menu_text_ptr(void);
 EMSCRIPTEN_KEEPALIVE int web_get_menu_text_len(void);
 EMSCRIPTEN_KEEPALIVE uintptr_t web_get_menu_attrs_ptr(void);
 EMSCRIPTEN_KEEPALIVE int web_get_menu_attrs_len(void);
+EMSCRIPTEN_KEEPALIVE int web_get_menu_active_x(void);
 EMSCRIPTEN_KEEPALIVE unsigned int web_get_menu_revision(void);
 EMSCRIPTEN_KEEPALIVE uintptr_t web_get_menu_details_ptr(void);
 EMSCRIPTEN_KEEPALIVE int web_get_menu_details_len(void);
 EMSCRIPTEN_KEEPALIVE uintptr_t web_get_menu_details_attrs_ptr(void);
 EMSCRIPTEN_KEEPALIVE int web_get_menu_details_attrs_len(void);
+EMSCRIPTEN_KEEPALIVE int web_get_menu_details_width(void);
+EMSCRIPTEN_KEEPALIVE int web_get_menu_details_visual_kind(void);
+EMSCRIPTEN_KEEPALIVE int web_get_menu_details_visual_attr(void);
+EMSCRIPTEN_KEEPALIVE int web_get_menu_details_visual_char(void);
 EMSCRIPTEN_KEEPALIVE int web_menu_hover(int index);
 EMSCRIPTEN_KEEPALIVE int web_menu_activate(int index);
 EMSCRIPTEN_KEEPALIVE uintptr_t web_get_modal_text_ptr(void);
@@ -2062,6 +2067,11 @@ EMSCRIPTEN_KEEPALIVE int web_get_menu_attrs_len(void)
     return ui_menu_get_attrs_len();
 }
 
+EMSCRIPTEN_KEEPALIVE int web_get_menu_active_x(void)
+{
+    return ui_menu_get_active_column();
+}
+
 EMSCRIPTEN_KEEPALIVE unsigned int web_get_menu_revision(void)
 {
     return ui_menu_get_revision();
@@ -2087,15 +2097,49 @@ EMSCRIPTEN_KEEPALIVE int web_get_menu_details_attrs_len(void)
     return ui_menu_get_details_attrs_len();
 }
 
+EMSCRIPTEN_KEEPALIVE int web_get_menu_details_width(void)
+{
+    return ui_menu_get_details_width();
+}
+
+EMSCRIPTEN_KEEPALIVE int web_get_menu_details_visual_kind(void)
+{
+    return ui_menu_get_details_visual_kind();
+}
+
+EMSCRIPTEN_KEEPALIVE int web_get_menu_details_visual_attr(void)
+{
+    return ui_menu_get_details_visual_attr();
+}
+
+EMSCRIPTEN_KEEPALIVE int web_get_menu_details_visual_char(void)
+{
+    return ui_menu_get_details_visual_char();
+}
+
 EMSCRIPTEN_KEEPALIVE int web_menu_hover(int index)
 {
+    const ui_menu_item* items = ui_menu_get_items();
     int count = ui_menu_get_item_count();
     int selected;
     int step;
     int target;
+    int i;
 
     if ((index < 0) || (index >= count))
         return 0;
+
+    if (items[index].nav_len > 0)
+    {
+        for (i = 0; i < items[index].nav_len; i++)
+        {
+            if (!web_key_enqueue((byte)items[index].nav[i]))
+                return 0;
+        }
+
+        ui_menu_select_index(index);
+        return 1;
+    }
 
     selected = ui_menu_get_selected_index();
     if (selected < 0)
@@ -2120,6 +2164,7 @@ EMSCRIPTEN_KEEPALIVE int web_menu_activate(int index)
 {
     const ui_menu_item* items = ui_menu_get_items();
     int count = ui_menu_get_item_count();
+    int key;
 
     if ((index < 0) || (index >= count))
         return 0;
@@ -2127,7 +2172,11 @@ EMSCRIPTEN_KEEPALIVE int web_menu_activate(int index)
     if (!web_menu_hover(index))
         return 0;
 
-    return web_key_enqueue(items[index].key) ? 1 : 0;
+    key = items[index].key;
+    if (key <= 0)
+        return 1;
+
+    return web_key_enqueue(key) ? 1 : 0;
 }
 
 EMSCRIPTEN_KEEPALIVE uintptr_t web_get_modal_text_ptr(void)
