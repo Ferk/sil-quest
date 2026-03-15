@@ -99,10 +99,13 @@
     let idbSyncPending = false;
     let idbSyncHooksBound = false;
     let activeMenuItems = [];
+    let activeMenuColumnX = null;
     let activeMenuText = "";
     let activeMenuTextAttrs = null;
     let activeMenuDetailsText = "";
     let activeMenuDetailsAttrs = null;
+    let activeMenuDetailsWidth = null;
+    let activeMenuDetailsVisual = null;
     let semanticMenuSnapshot = null;
     let hoveredMenuIndex = -1;
 
@@ -270,9 +273,19 @@
       return attrs ? new Uint8Array(attrs) : null;
     }
 
+    // Normalizes one optional menu-details visual payload exported by the frontend.
+    function normalizeMenuDetailsVisual(kind, attr, chr) {
+      if (!Number.isInteger(kind) || kind <= 0) return null;
+      return {
+        kind,
+        attr: Number.isInteger(attr) ? attr : 0,
+        chr: Number.isInteger(chr) ? chr : 0,
+      };
+    }
+
     // Items with a non-Enter activation key are treated as direct actions rather than hover-driven selections.
     function isDirectMenuItem(item) {
-      return !!item && item.key !== 13;
+      return !!item && item.key > 0 && item.key !== 13;
     }
 
     // Groups menu items by their terminal x-position so multi-column menus can keep their parent/child structure.
@@ -291,8 +304,13 @@
     }
 
     // The rightmost menu column is treated as the active submenu for passive hover.
-    function getActiveMenuColumnX(items = activeMenuItems) {
+    function getActiveMenuColumnX(items = activeMenuItems, activeColumnX = activeMenuColumnX) {
       if (!items.length) return null;
+
+      if (Number.isInteger(activeColumnX) && items.some((item) => item.x === activeColumnX)) {
+        return activeColumnX;
+      }
+
       let maxX = items[0].x;
       for (const item of items) {
         if (item.x > maxX) maxX = item.x;
@@ -313,12 +331,33 @@
       return activeMenuItems[index].x === getActiveMenuColumnX();
     }
 
-    // After a semantic menu redraw, bias the horizontal scroll to the newest/rightmost submenu.
-    function scrollMenuColumnsToActiveEdge() {
+    // After a semantic menu redraw, keep the active column within the horizontal scroll viewport.
+    function scrollMenuColumnsToActiveEdge(activeColumnX = activeMenuColumnX) {
       if (!overlayModalEl.classList.contains("overlay-menu")) return;
       const container = overlayModalEl.querySelector(".menu-columns");
       if (!container) return;
-      container.scrollLeft = Math.max(0, container.scrollWidth - container.clientWidth);
+
+      let columnEl = null;
+      if (Number.isInteger(activeColumnX)) {
+        columnEl = container.querySelector(
+          `.menu-column[data-menu-column="${activeColumnX}"]`
+        );
+      }
+      if (!columnEl) {
+        const columns = container.querySelectorAll(".menu-column");
+        columnEl = columns.length ? columns[columns.length - 1] : null;
+      }
+      if (!columnEl) return;
+
+      const columnRect = columnEl.getBoundingClientRect();
+      const containerRect = container.getBoundingClientRect();
+      const pad = 8;
+
+      if (columnRect.left < containerRect.left) {
+        container.scrollLeft -= (containerRect.left - columnRect.left) + pad;
+      } else if (columnRect.right > containerRect.right) {
+        container.scrollLeft += (columnRect.right - containerRect.right) + pad;
+      }
     }
 
     // Keeps a selected overlay menu item within the visible scroll region of its menu container.
@@ -344,9 +383,9 @@
     }
 
     // After re-rendering a semantic menu, keeps the selected button visible inside the scroll area.
-    function syncSelectedMenuItemsIntoView() {
+    function syncSelectedMenuItemsIntoView(activeColumnX = activeMenuColumnX) {
       if (!overlayModalEl.classList.contains("overlay-menu")) return;
-      scrollMenuColumnsToActiveEdge();
+      scrollMenuColumnsToActiveEdge(activeColumnX);
       let selectedItems = overlayModalEl.querySelectorAll(
         ".menu-column-active .menu-item-selected"
       );
@@ -359,14 +398,26 @@
     }
 
     // Saves the last live semantic menu so transient prompts can reuse it without falling back to terminal capture.
-    function snapshotSemanticMenu(items, text, textAttrs, detailsText, detailsAttrs) {
+    function snapshotSemanticMenu(
+      items,
+      activeColumnX,
+      text,
+      textAttrs,
+      detailsText,
+      detailsAttrs,
+      detailsWidth,
+      detailsVisual
+    ) {
       if (!items.length) return;
       semanticMenuSnapshot = {
         items: items.map((item) => ({ ...item })),
+        activeColumnX,
         text,
         textAttrs: cloneAttrBytes(textAttrs),
         detailsText,
         detailsAttrs: cloneAttrBytes(detailsAttrs),
+        detailsWidth,
+        detailsVisual: detailsVisual ? { ...detailsVisual } : null,
       };
     }
 
@@ -385,17 +436,23 @@
       if (activeMenuItems.length) {
         snapshotSemanticMenu(
           activeMenuItems,
+          activeMenuColumnX,
           activeMenuText,
           activeMenuTextAttrs,
           activeMenuDetailsText,
-          activeMenuDetailsAttrs
+          activeMenuDetailsAttrs,
+          activeMenuDetailsWidth,
+          activeMenuDetailsVisual
         );
         return {
           items: activeMenuItems,
+          activeColumnX: activeMenuColumnX,
           text: activeMenuText,
           textAttrs: activeMenuTextAttrs,
           detailsText: activeMenuDetailsText,
           detailsAttrs: activeMenuDetailsAttrs,
+          detailsWidth: activeMenuDetailsWidth,
+          detailsVisual: activeMenuDetailsVisual,
         };
       }
 
@@ -415,10 +472,13 @@
         typeof api.getMenuItemStride !== "function"
       ) {
         activeMenuItems = [];
+        activeMenuColumnX = null;
         activeMenuText = "";
         activeMenuTextAttrs = null;
         activeMenuDetailsText = "";
         activeMenuDetailsAttrs = null;
+        activeMenuDetailsWidth = null;
+        activeMenuDetailsVisual = null;
         hoveredMenuIndex = -1;
         return;
       }
@@ -435,6 +495,8 @@
         typeof api.getMenuAttrsPtr === "function" ? api.getMenuAttrsPtr() : 0;
       const attrLen =
         typeof api.getMenuAttrsLen === "function" ? api.getMenuAttrsLen() : 0;
+      const activeColumnX =
+        typeof api.getMenuActiveX === "function" ? api.getMenuActiveX() : null;
       const detailsPtr =
         typeof api.getMenuDetailsPtr === "function" ? api.getMenuDetailsPtr() : 0;
       const detailsLen =
@@ -443,16 +505,41 @@
         typeof api.getMenuDetailsAttrsPtr === "function" ? api.getMenuDetailsAttrsPtr() : 0;
       const detailsAttrLen =
         typeof api.getMenuDetailsAttrsLen === "function" ? api.getMenuDetailsAttrsLen() : 0;
+      const detailsWidth =
+        typeof api.getMenuDetailsWidth === "function" ? api.getMenuDetailsWidth() : 0;
+      const detailsVisualKind =
+        typeof api.getMenuDetailsVisualKind === "function"
+          ? api.getMenuDetailsVisualKind()
+          : 0;
+      const detailsVisualAttr =
+        typeof api.getMenuDetailsVisualAttr === "function"
+          ? api.getMenuDetailsVisualAttr()
+          : 0;
+      const detailsVisualChar =
+        typeof api.getMenuDetailsVisualChar === "function"
+          ? api.getMenuDetailsVisualChar()
+          : 0;
 
       activeMenuText = readUtf8(heap, textPtr, textLen);
       activeMenuTextAttrs = readBytes(heap, attrPtr, attrLen);
+      activeMenuColumnX = Number.isInteger(activeColumnX) ? activeColumnX : null;
       activeMenuDetailsText = readUtf8(heap, detailsPtr, detailsLen);
       activeMenuDetailsAttrs = readBytes(heap, detailsAttrPtr, detailsAttrLen);
+      activeMenuDetailsWidth =
+        Number.isInteger(detailsWidth) && detailsWidth > 0 ? detailsWidth : null;
+      activeMenuDetailsVisual = normalizeMenuDetailsVisual(
+        detailsVisualKind,
+        detailsVisualAttr,
+        detailsVisualChar
+      );
 
       if (!ptr || count <= 0 || stride < 28 || ptr < 0 || (ptr + byteLen) > heap.length) {
         activeMenuItems = [];
+        activeMenuColumnX = null;
         activeMenuDetailsText = "";
         activeMenuDetailsAttrs = null;
+        activeMenuDetailsWidth = null;
+        activeMenuDetailsVisual = null;
         hoveredMenuIndex = -1;
         return;
       }
@@ -568,6 +655,59 @@
         tileH
       );
       ctx.restore();
+    }
+
+    // Draws the optional semantic details visual shown beside menu copy.
+    function renderMenuDetailsVisual(detailsVisual) {
+      const visualEl = overlayModalEl.querySelector(".menu-item-details-visual");
+      if (!visualEl) return;
+
+      if (!detailsVisual || !detailsVisual.kind) {
+        setHtmlIfChanged(visualEl, "");
+        return;
+      }
+
+      if (detailsVisual.kind === 1) {
+        const glyph = cellToChar(detailsVisual.chr) || "?";
+        const color = colors[detailsVisual.attr & 0x0f] || "#ffffff";
+        setHtmlIfChanged(
+          visualEl,
+          `<div class="menu-item-details-glyph" style="color:${color}">${escapeHtml(
+            glyph
+          )}</div>`
+        );
+        return;
+      }
+
+      setHtmlIfChanged(
+        visualEl,
+        `<canvas class="menu-item-details-visual-canvas" width="64" height="64" aria-hidden="true"></canvas>`
+      );
+
+      const canvas = visualEl.querySelector(".menu-item-details-visual-canvas");
+      if (!canvas) return;
+
+      const detailsCtx = canvas.getContext("2d", { alpha: true });
+      if (!detailsCtx) return;
+
+      detailsCtx.clearRect(0, 0, canvas.width, canvas.height);
+      detailsCtx.imageSmoothingEnabled = false;
+
+      if (!tileImageReady) return;
+
+      const sx = (detailsVisual.chr & 0x3f) * tileSrcW;
+      const sy = (detailsVisual.attr & 0x3f) * tileSrcH;
+      detailsCtx.drawImage(
+        tileImage,
+        sx,
+        sy,
+        tileSrcW,
+        tileSrcH,
+        0,
+        0,
+        canvas.width,
+        canvas.height
+      );
     }
 
     // Draws a composited pict cell in terrain -> glow -> actor -> alert order.
@@ -1090,8 +1230,15 @@
       if (!menuState) return false;
 
       const columns = getMenuColumns(menuState.items);
+      const activeColumnX = getActiveMenuColumnX(
+        menuState.items,
+        menuState.activeColumnX
+      );
       const hasCopy = !!menuState.text;
       const hasDetails = !!menuState.detailsText;
+      const hasDetailsVisual =
+        !!menuState.detailsVisual && Number.isInteger(menuState.detailsVisual.kind);
+      const hasDetailsPane = hasDetails || hasDetailsVisual;
       const renderMenuButton = (item, index) => {
         const selectedClass = item.selected ? " menu-item-selected" : "";
         const attrClass = item.selected ? "" : ` term-c${item.attr & 0x0f}`;
@@ -1102,25 +1249,28 @@
       const introHtml = `<div class="menu-copy${hasCopy ? "" : " menu-copy-empty"}">${
         hasCopy ? renderColoredText(menuState.text, menuState.textAttrs, 1) : ""
       }</div>`;
-      const detailsHtml = `<div class="menu-item-details${hasDetails ? "" : " menu-item-details-empty"}">${
+      const detailsHtml = `<div class="menu-item-details${hasDetailsPane ? "" : " menu-item-details-empty"}"><div class="menu-item-details-visual"></div><div class="menu-item-details-copy${
+        hasDetails ? "" : " menu-item-details-copy-empty"
+      }">${
         hasDetails
           ? renderColoredText(menuState.detailsText, menuState.detailsAttrs, 1)
           : ""
-      }</div>`;
+      }</div></div>`;
       const menuColumnsHtml = columns
         .map((column, columnIndex) => {
+          const columnX = column.length ? column[0].x : columnIndex;
           const columnStateClass =
-            columns.length > 1 && columnIndex !== columns.length - 1
+            columns.length > 1 && columnX !== activeColumnX
               ? " menu-column-inactive"
               : " menu-column-active";
           const itemsHtml = column
             .map((item, itemIndex) => renderMenuButton(item, menuState.items.indexOf(item)))
             .join("");
-          return `<div class="menu-column${columnStateClass}">${itemsHtml}</div>`;
+          return `<div class="menu-column${columnStateClass}" data-menu-column="${columnX}">${itemsHtml}</div>`;
         })
         .join("");
       const shellClass = hasCopy ? "menu-shell-with-copy" : "menu-shell-no-copy";
-      const bodyClass = hasDetails ? "menu-body-with-details" : "menu-body-no-details";
+      const bodyClass = hasDetailsPane ? "menu-body-with-details" : "menu-body-no-details";
       const menuHtml = `<div class="menu-shell ${shellClass}">${introHtml}<div class="menu-body ${bodyClass}"><div class="menu-columns-wrap"><div class="menu-columns">${menuColumnsHtml}</div></div>${detailsHtml}</div></div>`;
 
       overlayMorePromptActive = false;
@@ -1129,8 +1279,17 @@
       overlayModalEl.style.display = "block";
       overlayModalEl.classList.remove("overlay-dismissable");
       overlayModalEl.classList.add("overlay-menu");
+      if (hasDetailsPane && Number.isInteger(menuState.detailsWidth) && menuState.detailsWidth > 0) {
+        overlayModalEl.style.setProperty(
+          "--menu-details-width",
+          `${menuState.detailsWidth}ch`
+        );
+      } else {
+        overlayModalEl.style.removeProperty("--menu-details-width");
+      }
       setHtmlIfChanged(overlayModalEl, menuHtml);
-      syncSelectedMenuItemsIntoView();
+      renderMenuDetailsVisual(menuState.detailsVisual);
+      syncSelectedMenuItemsIntoView(activeColumnX);
       return true;
     }
 
@@ -1456,6 +1615,7 @@
         hoveredMenuIndex = index;
         if (typeof api.menuActivate === "function" && api.menuActivate(index)) {
           activeMenuItems = [];
+          activeMenuColumnX = null;
           hoveredMenuIndex = -1;
           forceRedraw = true;
         }
@@ -1513,6 +1673,7 @@
         hoveredMenuIndex = index;
         if (api.menuActivate(index)) {
           activeMenuItems = [];
+          activeMenuColumnX = null;
           hoveredMenuIndex = -1;
           forceRedraw = true;
         }
@@ -1936,11 +2097,28 @@
           getMenuTextLen: Module._web_get_menu_text_len,
           getMenuAttrsPtr: Module._web_get_menu_attrs_ptr,
           getMenuAttrsLen: Module._web_get_menu_attrs_len,
+          getMenuActiveX: Module._web_get_menu_active_x,
           getMenuRevision: Module._web_get_menu_revision,
           getMenuDetailsPtr: Module._web_get_menu_details_ptr,
           getMenuDetailsLen: Module._web_get_menu_details_len,
           getMenuDetailsAttrsPtr: Module._web_get_menu_details_attrs_ptr,
           getMenuDetailsAttrsLen: Module._web_get_menu_details_attrs_len,
+          getMenuDetailsWidth:
+            typeof Module._web_get_menu_details_width === "function"
+              ? Module._web_get_menu_details_width
+              : null,
+          getMenuDetailsVisualKind:
+            typeof Module._web_get_menu_details_visual_kind === "function"
+              ? Module._web_get_menu_details_visual_kind
+              : null,
+          getMenuDetailsVisualAttr:
+            typeof Module._web_get_menu_details_visual_attr === "function"
+              ? Module._web_get_menu_details_visual_attr
+              : null,
+          getMenuDetailsVisualChar:
+            typeof Module._web_get_menu_details_visual_char === "function"
+              ? Module._web_get_menu_details_visual_char
+              : null,
           getModalTextPtr: Module._web_get_modal_text_ptr,
           getModalTextLen: Module._web_get_modal_text_len,
           getModalAttrsPtr: Module._web_get_modal_attrs_ptr,
