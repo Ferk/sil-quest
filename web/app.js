@@ -38,6 +38,7 @@
     const MAP_MIN_ZOOM = 0.5;
     const MAP_MAX_ZOOM = 6;
     const MAP_FOLLOW_EDGE_RATIO = 0.30;
+    const MAP_CLICK_DRAG_THRESHOLD = 8;
 
     const WEB_FLAG_ALERT = 0x01;
     const WEB_FLAG_GLOW = 0x02;
@@ -432,14 +433,25 @@
       };
     }
 
+    // Returns whether the top line is showing a prompt that still expects input.
+    function isInteractiveTopPromptActive() {
+      if (!topPromptActive) return false;
+
+      const prompt = String(topPromptText || "").trimEnd();
+      if (!prompt) return false;
+
+      return /\[[^\]]+\]\s*$/.test(prompt) ||
+        /\?\s*$/.test(prompt) ||
+        /:\s*$/.test(prompt);
+    }
+
     // Only interactive prompts should keep the last semantic menu visible as context.
     function shouldKeepSemanticMenuSnapshot() {
-      if (!semanticMenuSnapshot || activeMenuItems.length || !topPromptActive) {
+      if (!semanticMenuSnapshot || activeMenuItems.length) {
         return false;
       }
 
-      const prompt = String(topPromptText || "").trimEnd();
-      return /\[[^\]]+\]\s*$/.test(prompt) || /\?\s*$/.test(prompt);
+      return isInteractiveTopPromptActive();
     }
 
     // Picks the menu state to render: live wasm-exported data, or the last semantic menu during a prompt.
@@ -1615,6 +1627,60 @@
       api.pushKey(code & 0xff);
     }
 
+    // Converts a client-space pointer position into one map cell and world-grid location.
+    function clientPointToMapWorld(clientX, clientY) {
+      if (!api || !mapCols || !mapRows) return null;
+
+      const rect = mapCanvas.getBoundingClientRect();
+      if (!rect.width || !rect.height) return null;
+      if (
+        clientX < rect.left ||
+        clientX >= rect.right ||
+        clientY < rect.top ||
+        clientY >= rect.bottom
+      ) {
+        return null;
+      }
+
+      const mapX = Math.floor(((clientX - rect.left) / rect.width) * mapCols);
+      const mapY = Math.floor(((clientY - rect.top) / rect.height) * mapRows);
+      if (mapX < 0 || mapX >= mapCols || mapY < 0 || mapY >= mapRows) {
+        return null;
+      }
+
+      return {
+        mapX,
+        mapY,
+        worldX: api.getMapWorldX() + mapX,
+        worldY: api.getMapWorldY() + mapY,
+      };
+    }
+
+    // Returns whether the current frontend state allows raw map clicks to start travel.
+    function canUseMapTravel() {
+      return !!api &&
+        typeof api.travelTo === "function" &&
+        !activeMenuItems.length &&
+        !overlayModalEl.classList.contains("overlay-menu") &&
+        !overlayModalEl.classList.contains("overlay-dismissable") &&
+        !isInteractiveTopPromptActive() &&
+        !lineMorePromptActive &&
+        !overlayMorePromptActive;
+    }
+
+    // Starts automatic travel for one clicked map tile when the gameplay view is idle.
+    function tryMapTravelAtClientPoint(clientX, clientY) {
+      if (!canUseMapTravel()) return false;
+
+      const hit = clientPointToMapWorld(clientX, clientY);
+      if (!hit) return false;
+      if (!api.travelTo(hit.worldY, hit.worldX)) return false;
+
+      hoveredMenuIndex = -1;
+      forceRedraw = true;
+      return true;
+    }
+
     // Converts a client-space pointer position into an active semantic menu item index.
     function findMenuItemIndexAtClientPoint(clientX, clientY) {
       if (!activeMenuItems.length || !mapCols || !mapRows) return -1;
@@ -1651,7 +1717,7 @@
     // Binds semantic hover/click handling for menus exported by the wasm frontend.
     function bindMenuPointerInput() {
       const hoverMenuAtPoint = (clientX, clientY) => {
-        if (topPromptActive || lineMorePromptActive) {
+        if (isInteractiveTopPromptActive() || lineMorePromptActive) {
           hoveredMenuIndex = -1;
           return -1;
         }
@@ -1689,7 +1755,7 @@
 
       mapCanvas.addEventListener("pointerdown", (ev) => {
         if (ev.button !== 0) return;
-        if (topPromptActive || lineMorePromptActive) return;
+        if (isInteractiveTopPromptActive() || lineMorePromptActive) return;
 
         const index = findMenuItemIndexAtClientPoint(ev.clientX, ev.clientY);
         if (index < 0 || !api) return;
@@ -1710,7 +1776,7 @@
     // Binds semantic hover/click handling for HTML menu overlays.
     function bindOverlayMenuInput() {
       const hoverFromOverlayEvent = (target) => {
-        if (topPromptActive || lineMorePromptActive) {
+        if (isInteractiveTopPromptActive() || lineMorePromptActive) {
           hoveredMenuIndex = -1;
           return;
         }
@@ -1749,7 +1815,7 @@
 
       overlayModalEl.addEventListener("click", (ev) => {
         if (!overlayModalEl.classList.contains("overlay-menu")) return;
-        if (topPromptActive || lineMorePromptActive) return;
+        if (isInteractiveTopPromptActive() || lineMorePromptActive) return;
 
         const itemEl = ev.target.closest("[data-menu-index]");
         if (!itemEl || !api || typeof api.menuActivate !== "function") return;
@@ -1778,6 +1844,10 @@
         if (!api || typeof api.modalActivate !== "function") return;
 
         if (api.modalActivate()) {
+          overlayModalEl.style.display = "none";
+          overlayModalEl.classList.remove("overlay-dismissable");
+          overlayModalEl.classList.remove("overlay-menu");
+          setHtmlIfChanged(overlayModalEl, "");
           forceRedraw = true;
           ev.preventDefault();
           ev.stopPropagation();
@@ -1822,6 +1892,17 @@
         return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT";
       };
 
+      // Advances an active -more- prompt using one supplied or default key.
+      const advanceMorePrompt = (keyCode) => {
+        overlayMorePromptActive = false;
+        overlayMorePromptText = "";
+        lineMorePromptActive = false;
+        lineMorePromptText = "";
+        syncMorePromptState();
+        forceRedraw = true;
+        pushAscii(keyCode !== null ? keyCode : " ".charCodeAt(0));
+      };
+
       // Maps one browser key event to a single Sil ASCII command byte.
       const mapKeyEventToAscii = (ev) => {
         if (Object.hasOwn(keyMap, ev.key)) return keyMap[ev.key];
@@ -1850,13 +1931,7 @@
         const keyCode = mapKeyEventToAscii(ev);
 
         if (morePromptActive) {
-          overlayMorePromptActive = false;
-          overlayMorePromptText = "";
-          lineMorePromptActive = false;
-          lineMorePromptText = "";
-          syncMorePromptState();
-          forceRedraw = true;
-          pushAscii(keyCode !== null ? keyCode : " ".charCodeAt(0));
+          advanceMorePrompt(keyCode);
           ev.preventDefault();
           return;
         }
@@ -1865,6 +1940,16 @@
           pushAscii(keyCode);
           ev.preventDefault();
         }
+      }, { capture: true });
+
+      document.addEventListener("pointerdown", (ev) => {
+        if (!api || !morePromptActive) return;
+        if (ev.pointerType === "mouse" && ev.button !== 0) return;
+        if (isEditableTarget(ev.target)) return;
+
+        advanceMorePrompt(" ".charCodeAt(0));
+        ev.preventDefault();
+        ev.stopPropagation();
       }, { capture: true });
     }
 
@@ -1883,6 +1968,11 @@
       let dragPointerId = null;
       let dragLastX = 0;
       let dragLastY = 0;
+      let mouseClickPointerId = null;
+      let mouseClickStartX = 0;
+      let mouseClickStartY = 0;
+      let mouseClickEligible = false;
+      const clickThresholdSq = MAP_CLICK_DRAG_THRESHOLD * MAP_CLICK_DRAG_THRESHOLD;
 
       const resetPinch = () => {
         if (touchPoints.size < 2) pinchBaseDistance = 0;
@@ -1936,6 +2026,10 @@
           ev.preventDefault();
         } else if (ev.pointerType === "mouse") {
           if (ev.button !== 0) return;
+          mouseClickPointerId = ev.pointerId;
+          mouseClickStartX = ev.clientX;
+          mouseClickStartY = ev.clientY;
+          mouseClickEligible = true;
           startDrag(ev.pointerId, ev.clientX, ev.clientY);
           ev.preventDefault();
         }
@@ -1968,13 +2062,37 @@
         }
 
         if (ev.pointerType === "mouse" && dragPointerId === ev.pointerId) {
+          if (mouseClickEligible && mouseClickPointerId === ev.pointerId) {
+            const dx = ev.clientX - mouseClickStartX;
+            const dy = ev.clientY - mouseClickStartY;
+            if ((dx * dx) + (dy * dy) > clickThresholdSq) {
+              mouseClickEligible = false;
+            }
+          }
           updateDrag(ev.clientX, ev.clientY);
           ev.preventDefault();
         }
       }, { passive: false });
 
+      const maybeCommitMouseClick = (ev) => {
+        if (ev.pointerType !== "mouse") return;
+        if (mouseClickPointerId !== ev.pointerId) return;
+
+        const eligible = mouseClickEligible;
+        mouseClickPointerId = null;
+        mouseClickEligible = false;
+
+        if (eligible) {
+          tryMapTravelAtClientPoint(ev.clientX, ev.clientY);
+        }
+      };
+
       const clearPointer = (ev) => {
         stopDrag(ev.pointerId);
+        if (mouseClickPointerId === ev.pointerId) {
+          mouseClickPointerId = null;
+          mouseClickEligible = false;
+        }
         if (touchPoints.has(ev.pointerId)) {
           touchPoints.delete(ev.pointerId);
           resetPinch();
@@ -1982,7 +2100,10 @@
         }
       };
 
-      mapWrapEl.addEventListener("pointerup", clearPointer);
+      mapWrapEl.addEventListener("pointerup", (ev) => {
+        maybeCommitMouseClick(ev);
+        clearPointer(ev);
+      });
       mapWrapEl.addEventListener("pointercancel", clearPointer);
       mapWrapEl.addEventListener("lostpointercapture", clearPointer);
     }
@@ -2155,6 +2276,10 @@
           getCursorX: Module._web_get_cursor_x,
           getCursorY: Module._web_get_cursor_y,
           getCursorVisible: Module._web_get_cursor_visible,
+          travelTo:
+            typeof Module._web_travel_to === "function"
+              ? Module._web_travel_to
+              : null,
           getAlertAttr: Module._web_get_icon_alert_attr,
           getAlertChar: Module._web_get_icon_alert_char,
           getGlowAttr: Module._web_get_icon_glow_attr,
@@ -2223,7 +2348,7 @@
         tileW = tileSrcW * MAP_TILE_SCALE;
         tileH = tileSrcH * MAP_TILE_SCALE;
 
-        statusEl.textContent = "Running (-mweb). Click page and type to play. Wheel/pinch map to zoom.";
+        statusEl.textContent = "Running (-mweb). Click page and type to play. Click known map tiles to walk. Wheel/pinch map to zoom.";
         bindInput();
         bindMenuPointerInput();
         bindOverlayMenuInput();
