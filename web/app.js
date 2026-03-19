@@ -14,6 +14,7 @@
     const appEl = document.querySelector(".app");
     const statusEl = document.getElementById("status");
     const actionFabsEl = document.getElementById("action-fabs");
+    const adjacentActionRowEl = document.getElementById("adjacent-action-row");
     const mapLoadingEl = document.getElementById("map-loading");
     const mapLoadingStatusEl = document.getElementById("map-loading-status");
     const mapWrapEl = document.querySelector(".map-wrap");
@@ -22,6 +23,9 @@
     const inventoryFabEl = document.getElementById("inventory-fab");
     const tileActionFabEl = document.getElementById("tile-action-fab");
     const tileActionFabVisualEl = document.getElementById("tile-action-fab-visual");
+    const adjacentActionFabEls = Array.from(
+      document.querySelectorAll(".adjacent-action-fab")
+    );
     const overlayModalEl = document.getElementById("overlay-modal");
     const hudBarsEl = document.getElementById("hud-bars");
     const sideEl = document.getElementById("side");
@@ -34,6 +38,20 @@
     const PERSIST_USER_DIR = "/persist/user";
     const PERSIST_DATA_DIR = "/persist/data";
     const IDB_SYNC_INTERVAL_MSEC = 5000;
+    const ADJACENT_ACTION_DIRECTIONS = [7, 8, 9, 4, 6, 1, 2, 3];
+    const ADJACENT_DIRECTION_NAMES = {
+      1: "South-west",
+      2: "South",
+      3: "South-east",
+      4: "West",
+      6: "East",
+      7: "North-west",
+      8: "North",
+      9: "North-east",
+    };
+    const adjacentActionFabByDir = new Map(
+      adjacentActionFabEls.map((buttonEl) => [Number(buttonEl.dataset.adjDir), buttonEl])
+    );
 
     /* ==========================================================================
      * Rendering Constants
@@ -1879,6 +1897,18 @@
         isGameplayViewIdle();
     }
 
+    // Returns whether the adjacent alter-action row should currently be shown.
+    function canUseAdjacentActionRow(state = null) {
+      return !!api &&
+        typeof api.actAdjacent === "function" &&
+        !!state &&
+        Number(state.ready) === 1 &&
+        ADJACENT_ACTION_DIRECTIONS.some((dir) =>
+          Number(state[`adjAction${dir}Visible`] ?? 0) === 1
+        ) &&
+        isGameplayViewIdle();
+    }
+
     // Returns whether the floating close button should replace the inventory button.
     function canUseCloseFab() {
       return !!api &&
@@ -1890,20 +1920,12 @@
         );
     }
 
-    // Draws the current-tile action icon using the same tile/glyph payload as menus.
-    function renderTileActionFabVisual(state = null) {
-      if (!tileActionFabVisualEl) return;
-
-      const visual = state && Number(state.tileActionVisible) === 1
-        ? normalizeMenuItemVisual(
-            Number(state.tileActionVisualKind ?? 0),
-            Number(state.tileActionVisualAttr ?? 0),
-            Number(state.tileActionVisualChar ?? 0)
-          )
-        : null;
+    // Draws one floating action icon using the same tile/glyph payload as menus.
+    function renderActionFabVisual(targetEl, visual = null) {
+      if (!targetEl) return;
 
       if (!visual || !visual.kind) {
-        setHtmlIfChanged(tileActionFabVisualEl, "");
+        setHtmlIfChanged(targetEl, "");
         return;
       }
 
@@ -1911,7 +1933,7 @@
         const glyph = cellToChar(visual.chr) || "?";
         const color = colors[visual.attr & 0x0f] || "#ffffff";
         setHtmlIfChanged(
-          tileActionFabVisualEl,
+          targetEl,
           `<span class="action-fab-glyph" style="color:${color}">${escapeHtml(
             glyph
           )}</span>`
@@ -1920,11 +1942,11 @@
       }
 
       setHtmlIfChanged(
-        tileActionFabVisualEl,
+        targetEl,
         `<canvas class="action-fab-canvas" width="32" height="32" aria-hidden="true"></canvas>`
       );
 
-      const canvas = tileActionFabVisualEl.querySelector(".action-fab-canvas");
+      const canvas = targetEl.querySelector(".action-fab-canvas");
       if (!canvas) return;
 
       const visualCtx = canvas.getContext("2d", { alpha: true });
@@ -1950,6 +1972,71 @@
       );
     }
 
+    // Reads one adjacent alter-action payload from the semantic player-state blob.
+    function getAdjacentActionState(state, dir) {
+      if (!state) {
+        return {
+          visible: false,
+          label: "",
+          attack: false,
+          visual: null,
+        };
+      }
+
+      return {
+        visible: Number(state[`adjAction${dir}Visible`] ?? 0) === 1,
+        label: String(state[`adjAction${dir}Label`] || ""),
+        attack: Number(state[`adjAction${dir}Attack`] ?? 0) === 1,
+        visual: normalizeMenuItemVisual(
+          Number(state[`adjAction${dir}VisualKind`] ?? 0),
+          Number(state[`adjAction${dir}VisualAttr`] ?? 0),
+          Number(state[`adjAction${dir}VisualChar`] ?? 0)
+        ),
+      };
+    }
+
+    // Draws the current-tile action icon using the shared tile/glyph renderer.
+    function renderTileActionFabVisual(state = null) {
+      const visual = state && Number(state.tileActionVisible) === 1
+        ? normalizeMenuItemVisual(
+            Number(state.tileActionVisualKind ?? 0),
+            Number(state.tileActionVisualAttr ?? 0),
+            Number(state.tileActionVisualChar ?? 0)
+          )
+        : null;
+
+      renderActionFabVisual(tileActionFabVisualEl, visual);
+    }
+
+    // Keeps the adjacent directional action buttons aligned with current tile context.
+    function syncAdjacentActionButtons(state = null, shouldShow = false) {
+      if (!adjacentActionRowEl || !adjacentActionFabEls.length) return false;
+
+      let anyVisible = false;
+
+      for (const dir of ADJACENT_ACTION_DIRECTIONS) {
+        const buttonEl = adjacentActionFabByDir.get(dir);
+        const visualEl = buttonEl?.querySelector(".action-fab-visual");
+        const action = getAdjacentActionState(state, dir);
+        const visible = shouldShow && action.visible;
+        const dirName = ADJACENT_DIRECTION_NAMES[dir] || `Dir ${dir}`;
+        const label = action.label || "Interact";
+
+        if (!buttonEl) continue;
+
+        buttonEl.hidden = !visible;
+        buttonEl.classList.toggle("adjacent-action-fab-danger", visible && action.attack);
+        buttonEl.title = `${dirName}: ${label}`;
+        buttonEl.setAttribute("aria-label", `${dirName}: ${label}`);
+        renderActionFabVisual(visualEl, visible ? action.visual : null);
+
+        if (visible) anyVisible = true;
+      }
+
+      adjacentActionRowEl.hidden = !shouldShow || !anyVisible;
+      return anyVisible;
+    }
+
     // Keeps floating action buttons visually in sync with the current gameplay state.
     function syncFloatingActionButtons(state = null) {
       if (!actionFabsEl || !inventoryFabEl || !tileActionFabEl || !closeFabEl) return;
@@ -1957,13 +2044,17 @@
       const showClose = !compactSideOpen && canUseCloseFab();
       const showInventory = !compactSideOpen && !showClose && canUseInventoryFab(state);
       const showTileAction = !compactSideOpen && !showClose && canUseTileActionFab(state);
+      const showAdjacentActions =
+        !compactSideOpen && !showClose && canUseAdjacentActionRow(state);
       const tileActionLabel = state && Number(state.tileActionVisible) === 1
         ? String(state.tileActionLabel || "Act here")
         : "Act here";
 
       renderTileActionFabVisual(state);
+      const anyAdjacentActions = syncAdjacentActionButtons(state, showAdjacentActions);
 
-      actionFabsEl.hidden = !showClose && !showInventory && !showTileAction;
+      actionFabsEl.hidden =
+        !showClose && !showInventory && !showTileAction && !anyAdjacentActions;
       inventoryFabEl.hidden = !showInventory;
       tileActionFabEl.hidden = !showTileAction;
       tileActionFabEl.title = `${tileActionLabel} (,)`;
@@ -2283,6 +2374,29 @@
 
     // Binds the floating backpack/close buttons to their current contextual actions.
     function bindFloatingActionInput() {
+      for (const buttonEl of adjacentActionFabEls) {
+        buttonEl.addEventListener("pointerdown", (ev) => {
+          ev.stopPropagation();
+        });
+
+        buttonEl.addEventListener("click", (ev) => {
+          ev.preventDefault();
+          ev.stopPropagation();
+
+          const dir = Number(buttonEl.dataset.adjDir);
+          const heap = getHeapU8();
+          const state = heap ? readPlayerState(heap) : null;
+          const action = getAdjacentActionState(state, dir);
+          if (!action.visible || !api || typeof api.actAdjacent !== "function") return;
+
+          setCompactSideOpen(false);
+          if (api.actAdjacent(dir)) {
+            hoveredMenuIndex = -1;
+            forceRedraw = true;
+          }
+        });
+      }
+
       inventoryFabEl.addEventListener("pointerdown", (ev) => {
         ev.stopPropagation();
       });
@@ -2713,6 +2827,10 @@
           actHere:
             typeof Module._web_act_here === "function"
               ? Module._web_act_here
+              : null,
+          actAdjacent:
+            typeof Module._web_act_adjacent === "function"
+              ? Module._web_act_adjacent
               : null,
           openInventory:
             typeof Module._web_open_inventory === "function"
