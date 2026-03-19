@@ -663,6 +663,12 @@ extern void show_inven(void);
 extern void show_equip(void);
 extern void show_floor(const int* floor_list, int floor_num);
 extern void toggle_inven_equip(void);
+/* Stashes one item index for the next get_item() call to consume. */
+extern void ui_preselect_item(int item);
+/* Returns and consumes one pending preselected item, if any. */
+extern bool ui_pull_preselected_item(int* item);
+/* Discards any pending preselected item without consuming it. */
+extern void ui_clear_preselected_item(void);
 extern bool get_item(int* cp, cptr pmt, cptr str, int mode);
 
 /* object2.c */

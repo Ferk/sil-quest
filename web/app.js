@@ -108,7 +108,6 @@
     let activeMenuDetailsVisual = null;
     let semanticMenuSnapshot = null;
     let hoveredMenuIndex = -1;
-
     const iconMeta = {
       alertAttr: 0,
       alertChar: 0,
@@ -283,6 +282,11 @@
       };
     }
 
+    // Normalizes one optional visual payload attached to a semantic menu row.
+    function normalizeMenuItemVisual(kind, attr, chr) {
+      return normalizeMenuDetailsVisual(kind, attr, chr);
+    }
+
     // Items with a non-Enter activation key are treated as direct actions rather than hover-driven selections.
     function isDirectMenuItem(item) {
       return !!item && item.key > 0 && item.key !== 13;
@@ -307,6 +311,10 @@
     function getActiveMenuColumnX(items = activeMenuItems, activeColumnX = activeMenuColumnX) {
       if (!items.length) return null;
 
+      if (Number.isInteger(activeColumnX) && activeColumnX < 0) {
+        return null;
+      }
+
       if (Number.isInteger(activeColumnX) && items.some((item) => item.x === activeColumnX)) {
         return activeColumnX;
       }
@@ -328,7 +336,10 @@
         return false;
       }
 
-      return activeMenuItems[index].x === getActiveMenuColumnX();
+      const activeColumnX = getActiveMenuColumnX();
+      if (activeColumnX === null) return true;
+
+      return activeMenuItems[index].x === activeColumnX;
     }
 
     // After a semantic menu redraw, keep the active column within the horizontal scroll viewport.
@@ -533,7 +544,7 @@
         detailsVisualChar
       );
 
-      if (!ptr || count <= 0 || stride < 28 || ptr < 0 || (ptr + byteLen) > heap.length) {
+      if (!ptr || count <= 0 || stride < 40 || ptr < 0 || (ptr + byteLen) > heap.length) {
         activeMenuItems = [];
         activeMenuColumnX = null;
         activeMenuDetailsText = "";
@@ -549,7 +560,7 @@
 
       for (let i = 0; i < count; i++) {
         const off = i * stride;
-        const labelBytes = heap.subarray(ptr + off + 28, ptr + off + stride);
+        const labelBytes = heap.subarray(ptr + off + 40, ptr + off + stride);
         const labelEnd = labelBytes.indexOf(0);
         items[i] = {
           x: view.getInt32(off + 0, true),
@@ -559,6 +570,11 @@
           key: view.getInt32(off + 16, true),
           selected: view.getInt32(off + 20, true) !== 0,
           attr: view.getInt32(off + 24, true),
+          visual: normalizeMenuItemVisual(
+            view.getInt32(off + 28, true),
+            view.getInt32(off + 32, true),
+            view.getInt32(off + 36, true)
+          ),
           label: utf8Decoder.decode(
             labelBytes.subarray(0, labelEnd >= 0 ? labelEnd : labelBytes.length)
           ),
@@ -708,6 +724,66 @@
         canvas.width,
         canvas.height
       );
+    }
+
+    // Draws any per-row menu visuals embedded inside semantic menu buttons.
+    function renderMenuItemVisuals() {
+      if (!overlayModalEl.classList.contains("overlay-menu")) return;
+
+      const visualEls = overlayModalEl.querySelectorAll(".menu-item-visual");
+      for (const visualEl of visualEls) {
+        const kind = Number(visualEl.dataset.menuVisualKind);
+        const attr = Number(visualEl.dataset.menuVisualAttr);
+        const chr = Number(visualEl.dataset.menuVisualChar);
+        const visual = normalizeMenuItemVisual(kind, attr, chr);
+
+        if (!visual || !visual.kind) {
+          setHtmlIfChanged(visualEl, "");
+          continue;
+        }
+
+        if (visual.kind === 1) {
+          const glyph = cellToChar(visual.chr) || "?";
+          const color = colors[visual.attr & 0x0f] || "#ffffff";
+          setHtmlIfChanged(
+            visualEl,
+            `<span class="menu-item-visual-glyph" style="color:${color}">${escapeHtml(
+              glyph
+            )}</span>`
+          );
+          continue;
+        }
+
+        setHtmlIfChanged(
+          visualEl,
+          `<canvas class="menu-item-visual-canvas" width="24" height="24" aria-hidden="true"></canvas>`
+        );
+
+        const canvas = visualEl.querySelector(".menu-item-visual-canvas");
+        if (!canvas) continue;
+
+        const visualCtx = canvas.getContext("2d", { alpha: true });
+        if (!visualCtx) continue;
+
+        visualCtx.clearRect(0, 0, canvas.width, canvas.height);
+        visualCtx.imageSmoothingEnabled = false;
+
+        if (!tileImageReady) continue;
+
+        const sx = (visual.chr & 0x3f) * tileSrcW;
+        const sy = (visual.attr & 0x3f) * tileSrcH;
+        visualCtx.drawImage(
+          tileImage,
+          sx,
+          sy,
+          tileSrcW,
+          tileSrcH,
+          0,
+          0,
+          canvas.width,
+          canvas.height
+        );
+      }
     }
 
     // Draws a composited pict cell in terrain -> glow -> actor -> alert order.
@@ -1244,7 +1320,10 @@
         const attrClass = item.selected ? "" : ` term-c${item.attr & 0x0f}`;
         const directClass = isDirectMenuItem(item) ? " menu-item-direct" : "";
         const label = escapeHtml(item.label || String.fromCharCode(item.key));
-        return `<button type="button" class="menu-item${selectedClass}${attrClass}${directClass}" data-menu-index="${index}">${label}</button>`;
+        const visualHtml = item.visual
+          ? `<span class="menu-item-visual" data-menu-visual-kind="${item.visual.kind}" data-menu-visual-attr="${item.visual.attr}" data-menu-visual-char="${item.visual.chr}"></span>`
+          : "";
+        return `<button type="button" class="menu-item${selectedClass}${attrClass}${directClass}" data-menu-index="${index}">${visualHtml}<span class="menu-item-label">${label}</span></button>`;
       };
       const introHtml = `<div class="menu-copy${hasCopy ? "" : " menu-copy-empty"}">${
         hasCopy ? renderColoredText(menuState.text, menuState.textAttrs, 1) : ""
@@ -1260,7 +1339,9 @@
         .map((column, columnIndex) => {
           const columnX = column.length ? column[0].x : columnIndex;
           const columnStateClass =
-            columns.length > 1 && columnX !== activeColumnX
+            columns.length > 1 &&
+            Number.isInteger(activeColumnX) &&
+            columnX !== activeColumnX
               ? " menu-column-inactive"
               : " menu-column-active";
           const itemsHtml = column
@@ -1288,6 +1369,7 @@
         overlayModalEl.style.removeProperty("--menu-details-width");
       }
       setHtmlIfChanged(overlayModalEl, menuHtml);
+      renderMenuItemVisuals();
       renderMenuDetailsVisual(menuState.detailsVisual);
       syncSelectedMenuItemsIntoView(activeColumnX);
       return true;
@@ -1656,6 +1738,11 @@
       };
 
       overlayModalEl.addEventListener("pointermove", (ev) => {
+        if (!overlayModalEl.classList.contains("overlay-menu")) return;
+        hoverFromOverlayEvent(ev.target);
+      });
+
+      overlayModalEl.addEventListener("pointerover", (ev) => {
         if (!overlayModalEl.classList.contains("overlay-menu")) return;
         hoverFromOverlayEvent(ev.target);
       });

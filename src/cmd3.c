@@ -27,6 +27,8 @@ static bool item_tester_hook_wear(const object_type* o_ptr)
     return (FALSE);
 }
 
+#include "cmd3-ui-inventory.c"
+
 /*
  * Use an item, a unified 'use' command.
  */
@@ -217,6 +219,9 @@ void do_cmd_use_item(void)
  */
 void do_cmd_inven(void)
 {
+    if (do_cmd_web_inventory_menu(WEB_INVENTORY_SECTION_INVEN))
+        return;
+
     /* Hack -- Start in "inventory" mode */
     p_ptr->command_wrk = (USE_INVEN);
 
@@ -261,6 +266,9 @@ void do_cmd_inven(void)
  */
 void do_cmd_equip(void)
 {
+    if (do_cmd_web_inventory_menu(WEB_INVENTORY_SECTION_EQUIP))
+        return;
+
     /* Hack -- Start in "equipment" mode */
     p_ptr->command_wrk = (USE_EQUIP);
 
