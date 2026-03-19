@@ -262,6 +262,7 @@ set(SIL_SOURCES
     src/spells2.c
     src/squelch.c
     src/tables.c
+    src/ui-item-select.c
     src/ui-model.c
     src/use-obj.c
     src/util.c

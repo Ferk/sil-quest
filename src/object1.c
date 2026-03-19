@@ -2722,6 +2722,19 @@ bool get_item(int* cp, cptr pmt, cptr str, int mode)
 
 #ifdef ALLOW_REPEAT
 
+    /* Frontends may preselect one item for the next command. */
+    if (ui_pull_preselected_item(cp))
+    {
+        if (get_item_okay(*cp))
+        {
+            item_tester_tval = 0;
+            item_tester_hook = NULL;
+            return (TRUE);
+        }
+
+        ui_clear_preselected_item();
+    }
+
     /* Get the item index */
     if (repeat_pull(cp))
     {
