@@ -11,11 +11,23 @@
       setHtmlIfChanged,
     } = globalThis.WebHelpers;
 
+    const appEl = document.querySelector(".app");
     const statusEl = document.getElementById("status");
+    const actionFabsEl = document.getElementById("action-fabs");
+    const mapLoadingEl = document.getElementById("map-loading");
+    const mapLoadingStatusEl = document.getElementById("map-loading-status");
     const mapWrapEl = document.querySelector(".map-wrap");
     const mapCanvas = document.getElementById("map");
+    const closeFabEl = document.getElementById("close-fab");
+    const inventoryFabEl = document.getElementById("inventory-fab");
+    const tileActionFabEl = document.getElementById("tile-action-fab");
+    const tileActionFabVisualEl = document.getElementById("tile-action-fab-visual");
     const overlayModalEl = document.getElementById("overlay-modal");
+    const hudBarsEl = document.getElementById("hud-bars");
     const sideEl = document.getElementById("side");
+    const sideWrapEl = document.getElementById("side-wrap");
+    const sideBackdropEl = document.getElementById("side-backdrop");
+    const sideToggleEl = document.getElementById("side-toggle");
     const logEl = document.getElementById("log");
     const PERSIST_APEX_DIR = "/persist/apex";
     const PERSIST_SAVE_DIR = "/persist/save-web";
@@ -33,10 +45,9 @@
     const WEB_CELL_EMPTY = 0;
     const WEB_CELL_TEXT = 1;
     const WEB_CELL_PICT = 2;
+    const RESPONSIVE_BREAKPOINT = 960;
     const MAP_TILE_SCALE = 2;
-    const MAP_DEFAULT_ZOOM = 3;
     const MAP_MIN_ZOOM = 0.5;
-    const MAP_MAX_ZOOM = 6;
     const MAP_FOLLOW_EDGE_RATIO = 0.30;
     const MAP_CLICK_DRAG_THRESHOLD = 8;
 
@@ -80,7 +91,10 @@
     let fxDelaySeq = -1;
     let fxOverlayUntil = 0;
     let forceRedraw = true;
-    let mapZoom = MAP_DEFAULT_ZOOM;
+    let mapZoomSettings = computeMapZoomSettings();
+    let mapZoom = mapZoomSettings.defaultZoom;
+    let mapDisplayReady = false;
+    let userAdjustedMapZoom = false;
     let lastPlayerMapX = -1;
     let lastPlayerMapY = -1;
     let initialViewportPlaced = false;
@@ -109,6 +123,7 @@
     let activeMenuDetailsVisual = null;
     let semanticMenuSnapshot = null;
     let hoveredMenuIndex = -1;
+    let compactSideOpen = false;
     const iconMeta = {
       alertAttr: 0,
       alertChar: 0,
@@ -218,6 +233,21 @@
       iconMeta.alertChar = api.getAlertChar() & 0xff;
       iconMeta.glowAttr = api.getGlowAttr() & 0xff;
       iconMeta.glowChar = api.getGlowChar() & 0xff;
+    }
+
+    // Mirrors runtime status text to both the top bar and the centered loading panel.
+    function setStatusText(text) {
+      const nextText = String(text || "");
+      statusEl.textContent = nextText;
+      if (mapLoadingStatusEl) mapLoadingStatusEl.textContent = nextText;
+    }
+
+    // Swaps between the centered loading panel and the interactive map canvas.
+    function setMapDisplayReady(ready) {
+      mapDisplayReady = !!ready;
+      mapCanvas.hidden = !mapDisplayReady;
+      mapWrapEl.classList.toggle("map-ready", mapDisplayReady);
+      if (mapLoadingEl) mapLoadingEl.hidden = mapDisplayReady;
     }
 
     // Returns the active Emscripten heap view used to read wasm-exported buffers.
@@ -377,14 +407,20 @@
       const container = itemEl?.closest(".menu-columns");
       if (!container) return;
 
+      const useOverlayVerticalScroll =
+        overlayModalEl.classList.contains("overlay-menu") &&
+        globalThis.innerWidth <= 700;
+      const verticalContainer = useOverlayVerticalScroll ? overlayModalEl : container;
+
       const itemRect = itemEl.getBoundingClientRect();
+      const verticalRect = verticalContainer.getBoundingClientRect();
       const containerRect = container.getBoundingClientRect();
       const pad = 8;
 
-      if (itemRect.top < containerRect.top) {
-        container.scrollTop -= (containerRect.top - itemRect.top) + pad;
-      } else if (itemRect.bottom > containerRect.bottom) {
-        container.scrollTop += (itemRect.bottom - containerRect.bottom) + pad;
+      if (itemRect.top < verticalRect.top) {
+        verticalContainer.scrollTop -= (verticalRect.top - itemRect.top) + pad;
+      } else if (itemRect.bottom > verticalRect.bottom) {
+        verticalContainer.scrollTop += (itemRect.bottom - verticalRect.bottom) + pad;
       }
 
       if (itemRect.left < containerRect.left) {
@@ -857,18 +893,113 @@
     }
 
     /* ==========================================================================
+     * Responsive Shell Helpers
+     * Adapts the mobile HUD, side drawer, and zoom defaults to the viewport.
+     * ========================================================================== */
+
+    // Reports whether the layout should collapse into the touch-friendly mobile shell.
+    function isCompactLayout() {
+      return globalThis.innerWidth <= RESPONSIVE_BREAKPOINT;
+    }
+
+    // Detects touch-first devices so dense screens can start with a larger map zoom.
+    function prefersCoarsePointer() {
+      return (
+        typeof globalThis.matchMedia === "function" &&
+        globalThis.matchMedia("(pointer: coarse)").matches
+      );
+    }
+
+    // Reads the root rem size so browser accessibility text scaling also informs map zoom.
+    function getRootRemPixels() {
+      const rootStyle = globalThis.getComputedStyle(document.documentElement);
+      const fontSize = Number.parseFloat(rootStyle.fontSize);
+      return Number.isFinite(fontSize) && fontSize > 0 ? fontSize : 16;
+    }
+
+    // Estimates the base fit scale before user zoom, even before the first full map draw.
+    function estimateMapFitScale() {
+      const wrapRect = mapWrapEl.getBoundingClientRect();
+      const availW = Math.max(1, wrapRect.width - 2);
+      const availH = Math.max(1, wrapRect.height - 2);
+      const canvasW = Math.max(1, mapCols * tileW);
+      const canvasH = Math.max(1, mapRows * tileH);
+
+      return Math.min(1, availW / canvasW, availH / canvasH);
+    }
+
+    // Derives runtime zoom bounds from screen density and target readable tile size.
+    function computeMapZoomSettings() {
+      const dpr = Math.max(1, globalThis.devicePixelRatio || 1);
+      const remPx = getRootRemPixels();
+      const coarse = prefersCoarsePointer();
+      // Counteracts the viewport fit shrink so the readable tile size is still driven by rem/DPI.
+      const fitScale = Math.max(0.05, estimateMapFitScale());
+      let targetTilePx = remPx * 2.5;
+
+      targetTilePx += Math.min(remPx * 0.9, (dpr - 1) * remPx * 0.55);
+      if (coarse) targetTilePx += remPx * 0.45;
+
+      const minZoom = coarse ? 0.75 : MAP_MIN_ZOOM;
+      const maxZoom = coarse ? 24 : 12;
+      const defaultZoom = targetTilePx / Math.max(1, tileW * fitScale);
+
+      return {
+        defaultZoom: clamp(defaultZoom, minZoom, maxZoom),
+        minZoom,
+        maxZoom,
+      };
+    }
+
+    // Applies the current compact side-panel state to the DOM and accessibility labels.
+    function setCompactSideOpen(nextOpen) {
+      const compact = isCompactLayout();
+      const open = compact && !!nextOpen;
+
+      compactSideOpen = open;
+      appEl.classList.toggle("side-open", open);
+      sideBackdropEl.hidden = !open;
+      sideToggleEl.setAttribute("aria-expanded", open ? "true" : "false");
+      sideToggleEl.textContent = open ? "Close" : "Stats";
+    }
+
+    // Recomputes responsive zoom presets and mobile chrome state after viewport changes.
+    function syncResponsiveShell(forceZoomReset = false) {
+      const compact = isCompactLayout();
+      const prevSettings = mapZoomSettings;
+      mapZoomSettings = computeMapZoomSettings();
+
+      const zoomSettingsChanged =
+        !prevSettings ||
+        prevSettings.defaultZoom !== mapZoomSettings.defaultZoom ||
+        prevSettings.minZoom !== mapZoomSettings.minZoom ||
+        prevSettings.maxZoom !== mapZoomSettings.maxZoom;
+
+      if (forceZoomReset || (!userAdjustedMapZoom && zoomSettingsChanged)) {
+        mapZoom = mapZoomSettings.defaultZoom;
+      } else {
+        mapZoom = clampMapZoom(mapZoom);
+      }
+
+      if (!compact) compactSideOpen = false;
+      setCompactSideOpen(compactSideOpen);
+      fitMapToViewport();
+    }
+
+    /* ==========================================================================
      * Camera And FX Utilities
      * Manages viewport fitting, focus-follow behavior, and transient FX timing.
      * ========================================================================== */
 
     // Restricts user zoom to the supported range.
     function clampMapZoom(zoom) {
-      return Math.min(MAP_MAX_ZOOM, Math.max(MAP_MIN_ZOOM, zoom));
+      return Math.min(mapZoomSettings.maxZoom, Math.max(mapZoomSettings.minZoom, zoom));
     }
 
-    // Updates zoom level and recomputes the canvas CSS size.
-    function setMapZoom(nextZoom) {
+    // Updates zoom level, optionally recording a user override, then refits the canvas.
+    function setMapZoom(nextZoom, manual = false) {
       mapZoom = clampMapZoom(nextZoom);
+      if (manual) userAdjustedMapZoom = true;
       fitMapToViewport();
     }
 
@@ -1221,6 +1352,12 @@
       prevActorFacing = nextActorFacing;
       prevActorPositions = new Set(nextActorFacing.keys());
 
+      // Re-resolves the default zoom once the real map canvas size is known.
+      if (!userAdjustedMapZoom && !initialViewportPlaced) {
+        mapZoomSettings = computeMapZoomSettings();
+        mapZoom = mapZoomSettings.defaultZoom;
+      }
+
       fitMapToViewport();
       return { drawCols, drawRows };
     }
@@ -1502,6 +1639,51 @@
       return true;
     }
 
+    // Builds one compact resource bar used by the floating mobile HUD.
+    function renderMobileHudBar(label, shortLabel, current, maximum, toneClass) {
+      const safeMax = Number.isFinite(maximum) && maximum > 0 ? maximum : 0;
+      const safeCur = Number.isFinite(current) ? Math.max(0, current) : 0;
+      const fillPercent = safeMax > 0
+        ? Math.round(clamp(safeCur / safeMax, 0, 1) * 100)
+        : 0;
+
+      return (
+        `<div class="hud-bar ${toneClass}" title="${escapeHtml(label)} ${safeCur}/${safeMax}">` +
+          `<span class="hud-bar-fill" style="--bar-fill:${fillPercent}%"></span>` +
+          "<span class=\"hud-bar-copy\">" +
+            `<span class="hud-bar-label">${escapeHtml(shortLabel)}</span>` +
+            `<span class="hud-bar-value">${safeCur}/${safeMax}</span>` +
+          "</span>" +
+        "</div>"
+      );
+    }
+
+    // Updates the compact top HUD shown when the side panel collapses on narrow screens.
+    function updateMobileHud(state) {
+      if (!hudBarsEl) return;
+
+      if (!state || Number(state.ready) !== 1) {
+        const placeholderHtml =
+          renderMobileHudBar("Health", "HP", 0, 0, "hud-bar-empty") +
+          renderMobileHudBar("Voice", "Voice", 0, 0, "hud-bar-empty");
+        setHtmlIfChanged(hudBarsEl, placeholderHtml);
+        sideToggleEl.title = "Character panel";
+        return;
+      }
+
+      const healthCur = Number(state.healthCur ?? 0);
+      const healthMax = Number(state.healthMax ?? 0);
+      const voiceCur = Number(state.voiceCur ?? 0);
+      const voiceMax = Number(state.voiceMax ?? 0);
+      const hudHtml =
+        renderMobileHudBar("Health", "HP", healthCur, healthMax, "hud-bar-health") +
+        renderMobileHudBar("Voice", "Voice", voiceCur, voiceMax, "hud-bar-voice");
+      const titleBits = [state.name, state.depthText].filter(Boolean);
+
+      setHtmlIfChanged(hudBarsEl, hudHtml);
+      sideToggleEl.title = titleBits.length ? titleBits.join(" - ") : "Character panel";
+    }
+
     // Updates side and log panels using semantic text and color attributes.
     function updateSemanticPanels(heap, state = null) {
       if (!api) return;
@@ -1536,6 +1718,8 @@
         logHtml = hasLogText ? `${logHtml}<br>${promptHtml}` : promptHtml;
       }
 
+      updateMobileHud(state);
+      syncFloatingActionButtons(state);
       setHtmlIfChanged(sideEl, sideHtml);
       setHtmlIfChanged(logEl, logHtml, true);
     }
@@ -1584,7 +1768,8 @@
 
       const overlayActive = updateOverlaySemantic(heap);
       const state = readPlayerState(heap);
-      if (state && Number(state.ready) === 1) {
+      const stateReady = !!state && Number(state.ready) === 1;
+      if (stateReady) {
         const depthText = String(state.depthText || "");
         if (lastDepthText !== null && depthText !== lastDepthText) {
           initialViewportPlaced = false;
@@ -1606,6 +1791,7 @@
 
       const blockFx = overlayActive || !mapFxActive;
       drawMap(mapPtr, fxPtr, fxCols, fxRows, blockFx, heap, overlayActive);
+      setMapDisplayReady(stateReady && mapCanvas.width > 0 && mapCanvas.height > 0);
       updateSemanticPanels(heap, state);
 
       if (!initialViewportPlaced) {
@@ -1656,16 +1842,133 @@
       };
     }
 
-    // Returns whether the current frontend state allows raw map clicks to start travel.
-    function canUseMapTravel() {
-      return !!api &&
-        typeof api.travelTo === "function" &&
-        !activeMenuItems.length &&
+    // Returns whether the gameplay view is idle enough for floating map actions.
+    function isGameplayViewIdle() {
+      return !activeMenuItems.length &&
         !overlayModalEl.classList.contains("overlay-menu") &&
         !overlayModalEl.classList.contains("overlay-dismissable") &&
         !isInteractiveTopPromptActive() &&
         !lineMorePromptActive &&
-        !overlayMorePromptActive;
+        !overlayMorePromptActive &&
+        !morePromptActive;
+    }
+
+    // Returns whether the current frontend state allows raw map clicks to start travel.
+    function canUseMapTravel() {
+      return !!api &&
+        typeof api.travelTo === "function" &&
+        isGameplayViewIdle();
+    }
+
+    // Returns whether the floating inventory button should currently be enabled.
+    function canUseInventoryFab(state = null) {
+      return !!api &&
+        typeof api.openInventory === "function" &&
+        !!state &&
+        Number(state.ready) === 1 &&
+        isGameplayViewIdle();
+    }
+
+    // Returns whether the contextual current-tile action button should be visible.
+    function canUseTileActionFab(state = null) {
+      return !!api &&
+        typeof api.actHere === "function" &&
+        !!state &&
+        Number(state.ready) === 1 &&
+        Number(state.tileActionVisible) === 1 &&
+        isGameplayViewIdle();
+    }
+
+    // Returns whether the floating close button should replace the inventory button.
+    function canUseCloseFab() {
+      return !!api &&
+        !morePromptActive &&
+        (
+          activeMenuItems.length > 0 ||
+          overlayModalEl.classList.contains("overlay-menu") ||
+          isInteractiveTopPromptActive()
+        );
+    }
+
+    // Draws the current-tile action icon using the same tile/glyph payload as menus.
+    function renderTileActionFabVisual(state = null) {
+      if (!tileActionFabVisualEl) return;
+
+      const visual = state && Number(state.tileActionVisible) === 1
+        ? normalizeMenuItemVisual(
+            Number(state.tileActionVisualKind ?? 0),
+            Number(state.tileActionVisualAttr ?? 0),
+            Number(state.tileActionVisualChar ?? 0)
+          )
+        : null;
+
+      if (!visual || !visual.kind) {
+        setHtmlIfChanged(tileActionFabVisualEl, "");
+        return;
+      }
+
+      if (visual.kind === 1) {
+        const glyph = cellToChar(visual.chr) || "?";
+        const color = colors[visual.attr & 0x0f] || "#ffffff";
+        setHtmlIfChanged(
+          tileActionFabVisualEl,
+          `<span class="action-fab-glyph" style="color:${color}">${escapeHtml(
+            glyph
+          )}</span>`
+        );
+        return;
+      }
+
+      setHtmlIfChanged(
+        tileActionFabVisualEl,
+        `<canvas class="action-fab-canvas" width="32" height="32" aria-hidden="true"></canvas>`
+      );
+
+      const canvas = tileActionFabVisualEl.querySelector(".action-fab-canvas");
+      if (!canvas) return;
+
+      const visualCtx = canvas.getContext("2d", { alpha: true });
+      if (!visualCtx) return;
+
+      visualCtx.clearRect(0, 0, canvas.width, canvas.height);
+      visualCtx.imageSmoothingEnabled = false;
+
+      if (!tileImageReady) return;
+
+      const sx = (visual.chr & 0x3f) * tileSrcW;
+      const sy = (visual.attr & 0x3f) * tileSrcH;
+      visualCtx.drawImage(
+        tileImage,
+        sx,
+        sy,
+        tileSrcW,
+        tileSrcH,
+        0,
+        0,
+        canvas.width,
+        canvas.height
+      );
+    }
+
+    // Keeps floating action buttons visually in sync with the current gameplay state.
+    function syncFloatingActionButtons(state = null) {
+      if (!actionFabsEl || !inventoryFabEl || !tileActionFabEl || !closeFabEl) return;
+
+      const showClose = !compactSideOpen && canUseCloseFab();
+      const showInventory = !compactSideOpen && !showClose && canUseInventoryFab(state);
+      const showTileAction = !compactSideOpen && !showClose && canUseTileActionFab(state);
+      const tileActionLabel = state && Number(state.tileActionVisible) === 1
+        ? String(state.tileActionLabel || "Act here")
+        : "Act here";
+
+      renderTileActionFabVisual(state);
+
+      actionFabsEl.hidden = !showClose && !showInventory && !showTileAction;
+      inventoryFabEl.hidden = !showInventory;
+      tileActionFabEl.hidden = !showTileAction;
+      tileActionFabEl.title = `${tileActionLabel} (,)`;
+      tileActionFabEl.setAttribute("aria-label", tileActionLabel);
+      closeFabEl.hidden = !showClose;
     }
 
     // Starts automatic travel for one clicked map tile when the gameplay view is idle.
@@ -1805,11 +2108,13 @@
 
       overlayModalEl.addEventListener("pointermove", (ev) => {
         if (!overlayModalEl.classList.contains("overlay-menu")) return;
+        if (ev.pointerType !== "mouse") return;
         hoverFromOverlayEvent(ev.target);
       });
 
       overlayModalEl.addEventListener("pointerover", (ev) => {
         if (!overlayModalEl.classList.contains("overlay-menu")) return;
+        if (ev.pointerType !== "mouse") return;
         hoverFromOverlayEvent(ev.target);
       });
 
@@ -1953,13 +2258,89 @@
       }, { capture: true });
     }
 
+    // Binds the compact mobile side drawer toggle and backdrop dismissal controls.
+    function bindResponsiveShellInput() {
+      sideToggleEl.addEventListener("pointerdown", (ev) => {
+        ev.stopPropagation();
+      });
+
+      sideToggleEl.addEventListener("click", (ev) => {
+        ev.preventDefault();
+        ev.stopPropagation();
+        setCompactSideOpen(!compactSideOpen);
+      });
+
+      sideBackdropEl.addEventListener("pointerdown", (ev) => {
+        ev.preventDefault();
+        ev.stopPropagation();
+        setCompactSideOpen(false);
+      });
+
+      sideWrapEl.addEventListener("pointerdown", (ev) => {
+        ev.stopPropagation();
+      });
+    }
+
+    // Binds the floating backpack/close buttons to their current contextual actions.
+    function bindFloatingActionInput() {
+      inventoryFabEl.addEventListener("pointerdown", (ev) => {
+        ev.stopPropagation();
+      });
+
+      inventoryFabEl.addEventListener("click", (ev) => {
+        ev.preventDefault();
+        ev.stopPropagation();
+        const heap = getHeapU8();
+        const state = heap ? readPlayerState(heap) : null;
+        if (!canUseInventoryFab(state)) return;
+
+        setCompactSideOpen(false);
+        if (api.openInventory()) {
+          hoveredMenuIndex = -1;
+          forceRedraw = true;
+        }
+      });
+
+      tileActionFabEl.addEventListener("pointerdown", (ev) => {
+        ev.stopPropagation();
+      });
+
+      tileActionFabEl.addEventListener("click", (ev) => {
+        ev.preventDefault();
+        ev.stopPropagation();
+        const heap = getHeapU8();
+        const state = heap ? readPlayerState(heap) : null;
+        if (!canUseTileActionFab(state)) return;
+
+        setCompactSideOpen(false);
+        if (api.actHere()) {
+          hoveredMenuIndex = -1;
+          forceRedraw = true;
+        }
+      });
+
+      closeFabEl.addEventListener("pointerdown", (ev) => {
+        ev.stopPropagation();
+      });
+
+      closeFabEl.addEventListener("click", (ev) => {
+        ev.preventDefault();
+        ev.stopPropagation();
+        if (!canUseCloseFab()) return;
+
+        setCompactSideOpen(false);
+        pushAscii(27);
+        forceRedraw = true;
+      });
+    }
+
     // Binds mouse/touch interactions for map zooming and drag-to-pan.
     function bindMapZoomInput() {
       mapWrapEl.addEventListener("wheel", (ev) => {
         if (!mapCanvas.width || !mapCanvas.height) return;
         ev.preventDefault();
         const factor = Math.exp((-ev.deltaY) * 0.0015);
-        setMapZoom(mapZoom * factor);
+        setMapZoom(mapZoom * factor, true);
       }, { passive: false });
 
       const touchPoints = new Map();
@@ -1968,11 +2349,17 @@
       let dragPointerId = null;
       let dragLastX = 0;
       let dragLastY = 0;
+      let touchTapPointerId = null;
+      let touchTapStartX = 0;
+      let touchTapStartY = 0;
+      let touchTapEligible = false;
       let mouseClickPointerId = null;
       let mouseClickStartX = 0;
       let mouseClickStartY = 0;
       let mouseClickEligible = false;
-      const clickThresholdSq = MAP_CLICK_DRAG_THRESHOLD * MAP_CLICK_DRAG_THRESHOLD;
+      const mouseClickThresholdSq = MAP_CLICK_DRAG_THRESHOLD * MAP_CLICK_DRAG_THRESHOLD;
+      const touchTapThresholdSq =
+        Math.max(18, MAP_CLICK_DRAG_THRESHOLD * 2.5) ** 2;
 
       const resetPinch = () => {
         if (touchPoints.size < 2) pinchBaseDistance = 0;
@@ -2018,8 +2405,14 @@
         if (ev.pointerType === "touch") {
           touchPoints.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
           if (touchPoints.size === 1) {
+            touchTapPointerId = ev.pointerId;
+            touchTapStartX = ev.clientX;
+            touchTapStartY = ev.clientY;
+            touchTapEligible = true;
             startDrag(ev.pointerId, ev.clientX, ev.clientY);
           } else if (touchPoints.size === 2) {
+            touchTapPointerId = null;
+            touchTapEligible = false;
             stopDrag();
             updatePinchBase();
           }
@@ -2048,13 +2441,23 @@
             const pts = [...touchPoints.values()];
             const distance = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
             if (distance > 0) {
-              setMapZoom(pinchBaseZoom * (distance / pinchBaseDistance));
+              setMapZoom(pinchBaseZoom * (distance / pinchBaseDistance), true);
             }
             ev.preventDefault();
             return;
           }
 
           if (touchPoints.size === 1 && dragPointerId === ev.pointerId) {
+            if (touchTapEligible && touchTapPointerId === ev.pointerId) {
+              const dx = ev.clientX - touchTapStartX;
+              const dy = ev.clientY - touchTapStartY;
+              if ((dx * dx) + (dy * dy) > touchTapThresholdSq) {
+                touchTapEligible = false;
+              } else {
+                ev.preventDefault();
+                return;
+              }
+            }
             updateDrag(ev.clientX, ev.clientY);
             ev.preventDefault();
           }
@@ -2065,7 +2468,7 @@
           if (mouseClickEligible && mouseClickPointerId === ev.pointerId) {
             const dx = ev.clientX - mouseClickStartX;
             const dy = ev.clientY - mouseClickStartY;
-            if ((dx * dx) + (dy * dy) > clickThresholdSq) {
+            if ((dx * dx) + (dy * dy) > mouseClickThresholdSq) {
               mouseClickEligible = false;
             }
           }
@@ -2087,8 +2490,28 @@
         }
       };
 
+      const commitTouchTapAt = (clientX, clientY) => {
+        const eligible = touchTapEligible;
+        touchTapPointerId = null;
+        touchTapEligible = false;
+
+        if (eligible) {
+          tryMapTravelAtClientPoint(clientX, clientY);
+        }
+      };
+
+      const maybeCommitTouchTap = (ev) => {
+        if (ev.pointerType !== "touch") return;
+        if (touchTapPointerId !== ev.pointerId) return;
+        commitTouchTapAt(ev.clientX, ev.clientY);
+      };
+
       const clearPointer = (ev) => {
         stopDrag(ev.pointerId);
+        if (touchTapPointerId === ev.pointerId) {
+          touchTapPointerId = null;
+          touchTapEligible = false;
+        }
         if (mouseClickPointerId === ev.pointerId) {
           mouseClickPointerId = null;
           mouseClickEligible = false;
@@ -2101,11 +2524,22 @@
       };
 
       mapWrapEl.addEventListener("pointerup", (ev) => {
+        maybeCommitTouchTap(ev);
+        maybeCommitMouseClick(ev);
+        clearPointer(ev);
+      });
+      mapWrapEl.addEventListener("lostpointercapture", (ev) => {
+        // Some mobile browsers release capture before pointerup; keep a valid tap.
+        maybeCommitTouchTap(ev);
         maybeCommitMouseClick(ev);
         clearPointer(ev);
       });
       mapWrapEl.addEventListener("pointercancel", clearPointer);
-      mapWrapEl.addEventListener("lostpointercapture", clearPointer);
+      mapWrapEl.addEventListener("touchend", (ev) => {
+        if (!touchTapEligible || !ev.changedTouches.length) return;
+        const touch = ev.changedTouches[0];
+        commitTouchTapAt(touch.clientX, touch.clientY);
+      }, { passive: true });
     }
 
     /* ==========================================================================
@@ -2186,7 +2620,7 @@
       }],
       print: (text) => console.log(text),
       printErr: (text) => console.error(text),
-      setStatus: (text) => { statusEl.textContent = text; },
+      setStatus: (text) => { setStatusText(text); },
       onRuntimeInitialized: () => {
         const hasAPI =
           typeof Module._web_get_cols === "function" &&
@@ -2252,7 +2686,7 @@
           typeof Module._web_modal_activate === "function";
 
         if (!hasAPI) {
-          statusEl.textContent = "WASM started, but web_* API missing";
+          setStatusText("WASM started, but web_* API missing");
           return;
         }
 
@@ -2276,6 +2710,14 @@
           getCursorX: Module._web_get_cursor_x,
           getCursorY: Module._web_get_cursor_y,
           getCursorVisible: Module._web_get_cursor_visible,
+          actHere:
+            typeof Module._web_act_here === "function"
+              ? Module._web_act_here
+              : null,
+          openInventory:
+            typeof Module._web_open_inventory === "function"
+              ? Module._web_open_inventory
+              : null,
           travelTo:
             typeof Module._web_travel_to === "function"
               ? Module._web_travel_to
@@ -2347,15 +2789,18 @@
         tileSrcH = api.getTileHgt();
         tileW = tileSrcW * MAP_TILE_SCALE;
         tileH = tileSrcH * MAP_TILE_SCALE;
+        refreshLayoutMetadata(api.getCols(), api.getRows());
 
-        statusEl.textContent = "Running (-mweb). Click page and type to play. Click known map tiles to walk. Wheel/pinch map to zoom.";
+        setStatusText("Running (-mweb). Tap or click the map to travel. Pinch or wheel to zoom. The backpack button opens inventory.");
         bindInput();
+        bindResponsiveShellInput();
+        bindFloatingActionInput();
         bindMenuPointerInput();
         bindOverlayMenuInput();
         bindOverlayModalInput();
         bindMapZoomInput();
         startPersistSyncLoop();
-        fitMapToViewport();
+        syncResponsiveShell(true);
 
         // Schedules continuous rendering with requestAnimationFrame.
         function tick() {
@@ -2372,7 +2817,7 @@
      * ========================================================================== */
     
     window.addEventListener("resize", () => {
-      fitMapToViewport();
+      syncResponsiveShell(false);
       if (api) {
         const heap = getHeapU8();
         let overlayActive = false;
