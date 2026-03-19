@@ -196,6 +196,7 @@ EMSCRIPTEN_KEEPALIVE int web_get_cursor_x(void);
 EMSCRIPTEN_KEEPALIVE int web_get_cursor_y(void);
 EMSCRIPTEN_KEEPALIVE int web_get_cursor_visible(void);
 EMSCRIPTEN_KEEPALIVE int web_act_here(void);
+EMSCRIPTEN_KEEPALIVE int web_act_adjacent(int dir);
 EMSCRIPTEN_KEEPALIVE int web_open_inventory(void);
 EMSCRIPTEN_KEEPALIVE int web_travel_to(int y, int x);
 EMSCRIPTEN_KEEPALIVE int web_push_key(int key);
@@ -933,17 +934,23 @@ static void web_build_player_state(void)
     char target_name[80];
     char target_hp_bar[9];
     char target_alert[20];
+    char adjacent_action_key[32];
     cptr current_square_label = NULL;
+    cptr adjacent_action_label_by_dir[10];
     bool dual_wield;
     bool has_bow;
     bool rapid_attack;
     bool blocking;
     byte current_square_attr = TERM_WHITE;
     byte current_square_char = (byte)' ';
+    byte adjacent_action_attr_by_dir[10];
+    byte adjacent_action_char_by_dir[10];
     int armor_min;
     int armor_max;
     int arc_dd;
+    int dir;
     int current_square_visual_kind = UI_MENU_VISUAL_NONE;
+    int adjacent_action_visual_kind_by_dir[10];
     int depth_feet;
 
     web_player_state[0] = '\0';
@@ -965,6 +972,14 @@ static void web_build_player_state(void)
         race_name = "Unknown";
     if (!house_name || !house_name[0])
         house_name = "Unknown";
+
+    for (dir = 0; dir < 10; dir++)
+    {
+        adjacent_action_label_by_dir[dir] = NULL;
+        adjacent_action_attr_by_dir[dir] = TERM_WHITE;
+        adjacent_action_char_by_dir[dir] = (byte)' ';
+        adjacent_action_visual_kind_by_dir[dir] = UI_MENU_VISUAL_NONE;
+    }
 
     depth_feet = p_ptr->depth * 50;
     if (!p_ptr->depth)
@@ -1031,6 +1046,23 @@ static void web_build_player_state(void)
     {
         current_square_visual_kind
             = graphics_are_ascii() ? UI_MENU_VISUAL_TEXT : UI_MENU_VISUAL_TILE;
+    }
+
+    for (dir = 1; dir <= 9; dir++)
+    {
+        if (dir == 5)
+            continue;
+
+        adjacent_action_label_by_dir[dir] = adjacent_action_label(dir);
+        adjacent_action_visual(dir, &adjacent_action_attr_by_dir[dir],
+            &adjacent_action_char_by_dir[dir]);
+
+        if (adjacent_action_label_by_dir[dir] && adjacent_action_available(dir))
+        {
+            adjacent_action_visual_kind_by_dir[dir]
+                = graphics_are_ascii() ? UI_MENU_VISUAL_TEXT
+                                       : UI_MENU_VISUAL_TILE;
+        }
     }
 
     web_get_tracked_monster_state(target_name, sizeof(target_name), target_hp_bar,
@@ -1127,6 +1159,49 @@ static void web_build_player_state(void)
     web_json_append_field_int(
         web_player_state, sizeof(web_player_state), &off, &first,
         "tileActionVisualChar", current_square_char);
+    for (dir = 1; dir <= 9; dir++)
+    {
+        if (dir == 5)
+            continue;
+
+        strnfmt(adjacent_action_key, sizeof(adjacent_action_key),
+            "adjAction%dVisible", dir);
+        web_json_append_field_int(
+            web_player_state, sizeof(web_player_state), &off, &first,
+            adjacent_action_key, adjacent_action_label_by_dir[dir] ? 1 : 0);
+
+        strnfmt(adjacent_action_key, sizeof(adjacent_action_key),
+            "adjAction%dLabel", dir);
+        web_json_append_field_string(
+            web_player_state, sizeof(web_player_state), &off, &first,
+            adjacent_action_key,
+            adjacent_action_label_by_dir[dir] ? adjacent_action_label_by_dir[dir]
+                                              : "");
+
+        strnfmt(adjacent_action_key, sizeof(adjacent_action_key),
+            "adjAction%dVisualKind", dir);
+        web_json_append_field_int(
+            web_player_state, sizeof(web_player_state), &off, &first,
+            adjacent_action_key, adjacent_action_visual_kind_by_dir[dir]);
+
+        strnfmt(adjacent_action_key, sizeof(adjacent_action_key),
+            "adjAction%dVisualAttr", dir);
+        web_json_append_field_int(
+            web_player_state, sizeof(web_player_state), &off, &first,
+            adjacent_action_key, adjacent_action_attr_by_dir[dir]);
+
+        strnfmt(adjacent_action_key, sizeof(adjacent_action_key),
+            "adjAction%dVisualChar", dir);
+        web_json_append_field_int(
+            web_player_state, sizeof(web_player_state), &off, &first,
+            adjacent_action_key, adjacent_action_char_by_dir[dir]);
+
+        strnfmt(adjacent_action_key, sizeof(adjacent_action_key),
+            "adjAction%dAttack", dir);
+        web_json_append_field_int(
+            web_player_state, sizeof(web_player_state), &off, &first,
+            adjacent_action_key, adjacent_action_is_attack(dir) ? 1 : 0);
+    }
     web_json_append_field_string(
         web_player_state, sizeof(web_player_state), &off, &first,
         "targetName", target_name);
@@ -2279,6 +2354,24 @@ EMSCRIPTEN_KEEPALIVE int web_act_here(void)
     return web_key_enqueue(ACT_HERE_CMD) ? 1 : 0;
 }
 
+/* Queues one adjacent alter action for one floating directional web button. */
+EMSCRIPTEN_KEEPALIVE int web_act_adjacent(int dir)
+{
+    if (!p_ptr || !character_dungeon || !p_ptr->playing)
+        return 0;
+
+    if (!adjacent_action_available(dir))
+        return 0;
+
+    if (travel_is_running())
+        travel_clear();
+
+    if (!web_key_enqueue('/'))
+        return 0;
+
+    return web_key_enqueue(I2D(dir)) ? 1 : 0;
+}
+
 /* Queues the unified inventory command for one floating web action button. */
 EMSCRIPTEN_KEEPALIVE int web_open_inventory(void)
 {
@@ -2293,6 +2386,8 @@ EMSCRIPTEN_KEEPALIVE int web_open_inventory(void)
 
 EMSCRIPTEN_KEEPALIVE int web_travel_to(int y, int x)
 {
+    int dir;
+
     if (!p_ptr || !character_dungeon || !p_ptr->playing || !in_bounds(y, x))
         return 0;
 
@@ -2301,6 +2396,18 @@ EMSCRIPTEN_KEEPALIVE int web_travel_to(int y, int x)
 
     if ((y == p_ptr->py) && (x == p_ptr->px))
         return web_key_enqueue(HOLD_CMD) ? 1 : 0;
+
+    dir = motion_dir(p_ptr->py, p_ptr->px, y, x);
+    if ((dir != 5)
+        && (ABS(y - p_ptr->py) <= 1)
+        && (ABS(x - p_ptr->px) <= 1)
+        && (cave_m_idx[y][x] > 0)
+        && mon_list[cave_m_idx[y][x]].ml)
+    {
+        if (!web_key_enqueue(';'))
+            return 0;
+        return web_key_enqueue(I2D(dir)) ? 1 : 0;
+    }
 
     travel_set_target(y, x);
 

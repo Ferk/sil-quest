@@ -243,6 +243,7 @@ set(SIL_SOURCES
     src/cmd4.c
     src/cmd5.c
     src/cmd6.c
+    src/adjacent-actions.c
     src/current-square.c
     src/dungeon.c
     src/files.c

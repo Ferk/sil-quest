@@ -396,6 +396,14 @@ extern void do_cmd_run(void);
 extern void do_cmd_hold(void);
 extern void do_cmd_pickup(void);
 extern void do_cmd_rest(void);
+/* Reports whether one adjacent direction has a meaningful alter action. */
+extern bool adjacent_action_available(int dir);
+/* Reports whether one adjacent alter action should be presented as an attack. */
+extern bool adjacent_action_is_attack(int dir);
+/* Returns the short label for one adjacent alter action, if any. */
+extern cptr adjacent_action_label(int dir);
+/* Exports one visual for one adjacent alter action target, if any exists. */
+extern void adjacent_action_visual(int dir, byte* attr, byte* chr);
 extern bool current_square_action_available(void);
 extern cptr current_square_action_label(void);
 extern void current_square_action_visual(byte* attr, byte* chr);
