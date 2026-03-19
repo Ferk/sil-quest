@@ -195,6 +195,8 @@ EMSCRIPTEN_KEEPALIVE int web_modal_activate(void);
 EMSCRIPTEN_KEEPALIVE int web_get_cursor_x(void);
 EMSCRIPTEN_KEEPALIVE int web_get_cursor_y(void);
 EMSCRIPTEN_KEEPALIVE int web_get_cursor_visible(void);
+EMSCRIPTEN_KEEPALIVE int web_act_here(void);
+EMSCRIPTEN_KEEPALIVE int web_open_inventory(void);
 EMSCRIPTEN_KEEPALIVE int web_travel_to(int y, int x);
 EMSCRIPTEN_KEEPALIVE int web_push_key(int key);
 EMSCRIPTEN_KEEPALIVE uintptr_t web_get_log_text_ptr(void);
@@ -931,13 +933,17 @@ static void web_build_player_state(void)
     char target_name[80];
     char target_hp_bar[9];
     char target_alert[20];
+    cptr current_square_label = NULL;
     bool dual_wield;
     bool has_bow;
     bool rapid_attack;
     bool blocking;
+    byte current_square_attr = TERM_WHITE;
+    byte current_square_char = (byte)' ';
     int armor_min;
     int armor_max;
     int arc_dd;
+    int current_square_visual_kind = UI_MENU_VISUAL_NONE;
     int depth_feet;
 
     web_player_state[0] = '\0';
@@ -1018,6 +1024,14 @@ static void web_build_player_state(void)
     speed_text = web_get_speed_text();
     hunger_text = web_get_hunger_text();
     terrain_text = web_get_terrain_text();
+    current_square_label = current_square_action_label();
+    current_square_action_visual(&current_square_attr, &current_square_char);
+
+    if (current_square_label && current_square_action_available())
+    {
+        current_square_visual_kind
+            = graphics_are_ascii() ? UI_MENU_VISUAL_TEXT : UI_MENU_VISUAL_TILE;
+    }
 
     web_get_tracked_monster_state(target_name, sizeof(target_name), target_hp_bar,
         sizeof(target_hp_bar), target_alert, sizeof(target_alert));
@@ -1098,6 +1112,21 @@ static void web_build_player_state(void)
     web_json_append_field_string(
         web_player_state, sizeof(web_player_state), &off, &first,
         "effects", effects_buf[0] ? effects_buf : "(none)");
+    web_json_append_field_int(
+        web_player_state, sizeof(web_player_state), &off, &first,
+        "tileActionVisible", current_square_label ? 1 : 0);
+    web_json_append_field_string(
+        web_player_state, sizeof(web_player_state), &off, &first,
+        "tileActionLabel", current_square_label ? current_square_label : "");
+    web_json_append_field_int(
+        web_player_state, sizeof(web_player_state), &off, &first,
+        "tileActionVisualKind", current_square_visual_kind);
+    web_json_append_field_int(
+        web_player_state, sizeof(web_player_state), &off, &first,
+        "tileActionVisualAttr", current_square_attr);
+    web_json_append_field_int(
+        web_player_state, sizeof(web_player_state), &off, &first,
+        "tileActionVisualChar", current_square_char);
     web_json_append_field_string(
         web_player_state, sizeof(web_player_state), &off, &first,
         "targetName", target_name);
@@ -2233,6 +2262,33 @@ EMSCRIPTEN_KEEPALIVE int web_get_cursor_y(void)
 EMSCRIPTEN_KEEPALIVE int web_get_cursor_visible(void)
 {
     return data.cursor_visible ? 1 : 0;
+}
+
+/* Queues the current-square interaction for one floating web action button. */
+EMSCRIPTEN_KEEPALIVE int web_act_here(void)
+{
+    if (!p_ptr || !character_dungeon || !p_ptr->playing)
+        return 0;
+
+    if (!current_square_action_available())
+        return 0;
+
+    if (travel_is_running())
+        travel_clear();
+
+    return web_key_enqueue(ACT_HERE_CMD) ? 1 : 0;
+}
+
+/* Queues the unified inventory command for one floating web action button. */
+EMSCRIPTEN_KEEPALIVE int web_open_inventory(void)
+{
+    if (!p_ptr || !character_dungeon || !p_ptr->playing)
+        return 0;
+
+    if (travel_is_running())
+        travel_clear();
+
+    return web_key_enqueue(INVENTORY_CMD) ? 1 : 0;
 }
 
 EMSCRIPTEN_KEEPALIVE int web_travel_to(int y, int x)

@@ -387,6 +387,7 @@ extern void do_cmd_disarm(void);
 extern void do_cmd_bash(void);
 extern void do_cmd_steal(void);
 extern void do_cmd_alter(void);
+extern void do_cmd_act_here(void);
 extern void do_cmd_spike(void);
 extern bool do_cmd_walk_test(int y, int x);
 extern void do_cmd_walk(void);
@@ -395,6 +396,9 @@ extern void do_cmd_run(void);
 extern void do_cmd_hold(void);
 extern void do_cmd_pickup(void);
 extern void do_cmd_rest(void);
+extern bool current_square_action_available(void);
+extern cptr current_square_action_label(void);
+extern void current_square_action_visual(byte* attr, byte* chr);
 extern int archery_range(const object_type* j_ptr);
 extern int throwing_range(const object_type* i_ptr);
 extern void attacks_of_opportunity(int neutralized_y, int neutralized_x);
@@ -962,10 +966,13 @@ extern int color_text_to_attr(cptr name);
 extern cptr attr_to_text(byte a);
 
 #ifdef USE_WEB
+/* Executes the current-square interaction from one synthetic web command. */
+#define ACT_HERE_CMD KTRL('Q')
+/* Opens the unified inventory from one synthetic web command. */
+#define INVENTORY_CMD KTRL('B')
 #define HOLD_CMD KTRL('V')
 #define TRAVEL_CMD KTRL('Y')
 
-/* Starts a new batch of target-mark overlays for the web map. */
 extern void web_target_marks_begin(void);
 /* Adds one target-mark overlay at a world-grid location. */
 extern void web_target_mark_add(int y, int x, byte attr, char chr);

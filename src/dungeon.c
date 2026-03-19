@@ -922,6 +922,20 @@ static void process_command(void)
     }
 
 #ifdef USE_WEB
+    /* Interact with the player's current square from one synthetic web command */
+    case ACT_HERE_CMD:
+    {
+        do_cmd_act_here();
+        break;
+    }
+
+    /* Open the unified inventory from one synthetic web command */
+    case INVENTORY_CMD:
+    {
+        do_cmd_inven();
+        break;
+    }
+
     /* Hold still from one synthetic web command */
     case HOLD_CMD:
     {
