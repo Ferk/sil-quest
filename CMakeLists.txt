@@ -267,6 +267,7 @@ set(SIL_SOURCES
     src/use-obj.c
     src/util.c
     src/variable.c
+    src/travel.c
     src/wizard1.c
     src/wizard2.c
     src/xtra1.c

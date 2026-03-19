@@ -962,10 +962,27 @@ extern int color_text_to_attr(cptr name);
 extern cptr attr_to_text(byte a);
 
 #ifdef USE_WEB
+#define HOLD_CMD KTRL('V')
+#define TRAVEL_CMD KTRL('Y')
+
+/* Starts a new batch of target-mark overlays for the web map. */
 extern void web_target_marks_begin(void);
+/* Adds one target-mark overlay at a world-grid location. */
 extern void web_target_mark_add(int y, int x, byte attr, char chr);
+/* Publishes the current batch of web target marks. */
 extern void web_target_marks_end(void);
+/* Clears all active web target-mark overlays. */
 extern void web_target_marks_clear(void);
+/* Returns whether automatic travel is currently advancing between turns. */
+extern bool travel_is_running(void);
+/* Stores one chosen travel target for the next synthetic command. */
+extern void travel_set_target(int y, int x);
+/* Cancels any pending or active automatic travel request. */
+extern void travel_clear(void);
+/* Advances automatic travel by one game turn, if still active. */
+extern void travel_step(void);
+/* Starts automatic travel from the most recently chosen target. */
+extern void travel_command(void);
 #endif
 
 #ifdef SUPPORT_GAMMA

@@ -921,6 +921,22 @@ static void process_command(void)
         break;
     }
 
+#ifdef USE_WEB
+    /* Hold still from one synthetic web command */
+    case HOLD_CMD:
+    {
+        do_cmd_hold();
+        break;
+    }
+
+    /* Travel toward a chosen map tile */
+    case TRAVEL_CMD:
+    {
+        travel_command();
+        break;
+    }
+#endif
+
     /*** Running, Resting, Searching, Staying */
 
     /* Begin Running -- Arg is Max Distance */
@@ -1592,7 +1608,11 @@ static void process_player(void)
         }
 
         /* Check for "player abort" */
-        if (p_ptr->running || p_ptr->fletching || p_ptr->smithing
+        if (p_ptr->running
+#ifdef USE_WEB
+            || travel_is_running()
+#endif
+            || p_ptr->fletching || p_ptr->smithing
             || p_ptr->command_rep || (p_ptr->resting && !(turn & 0x7F)))
         {
             /* Do not wait */
@@ -1603,6 +1623,12 @@ static void process_player(void)
             {
                 /* Flush input */
                 flush();
+
+#ifdef USE_WEB
+                /* Let manual input explicitly cancel automatic travel. */
+                if (travel_is_running())
+                    travel_clear();
+#endif
 
                 /* Disturb */
                 disturb(0, 0);
@@ -1906,7 +1932,20 @@ static void process_player(void)
             Term_xtra(TERM_XTRA_DELAY, 500);
         }
 
+        /* Automatic travel */
+#ifdef USE_WEB
+        else if (travel_is_running())
+        {
+            travel_step();
+
+            if (!instant_run)
+            {
+                Term_xtra(TERM_XTRA_DELAY, 60);
+            }
+        }
+
         /* Running */
+#endif
         else if (p_ptr->running)
         {
             /* Take a step */

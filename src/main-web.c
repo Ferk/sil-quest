@@ -195,6 +195,7 @@ EMSCRIPTEN_KEEPALIVE int web_modal_activate(void);
 EMSCRIPTEN_KEEPALIVE int web_get_cursor_x(void);
 EMSCRIPTEN_KEEPALIVE int web_get_cursor_y(void);
 EMSCRIPTEN_KEEPALIVE int web_get_cursor_visible(void);
+EMSCRIPTEN_KEEPALIVE int web_travel_to(int y, int x);
 EMSCRIPTEN_KEEPALIVE int web_push_key(int key);
 EMSCRIPTEN_KEEPALIVE uintptr_t web_get_log_text_ptr(void);
 EMSCRIPTEN_KEEPALIVE int web_get_log_text_len(void);
@@ -2232,6 +2233,22 @@ EMSCRIPTEN_KEEPALIVE int web_get_cursor_y(void)
 EMSCRIPTEN_KEEPALIVE int web_get_cursor_visible(void)
 {
     return data.cursor_visible ? 1 : 0;
+}
+
+EMSCRIPTEN_KEEPALIVE int web_travel_to(int y, int x)
+{
+    if (!p_ptr || !character_dungeon || !p_ptr->playing || !in_bounds(y, x))
+        return 0;
+
+    if (travel_is_running())
+        travel_clear();
+
+    if ((y == p_ptr->py) && (x == p_ptr->px))
+        return web_key_enqueue(HOLD_CMD) ? 1 : 0;
+
+    travel_set_target(y, x);
+
+    return web_key_enqueue(TRAVEL_CMD) ? 1 : 0;
 }
 
 EMSCRIPTEN_KEEPALIVE int web_push_key(int key)
