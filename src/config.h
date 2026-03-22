@@ -23,14 +23,8 @@
 /*
  * OPTION: See the Makefile(s), where several options may be declared.
  *
- * Some popular options include "USE_GCU" (allow use with Unix "curses"),
- * and "USE_X11" (allow basic use with Unix X11).
- *
- * Several other such options are available for non-unix machines,
- * such as "WINDOWS".
- *
- * You may also need to specify the "system", using defines such as
- * "WINDOWS", see "h-config.h" for more info.
+ * Some popular options include "USE_GCU" (allow use with curses/ncurses)
+ * and "USE_WEB" (allow use with the Emscripten web frontend).
  */
 
 /*
@@ -138,7 +132,7 @@
 /* #define UPDATE_VIEW_COMPLEX_WALL_ILLUMINATION */
 
 /*
- * OPTION: Gamma correct colours (with X11)
+ * OPTION: Gamma correct colours for frontends that choose to use it.
  */
 #define SUPPORT_GAMMA
 
@@ -234,23 +228,6 @@
  * TODO: Update MAINTAINER contact information.
  */
 #define MAINTAINER "sil@amirrorclear.net"
-
-/*
- * OPTION: Default font (when using X11).
- */
-#define DEFAULT_X11_FONT "9x15"
-
-/*
- * OPTION: Default fonts (when using X11)
- */
-#define DEFAULT_X11_FONT_0 "10x20"
-#define DEFAULT_X11_FONT_1 "9x15"
-#define DEFAULT_X11_FONT_2 "9x15"
-#define DEFAULT_X11_FONT_3 "5x8"
-#define DEFAULT_X11_FONT_4 "5x8"
-#define DEFAULT_X11_FONT_5 "5x8"
-#define DEFAULT_X11_FONT_6 "5x8"
-#define DEFAULT_X11_FONT_7 "5x8"
 
 /*
  * Hack -- Mach-O (native binary format of OS X) is basically a Un*x

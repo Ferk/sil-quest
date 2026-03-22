@@ -3095,7 +3095,7 @@
 /*** Sound constants ***/
 
 /*
- * Mega-Hack -- some primitive sound support (see "main-win.c")
+ * Mega-Hack -- some primitive sound support for frontend sound hooks
  *
  * Some "sound" constants for "Term_xtra(TERM_XTRA_SOUND, val)"
  */
@@ -3138,7 +3138,7 @@
 #define MAX_MACRO_MOD 12
 
 /*
- * Available graphic modes (e.g., for Windows, macOS Cocoa, X11)
+ * Available graphic modes for the remaining terminal/web frontends
  */
 /// Use Classic ASCII artwork (player is an `@` symbol) when graphics mode is
 /// enabled.

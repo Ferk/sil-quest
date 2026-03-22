@@ -32,10 +32,6 @@ static const struct module modules[] = {
     { "web", help_web, init_web },
 #endif /* USE_WEB */
 
-#ifdef USE_X11
-    { "x11", help_x11, init_x11 },
-#endif /* USE_X11 */
-
 #ifdef USE_GCU
     { "gcu", help_gcu, init_gcu },
 #endif /* USE_GCU */

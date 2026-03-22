@@ -421,16 +421,7 @@ C:3:^t
 ###############################################################################
 # Load system-specific pref files
 ###############################################################################
-?:[EQU $SYS x11]
-%:pref-x11.prf
-
 ?:[EQU $SYS gcu]
 %:pref-gcu.prf
-
-?:[EQU $SYS mac]
-%:pref-mac.prf
-
-?:[EQU $SYS win]
-%:pref-win.prf
 
 ?:1

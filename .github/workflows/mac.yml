@@ -1,7 +1,7 @@
 # Inspired by Angband's setup.
 # https://github.com/angband/angband/blob/master/.github/workflows/mac.yaml
 
-name: macOS
+name: macOS Terminal
 
 on:
   push:
@@ -23,8 +23,8 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  macos-console:
-    name: macOS console (GCU)
+  macos-terminal:
+    name: macOS terminal (GCU)
     runs-on: macos-latest
     steps:
       - name: Clone project
@@ -34,7 +34,7 @@ jobs:
 
       - name: Build with curses/ncurses support and release flags
         run: |
-          cmake -G Ninja -B build -DCMAKE_BUILD_TYPE=Release -DSUPPORT_COCOA_FRONTEND=OFF -DSUPPORT_X11_FRONTEND=OFF -DBUILD_ENABLE_WERROR=ON
+          cmake -G Ninja -B build -DCMAKE_BUILD_TYPE=Release -DBUILD_ENABLE_WERROR=ON
           cmake --build build
           cp build/sil sil
 
@@ -93,27 +93,25 @@ jobs:
       - name: Create release archive
         if: inputs.version != ''
         run: |
-          zip -r "Sil-Q-${{ inputs.version }}-macos-console.zip" \
-            sil silg silx lib LICENSE.md README.md "Sil-Q v1.5.0.pdf"
+          zip -r "Sil-Q-${{ inputs.version }}-macos-terminal.zip" \
+            sil lib LICENSE.md README.md "Sil-Q v1.5.0.pdf"
 
       - name: Upload release archive
         if: inputs.version != ''
         uses: actions/upload-artifact@v6
         with:
-          name: macos-console-archive
-          path: Sil-Q-*-macos-console.zip
+          name: macos-terminal-archive
+          path: Sil-Q-*-macos-terminal.zip
           if-no-files-found: error
 
       - name: Upload snapshot artifact
         if: inputs.version == ''
         uses: actions/upload-artifact@v6
         with:
-          name: Sil-Q-macos-console
+          name: Sil-Q-macos-terminal
           # IMPORTANT: Do NOT use quotes to escape spaces in filenames.
           path: |
             sil
-            silg
-            silx
             lib
             LICENSE.md
             README.md
@@ -125,93 +123,4 @@ jobs:
           # TODO: Update game logic to auto-create directories like `lib/apex`
           #       if needed, then remove this workaround.
           include-hidden-files: true
-          if-no-files-found: error
-
-  macos-native:
-    name: macOS native (Cocoa)
-    runs-on: macos-latest
-    steps:
-      - name: Clone project
-        uses: actions/checkout@v6
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Build with release flags (x86_64 and arm64)
-        run: |
-          cmake -G Ninja -B build -DCMAKE_BUILD_TYPE=Release -DBUILD_ENABLE_WERROR=ON
-          cmake --build build
-          cp -R build/Sil.app Sil.app
-
-      - name: Verify build
-        run: |
-          ls -la Sil.app
-          file Sil.app/Contents/MacOS/sil
-
-      - name: Validate data file for abilities
-        run: python3 bin/data-ability.py --validate
-
-      - name: Validate data file for artefacts
-        run: python3 bin/data-artefact.py --validate
-
-      - name: Validate data file for flavors
-        run: python3 bin/data-flavor.py --validate
-
-      - name: Validate data file for history
-        run: python3 bin/data-history.py --validate
-
-      - name: Validate data file for houses
-        run: python3 bin/data-house.py --validate
-
-      - name: Validate data file for limits
-        run: python3 bin/data-limits.py --validate
-
-      - name: Validate data file for monsters
-        run: python3 bin/data-monster.py --validate
-
-      - name: Validate data file for names
-        run: python3 bin/data-names.py --validate
-
-      - name: Validate data file for objects
-        run: python3 bin/data-object.py --validate
-
-      - name: Validate data file for races
-        run: python3 bin/data-race.py --validate
-
-      - name: Validate data file for special items
-        run: python3 bin/data-special.py --validate
-
-      - name: Validate data file for terrain
-        run: python3 bin/data-terrain.py --validate
-
-      - name: Validate data file for vaults
-        run: python3 bin/data-vault.py --validate
-
-      - name: Verify tutorial savefile
-        run: bin/verify-tutorial.sh
-
-      # This step is required for macOS so the resulting artifact contains a
-      # top-level `Sil.app` folder. Without this folder, macOS will not
-      # recognize the artifact as a valid macOS application.
-      - name: Create archive
-        run: |
-          if [ -n "${{ inputs.version }}" ]; then
-            zip -r "Sil-Q-${{ inputs.version }}-macos.zip" Sil.app "Sil-Q v1.5.0.pdf"
-          else
-            zip -r Sil-Q-macos.zip Sil.app "Sil-Q v1.5.0.pdf"
-          fi
-
-      - name: Upload release archive
-        if: inputs.version != ''
-        uses: actions/upload-artifact@v6
-        with:
-          name: macos-native-archive
-          path: Sil-Q-*-macos.zip
-          if-no-files-found: error
-
-      - name: Upload snapshot artifact
-        if: inputs.version == ''
-        uses: actions/upload-artifact@v6
-        with:
-          name: Sil-Q-macos-native
-          path: Sil-Q-macos.zip
           if-no-files-found: error

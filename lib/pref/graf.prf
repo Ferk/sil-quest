@@ -16,17 +16,8 @@
 ###############################################################################
 # Load system-specific pref files
 ###############################################################################
-?:[EQU $SYS x11]
-%:graf-x11.prf
-
 ?:[EQU $SYS gcu]
 %:graf-gcu.prf
-
-?:[EQU $SYS mac]
-%:graf-mac.prf
-
-?:[EQU $SYS win]
-%:graf-win.prf
 
 ?:[EQU $SYS web]
 %:graf-web.prf

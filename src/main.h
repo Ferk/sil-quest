@@ -13,11 +13,9 @@
 
 #include "angband.h"
 
-extern errr init_x11(int argc, char** argv);
 extern errr init_gcu(int argc, char** argv);
 extern errr init_web(int argc, char** argv);
 
-extern const char help_x11[];
 extern const char help_gcu[];
 extern const char help_web[];
 

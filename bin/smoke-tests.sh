@@ -5,7 +5,7 @@
 # Runs basic "smoke" tests to verify that a generated `sil` binary works as
 # expected.
 #
-# Only Linux and (non-Cocoa) macOS builds are currently supported.
+# Only terminal builds are currently supported by this script.
 
 set -euo pipefail
 

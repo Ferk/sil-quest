@@ -48,9 +48,7 @@ jobs:
             -DCMAKE_TOOLCHAIN_FILE="$EMSDK/upstream/emscripten/cmake/Modules/Platform/Emscripten.cmake" \
             -DBUILD_ENABLE_WERROR=ON \
             -DSUPPORT_WEB_FRONTEND=ON \
-            -DSUPPORT_GCU_FRONTEND=OFF \
-            -DSUPPORT_X11_FRONTEND=OFF \
-            -DSUPPORT_COCOA_FRONTEND=OFF
+            -DSUPPORT_GCU_FRONTEND=OFF
           cmake --build build-pages-wasm --config Release
 
       - name: Stage GitHub Pages site

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
-# Depending on the host OS, this script generates a debug build of the Sil-Q app
-# with only the GCU frontend enabled for either Linux or macOS.
+# Generates a debug build of the Sil-Q terminal frontend in a separate build
+# directory for Linux or macOS.
 #
 # Requires ASan and UBsan installed.
 #
@@ -16,9 +16,7 @@ set -euo pipefail
 readonly SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)
 # shellcheck disable=SC2155
 readonly PROJECT_DIR=$(cd "$SCRIPT_DIR/.." && pwd -P)
-# Use a different build directory than `bin/dev-build-mac` (macOS Cocoa app)
-# so that switching between the two macOS builds doesn't require cleaning the
-# build directory first.
+# Use a separate build directory for the terminal build.
 readonly BUILD_DIR_CONSOLE="$PROJECT_DIR/build-console"
 readonly SIL_EXE="sil"
 
@@ -48,7 +46,7 @@ echo "Generating a debug build for $OS_NAME with GCU frontend"
 echo "========================================================================"
 
 cd "$PROJECT_DIR"
-cmake -G Ninja -B "$BUILD_DIR_CONSOLE" -DCMAKE_BUILD_TYPE=Debug -DSUPPORT_COCOA_FRONTEND=OFF -DSUPPORT_X11_FRONTEND=OFF -DBUILD_ENABLE_WERROR=ON -DBUILD_ENABLE_SANITIZERS=ON
+cmake -G Ninja -B "$BUILD_DIR_CONSOLE" -DCMAKE_BUILD_TYPE=Debug -DBUILD_ENABLE_WERROR=ON -DBUILD_ENABLE_SANITIZERS=ON
 cmake --build "$BUILD_DIR_CONSOLE"
 cp "$BUILD_DIR_CONSOLE/$SIL_EXE" "./$SIL_EXE"
 

@@ -1,5 +1,5 @@
-# Creates a draft GitHub Release with versioned release artifacts for all
-# platforms (Windows, macOS, Linux) and the source code.
+# Creates a draft GitHub Release with versioned release artifacts for the
+# terminal platforms (macOS, Linux) and the source code.
 #
 # == Creating a new release  ==
 #
@@ -20,8 +20,8 @@
 #
 #   $ git push --tags
 #
-# This triggers the workflow, which calls the platform workflows (linux.yml,
-# mac.yml, windows.yml, src.yml) in release mode via `workflow_call`, passing
+# This triggers the workflow, which calls the release-capable workflows
+# (linux.yml, mac.yml, src.yml) in release mode via `workflow_call`, passing
 # the tag as the `version` input. Each platform workflow then creates a
 # versioned archive instead of a snapshot artifact.
 #
@@ -90,13 +90,6 @@ jobs:
       version: ${{ github.ref_name }}
     secrets: inherit
 
-  windows:
-    name: Windows
-    uses: ./.github/workflows/windows.yml
-    with:
-      version: ${{ github.ref_name }}
-    secrets: inherit
-
   source:
     name: Source Code
     uses: ./.github/workflows/src.yml
@@ -106,7 +99,7 @@ jobs:
 
   release:
     name: Create GitHub Release
-    needs: [linux, macos, windows, source]
+    needs: [linux, macos, source]
     runs-on: ubuntu-latest
     permissions:
       contents: write

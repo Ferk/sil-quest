@@ -14,10 +14,6 @@ shown below, with some exceptions:
 
 - The sounds are freeware.
 
-- The font files are under the licences noted in
-  [lib/xtra/font/copying.txt](lib/xtra/font/copying.txt),
-  all of which are OSI-compliant.
-
 - Graphics (Microchasm tileset) are provided for non-commercial use 
   within the Sil-Quest project.
 
