@@ -19,6 +19,7 @@
     const mapLoadingStatusEl = document.getElementById("map-loading-status");
     const mapWrapEl = document.querySelector(".map-wrap");
     const mapCanvas = document.getElementById("map");
+    const yesFabEl = document.getElementById("yes-fab");
     const closeFabEl = document.getElementById("close-fab");
     const inventoryFabEl = document.getElementById("inventory-fab");
     const tileActionFabEl = document.getElementById("tile-action-fab");
@@ -497,6 +498,14 @@
       return /\[[^\]]+\]\s*$/.test(prompt) ||
         /\?\s*$/.test(prompt) ||
         /:\s*$/.test(prompt);
+    }
+
+    // Returns whether the top prompt is one of the blocking yes/no confirmations.
+    function isYesNoTopPromptActive() {
+      if (!isInteractiveTopPromptActive()) return false;
+
+      const prompt = String(topPromptText || "").trimEnd();
+      return /\[y\/n(?:\/[^\]]+)?\]\s*$/i.test(prompt);
     }
 
     // Only interactive prompts should keep the last semantic menu visible as context.
@@ -2039,9 +2048,13 @@
 
     // Keeps floating action buttons visually in sync with the current gameplay state.
     function syncFloatingActionButtons(state = null) {
-      if (!actionFabsEl || !inventoryFabEl || !tileActionFabEl || !closeFabEl) return;
+      if (!actionFabsEl || !yesFabEl || !inventoryFabEl || !tileActionFabEl || !closeFabEl) {
+        return;
+      }
 
+      const yesNoPromptActive = isYesNoTopPromptActive();
       const showClose = !compactSideOpen && canUseCloseFab();
+      const showYes = showClose && yesNoPromptActive;
       const showInventory = !compactSideOpen && !showClose && canUseInventoryFab(state);
       const showTileAction = !compactSideOpen && !showClose && canUseTileActionFab(state);
       const showAdjacentActions =
@@ -2054,12 +2067,17 @@
       const anyAdjacentActions = syncAdjacentActionButtons(state, showAdjacentActions);
 
       actionFabsEl.hidden =
-        !showClose && !showInventory && !showTileAction && !anyAdjacentActions;
+        !showYes && !showClose && !showInventory && !showTileAction && !anyAdjacentActions;
+      yesFabEl.hidden = !showYes;
+      yesFabEl.title = "Yes (y)";
+      yesFabEl.setAttribute("aria-label", "Yes");
       inventoryFabEl.hidden = !showInventory;
       tileActionFabEl.hidden = !showTileAction;
       tileActionFabEl.title = `${tileActionLabel} (,)`;
       tileActionFabEl.setAttribute("aria-label", tileActionLabel);
       closeFabEl.hidden = !showClose;
+      closeFabEl.title = yesNoPromptActive ? "No (n)" : "Close (Esc)";
+      closeFabEl.setAttribute("aria-label", yesNoPromptActive ? "No" : "Close");
     }
 
     // Starts automatic travel for one clicked map tile when the gameplay view is idle.
@@ -2401,6 +2419,20 @@
         ev.stopPropagation();
       });
 
+      yesFabEl.addEventListener("pointerdown", (ev) => {
+        ev.stopPropagation();
+      });
+
+      yesFabEl.addEventListener("click", (ev) => {
+        ev.preventDefault();
+        ev.stopPropagation();
+        if (!isYesNoTopPromptActive()) return;
+
+        setCompactSideOpen(false);
+        pushAscii("y".charCodeAt(0));
+        forceRedraw = true;
+      });
+
       inventoryFabEl.addEventListener("click", (ev) => {
         ev.preventDefault();
         ev.stopPropagation();
@@ -2443,7 +2475,7 @@
         if (!canUseCloseFab()) return;
 
         setCompactSideOpen(false);
-        pushAscii(27);
+        pushAscii(isYesNoTopPromptActive() ? "n".charCodeAt(0) : 27);
         forceRedraw = true;
       });
     }
