@@ -1,8 +1,13 @@
-/* File: travel.c */
+/* File: travel.c
+ *
+ * Copyright (c) 2026 Fernando Carmona Varo
+ * This file is part of Sil-Quest.
+ * Licensed under the EUPL, Version 1.2 or subsequent versions of the EUPL 
+ * You may not use this work except in compliance with the Licence.
+ * You may obtain copy of it at: https://joinup.ec.europa.eu/software/page/eupl
+ */
 
 /*
- * Copyright (c) 2026
- *
  * Destination-based automatic travel support.
  *
  * This is currently wired up by the web frontend, but the core logic is kept

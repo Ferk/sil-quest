@@ -1,4 +1,11 @@
-/* File: adjacent-actions.c */
+/* File: adjacent-actions.c
+ *
+ * Copyright (c) 2026 Fernando Carmona Varo
+ * This file is part of Sil-Quest.
+ * Licensed under the EUPL, Version 1.2 or subsequent versions of the EUPL 
+ * You may not use this work except in compliance with the Licence.
+ * You may obtain copy of it at: https://joinup.ec.europa.eu/software/page/eupl
+ */
 
 /*
  * Helpers for exposing adjacent alter actions without prompting for direction.
