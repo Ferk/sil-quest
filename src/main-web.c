@@ -1,8 +1,13 @@
-/* File: main-web.c */
+/* File: main-web.c
+ *
+ * Copyright (c) 2026 Fernando Carmona Varo
+ * This file is part of Sil-Quest.
+ * Licensed under the EUPL, Version 1.2 or subsequent versions of the EUPL
+ * You may not use this work except in compliance with the Licence.
+ * You may obtain copy of it at: https://joinup.ec.europa.eu/software/page/eupl
+ */
 
 /*
- * Copyright (c) 2026
- *
  * This file provides a web frontend for Emscripten builds.
  * It exports per-cell render metadata so JavaScript can render text or tiles.
  */
@@ -138,6 +143,13 @@ static int key_queue[WEB_KEY_QUEUE_SIZE];
 static int key_head = 0;
 static int key_tail = 0;
 
+#define WEB_SOUND_QUEUE_SIZE 64
+#define WEB_SOUND_EVENT_NOISE 0
+
+static int web_sound_queue[WEB_SOUND_QUEUE_SIZE];
+static int web_sound_head = 0;
+static int web_sound_tail = 0;
+
 /* ------------------------------------------------------------------------ */
 /* WASM Export Declarations                                                 */
 /* ------------------------------------------------------------------------ */
@@ -206,6 +218,10 @@ EMSCRIPTEN_KEEPALIVE uintptr_t web_get_log_attrs_ptr(void);
 EMSCRIPTEN_KEEPALIVE int web_get_log_attrs_len(void);
 EMSCRIPTEN_KEEPALIVE uintptr_t web_get_player_state_ptr(void);
 EMSCRIPTEN_KEEPALIVE int web_get_player_state_len(void);
+EMSCRIPTEN_KEEPALIVE int web_get_sound_count(void);
+EMSCRIPTEN_KEEPALIVE uintptr_t web_get_sound_name_ptr(int index);
+EMSCRIPTEN_KEEPALIVE int web_get_sound_name_len(int index);
+EMSCRIPTEN_KEEPALIVE int web_pop_sound_event(void);
 EMSCRIPTEN_KEEPALIVE int web_get_overlay_mode(void);
 EMSCRIPTEN_KEEPALIVE uintptr_t web_get_overlay_text_ptr(void);
 EMSCRIPTEN_KEEPALIVE int web_get_overlay_text_len(void);
@@ -499,6 +515,42 @@ static bool web_key_dequeue(int* key)
     key_tail = (key_tail + 1) % WEB_KEY_QUEUE_SIZE;
 
     return TRUE;
+}
+
+/* ------------------------------------------------------------------------ */
+/* Sound Queue                                                              */
+/* ------------------------------------------------------------------------ */
+
+/* Pushes one sound event into the web-facing queue, dropping the oldest if full. */
+static void web_sound_queue_push(int sound_event)
+{
+    int next_head;
+
+    next_head = (web_sound_head + 1) % WEB_SOUND_QUEUE_SIZE;
+    if (next_head == web_sound_tail)
+        web_sound_tail = (web_sound_tail + 1) % WEB_SOUND_QUEUE_SIZE;
+
+    web_sound_queue[web_sound_head] = sound_event;
+    web_sound_head = next_head;
+}
+
+static void web_queue_sound_event(int sound_event)
+{
+    if ((sound_event <= 0) || (sound_event >= SOUND_MAX))
+        return;
+
+    web_sound_queue_push(sound_event);
+}
+
+static void web_queue_noise_event(void)
+{
+    web_sound_queue_push(WEB_SOUND_EVENT_NOISE);
+}
+
+static void web_clear_sound_events(void)
+{
+    web_sound_head = 0;
+    web_sound_tail = 0;
 }
 
 /* ------------------------------------------------------------------------ */
@@ -1627,6 +1679,8 @@ const char help_web[] =
 static void Term_init_web(term* t)
 {
     (void)t;
+
+    use_sound = arg_sound;
 }
 
 static void Term_nuke_web(term* t)
@@ -1658,6 +1712,7 @@ static void Term_nuke_web(term* t)
     web_fx_cell_count = 0;
     web_fx_cols = 0;
     web_fx_rows = 0;
+    web_clear_sound_events();
 }
 
 /* Process pending input from JS and feed angband's key queue. */
@@ -1753,9 +1808,19 @@ static errr Term_xtra_web(int n, int v)
     case TERM_XTRA_ALIVE:
     case TERM_XTRA_LEVEL:
     case TERM_XTRA_BORED:
+    {
+        return (0);
+    }
+
     case TERM_XTRA_NOISE:
+    {
+        web_queue_noise_event();
+        return (0);
+    }
+
     case TERM_XTRA_SOUND:
     {
+        web_queue_sound_event(v);
         return (0);
     }
 
@@ -2417,6 +2482,45 @@ EMSCRIPTEN_KEEPALIVE int web_travel_to(int y, int x)
 EMSCRIPTEN_KEEPALIVE int web_push_key(int key)
 {
     return web_key_enqueue(key) ? 1 : 0;
+}
+
+EMSCRIPTEN_KEEPALIVE int web_get_sound_count(void)
+{
+    return SOUND_MAX;
+}
+
+EMSCRIPTEN_KEEPALIVE uintptr_t web_get_sound_name_ptr(int index)
+{
+    if ((index < 0) || (index >= SOUND_MAX))
+        return 0;
+
+    return (uintptr_t)(const void*)angband_sound_name[index];
+}
+
+EMSCRIPTEN_KEEPALIVE int web_get_sound_name_len(int index)
+{
+    cptr sound_name;
+
+    if ((index < 0) || (index >= SOUND_MAX))
+        return 0;
+
+    sound_name = angband_sound_name[index];
+    if (!sound_name)
+        return 0;
+
+    return (int)strlen(sound_name);
+}
+
+EMSCRIPTEN_KEEPALIVE int web_pop_sound_event(void)
+{
+    int sound_event;
+
+    if (web_sound_head == web_sound_tail)
+        return -1;
+
+    sound_event = web_sound_queue[web_sound_tail];
+    web_sound_tail = (web_sound_tail + 1) % WEB_SOUND_QUEUE_SIZE;
+    return sound_event;
 }
 
 EMSCRIPTEN_KEEPALIVE uintptr_t web_get_log_text_ptr(void)

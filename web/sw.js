@@ -1,4 +1,4 @@
-const APP_CACHE = "sil-q-web-v2";
+const APP_CACHE = "sil-q-web-v3";
 const APP_ASSETS = [
   "./",
   "./index.html",
@@ -8,6 +8,7 @@ const APP_ASSETS = [
   "./manifest.webmanifest",
   "./icon192.png",
   "./icon512.png",
+  "./assets/bell.flac",
   "./assets/unscii-fantasy.woff",
   "./lib/sil.js",
   "./lib/sil.wasm",

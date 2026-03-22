@@ -150,6 +150,10 @@
       glowChar: 0,
     };
     const utf8Decoder = new TextDecoder("utf-8");
+    const MAX_PENDING_SOUND_EVENTS = 64;
+    const FRONTEND_NOISE_EVENT_ID = 0;
+    const FRONTEND_NOISE_SAMPLE_PATH = "./assets/bell.flac";
+    let soundPlayer = null;
 
     // Disables IndexedDB-backed persistence and clears any related timers.
     function disablePersistFs(reason, error = null) {
@@ -299,6 +303,371 @@
       const end = ptr + len;
       if (ptr < 0 || end > heap.length) return "";
       return utf8Decoder.decode(heap.subarray(ptr, end));
+    }
+
+    // Parses sound.cfg into a map from event name to one or more sample files.
+    function parseSoundConfig(text) {
+      const samplesByName = new Map();
+      let inSoundSection = false;
+
+      for (const rawLine of String(text || "").split(/\r?\n/)) {
+        const line = rawLine.trim();
+        if (!line || line.startsWith("#") || line.startsWith(";")) continue;
+
+        if (line.startsWith("[") && line.endsWith("]")) {
+          inSoundSection = line.slice(1, -1).trim().toLowerCase() === "sound";
+          continue;
+        }
+
+        if (!inSoundSection) continue;
+
+        const eq = line.indexOf("=");
+        if (eq < 0) continue;
+
+        const name = line.slice(0, eq).trim().toLowerCase();
+        const sampleNames = line
+          .slice(eq + 1)
+          .trim()
+          .split(/\s+/)
+          .filter(Boolean);
+
+        if (!name || !sampleNames.length) continue;
+        samplesByName.set(name, sampleNames);
+      }
+
+      return samplesByName;
+    }
+
+    // Wraps browser-specific decodeAudioData variants behind one promise API.
+    function decodeAudioDataCompat(context, arrayBuffer) {
+      return new Promise((resolve, reject) => {
+        const promise = context.decodeAudioData(arrayBuffer, resolve, reject);
+        if (promise && typeof promise.then === "function") {
+          promise.then(resolve, reject);
+        }
+      });
+    }
+
+    class WebSoundPlayer {
+      constructor(module, options) {
+        this.module = module;
+        this.getSoundCount = options.getSoundCount;
+        this.getSoundNamePtr = options.getSoundNamePtr;
+        this.getSoundNameLen = options.getSoundNameLen;
+        this.noiseSamplePath = options.noiseSamplePath || FRONTEND_NOISE_SAMPLE_PATH;
+        this.pendingEvents = [];
+        this.samplePathsByEvent = null;
+        this.samplePathsPromise = null;
+        this.audioContext = null;
+        this.masterGain = null;
+        this.bufferCache = new Map();
+        this.bufferPromiseCache = new Map();
+        this.flushPromise = null;
+        this.unlockHandlersBound = false;
+        this.warnedPaths = new Set();
+      }
+
+      bindUnlockGestures(target = document) {
+        if (
+          this.unlockHandlersBound ||
+          !target ||
+          typeof target.addEventListener !== "function"
+        ) {
+          return;
+        }
+
+        this.unlockHandlersBound = true;
+        const unlock = () => {
+          void this.unlockAudio();
+        };
+
+        target.addEventListener("pointerdown", unlock, {
+          capture: true,
+          passive: true,
+        });
+        target.addEventListener("keydown", unlock, { capture: true });
+      }
+
+      ensureAudioContext() {
+        const AudioContextCtor =
+          globalThis.AudioContext || globalThis.webkitAudioContext;
+        if (!AudioContextCtor) return null;
+
+        if (!this.audioContext) {
+          this.audioContext = new AudioContextCtor();
+          this.masterGain = this.audioContext.createGain();
+          this.masterGain.gain.value = 0.75;
+          this.masterGain.connect(this.audioContext.destination);
+        }
+
+        return this.audioContext;
+      }
+
+      async unlockAudio() {
+        const context = this.ensureAudioContext();
+        if (!context) return false;
+
+        if (context.state === "suspended") {
+          try {
+            await context.resume();
+          } catch (error) {
+            console.warn("Failed to resume web audio:", error);
+            return false;
+          }
+        }
+
+        void this.flushPendingEvents();
+        return context.state === "running";
+      }
+
+      enqueueEvent(eventId) {
+        if (!Number.isInteger(eventId) || eventId < FRONTEND_NOISE_EVENT_ID) return;
+
+        if (this.pendingEvents.length >= MAX_PENDING_SOUND_EVENTS) {
+          this.pendingEvents.shift();
+        }
+
+        this.pendingEvents.push(eventId);
+        void this.flushPendingEvents();
+      }
+
+      async ensureSamplePathsByEvent() {
+        if (this.samplePathsByEvent) return this.samplePathsByEvent;
+        if (this.samplePathsPromise) return this.samplePathsPromise;
+
+        this.samplePathsPromise = this.loadSamplePathsByEvent()
+          .then((pathsByEvent) => {
+            this.samplePathsByEvent = pathsByEvent;
+            return pathsByEvent;
+          })
+          .finally(() => {
+            this.samplePathsPromise = null;
+          });
+
+        return this.samplePathsPromise;
+      }
+
+      async loadSamplePathsByEvent() {
+        const FS = this.module?.FS || globalThis.FS;
+        const heap = this.module?.HEAPU8 || globalThis.HEAPU8;
+        if (
+          !FS ||
+          !heap ||
+          typeof this.getSoundCount !== "function" ||
+          typeof this.getSoundNamePtr !== "function" ||
+          typeof this.getSoundNameLen !== "function"
+        ) {
+          return new Map();
+        }
+
+        let cfgText = "";
+        try {
+          const cfgBytes = FS.readFile("/lib/xtra/sound/sound.cfg");
+          cfgText = typeof cfgBytes === "string"
+            ? cfgBytes
+            : utf8Decoder.decode(cfgBytes);
+        } catch (error) {
+          console.warn("Failed to load /lib/xtra/sound/sound.cfg:", error);
+          return new Map();
+        }
+
+        const samplesByName = parseSoundConfig(cfgText);
+        const pathsByEvent = new Map();
+        const soundCount = Number(this.getSoundCount()) || 0;
+
+        for (let i = 0; i < soundCount; i++) {
+          const namePtr = Number(this.getSoundNamePtr(i)) || 0;
+          const nameLen = Number(this.getSoundNameLen(i)) || 0;
+          const eventName = readUtf8(heap, namePtr, nameLen).trim().toLowerCase();
+          if (!eventName) continue;
+
+          const sampleNames = samplesByName.get(eventName);
+          if (!sampleNames || !sampleNames.length) continue;
+
+          pathsByEvent.set(
+            i,
+            sampleNames.map((sampleName) => `/lib/xtra/sound/${sampleName}`)
+          );
+        }
+
+        return pathsByEvent;
+      }
+
+      async flushPendingEvents() {
+        if (this.flushPromise) return this.flushPromise;
+
+        this.flushPromise = this.runPendingEvents()
+          .finally(() => {
+            this.flushPromise = null;
+          });
+
+        return this.flushPromise;
+      }
+
+      async runPendingEvents() {
+        const context = this.ensureAudioContext();
+        if (!context || context.state !== "running" || !this.pendingEvents.length) {
+          return;
+        }
+
+        const samplePathsByEvent = await this.ensureSamplePathsByEvent();
+        while (this.pendingEvents.length && context.state === "running") {
+          const eventId = this.pendingEvents.shift();
+          if (eventId === FRONTEND_NOISE_EVENT_ID) {
+            await this.playFrontendNoise();
+            continue;
+          }
+
+          const samplePaths = samplePathsByEvent.get(eventId);
+          if (!samplePaths || !samplePaths.length) continue;
+
+          const samplePath =
+            samplePaths[Math.floor(Math.random() * samplePaths.length)];
+          const buffer = await this.loadBuffer(samplePath);
+          if (!buffer) continue;
+
+          this.playBuffer(buffer);
+        }
+      }
+
+      async loadBuffer(path) {
+        if (this.bufferCache.has(path)) {
+          return this.bufferCache.get(path);
+        }
+        if (this.bufferPromiseCache.has(path)) {
+          return this.bufferPromiseCache.get(path);
+        }
+
+        const bufferPromise = this.readAndDecodeBuffer(path)
+          .then((buffer) => {
+            if (buffer) this.bufferCache.set(path, buffer);
+            return buffer;
+          })
+          .finally(() => {
+            this.bufferPromiseCache.delete(path);
+          });
+
+        this.bufferPromiseCache.set(path, bufferPromise);
+        return bufferPromise;
+      }
+
+      async playFrontendNoise() {
+        if (this.noiseSamplePath) {
+          const buffer = await this.loadBuffer(this.noiseSamplePath);
+          if (buffer) {
+            this.playBuffer(buffer);
+            return;
+          }
+        }
+
+        this.playFallbackBeep();
+      }
+
+      async readAndDecodeBuffer(path) {
+        if (typeof path !== "string" || !path) return null;
+
+        if (!path.startsWith("/")) {
+          return this.fetchAndDecodeBuffer(path);
+        }
+
+        const context = this.ensureAudioContext();
+        const FS = this.module?.FS || globalThis.FS;
+        if (!context || !FS) return null;
+
+        let bytes;
+        try {
+          bytes = FS.readFile(path);
+        } catch (error) {
+          if (!this.warnedPaths.has(path)) {
+            this.warnedPaths.add(path);
+            console.warn(`Failed to read sound asset ${path}:`, error);
+          }
+          return null;
+        }
+
+        const audioBytes = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
+        const audioData = audioBytes.buffer.slice(
+          audioBytes.byteOffset,
+          audioBytes.byteOffset + audioBytes.byteLength
+        );
+
+        try {
+          return await decodeAudioDataCompat(context, audioData);
+        } catch (error) {
+          if (!this.warnedPaths.has(path)) {
+            this.warnedPaths.add(path);
+            console.warn(`Failed to decode sound asset ${path}:`, error);
+          }
+          return null;
+        }
+      }
+
+      async fetchAndDecodeBuffer(path) {
+        const context = this.ensureAudioContext();
+        if (!context) return null;
+
+        let response;
+        try {
+          response = await globalThis.fetch(path);
+        } catch (error) {
+          if (!this.warnedPaths.has(path)) {
+            this.warnedPaths.add(path);
+            console.warn(`Failed to fetch sound asset ${path}:`, error);
+          }
+          return null;
+        }
+
+        if (!response.ok) {
+          if (!this.warnedPaths.has(path)) {
+            this.warnedPaths.add(path);
+            console.warn(`Failed to fetch sound asset ${path}: HTTP ${response.status}`);
+          }
+          return null;
+        }
+
+        try {
+          return await decodeAudioDataCompat(context, await response.arrayBuffer());
+        } catch (error) {
+          if (!this.warnedPaths.has(path)) {
+            this.warnedPaths.add(path);
+            console.warn(`Failed to decode sound asset ${path}:`, error);
+          }
+          return null;
+        }
+      }
+
+      playBuffer(buffer) {
+        if (!this.audioContext || !this.masterGain) return;
+
+        const source = this.audioContext.createBufferSource();
+        source.buffer = buffer;
+        source.connect(this.masterGain);
+        source.start();
+      }
+
+      playFallbackBeep() {
+        const context = this.ensureAudioContext();
+        if (!context || !this.masterGain) return;
+
+        const oscillator = context.createOscillator();
+        const gain = context.createGain();
+        const startedAt = context.currentTime;
+
+        oscillator.type = "triangle";
+        oscillator.frequency.setValueAtTime(880, startedAt);
+        gain.gain.setValueAtTime(0.0001, startedAt);
+        gain.gain.exponentialRampToValueAtTime(0.12, startedAt + 0.01);
+        gain.gain.exponentialRampToValueAtTime(0.0001, startedAt + 0.18);
+
+        oscillator.connect(gain);
+        gain.connect(this.masterGain);
+        oscillator.start(startedAt);
+        oscillator.stop(startedAt + 0.2);
+      }
+    }
+
+    function createWebSoundPlayer(options) {
+      return new WebSoundPlayer(options.module, options);
     }
 
     // Escapes plain text for safe HTML rendering inside semantic overlays.
@@ -1760,6 +2129,8 @@
     function render() {
       if (!api) return;
 
+      syncSoundPlayback();
+
       const now = performance.now();
       const mapFxActive = updateMapFxWindow(now);
       const frameId = api.getFrameId();
@@ -1838,6 +2209,17 @@
     function pushAscii(code) {
       if (!api) return;
       api.pushKey(code & 0xff);
+    }
+
+    // Drains any queued engine sound events into the browser audio player.
+    function syncSoundPlayback() {
+      if (!api || !soundPlayer || typeof api.popSoundEvent !== "function") return;
+
+      for (;;) {
+        const eventId = Number(api.popSoundEvent());
+        if (!Number.isInteger(eventId) || eventId < 0) break;
+        soundPlayer.enqueueEvent(eventId);
+      }
     }
 
     // Converts a client-space pointer position into one map cell and world-grid location.
@@ -2711,6 +3093,7 @@
       locateFile: (path) => `./lib/${path}`,
       arguments: [
         "-mweb",
+        "-a",
         "-g",
         `-da=${PERSIST_APEX_DIR}`,
         `-ds=${PERSIST_SAVE_DIR}`,
@@ -2929,6 +3312,22 @@
           getModalAttrsLen: Module._web_get_modal_attrs_len,
           getModalDismissKey: Module._web_get_modal_dismiss_key,
           getModalRevision: Module._web_get_modal_revision,
+          getSoundCount:
+            typeof Module._web_get_sound_count === "function"
+              ? Module._web_get_sound_count
+              : null,
+          getSoundNamePtr:
+            typeof Module._web_get_sound_name_ptr === "function"
+              ? Module._web_get_sound_name_ptr
+              : null,
+          getSoundNameLen:
+            typeof Module._web_get_sound_name_len === "function"
+              ? Module._web_get_sound_name_len
+              : null,
+          popSoundEvent:
+            typeof Module._web_pop_sound_event === "function"
+              ? Module._web_pop_sound_event
+              : null,
           menuHover: Module._web_menu_hover,
           menuActivate: Module._web_menu_activate,
           modalActivate: Module._web_modal_activate,
@@ -2940,6 +3339,20 @@
         tileW = tileSrcW * MAP_TILE_SCALE;
         tileH = tileSrcH * MAP_TILE_SCALE;
         refreshLayoutMetadata(api.getCols(), api.getRows());
+        if (
+          typeof api.getSoundCount === "function" &&
+          typeof api.getSoundNamePtr === "function" &&
+          typeof api.getSoundNameLen === "function"
+        ) {
+          soundPlayer = createWebSoundPlayer({
+            module: Module,
+            getSoundCount: api.getSoundCount,
+            getSoundNamePtr: api.getSoundNamePtr,
+            getSoundNameLen: api.getSoundNameLen,
+            noiseSamplePath: FRONTEND_NOISE_SAMPLE_PATH,
+          });
+          soundPlayer.bindUnlockGestures(document);
+        }
 
         setStatusText("Running (-mweb). Tap or click the map to travel. Pinch or wheel to zoom. The backpack button opens inventory.");
         bindInput();

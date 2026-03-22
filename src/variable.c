@@ -241,36 +241,36 @@ byte angband_color_table[256][4] = {
  * Standard sound (and message) names
  */
 const cptr angband_sound_name[SOUND_MAX] = {
-    "",
-    "hit",
-    "miss",
-    "flee",
-    "drop",
-    "kill",
-    "level",
-    "death",
-    "study",
-    "teleport",
-    "shoot",
-    "quaff",
-    "zap",
-    "walk",
-    "tpother",
-    "hitwall",
-    "eat",
-    "store1",
-    "store2",
-    "store3",
-    "store4",
-    "dig",
-    "opendoor",
-    "shutdoor",
-    "tplevel",
-    "bell",
-    "nothing_to_open",
-    "lockpick_fail",
-    "stairs",
-    "hitpoint_warn",
+    "",               /*  0: reserved empty slot */
+    "hit",            /*  1: melee hit messages (cmd1.c) */
+    "miss",           /*  2: melee miss messages (cmd1.c) */
+    "flee",           /*  3: monster fear/cower messages (spells1.c) */
+    "drop",           /*  4: dropping an item (object2.c) */
+    "kill",           /*  5: kill/slay/destroy messages (xtra2.c) */
+    "level",          /*  6: currently unused; reserved for level-up */
+    "death",          /*  7: player death message (spells1.c) */
+    "study",          /*  8: obsolete study slot; unused */
+    "teleport",       /*  9: player/self teleport effects (spells1.c) */
+    "shoot",          /* 10: firing/shooting actions (cmd2.c) */
+    "quaff",          /* 11: quaffing a potion (cmd6.c) */
+    "zap",            /* 12: zapping/activating items (cmd6.c, use-obj.c) */
+    "walk",           /* 13: currently unused; walk sound call is commented out */
+    "tpother",        /* 14: teleport-other effects (spells1.c) */
+    "hitwall",        /* 15: bumping into walls or blocked terrain (cmd1.c) */
+    "eat",            /* 16: eating food/herbs (cmd6.c) */
+    "store1",         /* 17: old store sound slot; unused */
+    "store2",         /* 18: old store sound slot; unused */
+    "store3",         /* 19: old store sound slot; unused */
+    "store4",         /* 20: old store sound slot; unused */
+    "dig",            /* 21: digging through terrain (cmd2.c) */
+    "opendoor",       /* 22: opening/unlocking/crashing doors open (cmd2.c) */
+    "shutdoor",       /* 23: shutting a door (cmd2.c) */
+    "tplevel",        /* 24: teleporting between dungeon levels (spells1.c) */
+    "bell",           /* 25: warning bell slot; current bell path uses TERM_XTRA_NOISE */
+    "nothing_to_open",/* 26: trying to open with nothing there (cmd2.c) */
+    "lockpick_fail",  /* 27: failed lockpick/open attempt (cmd2.c) */
+    "stairs",         /* 28: stair and stair-maze travel messages (cmd2.c) */
+    "hitpoint_warn",  /* 29: low hitpoint warning message (spells1.c) */
 };
 
 /*
