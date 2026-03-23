@@ -117,34 +117,6 @@ static bool travel_tile_passable(int y, int x)
     return TRUE;
 }
 
-/* Returns whether one known terrain tile is solid enough to block a diagonal. */
-static bool travel_tile_solid_known(int y, int x)
-{
-    if (!travel_tile_known(y, x))
-        return FALSE;
-
-    if (cave_known_closed_door_bold(y, x))
-        return FALSE;
-
-    if (!cave_floor_bold(y, x) || (cave_feat[y][x] == FEAT_CHASM))
-        return TRUE;
-
-    if (cave_trap_bold(y, x) && !cave_floorlike_bold(y, x))
-        return TRUE;
-
-    return FALSE;
-}
-
-/* Returns whether a diagonal step would clip through two solid known corners. */
-static bool travel_diagonal_blocked(int y, int x, int dir)
-{
-    if ((ddy[dir] == 0) || (ddx[dir] == 0))
-        return FALSE;
-
-    return travel_tile_solid_known(y + ddy[dir], x)
-        && travel_tile_solid_known(y, x + ddx[dir]);
-}
-
 /* Returns the planner cost for stepping onto one destination tile. */
 static int travel_tile_route_cost(int y, int x)
 {
@@ -178,9 +150,6 @@ static int travel_step_route_cost(int y, int x, int dir)
     if (!in_bounds(ny, nx))
         return -1;
 
-    if (travel_diagonal_blocked(y, x, dir))
-        return -1;
-
     return travel_tile_route_cost(ny, nx);
 }
 
@@ -191,9 +160,6 @@ static bool travel_step_actionable(int y, int x, int dir)
     int nx = x + ddx[dir];
 
     if (!in_bounds(ny, nx))
-        return FALSE;
-
-    if (travel_diagonal_blocked(y, x, dir))
         return FALSE;
 
     if ((cave_m_idx[ny][nx] > 0) && mon_list[cave_m_idx[ny][nx]].ml)
@@ -321,6 +287,23 @@ static int travel_heap_score_at(int y, int x, int target_y, int target_x)
     return travel_cost[y][x] + travel_estimate_cost(y, x, target_y, target_x);
 }
 
+/* Returns whether one queued travel node should win against another. */
+static bool travel_heap_node_better(int ay, int ax, int by, int bx, int target_y,
+    int target_x)
+{
+    int a_score = travel_heap_score_at(ay, ax, target_y, target_x);
+    int b_score = travel_heap_score_at(by, bx, target_y, target_x);
+
+    if (a_score != b_score)
+        return a_score < b_score;
+
+    /* On equal f-cost, prefer the node that is already closer to the target. */
+    a_score = travel_target_score(ay, ax, target_y, target_x);
+    b_score = travel_target_score(by, bx, target_y, target_x);
+
+    return a_score < b_score;
+}
+
 /* Swaps two entries in the travel open-set heap. */
 static void travel_heap_swap(int a, int b)
 {
@@ -342,13 +325,12 @@ static void travel_heap_sift_up(int index, int target_y, int target_x)
     while (index > 0)
     {
         int parent = (index - 1) / 2;
-        int score = travel_heap_score_at(travel_queue_y[index],
-            travel_queue_x[index], target_y, target_x);
-        int parent_score = travel_heap_score_at(travel_queue_y[parent],
-            travel_queue_x[parent], target_y, target_x);
-
-        if (parent_score <= score)
+        if (!travel_heap_node_better(travel_queue_y[index],
+                travel_queue_x[index], travel_queue_y[parent],
+                travel_queue_x[parent], target_y, target_x))
+        {
             break;
+        }
 
         travel_heap_swap(index, parent);
         index = parent;
@@ -364,26 +346,20 @@ static void travel_heap_sift_down(int index, int target_y, int target_x)
         int right = left + 1;
         int best = index;
 
-        if (left < travel_queue_size)
+        if ((left < travel_queue_size)
+            && travel_heap_node_better(travel_queue_y[left],
+                travel_queue_x[left], travel_queue_y[best],
+                travel_queue_x[best], target_y, target_x))
         {
-            int left_score = travel_heap_score_at(travel_queue_y[left],
-                travel_queue_x[left], target_y, target_x);
-            int best_score = travel_heap_score_at(travel_queue_y[best],
-                travel_queue_x[best], target_y, target_x);
-
-            if (left_score < best_score)
-                best = left;
+            best = left;
         }
 
-        if (right < travel_queue_size)
+        if ((right < travel_queue_size)
+            && travel_heap_node_better(travel_queue_y[right],
+                travel_queue_x[right], travel_queue_y[best],
+                travel_queue_x[best], target_y, target_x))
         {
-            int right_score = travel_heap_score_at(travel_queue_y[right],
-                travel_queue_x[right], target_y, target_x);
-            int best_score = travel_heap_score_at(travel_queue_y[best],
-                travel_queue_x[best], target_y, target_x);
-
-            if (right_score < best_score)
-                best = right;
+            best = right;
         }
 
         if (best == index)
@@ -538,8 +514,6 @@ static bool travel_try_direct_step(int target_y, int target_x)
         x = p_ptr->px + ddx[dir];
 
         if (!in_bounds(y, x))
-            continue;
-        if (travel_diagonal_blocked(p_ptr->py, p_ptr->px, dir))
             continue;
 
         if (travel_tile_passable(y, x))
