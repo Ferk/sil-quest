@@ -9,6 +9,7 @@
  */
 
 #include "angband.h"
+#include "ui-marks.h"
 #include "ui-model.h"
 
 #ifdef SET_UID
@@ -1905,7 +1906,9 @@ char inkey(void)
 
     /* Show the cursor if waiting, except sometimes in "command" mode */
     if (!inkey_scan
-        && (!inkey_flag || hilite_player || (hilite_target && target_sighted())
+        && (!inkey_flag || hilite_player
+            || (hilite_target && ui_marks_should_highlight_target()
+                && target_sighted())
             || character_icky)
         && !hide_cursor)
     {
@@ -2726,7 +2729,8 @@ static void msg_flush(int x)
     /* Place the cursor on the player or target */
     if (hilite_player)
         move_cursor_relative(p_ptr->py, p_ptr->px);
-    if (hilite_target && target_sighted())
+    if (hilite_target && ui_marks_should_highlight_target()
+        && target_sighted())
         move_cursor_relative(p_ptr->target_row, p_ptr->target_col);
 
     if (!auto_more)
@@ -3892,6 +3896,7 @@ bool get_com(cptr prompt, char* command)
 
     /* Display a prompt */
     prt(prompt, 0, 0);
+    ui_marks_place_target_cursor();
 
     /* Get a key */
     ch = inkey();

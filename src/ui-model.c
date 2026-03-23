@@ -36,6 +36,7 @@ static int ui_menu_details_width = 0;
 static int ui_menu_details_visual_kind = UI_MENU_VISUAL_NONE;
 static int ui_menu_details_visual_attr = TERM_WHITE;
 static int ui_menu_details_visual_char = 0;
+static bool ui_menu_snapshot_keep = TRUE;
 static unsigned int ui_modal_revision = 1;
 static char ui_modal_text[UI_MENU_TEXT_MAX];
 static byte ui_modal_attrs[UI_MENU_TEXT_MAX];
@@ -310,6 +311,7 @@ int ui_simple_menu_read_action(
 void ui_menu_begin(void)
 {
     ui_menu_reset_state();
+    ui_menu_snapshot_keep = TRUE;
     ui_menu_touch();
 }
 
@@ -447,6 +449,18 @@ void ui_menu_clear(void)
 {
     ui_menu_reset_state();
     ui_menu_touch();
+}
+
+/* Controls whether the last menu may remain visible during follow-up prompts. */
+void ui_menu_set_snapshot_retained(bool retained)
+{
+    ui_menu_snapshot_keep = retained ? TRUE : FALSE;
+}
+
+/* Returns whether follow-up prompts may reuse the last rendered menu. */
+bool ui_menu_snapshot_retained(void)
+{
+    return ui_menu_snapshot_keep;
 }
 
 /* Returns the current semantic menu item array. */

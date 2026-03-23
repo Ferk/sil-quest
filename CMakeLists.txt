@@ -175,7 +175,7 @@ set(SIL_SOURCES
     src/tables.c
     src/ui-item-select.c
     src/ui-inventory.c
-    src/ui-map-marks.c
+    src/ui-marks.c
     src/ui-model.c
     src/use-obj.c
     src/util.c

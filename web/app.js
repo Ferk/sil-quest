@@ -22,6 +22,8 @@
     const yesFabEl = document.getElementById("yes-fab");
     const closeFabEl = document.getElementById("close-fab");
     const inventoryFabEl = document.getElementById("inventory-fab");
+    const rangedFabEl = document.getElementById("ranged-fab");
+    const rangedFabVisualEl = document.getElementById("ranged-fab-visual");
     const songFabWrapEl = document.getElementById("song-fab-wrap");
     const songFabEl = document.getElementById("song-fab");
     const songFabLabelEl = document.getElementById("song-fab-label");
@@ -72,6 +74,7 @@
     const MAP_MIN_ZOOM = 0.5;
     const MAP_FOLLOW_EDGE_RATIO = 0.30;
     const MAP_CLICK_DRAG_THRESHOLD = 8;
+    const TARGET_MARK_ALPHA = 0.5;
 
     const WEB_FLAG_ALERT = 0x01;
     const WEB_FLAG_GLOW = 0x02;
@@ -112,6 +115,7 @@
     let playerFacingRight = 0;
     let fxDelaySeq = -1;
     let fxOverlayUntil = 0;
+    let lastMapFxActive = false;
     let forceRedraw = true;
     let mapZoomSettings = computeMapZoomSettings();
     let mapZoom = mapZoomSettings.defaultZoom;
@@ -880,9 +884,25 @@
       return /\[y\/n(?:\/[^\]]+)?\]\s*$/i.test(prompt);
     }
 
+    // Returns whether the top prompt represents an active target-preview state.
+    function isTargetPreviewTopPromptActive() {
+      if (!isInteractiveTopPromptActive()) return false;
+
+      const prompt = String(topPromptText || "").trimEnd();
+      return /\(t\)arget/i.test(prompt) && /<dir>/i.test(prompt);
+    }
+
     // Only interactive prompts should keep the last semantic menu visible as context.
     function shouldKeepSemanticMenuSnapshot() {
       if (!semanticMenuSnapshot || activeMenuItems.length) {
+        return false;
+      }
+
+      if (
+        api &&
+        typeof api.getMenuSnapshotRetained === "function" &&
+        !api.getMenuSnapshotRetained()
+      ) {
         return false;
       }
 
@@ -1096,6 +1116,47 @@
       };
     }
 
+    // Builds the current presentation state for the floating ranged-weapon button.
+    function getRangedFabState(state = null) {
+      const visible = !!state && Number(state.rangedActionVisible ?? 0) === 1;
+      const label = String(state?.rangedActionLabel || "").trim();
+      const ready = !!state && Number(state.rangedActionReady ?? 0) === 1;
+      const quiver = Number(state?.rangedActionQuiver ?? 0);
+      const quiverLabel = quiver === 2 ? "2nd quiver" : "1st quiver";
+      const visual = visible
+        ? normalizeMenuItemVisual(
+            Number(state?.rangedActionVisualKind ?? 0),
+            Number(state?.rangedActionVisualAttr ?? 0),
+            Number(state?.rangedActionVisualChar ?? 0)
+          )
+        : null;
+      let title = "Aim and fire";
+      let ariaLabel = "Aim and fire";
+
+      if (label) {
+        title = `Aim and fire with ${label}`;
+        ariaLabel = `Aim and fire with ${label}`;
+      }
+
+      if (ready) {
+        title = `${title} (${quiverLabel})`;
+        ariaLabel = `${ariaLabel} using the ${quiverLabel}`;
+      } else if (visible) {
+        title = label
+          ? `${label} ready, but no arrows are loaded`
+          : "No arrows are loaded";
+        ariaLabel = title;
+      }
+
+      return {
+        visible,
+        ready,
+        title,
+        ariaLabel,
+        visual,
+      };
+    }
+
     /* ==========================================================================
      * Tile And Sprite Helpers
      * Converts cell metadata into canvas draw calls and actor-facing metadata.
@@ -1157,6 +1218,11 @@
         tileH
       );
       ctx.restore();
+    }
+
+    // Reports whether one attr/char pair encodes a tileset pict rather than plain text.
+    function isTileAttrChar(attr, chr) {
+      return ((attr & 0x80) !== 0) && ((chr & 0x80) !== 0);
     }
 
     // Draws the optional semantic details visual shown beside menu copy.
@@ -1762,7 +1828,16 @@
           }
 
           if ((cell.flags & WEB_FLAG_MARK) !== 0) {
-            drawAsciiAttrChar(cell.textAttr, cell.textChar, x, y);
+            ctx.save();
+            ctx.globalAlpha = TARGET_MARK_ALPHA;
+            if (tileImageReady && isTileAttrChar(cell.textAttr, cell.textChar)) {
+              drawTileByAttrChar(cell.textAttr, cell.textChar, x, y);
+            } else if (isTileAttrChar(cell.textAttr, cell.textChar)) {
+              drawAsciiAttrChar(1, 42, x, y);
+            } else {
+              drawAsciiAttrChar(cell.textAttr, cell.textChar, x, y);
+            }
+            ctx.restore();
           }
         }
       }
@@ -2175,6 +2250,7 @@
 
       const now = performance.now();
       const mapFxActive = updateMapFxWindow(now);
+      const mapFxStateChanged = mapFxActive !== lastMapFxActive;
       const frameId = api.getFrameId();
       const menuRevision =
         typeof api.getMenuRevision === "function" ? api.getMenuRevision() : 0;
@@ -2185,6 +2261,7 @@
         frameId === lastFrameId &&
         menuRevision === lastMenuRevision &&
         modalRevision === lastModalRevision &&
+        !mapFxStateChanged &&
         !mapFxActive
       ) {
         return;
@@ -2193,6 +2270,7 @@
       lastFrameId = frameId;
       lastMenuRevision = menuRevision;
       lastModalRevision = modalRevision;
+      lastMapFxActive = mapFxActive;
 
       const cols = api.getCols();
       const rows = api.getRows();
@@ -2317,6 +2395,16 @@
         typeof api.openInventory === "function" &&
         !!state &&
         Number(state.ready) === 1 &&
+        isGameplayViewIdle();
+    }
+
+    // Returns whether the floating ranged-action button should currently be enabled.
+    function canUseRangedFab(state = null) {
+      return !!api &&
+        typeof api.openRangedTarget === "function" &&
+        !!state &&
+        Number(state.rangedActionReady ?? 0) === 1 &&
+        Number(state.rangedActionVisible) === 1 &&
         isGameplayViewIdle();
     }
 
@@ -2481,14 +2569,16 @@
 
     // Keeps floating action buttons visually in sync with the current gameplay state.
     function syncFloatingActionButtons(state = null) {
-      if (!actionFabsEl || !yesFabEl || !inventoryFabEl || !songFabWrapEl || !songFabEl || !songFabLabelEl || !tileActionFabEl || !closeFabEl) {
+      if (!actionFabsEl || !yesFabEl || !inventoryFabEl || !rangedFabEl || !rangedFabVisualEl || !songFabWrapEl || !songFabEl || !songFabLabelEl || !tileActionFabEl || !closeFabEl) {
         return;
       }
 
       const yesNoPromptActive = isYesNoTopPromptActive();
+      const targetPreviewPromptActive = isTargetPreviewTopPromptActive();
       const showClose = !compactSideOpen && canUseCloseFab();
-      const showYes = showClose && yesNoPromptActive;
+      const showYes = showClose && (yesNoPromptActive || targetPreviewPromptActive);
       const showInventory = !compactSideOpen && !showClose && canUseInventoryFab(state);
+      const showRanged = !compactSideOpen && !showClose && canUseRangedFab(state);
       const showSong = !compactSideOpen && !showClose && canUseSongFab(state);
       const showTileAction = !compactSideOpen && !showClose && canUseTileActionFab(state);
       const showAdjacentActions =
@@ -2496,17 +2586,25 @@
       const tileActionLabel = state && Number(state.tileActionVisible) === 1
         ? String(state.tileActionLabel || "Act here")
         : "Act here";
+      const rangedFabState = getRangedFabState(state);
       const songFabState = getSongFabState(state);
 
       renderTileActionFabVisual(state);
+      renderActionFabVisual(rangedFabVisualEl, showRanged ? rangedFabState.visual : null);
       const anyAdjacentActions = syncAdjacentActionButtons(state, showAdjacentActions);
 
       actionFabsEl.hidden =
-        !showYes && !showClose && !showInventory && !showSong && !showTileAction && !anyAdjacentActions;
+        !showYes && !showClose && !showInventory && !showRanged && !showSong && !showTileAction && !anyAdjacentActions;
       yesFabEl.hidden = !showYes;
-      yesFabEl.title = "Yes (y)";
-      yesFabEl.setAttribute("aria-label", "Yes");
+      yesFabEl.title = yesNoPromptActive ? "Yes (y)" : "Confirm target (Enter)";
+      yesFabEl.setAttribute(
+        "aria-label",
+        yesNoPromptActive ? "Yes" : "Confirm target"
+      );
       inventoryFabEl.hidden = !showInventory;
+      rangedFabEl.hidden = !showRanged;
+      rangedFabEl.title = rangedFabState.title;
+      rangedFabEl.setAttribute("aria-label", rangedFabState.ariaLabel);
       songFabWrapEl.hidden = !showSong;
       songFabEl.title = songFabState.title;
       songFabEl.setAttribute("aria-label", songFabState.ariaLabel);
@@ -2517,8 +2615,15 @@
       tileActionFabEl.title = `${tileActionLabel} (,)`;
       tileActionFabEl.setAttribute("aria-label", tileActionLabel);
       closeFabEl.hidden = !showClose;
-      closeFabEl.title = yesNoPromptActive ? "No (n)" : "Close (Esc)";
-      closeFabEl.setAttribute("aria-label", yesNoPromptActive ? "No" : "Close");
+      closeFabEl.title = yesNoPromptActive
+        ? "No (n)"
+        : targetPreviewPromptActive
+          ? "Cancel target (Esc)"
+          : "Close (Esc)";
+      closeFabEl.setAttribute(
+        "aria-label",
+        yesNoPromptActive ? "No" : targetPreviewPromptActive ? "Cancel target" : "Close"
+      );
     }
 
     // Starts automatic travel for one clicked map tile when the gameplay view is idle.
@@ -2528,6 +2633,19 @@
       const hit = clientPointToMapWorld(clientX, clientY);
       if (!hit) return false;
       if (!api.travelTo(hit.worldY, hit.worldX)) return false;
+
+      hoveredMenuIndex = -1;
+      forceRedraw = true;
+      return true;
+    }
+
+    // Moves an active targeting prompt to one tapped map grid when the backend supports it.
+    function tryMapTargetAtClientPoint(clientX, clientY) {
+      if (!api || typeof api.targetMap !== "function") return false;
+
+      const hit = clientPointToMapWorld(clientX, clientY);
+      if (!hit) return false;
+      if (!api.targetMap(hit.worldY, hit.worldX)) return false;
 
       hoveredMenuIndex = -1;
       forceRedraw = true;
@@ -2783,13 +2901,22 @@
       document.addEventListener("keydown", (ev) => {
         if (!api) return;
         if (isEditableTarget(ev.target)) return;
-        const keyCode = mapKeyEventToAscii(ev);
 
         if (morePromptActive) {
+          const keyCode = mapKeyEventToAscii(ev);
           advanceMorePrompt(keyCode);
           ev.preventDefault();
           return;
         }
+
+        if (ev.key === "Enter" && isTargetPreviewTopPromptActive()) {
+          pushAscii("t".charCodeAt(0));
+          forceRedraw = true;
+          ev.preventDefault();
+          return;
+        }
+
+        const keyCode = mapKeyEventToAscii(ev);
 
         if (keyCode !== null) {
           pushAscii(keyCode);
@@ -2860,6 +2987,10 @@
         ev.stopPropagation();
       });
 
+      rangedFabEl.addEventListener("pointerdown", (ev) => {
+        ev.stopPropagation();
+      });
+
       yesFabEl.addEventListener("pointerdown", (ev) => {
         ev.stopPropagation();
       });
@@ -2867,10 +2998,14 @@
       yesFabEl.addEventListener("click", (ev) => {
         ev.preventDefault();
         ev.stopPropagation();
-        if (!isYesNoTopPromptActive()) return;
+        const yesNoPromptActive = isYesNoTopPromptActive();
+        const targetPreviewPromptActive = isTargetPreviewTopPromptActive();
+        if (!yesNoPromptActive && !targetPreviewPromptActive) return;
 
         setCompactSideOpen(false);
-        pushAscii("y".charCodeAt(0));
+        pushAscii(
+          yesNoPromptActive ? "y".charCodeAt(0) : "t".charCodeAt(0)
+        );
         forceRedraw = true;
       });
 
@@ -2883,6 +3018,20 @@
 
         setCompactSideOpen(false);
         if (api.openInventory()) {
+          hoveredMenuIndex = -1;
+          forceRedraw = true;
+        }
+      });
+
+      rangedFabEl.addEventListener("click", (ev) => {
+        ev.preventDefault();
+        ev.stopPropagation();
+        const heap = getHeapU8();
+        const state = heap ? readPlayerState(heap) : null;
+        if (!canUseRangedFab(state)) return;
+
+        setCompactSideOpen(false);
+        if (api.openRangedTarget()) {
           hoveredMenuIndex = -1;
           forceRedraw = true;
         }
@@ -3090,7 +3239,7 @@
         mouseClickPointerId = null;
         mouseClickEligible = false;
 
-        if (eligible) {
+        if (eligible && !tryMapTargetAtClientPoint(ev.clientX, ev.clientY)) {
           tryMapTravelAtClientPoint(ev.clientX, ev.clientY);
         }
       };
@@ -3100,7 +3249,7 @@
         touchTapPointerId = null;
         touchTapEligible = false;
 
-        if (eligible) {
+        if (eligible && !tryMapTargetAtClientPoint(clientX, clientY)) {
           tryMapTravelAtClientPoint(clientX, clientY);
         }
       };
@@ -3277,6 +3426,7 @@
           typeof Module._web_get_menu_text_len === "function" &&
           typeof Module._web_get_menu_attrs_ptr === "function" &&
           typeof Module._web_get_menu_attrs_len === "function" &&
+          typeof Module._web_get_menu_snapshot_retained === "function" &&
           typeof Module._web_get_menu_details_ptr === "function" &&
           typeof Module._web_get_menu_details_len === "function" &&
           typeof Module._web_get_menu_details_attrs_ptr === "function" &&
@@ -3328,9 +3478,17 @@
             typeof Module._web_open_inventory === "function"
               ? Module._web_open_inventory
               : null,
+          openRangedTarget:
+            typeof Module._web_open_ranged_target === "function"
+              ? Module._web_open_ranged_target
+              : null,
           openSongMenu:
             typeof Module._web_open_song_menu === "function"
               ? Module._web_open_song_menu
+              : null,
+          targetMap:
+            typeof Module._web_target_map === "function"
+              ? Module._web_target_map
               : null,
           travelTo:
             typeof Module._web_travel_to === "function"
@@ -3367,6 +3525,7 @@
           getMenuAttrsLen: Module._web_get_menu_attrs_len,
           getMenuActiveX: Module._web_get_menu_active_x,
           getMenuRevision: Module._web_get_menu_revision,
+          getMenuSnapshotRetained: Module._web_get_menu_snapshot_retained,
           getMenuDetailsPtr: Module._web_get_menu_details_ptr,
           getMenuDetailsLen: Module._web_get_menu_details_len,
           getMenuDetailsAttrsPtr: Module._web_get_menu_details_attrs_ptr,

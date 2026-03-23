@@ -9,6 +9,7 @@
  */
 
 #include "angband.h"
+#include "ui-marks.h"
 
 /*
  * Determines the shallowest a player is allowed to go.
@@ -3769,9 +3770,16 @@ void do_cmd_fire(int quiver)
         return;
     }
 
+    ui_marks_prepare_fire_projectile_visual(o_ptr);
+
     /* Get a direction (or cancel) */
     if (!get_aim_dir(&dir, tdis))
+    {
+        ui_marks_clear_projectile_visual();
         return;
+    }
+
+    ui_marks_clear_projectile_visual();
 
     /* Start at the player */
     y = p_ptr->py;
@@ -3908,12 +3916,11 @@ void do_cmd_fire(int quiver)
                     /* Only do visuals if the player can "see" the missile */
                     if (panel_contains(ny, nx))
                     {
-                        /* Obtain the bolt pict */
-                        u16b p = bolt_pict(y, x, y, x, GF_ARROW);
+                        byte a;
+                        char c;
 
-                        /* Extract attr/char */
-                        byte a = PICT_A(p);
-                        char c = PICT_C(p);
+                        ui_marks_resolve_fire_impact_visual(
+                            GF_ARROW, &a, &c);
 
                         /* Display the visual effects */
                         print_rel(c, a, ny, nx);
@@ -4701,8 +4708,18 @@ void do_cmd_throw(bool automatic)
     }
 
     // Otherwise get a direction (or cancel) */
-    else if (!get_aim_dir(&dir, tdis))
-        return;
+    else
+    {
+        ui_marks_prepare_throw_projectile_visual(o_ptr);
+
+        if (!get_aim_dir(&dir, tdis))
+        {
+            ui_marks_clear_projectile_visual();
+            return;
+        }
+
+        ui_marks_clear_projectile_visual();
+    }
 
     /* Take off equipment first */
     if (item >= INVEN_WIELD)
@@ -4863,8 +4880,12 @@ void do_cmd_throw(bool automatic)
             /* Only do visuals if the player can "see" the missile */
             if (panel_contains(ny, nx))
             {
-                /* Visual effects */
-                print_rel('*', TERM_L_WHITE, ny, nx);
+                byte a;
+                char c;
+
+                ui_marks_resolve_throw_impact_visual(
+                    GF_ARROW, &a, &c);
+                print_rel(c, a, ny, nx);
                 move_cursor_relative(ny, nx);
                 Term_fresh();
                 Term_xtra(TERM_XTRA_DELAY, 25 * op_ptr->delay_factor);

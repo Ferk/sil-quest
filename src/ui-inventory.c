@@ -831,6 +831,7 @@ static int ui_inventory_action_menu(int item)
 /* Restores the pre-inventory screen state before running a real command. */
 static void ui_inventory_finish_menu(void)
 {
+    ui_menu_set_snapshot_retained(FALSE);
     ui_menu_clear();
     ui_clear_preselected_item();
     ui_inventory_can_wear_hook = NULL;

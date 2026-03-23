@@ -17,7 +17,7 @@
 #ifdef USE_WEB
 
 #include "main.h"
-#include "ui-map-marks.h"
+#include "ui-marks.h"
 #include "ui-model.h"
 
 #include <stdint.h>
@@ -178,6 +178,7 @@ EMSCRIPTEN_KEEPALIVE uintptr_t web_get_menu_attrs_ptr(void);
 EMSCRIPTEN_KEEPALIVE int web_get_menu_attrs_len(void);
 EMSCRIPTEN_KEEPALIVE int web_get_menu_active_x(void);
 EMSCRIPTEN_KEEPALIVE unsigned int web_get_menu_revision(void);
+EMSCRIPTEN_KEEPALIVE int web_get_menu_snapshot_retained(void);
 EMSCRIPTEN_KEEPALIVE uintptr_t web_get_menu_details_ptr(void);
 EMSCRIPTEN_KEEPALIVE int web_get_menu_details_len(void);
 EMSCRIPTEN_KEEPALIVE uintptr_t web_get_menu_details_attrs_ptr(void);
@@ -201,7 +202,9 @@ EMSCRIPTEN_KEEPALIVE int web_get_cursor_visible(void);
 EMSCRIPTEN_KEEPALIVE int web_act_here(void);
 EMSCRIPTEN_KEEPALIVE int web_act_adjacent(int dir);
 EMSCRIPTEN_KEEPALIVE int web_open_inventory(void);
+EMSCRIPTEN_KEEPALIVE int web_open_ranged_target(void);
 EMSCRIPTEN_KEEPALIVE int web_open_song_menu(void);
+EMSCRIPTEN_KEEPALIVE int web_target_map(int y, int x);
 EMSCRIPTEN_KEEPALIVE int web_travel_to(int y, int x);
 EMSCRIPTEN_KEEPALIVE int web_push_key(int key);
 EMSCRIPTEN_KEEPALIVE uintptr_t web_get_log_text_ptr(void);
@@ -300,7 +303,7 @@ static void web_invalidate_map_snapshot(void)
 /* Invalidates cached map cells when semantic map marks changed. */
 static void web_sync_map_marks_revision(void)
 {
-    unsigned int revision = ui_map_marks_get_revision();
+    unsigned int revision = ui_marks_get_revision();
 
     if (revision == web_map_marks_revision)
         return;
@@ -312,7 +315,7 @@ static void web_sync_map_marks_revision(void)
 /* Read mark metadata for a world-grid cell, if any. */
 static bool web_get_target_mark(int y, int x, byte* attr, byte* chr)
 {
-    return ui_map_mark_lookup(y, x, attr, chr);
+    return ui_marks_lookup(y, x, attr, chr);
 }
 
 /* ------------------------------------------------------------------------ */
@@ -878,6 +881,24 @@ static void web_json_append_field_int(char* buf, size_t buf_size, size_t* off,
     strnfcat(buf, buf_size, off, "\"%s\":%d", key, value);
 }
 
+/* Chooses the default quiver for one synthetic ranged action. */
+static int web_choose_ranged_quiver(bool* ready)
+{
+    bool quiver1_loaded = inventory[INVEN_QUIVER1].k_idx ? TRUE : FALSE;
+    bool quiver2_loaded = inventory[INVEN_QUIVER2].k_idx ? TRUE : FALSE;
+
+    if (ready)
+        *ready = quiver1_loaded || quiver2_loaded;
+
+    if (quiver1_loaded)
+        return 1;
+
+    if (quiver2_loaded)
+        return 2;
+
+    return 1;
+}
+
 /* Builds semantic player status payload for frontend-side layout/rendering. */
 static void web_build_player_state(void)
 {
@@ -902,6 +923,7 @@ static void web_build_player_state(void)
     char melee2_buf[32];
     char arc_buf[32];
     char armor_buf[32];
+    char ranged_action_buf[80];
     char target_name[80];
     char target_hp_bar[9];
     char target_alert[20];
@@ -910,10 +932,13 @@ static void web_build_player_state(void)
     cptr adjacent_action_label_by_dir[10];
     bool dual_wield;
     bool has_bow;
+    bool ranged_action_ready = FALSE;
     bool rapid_attack;
     bool blocking;
     byte current_square_attr = TERM_WHITE;
     byte current_square_char = (byte)' ';
+    byte ranged_action_attr = TERM_WHITE;
+    byte ranged_action_char = (byte)' ';
     byte adjacent_action_attr_by_dir[10];
     byte adjacent_action_char_by_dir[10];
     int armor_min;
@@ -921,6 +946,8 @@ static void web_build_player_state(void)
     int arc_dd;
     int dir;
     int current_square_visual_kind = UI_MENU_VISUAL_NONE;
+    int ranged_action_visual_kind = UI_MENU_VISUAL_NONE;
+    int ranged_action_quiver = 0;
     int adjacent_action_visual_kind_by_dir[10];
     int depth_feet;
 
@@ -995,6 +1022,19 @@ static void web_build_player_state(void)
     else
     {
         my_strcpy(arc_buf, "(none)", sizeof(arc_buf));
+    }
+
+    ranged_action_buf[0] = '\0';
+    if (has_bow)
+    {
+        object_type* bow_ptr = &inventory[INVEN_BOW];
+
+        object_desc(ranged_action_buf, sizeof(ranged_action_buf), bow_ptr, FALSE, 0);
+        ranged_action_attr = (byte)object_attr(bow_ptr);
+        ranged_action_char = (byte)object_char(bow_ptr);
+        ranged_action_visual_kind
+            = graphics_are_ascii() ? UI_MENU_VISUAL_TEXT : UI_MENU_VISUAL_TILE;
+        ranged_action_quiver = web_choose_ranged_quiver(&ranged_action_ready);
     }
 
     blocking = p_ptr->active_ability[S_EVN][EVN_BLOCKING];
@@ -1091,6 +1131,27 @@ static void web_build_player_state(void)
     web_json_append_field_string(
         web_player_state, sizeof(web_player_state), &off, &first,
         "ranged", arc_buf);
+    web_json_append_field_int(
+        web_player_state, sizeof(web_player_state), &off, &first,
+        "rangedActionVisible", has_bow ? 1 : 0);
+    web_json_append_field_string(
+        web_player_state, sizeof(web_player_state), &off, &first,
+        "rangedActionLabel", ranged_action_buf);
+    web_json_append_field_int(
+        web_player_state, sizeof(web_player_state), &off, &first,
+        "rangedActionReady", ranged_action_ready ? 1 : 0);
+    web_json_append_field_int(
+        web_player_state, sizeof(web_player_state), &off, &first,
+        "rangedActionQuiver", ranged_action_quiver);
+    web_json_append_field_int(
+        web_player_state, sizeof(web_player_state), &off, &first,
+        "rangedActionVisualKind", ranged_action_visual_kind);
+    web_json_append_field_int(
+        web_player_state, sizeof(web_player_state), &off, &first,
+        "rangedActionVisualAttr", ranged_action_attr);
+    web_json_append_field_int(
+        web_player_state, sizeof(web_player_state), &off, &first,
+        "rangedActionVisualChar", ranged_action_char);
     web_json_append_field_string(
         web_player_state, sizeof(web_player_state), &off, &first,
         "armor", armor_buf);
@@ -1644,8 +1705,8 @@ static void Term_nuke_web(term* t)
     web_map_cell_count = 0;
     web_map_cells_frame = UINT32_MAX;
     ui_menu_clear();
-    ui_map_marks_clear();
-    web_map_marks_revision = ui_map_marks_get_revision();
+    ui_marks_clear();
+    web_map_marks_revision = ui_marks_get_revision();
 
     FREE(web_fx_cells);
     web_fx_cells = NULL;
@@ -1705,8 +1766,8 @@ static errr Term_xtra_web(int n, int v)
 
         web_clear_cells(td, Term->attr_blank, (byte)Term->char_blank);
         ui_menu_clear();
-        ui_map_marks_clear();
-        web_map_marks_revision = ui_map_marks_get_revision();
+        ui_marks_clear();
+        web_map_marks_revision = ui_marks_get_revision();
         web_overlay_capture_clear();
         web_mark_dirty(td, 0, 0, td->cols, td->rows);
         return (0);
@@ -1971,8 +2032,8 @@ errr init_web(int argc, char** argv)
     web_overlay_capture_active = FALSE;
     web_overlay_capture_clear();
     ui_menu_clear();
-    ui_map_marks_clear();
-    web_map_marks_revision = ui_map_marks_get_revision();
+    ui_marks_clear();
+    web_map_marks_revision = ui_marks_get_revision();
     web_fx_delay_seq = 0;
     web_fx_delay_msec = 0;
     web_fx_cols = 0;
@@ -2190,6 +2251,11 @@ EMSCRIPTEN_KEEPALIVE unsigned int web_get_menu_revision(void)
     return ui_menu_get_revision();
 }
 
+EMSCRIPTEN_KEEPALIVE int web_get_menu_snapshot_retained(void)
+{
+    return ui_menu_snapshot_retained() ? 1 : 0;
+}
+
 EMSCRIPTEN_KEEPALIVE uintptr_t web_get_menu_details_ptr(void)
 {
     return (uintptr_t)(const void*)ui_menu_get_details();
@@ -2390,6 +2456,48 @@ EMSCRIPTEN_KEEPALIVE int web_open_inventory(void)
         travel_clear();
 
     return web_key_enqueue(INVENTORY_CMD) ? 1 : 0;
+}
+
+/* Queues the ranged fire command and opens the normal targeter when possible. */
+EMSCRIPTEN_KEEPALIVE int web_open_ranged_target(void)
+{
+    int quiver;
+    int fire_key;
+    bool ready = FALSE;
+
+    if (!p_ptr || !character_dungeon || !p_ptr->playing)
+        return 0;
+
+    if (!inventory[INVEN_BOW].k_idx)
+        return 0;
+
+    if (travel_is_running())
+        travel_clear();
+
+    quiver = web_choose_ranged_quiver(&ready);
+    fire_key = (quiver == 2) ? 'F' : 'f';
+
+    if (!web_key_enqueue(fire_key))
+        return 0;
+
+    if (!ready)
+        return 1;
+
+    return web_key_enqueue('*') ? 1 : 0;
+}
+
+/* Moves an active targeter preview to one tapped map square. */
+EMSCRIPTEN_KEEPALIVE int web_target_map(int y, int x)
+{
+    if (!p_ptr || !character_dungeon || !p_ptr->playing || !in_bounds(y, x))
+        return 0;
+
+    if (!ui_marks_targeting_active())
+        return 0;
+
+    ui_marks_request_target_grid(y, x);
+
+    return web_key_enqueue('5') ? 1 : 0;
 }
 
 /* Queues the song-selection command for one floating web action button. */

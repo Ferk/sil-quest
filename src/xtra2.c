@@ -9,7 +9,7 @@
  */
 
 #include "angband.h"
-#include "ui-map-marks.h"
+#include "ui-marks.h"
 
 /*
  * The saving throw is a will skill check.
@@ -3493,6 +3493,9 @@ static int target_set_interactive_aux(int y, int x, int mode, cptr info)
             if ((query != '\n') && (query != '\r'))
                 break;
 
+            if (mode & (TARGET_KILL))
+                break;
+
             /* Repeat forever */
             continue;
         }
@@ -3856,6 +3859,9 @@ static int target_set_interactive_aux(int y, int x, int mode, cptr info)
         /* Stop on everything but "return" */
         if ((query != '\n') && (query != '\r'))
             break;
+
+        if (mode & (TARGET_KILL))
+            break;
     }
 
     // make sure the health tracking is sorted out
@@ -3900,11 +3906,11 @@ static int draw_path(
     /* No path, so do nothing. */
     if (max < 1)
     {
-        ui_map_marks_clear();
+        ui_marks_clear();
         return 0;
     }
 
-    ui_map_marks_begin();
+    ui_marks_begin();
 
     /* The starting square is never drawn, but notice if it is being
      * displayed. In theory, it could be the last such square.
@@ -3914,7 +3920,11 @@ static int draw_path(
     /* Draw the path. */
     for (i = 0; i < max; i++)
     {
-        byte colour;
+        byte preview_attr;
+        char preview_char;
+        int prev_y = (i > 0) ? GRID_Y(path[i - 1]) : y1;
+        int prev_x = (i > 0) ? GRID_X(path[i - 1]) : x1;
+        bool impact = (i == max - 1);
 
         /* Find the co-ordinates on the level. */
         int y = GRID_Y(path[i]);
@@ -3942,42 +3952,15 @@ static int draw_path(
         /* This square is being overwritten, so save the original. */
         Term_what(Term->scr->cx, Term->scr->cy, a + i, c + i);
 
-        /* Choose a colour. */
-        /* Visible monsters are red. */
-        if ((cave_m_idx[y][x] > 0) && mon_list[cave_m_idx[y][x]].ml)
-        {
-            colour = TERM_L_RED;
-        }
-
-        /* Known objects are yellow. */
-        else if (cave_o_idx[y][x] && o_list[cave_o_idx[y][x]].marked)
-        {
-            colour = TERM_YELLOW;
-        }
-
-        /* Known walls are blue. */
-        else if (!cave_floor_bold(y, x)
-            && (cave_info[y][x] & (CAVE_MARK) || player_can_see_bold(y, x)))
-        {
-            colour = TERM_BLUE;
-        }
-        /* Unknown squares are grey. */
-        else if (!(cave_info[y][x] & (CAVE_MARK)) && !player_can_see_bold(y, x))
-        {
-            colour = TERM_L_DARK;
-        }
-        /* Unoccupied squares are white. */
-        else
-        {
-            colour = TERM_WHITE;
-        }
+        ui_marks_resolve_projectile_visual(
+            prev_y, prev_x, y, x, impact, GF_ARROW, &preview_attr, &preview_char);
 
         /* Draw the path segment */
-        ui_map_mark_add(y, x, colour, '*');
-        (void)Term_addch(colour, '*');
+        ui_marks_add(y, x, preview_attr, preview_char);
+        (void)Term_addch(preview_attr, preview_char);
     }
 
-    ui_map_marks_end();
+    ui_marks_end();
     return i;
 }
 
@@ -3999,7 +3982,7 @@ static void load_path(int max, u16b* path, char* c, byte* a)
     }
 
     Term_fresh();
-    ui_map_marks_clear();
+    ui_marks_clear();
 }
 
 /*
@@ -4038,7 +4021,8 @@ static void load_path(int max, u16b* path, char* c, byte* a)
  * to the next (or previous) interesting grid, in the proper mode.
  *
  * The "return" key may always be used to scan through a complete
- * grid description (forever).
+ * grid description. In kill-targeting mode, once that scan finishes,
+ * "return" also confirms the current target.
  *
  * if the range variable is 0, there is no range limit
  *
@@ -4094,6 +4078,8 @@ bool target_set_interactive(int mode, int range)
 
     /* Start near the player */
     m = 0;
+
+    ui_marks_set_targeting_active(TRUE);
 
     /* Interact */
     while (!done)
@@ -4155,6 +4141,12 @@ bool target_set_interactive(int mode, int range)
             /* Assume no "direction" */
             d = 0;
 
+            if (ui_marks_take_target_grid_request(&y, &x))
+            {
+                flag = FALSE;
+                continue;
+            }
+
             /* Analyze */
             switch (query)
             {
@@ -4207,7 +4199,13 @@ bool target_set_interactive(int mode, int range)
             case 't':
             case '5':
             case 'z':
+            case '\n':
+            case '\r':
             {
+                if (((query == '\n') || (query == '\r'))
+                    && !(mode & TARGET_KILL))
+                    break;
+
                 int m_idx = cave_m_idx[y][x];
 
                 if ((p_ptr->py == y) && (p_ptr->px == x))
@@ -4341,6 +4339,9 @@ bool target_set_interactive(int mode, int range)
             /* Assume no direction */
             d = 0;
 
+            if (ui_marks_take_target_grid_request(&y, &x))
+                continue;
+
             /* Analyze the keypress */
             switch (query)
             {
@@ -4393,7 +4394,13 @@ bool target_set_interactive(int mode, int range)
             case 't':
             case '5':
             case 'z':
+            case '\n':
+            case '\r':
             {
+                if (((query == '\n') || (query == '\r'))
+                    && !(mode & TARGET_KILL))
+                    break;
+
                 if ((p_ptr->py == y) && (p_ptr->px == x))
                 {
                     done = TRUE;
@@ -4481,6 +4488,9 @@ bool target_set_interactive(int mode, int range)
 
             /* Assume no direction */
             d = 0;
+
+            if (ui_marks_take_target_grid_request(&y, &x))
+                continue;
 
             // space increments (and is handled specially)
             if (query == ' ')
@@ -4810,6 +4820,9 @@ bool target_set_interactive(int mode, int range)
     /* Handle stuff */
     handle_stuff();
 
+    ui_marks_set_targeting_active(FALSE);
+    ui_marks_set_target_prompt_active(FALSE);
+
     /* Failure to set target */
     if (!new_target)
     {
@@ -4888,6 +4901,7 @@ int rough_direction(int y1, int x1, int y2, int x2)
 bool get_aim_dir(int* dp, int range)
 {
     int dir;
+    bool target_available;
 
     char ch;
 
@@ -4923,8 +4937,11 @@ bool get_aim_dir(int* dp, int range)
     /* Ask until satisfied */
     while (!dir)
     {
+        target_available = target_okay(range);
+        ui_marks_set_target_prompt_active(target_available);
+
         /* Choose a prompt */
-        if (!target_okay(range))
+        if (!target_available)
         {
             p = "Direction ('f' for closest, '*' to choose a target, ESC to "
                 "cancel)? ";
@@ -5000,6 +5017,8 @@ bool get_aim_dir(int* dp, int range)
         if (!dir)
             bell("Illegal aim direction!");
     }
+
+    ui_marks_set_target_prompt_active(FALSE);
 
     /* No direction */
     if (!dir)

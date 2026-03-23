@@ -115,6 +115,10 @@ void ui_menu_set_details_visual(int kind, int attr, int chr);
 void ui_menu_end(void);
 /* Clears the exported semantic menu state. */
 void ui_menu_clear(void);
+/* Controls whether the last menu may remain visible during follow-up prompts. */
+void ui_menu_set_snapshot_retained(bool retained);
+/* Returns whether follow-up prompts may reuse the last rendered menu. */
+bool ui_menu_snapshot_retained(void);
 /* Returns the current semantic menu item array. */
 const ui_menu_item* ui_menu_get_items(void);
 /* Returns how many semantic menu items are currently exported. */

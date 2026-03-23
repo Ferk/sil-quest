@@ -9,6 +9,7 @@
  */
 
 #include "angband.h"
+#include "ui-marks.h"
 
 /*
  * Return a "feeling" (or NULL) about an item.  Method 1 (Weak).
@@ -1779,7 +1780,8 @@ static void process_player(void)
         /* Place the cursor on the player or target */
         if (hilite_player)
             move_cursor_relative(p_ptr->py, p_ptr->px);
-        if (hilite_target && target_sighted())
+        if (hilite_target && ui_marks_should_highlight_target()
+            && target_sighted())
             move_cursor_relative(p_ptr->target_row, p_ptr->target_col);
 
         if (cheat_noise)
@@ -2036,7 +2038,8 @@ static void process_player(void)
                 /* Place the cursor on the player or target */
                 if (hilite_player)
                     move_cursor_relative(p_ptr->py, p_ptr->px);
-                if (hilite_target && target_sighted())
+                if (hilite_target && ui_marks_should_highlight_target()
+                    && target_sighted())
                     move_cursor_relative(p_ptr->target_row, p_ptr->target_col);
 
                 /* We are certainly no longer in the process of restoring a game
@@ -2794,7 +2797,8 @@ static void dungeon(void)
         /* Place the cursor on the player or target */
         if (hilite_player)
             move_cursor_relative(p_ptr->py, p_ptr->px);
-        if (hilite_target && target_sighted())
+        if (hilite_target && ui_marks_should_highlight_target()
+            && target_sighted())
             move_cursor_relative(p_ptr->target_row, p_ptr->target_col);
 
         /* Optional fresh */
@@ -2827,7 +2831,8 @@ static void dungeon(void)
         /* Place the cursor on the player or target */
         if (hilite_player)
             move_cursor_relative(p_ptr->py, p_ptr->px);
-        if (hilite_target && target_sighted())
+        if (hilite_target && ui_marks_should_highlight_target()
+            && target_sighted())
             move_cursor_relative(p_ptr->target_row, p_ptr->target_col);
 
         /* Optional fresh */
@@ -2860,7 +2865,8 @@ static void dungeon(void)
         /* Place the cursor on the player or target */
         if (hilite_player)
             move_cursor_relative(p_ptr->py, p_ptr->px);
-        if (hilite_target && target_sighted())
+        if (hilite_target && ui_marks_should_highlight_target()
+            && target_sighted())
             move_cursor_relative(p_ptr->target_row, p_ptr->target_col);
 
         /* Optional fresh */
