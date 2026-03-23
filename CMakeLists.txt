@@ -34,13 +34,24 @@ set(CMAKE_CONFIGURATION_TYPES "Debug;Release" CACHE STRING "" FORCE)
 # Set build defaults
 # =============================================================================
 
-if (WIN32 AND NOT EMSCRIPTEN)
+# During early configure, the command-line toolchain file is already known, but
+# CMAKE_SYSTEM_NAME and the EMSCRIPTEN convenience variable are not reliable yet.
+set(SIL_USING_EMSCRIPTEN_TOOLCHAIN OFF)
+if ((DEFINED CMAKE_TOOLCHAIN_FILE)
+    AND (CMAKE_TOOLCHAIN_FILE MATCHES "([/\\\\]|^)Emscripten\\.cmake$"))
+    set(SIL_USING_EMSCRIPTEN_TOOLCHAIN ON)
+elseif ((CMAKE_SYSTEM_NAME STREQUAL "Emscripten")
+    OR (DEFINED EMSCRIPTEN AND EMSCRIPTEN))
+    set(SIL_USING_EMSCRIPTEN_TOOLCHAIN ON)
+endif()
+
+if (WIN32 AND NOT SIL_USING_EMSCRIPTEN_TOOLCHAIN)
     message(FATAL_ERROR
         "Native Windows frontend support has been removed. "
         "Build the terminal frontend on a Unix-like system or the web frontend with Emscripten.")
 endif()
 
-if (EMSCRIPTEN)
+if (SIL_USING_EMSCRIPTEN_TOOLCHAIN)
     option(SUPPORT_GCU_FRONTEND "Build with GCU (curses/ncurses) support" OFF)
     option(SUPPORT_WEB_FRONTEND "Build with Web (Emscripten) support" ON)
 elseif (UNIX)
@@ -58,12 +69,12 @@ if (NOT SUPPORT_GCU_FRONTEND AND NOT SUPPORT_WEB_FRONTEND)
         "At least one frontend must be enabled: SUPPORT_GCU_FRONTEND or SUPPORT_WEB_FRONTEND.")
 endif()
 
-if (SUPPORT_WEB_FRONTEND AND NOT EMSCRIPTEN)
+if (SUPPORT_WEB_FRONTEND AND NOT SIL_USING_EMSCRIPTEN_TOOLCHAIN)
     message(FATAL_ERROR
         "SUPPORT_WEB_FRONTEND requires an Emscripten toolchain.")
 endif()
 
-if (EMSCRIPTEN AND SUPPORT_GCU_FRONTEND)
+if (SIL_USING_EMSCRIPTEN_TOOLCHAIN AND SUPPORT_GCU_FRONTEND)
     message(FATAL_ERROR
         "The GCU terminal frontend is not supported for Emscripten builds.")
 endif()
@@ -254,7 +265,7 @@ endif()
 
 # Whether to treat compiler warnings as errors
 # Default to ON for Emscripten so local web builds catch the same issues CI catches.
-option(BUILD_ENABLE_WERROR "Treat compiler warnings as errors" ${EMSCRIPTEN})
+option(BUILD_ENABLE_WERROR "Treat compiler warnings as errors" ${SIL_USING_EMSCRIPTEN_TOOLCHAIN})
 if (BUILD_ENABLE_WERROR)
     target_compile_options(${SIL_TARGET} PRIVATE -Werror)
 endif()

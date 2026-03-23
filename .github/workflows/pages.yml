@@ -43,9 +43,8 @@ jobs:
 
           cd "$GITHUB_WORKSPACE"
           rm -rf web/lib
-          cmake -G Ninja -S . -B build-pages-wasm \
+          emcmake cmake -G Ninja -S . -B build-pages-wasm \
             -DCMAKE_BUILD_TYPE=Release \
-            -DCMAKE_TOOLCHAIN_FILE="$EMSDK/upstream/emscripten/cmake/Modules/Platform/Emscripten.cmake" \
             -DBUILD_ENABLE_WERROR=ON \
             -DSUPPORT_WEB_FRONTEND=ON \
             -DSUPPORT_GCU_FRONTEND=OFF
