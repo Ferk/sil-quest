@@ -174,6 +174,8 @@ set(SIL_SOURCES
     src/squelch.c
     src/tables.c
     src/ui-item-select.c
+    src/ui-inventory.c
+    src/ui-map-marks.c
     src/ui-model.c
     src/use-obj.c
     src/util.c

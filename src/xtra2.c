@@ -9,6 +9,7 @@
  */
 
 #include "angband.h"
+#include "ui-map-marks.h"
 
 /*
  * The saving throw is a will skill check.
@@ -3899,15 +3900,11 @@ static int draw_path(
     /* No path, so do nothing. */
     if (max < 1)
     {
-#ifdef USE_WEB
-        web_target_marks_clear();
-#endif
+        ui_map_marks_clear();
         return 0;
     }
 
-#ifdef USE_WEB
-    web_target_marks_begin();
-#endif
+    ui_map_marks_begin();
 
     /* The starting square is never drawn, but notice if it is being
      * displayed. In theory, it could be the last such square.
@@ -3976,15 +3973,11 @@ static int draw_path(
         }
 
         /* Draw the path segment */
-#ifdef USE_WEB
-        web_target_mark_add(y, x, colour, '*');
-#endif
+        ui_map_mark_add(y, x, colour, '*');
         (void)Term_addch(colour, '*');
     }
 
-#ifdef USE_WEB
-    web_target_marks_end();
-#endif
+    ui_map_marks_end();
     return i;
 }
 
@@ -4006,10 +3999,7 @@ static void load_path(int max, u16b* path, char* c, byte* a)
     }
 
     Term_fresh();
-
-#ifdef USE_WEB
-    web_target_marks_clear();
-#endif
+    ui_map_marks_clear();
 }
 
 /*

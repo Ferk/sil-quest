@@ -981,13 +981,6 @@ extern cptr attr_to_text(byte a);
 #define HOLD_CMD KTRL('V')
 #define TRAVEL_CMD KTRL('Y')
 
-extern void web_target_marks_begin(void);
-/* Adds one target-mark overlay at a world-grid location. */
-extern void web_target_mark_add(int y, int x, byte attr, char chr);
-/* Publishes the current batch of web target marks. */
-extern void web_target_marks_end(void);
-/* Clears all active web target-mark overlays. */
-extern void web_target_marks_clear(void);
 /* Returns whether automatic travel is currently advancing between turns. */
 extern bool travel_is_running(void);
 /* Stores one chosen travel target for the next synthetic command. */

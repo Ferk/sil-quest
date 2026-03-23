@@ -17,6 +17,7 @@
 #ifdef USE_WEB
 
 #include "main.h"
+#include "ui-map-marks.h"
 #include "ui-model.h"
 
 #include <stdint.h>
@@ -114,24 +115,14 @@ static bool web_overlay_capture_active = FALSE;
 static web_cell* web_map_cells = NULL;
 static int web_map_cell_count = 0;
 static uint32_t web_map_cells_frame = UINT32_MAX;
-
-#define WEB_TARGET_MARKS_MAX 256
-typedef struct web_target_mark web_target_mark;
-struct web_target_mark
-{
-    int y;
-    int x;
-    byte attr;
-    byte chr;
-};
-static web_target_mark web_target_marks[WEB_TARGET_MARKS_MAX];
-static int web_target_mark_count = 0;
-static bool web_target_marks_batch = FALSE;
+static unsigned int web_saved_screen_revision = 0;
+static unsigned int web_map_marks_revision = 0;
 
 static void web_refresh_map_cells(void);
 static void web_capture_fx_cells(void);
 static void web_set_text_cell(web_cell* cell, byte attr, byte chr);
 static void web_mark_dirty(term_data* td, int x, int y, int w, int h);
+static void web_overlay_capture_clear(void);
 
 /* MicroChasm defaults */
 static int web_tile_wid = 16;
@@ -230,11 +221,6 @@ EMSCRIPTEN_KEEPALIVE uintptr_t web_get_overlay_attrs_ptr(void);
 EMSCRIPTEN_KEEPALIVE int web_get_overlay_attrs_len(void);
 EMSCRIPTEN_KEEPALIVE uint32_t web_get_fx_delay_seq(void);
 EMSCRIPTEN_KEEPALIVE int web_get_fx_delay_msec(void);
-void web_target_marks_begin(void);
-void web_target_mark_add(int y, int x, byte attr, char chr);
-void web_target_marks_end(void);
-void web_target_marks_clear(void);
-
 /* ------------------------------------------------------------------------ */
 /* Shared Helpers                                                           */
 /* ------------------------------------------------------------------------ */
@@ -311,95 +297,22 @@ static void web_invalidate_map_snapshot(void)
         web_get_map_cols() * web_get_map_x_step(), web_get_map_rows());
 }
 
-/* Locate an active target mark by world-grid coordinates. */
-static int web_find_target_mark(int y, int x)
+/* Invalidates cached map cells when semantic map marks changed. */
+static void web_sync_map_marks_revision(void)
 {
-    int i;
+    unsigned int revision = ui_map_marks_get_revision();
 
-    for (i = 0; i < web_target_mark_count; i++)
-    {
-        if ((web_target_marks[i].y == y) && (web_target_marks[i].x == x))
-            return i;
-    }
+    if (revision == web_map_marks_revision)
+        return;
 
-    return -1;
+    web_map_marks_revision = revision;
+    web_invalidate_map_snapshot();
 }
 
 /* Read mark metadata for a world-grid cell, if any. */
 static bool web_get_target_mark(int y, int x, byte* attr, byte* chr)
 {
-    int i = web_find_target_mark(y, x);
-
-    if (i < 0)
-        return FALSE;
-
-    if (attr)
-        *attr = web_target_marks[i].attr;
-    if (chr)
-        *chr = web_target_marks[i].chr;
-
-    return TRUE;
-}
-
-void web_target_marks_begin(void)
-{
-    web_target_mark_count = 0;
-    web_target_marks_batch = TRUE;
-}
-
-void web_target_mark_add(int y, int x, byte attr, char chr)
-{
-    int i;
-    bool changed = FALSE;
-
-    if (!in_bounds(y, x))
-        return;
-
-    i = web_find_target_mark(y, x);
-    if (i >= 0)
-    {
-        byte mark_chr = chr ? (byte)chr : (byte)'*';
-
-        if ((web_target_marks[i].attr != attr)
-            || (web_target_marks[i].chr != mark_chr))
-        {
-            web_target_marks[i].attr = attr;
-            web_target_marks[i].chr = mark_chr;
-            changed = TRUE;
-        }
-    }
-    else if (web_target_mark_count < WEB_TARGET_MARKS_MAX)
-    {
-        web_target_marks[web_target_mark_count].y = y;
-        web_target_marks[web_target_mark_count].x = x;
-        web_target_marks[web_target_mark_count].attr = attr;
-        web_target_marks[web_target_mark_count].chr = chr ? (byte)chr : (byte)'*';
-        web_target_mark_count++;
-        changed = TRUE;
-    }
-
-    if (changed && !web_target_marks_batch)
-        web_invalidate_map_snapshot();
-}
-
-void web_target_marks_end(void)
-{
-    if (!web_target_marks_batch)
-        return;
-
-    web_target_marks_batch = FALSE;
-    web_invalidate_map_snapshot();
-}
-
-void web_target_marks_clear(void)
-{
-    bool had_marks = (web_target_mark_count > 0) || web_target_marks_batch;
-
-    web_target_marks_batch = FALSE;
-    web_target_mark_count = 0;
-
-    if (had_marks)
-        web_invalidate_map_snapshot();
+    return ui_map_mark_lookup(y, x, attr, chr);
 }
 
 /* ------------------------------------------------------------------------ */
@@ -1370,8 +1283,25 @@ static void web_clear_overlay_text(void)
     web_overlay_attrs_len = 0;
 }
 
+static void web_sync_saved_screen_lifecycle(void)
+{
+    unsigned int revision = ui_saved_screen_get_revision();
+
+    if (revision == web_saved_screen_revision)
+        return;
+
+    web_saved_screen_revision = revision;
+    web_overlay_capture_active = FALSE;
+    web_overlay_capture_clear();
+    web_clear_overlay_text();
+    web_overlay_text_frame = UINT32_MAX;
+}
+
 static bool web_overlay_semantic_active(void)
 {
+    if (ui_saved_screen_was_restored())
+        return FALSE;
+
     if (character_icky > 0)
         return TRUE;
 
@@ -1400,6 +1330,8 @@ static void web_overlay_capture_clear(void)
 static void web_overlay_capture_sync_state(void)
 {
     bool active = web_overlay_semantic_active();
+
+    web_sync_saved_screen_lifecycle();
 
     if (active == web_overlay_capture_active)
         return;
@@ -1534,6 +1466,8 @@ overlay_done:
 
 static void web_refresh_overlay_text(void)
 {
+    web_sync_saved_screen_lifecycle();
+
     if (web_overlay_text_frame == data.frame_id)
         return;
 
@@ -1710,8 +1644,8 @@ static void Term_nuke_web(term* t)
     web_map_cell_count = 0;
     web_map_cells_frame = UINT32_MAX;
     ui_menu_clear();
-    web_target_mark_count = 0;
-    web_target_marks_batch = FALSE;
+    ui_map_marks_clear();
+    web_map_marks_revision = ui_map_marks_get_revision();
 
     FREE(web_fx_cells);
     web_fx_cells = NULL;
@@ -1771,7 +1705,8 @@ static errr Term_xtra_web(int n, int v)
 
         web_clear_cells(td, Term->attr_blank, (byte)Term->char_blank);
         ui_menu_clear();
-        web_target_marks_clear();
+        ui_map_marks_clear();
+        web_map_marks_revision = ui_map_marks_get_revision();
         web_overlay_capture_clear();
         web_mark_dirty(td, 0, 0, td->cols, td->rows);
         return (0);
@@ -2036,8 +1971,8 @@ errr init_web(int argc, char** argv)
     web_overlay_capture_active = FALSE;
     web_overlay_capture_clear();
     ui_menu_clear();
-    web_target_mark_count = 0;
-    web_target_marks_batch = FALSE;
+    ui_map_marks_clear();
+    web_map_marks_revision = ui_map_marks_get_revision();
     web_fx_delay_seq = 0;
     web_fx_delay_msec = 0;
     web_fx_cols = 0;
@@ -2130,6 +2065,7 @@ EMSCRIPTEN_KEEPALIVE int web_get_map_world_y(void)
 
 EMSCRIPTEN_KEEPALIVE uintptr_t web_get_map_cells_ptr(void)
 {
+    web_sync_map_marks_revision();
     web_refresh_map_cells();
     return (uintptr_t)web_map_cells;
 }
@@ -2190,6 +2126,7 @@ EMSCRIPTEN_KEEPALIVE int web_get_icon_glow_char(void)
 
 EMSCRIPTEN_KEEPALIVE uint32_t web_get_frame_id(void)
 {
+    web_sync_map_marks_revision();
     return data.frame_id;
 }
 

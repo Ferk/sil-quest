@@ -9,6 +9,7 @@
  */
 
 #include "angband.h"
+#include "ui-model.h"
 
 #ifdef SET_UID
 
@@ -3025,6 +3026,8 @@ void screen_save(void)
     /* Hack -- Flush messages */
     message_flush();
 
+    ui_saved_screen_begin();
+
     /* Save the screen (if legal) */
     if (screen_depth++ == 0)
         Term_save();
@@ -3049,6 +3052,7 @@ void screen_load(void)
 
     /* Decrease "icky" depth */
     character_icky--;
+    ui_saved_screen_end();
 }
 
 /*

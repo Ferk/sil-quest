@@ -41,6 +41,9 @@ static char ui_modal_text[UI_MENU_TEXT_MAX];
 static byte ui_modal_attrs[UI_MENU_TEXT_MAX];
 static int ui_modal_attrs_len = 0;
 static int ui_modal_dismiss_key = 0;
+static int ui_saved_screen_depth = 0;
+static bool ui_saved_screen_restored = FALSE;
+static unsigned int ui_saved_screen_revision = 1;
 
 /* Bumps the menu revision so frontends can detect updates. */
 static void ui_menu_touch(void)
@@ -56,6 +59,14 @@ static void ui_modal_touch(void)
     ui_modal_revision++;
     if (ui_modal_revision == 0)
         ui_modal_revision = 1;
+}
+
+/* Bumps the saved-screen revision so frontends can detect lifecycle changes. */
+static void ui_saved_screen_touch(void)
+{
+    ui_saved_screen_revision++;
+    if (ui_saved_screen_revision == 0)
+        ui_saved_screen_revision = 1;
 }
 
 /* Clamps one exported visual type to the supported menu range. */
@@ -661,4 +672,42 @@ int ui_modal_get_dismiss_key(void)
 unsigned int ui_modal_get_revision(void)
 {
     return ui_modal_revision;
+}
+
+/* Marks the start of one saved-screen scope such as screen_save(). */
+void ui_saved_screen_begin(void)
+{
+    ui_saved_screen_depth++;
+    ui_saved_screen_restored = FALSE;
+    ui_saved_screen_touch();
+}
+
+/* Marks the end of one saved-screen scope such as screen_load(). */
+void ui_saved_screen_end(void)
+{
+    if (ui_saved_screen_depth > 0)
+        ui_saved_screen_depth--;
+
+    if (ui_saved_screen_depth == 0)
+        ui_saved_screen_restored = TRUE;
+
+    ui_saved_screen_touch();
+}
+
+/* Returns the current nested saved-screen depth. */
+int ui_saved_screen_get_depth(void)
+{
+    return ui_saved_screen_depth;
+}
+
+/* Returns whether the last saved screen was restored and not reopened yet. */
+bool ui_saved_screen_was_restored(void)
+{
+    return ui_saved_screen_restored;
+}
+
+/* Returns the revision used by frontends to detect saved-screen transitions. */
+unsigned int ui_saved_screen_get_revision(void)
+{
+    return ui_saved_screen_revision;
 }

@@ -9,6 +9,7 @@
  */
 
 #include "angband.h"
+#include "ui-inventory.h"
 
 /*
  * The "wearable" tester
@@ -26,8 +27,6 @@ static bool item_tester_hook_wear(const object_type* o_ptr)
     /* Assume not wearable */
     return (FALSE);
 }
-
-#include "cmd3-ui-inventory.c"
 
 /*
  * Use an item, a unified 'use' command.
@@ -219,7 +218,9 @@ void do_cmd_use_item(void)
  */
 void do_cmd_inven(void)
 {
-    if (do_cmd_web_inventory_menu(WEB_INVENTORY_SECTION_INVEN))
+    if ((ANGBAND_SYS && streq(ANGBAND_SYS, "web"))
+        && do_cmd_ui_inventory_menu(
+            UI_INVENTORY_SECTION_INVEN, item_tester_hook_wear))
         return;
 
     /* Hack -- Start in "inventory" mode */
@@ -266,7 +267,9 @@ void do_cmd_inven(void)
  */
 void do_cmd_equip(void)
 {
-    if (do_cmd_web_inventory_menu(WEB_INVENTORY_SECTION_EQUIP))
+    if ((ANGBAND_SYS && streq(ANGBAND_SYS, "web"))
+        && do_cmd_ui_inventory_menu(
+            UI_INVENTORY_SECTION_EQUIP, item_tester_hook_wear))
         return;
 
     /* Hack -- Start in "equipment" mode */

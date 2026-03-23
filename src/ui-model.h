@@ -169,4 +169,15 @@ int ui_modal_get_dismiss_key(void);
 /* Returns the modal revision used by the frontend cache. */
 unsigned int ui_modal_get_revision(void);
 
+/* Marks the start of one saved-screen scope such as screen_save(). */
+void ui_saved_screen_begin(void);
+/* Marks the end of one saved-screen scope such as screen_load(). */
+void ui_saved_screen_end(void);
+/* Returns the current nested saved-screen depth. */
+int ui_saved_screen_get_depth(void);
+/* Returns whether the last saved screen was restored and not reopened yet. */
+bool ui_saved_screen_was_restored(void);
+/* Returns the revision used by frontends to detect saved-screen transitions. */
+unsigned int ui_saved_screen_get_revision(void);
+
 #endif /* INCLUDED_UI_MODEL_H */

@@ -1,19 +1,33 @@
-/*
- * Umified inventory+equipment browser kept separate from the original
- * command flow in cmd3.c.
+/* File: ui-inventory.c
+ *
+ * Copyright (c) 2026 Fernando Carmona Varo
+ * This file is part of Sil-Quest.
+ * Licensed under the EUPL, Version 1.2 or subsequent versions of the EUPL
+ * You may not use this work except in compliance with the Licence.
+ * You may obtain copy of it at: https://joinup.ec.europa.eu/software/page/eupl
  */
 
+/*
+ * Frontend-neutral unified inventory+equipment browser kept separate from the
+ * original command flow in cmd3.c.
+ */
+
+#include "angband.h"
+
+#include "ui-inventory.h"
 #include "ui-model.h"
 
-#define WEB_INVENTORY_TEXT_MAX 8192
-#define WEB_INVENTORY_LABEL_MAX 96
-#define WEB_INVENTORY_ACTION_MAX 16
+#define UI_INVENTORY_TEXT_MAX 8192
+#define UI_INVENTORY_LABEL_MAX 96
+#define UI_INVENTORY_ACTION_MAX 16
 
-typedef struct web_inventory_item_entry web_inventory_item_entry;
-typedef struct web_inventory_action_entry web_inventory_action_entry;
-typedef struct web_inventory_section_layout web_inventory_section_layout;
+typedef struct ui_inventory_item_entry ui_inventory_item_entry;
+typedef struct ui_inventory_action_entry ui_inventory_action_entry;
+typedef struct ui_inventory_section_layout ui_inventory_section_layout;
 
-struct web_inventory_item_entry
+static bool (*ui_inventory_can_wear_hook)(const object_type*) = NULL;
+
+struct ui_inventory_item_entry
 {
     int item;
     int section;
@@ -22,17 +36,17 @@ struct web_inventory_item_entry
     int visual_kind;
     int visual_attr;
     int visual_char;
-    char label[WEB_INVENTORY_LABEL_MAX];
+    char label[UI_INVENTORY_LABEL_MAX];
 };
 
-struct web_inventory_action_entry
+struct ui_inventory_action_entry
 {
     int key;
     cptr label;
     cptr details;
 };
 
-struct web_inventory_section_layout
+struct ui_inventory_section_layout
 {
     int section;
     int item_start;
@@ -43,13 +57,7 @@ struct web_inventory_section_layout
     cptr empty_text;
 };
 
-enum
-{
-    WEB_INVENTORY_SECTION_EQUIP = 0,
-    WEB_INVENTORY_SECTION_INVEN = 1
-};
-
-static const web_inventory_action_entry web_inventory_action_defs[] = {
+static const ui_inventory_action_entry ui_inventory_action_defs[] = {
     { 'u', "Use", "Use the item's primary action." },
     { 'w', "Wield or wear", "Equip this item." },
     { 'r', "Remove", "Take this equipped item off." },
@@ -66,21 +74,15 @@ static const web_inventory_action_entry web_inventory_action_defs[] = {
     { 'F', "Fire 2nd quiver", "Fire the arrows from your second quiver." },
 };
 
-static const web_inventory_section_layout web_inventory_sections[] = {
-    { WEB_INVENTORY_SECTION_EQUIP, INVEN_WIELD, INVEN_TOTAL, 2, 0,
+static const ui_inventory_section_layout ui_inventory_sections[] = {
+    { UI_INVENTORY_SECTION_EQUIP, INVEN_WIELD, INVEN_TOTAL, 2, 0,
         "Equipped", "(nothing equipped)" },
-    { WEB_INVENTORY_SECTION_INVEN, 0, INVEN_PACK, 41, 1,
+    { UI_INVENTORY_SECTION_INVEN, 0, INVEN_PACK, 41, 1,
         "Inventory", "(nothing in your pack)" },
 };
 
-/* Returns true when the dedicated web inventory browser should be used. */
-static bool web_inventory_menu_enabled(void)
-{
-    return ANGBAND_SYS && streq(ANGBAND_SYS, "web");
-}
-
 /* Returns one inventory slot pointer or NULL for invalid indices. */
-static object_type* web_inventory_object(int item)
+static object_type* ui_inventory_object(int item)
 {
     if ((item < 0) || (item >= INVEN_TOTAL))
         return NULL;
@@ -89,15 +91,15 @@ static object_type* web_inventory_object(int item)
 }
 
 /* Returns the opposite inventory section for left/right navigation. */
-static int web_inventory_other_section(int section)
+static int ui_inventory_other_section(int section)
 {
-    return (section == WEB_INVENTORY_SECTION_EQUIP)
-        ? WEB_INVENTORY_SECTION_INVEN
-        : WEB_INVENTORY_SECTION_EQUIP;
+    return (section == UI_INVENTORY_SECTION_EQUIP)
+        ? UI_INVENTORY_SECTION_INVEN
+        : UI_INVENTORY_SECTION_EQUIP;
 }
 
 /* Chooses the row color used for one item in the inventory lists. */
-static byte web_inventory_item_attr(object_type* o_ptr)
+static byte ui_inventory_item_attr(object_type* o_ptr)
 {
     if (!o_ptr)
         return TERM_WHITE;
@@ -109,7 +111,7 @@ static byte web_inventory_item_attr(object_type* o_ptr)
 }
 
 /* Exports the visual that should be shown beside an inventory entry. */
-static void web_inventory_item_visual(object_type* o_ptr, int* kind,
+static void ui_inventory_item_visual(object_type* o_ptr, int* kind,
     int* attr, int* chr)
 {
     if (!kind || !attr || !chr || !o_ptr)
@@ -121,7 +123,7 @@ static void web_inventory_item_visual(object_type* o_ptr, int* kind,
 }
 
 /* Checks whether the generic "use item" action is legal for this object. */
-static bool web_inventory_item_can_use(int item, const object_type* o_ptr)
+static bool ui_inventory_item_can_use(int item, const object_type* o_ptr)
 {
     object_type* l_ptr;
 
@@ -174,7 +176,7 @@ static bool web_inventory_item_can_use(int item, const object_type* o_ptr)
 }
 
 /* Returns whether one action hotkey is currently available for the item. */
-static bool web_inventory_action_available(
+static bool ui_inventory_action_available(
     int key, int item, const object_type* o_ptr)
 {
     if (!o_ptr || !o_ptr->k_idx)
@@ -183,10 +185,11 @@ static bool web_inventory_action_available(
     switch (key)
     {
     case 'u':
-        return web_inventory_item_can_use(item, o_ptr);
+        return ui_inventory_item_can_use(item, o_ptr);
 
     case 'w':
-        return (item < INVEN_WIELD) && item_tester_hook_wear(o_ptr);
+        return (item < INVEN_WIELD) && ui_inventory_can_wear_hook
+            && ui_inventory_can_wear_hook(o_ptr);
 
     case 'r':
         return (item >= INVEN_WIELD);
@@ -228,7 +231,7 @@ static bool web_inventory_action_available(
 }
 
 /* Builds the action list shown after selecting one inventory item. */
-static int web_inventory_build_actions(web_inventory_action_entry* entries,
+static int ui_inventory_build_actions(ui_inventory_action_entry* entries,
     int max_entries, int item, const object_type* o_ptr)
 {
     int i;
@@ -237,25 +240,25 @@ static int web_inventory_build_actions(web_inventory_action_entry* entries,
     if (!entries || (max_entries <= 0))
         return 0;
 
-    for (i = 0; i < (int)N_ELEMENTS(web_inventory_action_defs); i++)
+    for (i = 0; i < (int)N_ELEMENTS(ui_inventory_action_defs); i++)
     {
-        if (!web_inventory_action_available(
-                web_inventory_action_defs[i].key, item, o_ptr))
+        if (!ui_inventory_action_available(
+                ui_inventory_action_defs[i].key, item, o_ptr))
         {
             continue;
         }
         if (count >= max_entries)
             break;
 
-        entries[count++] = web_inventory_action_defs[i];
+        entries[count++] = ui_inventory_action_defs[i];
     }
 
     return count;
 }
 
 /* Formats the user-facing label for one action menu entry. */
-static void web_inventory_format_action_label(
-    char* buf, size_t buf_size, const web_inventory_action_entry* action)
+static void ui_inventory_format_action_label(
+    char* buf, size_t buf_size, const ui_inventory_action_entry* action)
 {
     if (!buf || (buf_size == 0))
         return;
@@ -270,7 +273,7 @@ static void web_inventory_format_action_label(
 }
 
 /* Builds the synthetic key path that moves from one item row to another. */
-static void web_inventory_build_nav(
+static void ui_inventory_build_nav(
     char* nav, size_t nav_size, int from_section, int from_row, int to_section,
     int to_row)
 {
@@ -316,8 +319,8 @@ static void web_inventory_build_nav(
 }
 
 /* Counts how many rows are currently present inside one section. */
-static int web_inventory_section_count(
-    const web_inventory_item_entry* entries, int item_count, int section)
+static int ui_inventory_section_count(
+    const ui_inventory_item_entry* entries, int item_count, int section)
 {
     int i;
     int count = 0;
@@ -332,8 +335,8 @@ static int web_inventory_section_count(
 }
 
 /* Finds one item by section and row within that section. */
-static int web_inventory_find_by_section_row(
-    const web_inventory_item_entry* entries, int item_count, int section,
+static int ui_inventory_find_by_section_row(
+    const ui_inventory_item_entry* entries, int item_count, int section,
     int section_row)
 {
     int i;
@@ -351,7 +354,7 @@ static int web_inventory_find_by_section_row(
 }
 
 /* Finds one item by its inventory letter shortcut. */
-static int web_inventory_find_by_label(const web_inventory_item_entry* entries,
+static int ui_inventory_find_by_label(const ui_inventory_item_entry* entries,
     int item_count, char ch)
 {
     int i;
@@ -368,11 +371,11 @@ static int web_inventory_find_by_label(const web_inventory_item_entry* entries,
 }
 
 /* Collects equipped and carried items into one flat semantic menu list. */
-static int web_inventory_collect_items(web_inventory_item_entry* entries,
+static int ui_inventory_collect_items(ui_inventory_item_entry* entries,
     int max_entries, int preferred_section)
 {
     int count = 0;
-    int section_rows[N_ELEMENTS(web_inventory_sections)];
+    int section_rows[N_ELEMENTS(ui_inventory_sections)];
     size_t s;
 
     (void)preferred_section;
@@ -380,9 +383,9 @@ static int web_inventory_collect_items(web_inventory_item_entry* entries,
     for (s = 0; s < N_ELEMENTS(section_rows); s++)
         section_rows[s] = 0;
 
-    for (s = 0; s < N_ELEMENTS(web_inventory_sections); s++)
+    for (s = 0; s < N_ELEMENTS(ui_inventory_sections); s++)
     {
-        const web_inventory_section_layout* layout = &web_inventory_sections[s];
+        const ui_inventory_section_layout* layout = &ui_inventory_sections[s];
         int i;
 
         for (i = layout->item_start; i < layout->item_end; i++)
@@ -400,8 +403,8 @@ static int web_inventory_collect_items(web_inventory_item_entry* entries,
             entries[count].item = i;
             entries[count].section = layout->section;
             entries[count].section_row = section_rows[s]++;
-            entries[count].attr = web_inventory_item_attr(o_ptr);
-            web_inventory_item_visual(o_ptr, &entries[count].visual_kind,
+            entries[count].attr = ui_inventory_item_attr(o_ptr);
+            ui_inventory_item_visual(o_ptr, &entries[count].visual_kind,
                 &entries[count].visual_attr, &entries[count].visual_char);
             strnfmt(entries[count].label, sizeof(entries[count].label), "%c) %s",
                 index_to_label(i), o_name);
@@ -413,8 +416,8 @@ static int web_inventory_collect_items(web_inventory_item_entry* entries,
 }
 
 /* Picks the first sensible selection when the menu opens. */
-static int web_inventory_default_selection(
-    const web_inventory_item_entry* entries, int count, int initial_section)
+static int ui_inventory_default_selection(
+    const ui_inventory_item_entry* entries, int count, int initial_section)
 {
     int i;
 
@@ -428,7 +431,7 @@ static int web_inventory_default_selection(
 }
 
 /* Keeps the selected index within the available item range. */
-static int web_inventory_clamp_selection(int selected, int item_count)
+static int ui_inventory_clamp_selection(int selected, int item_count)
 {
     if (selected >= item_count)
         selected = item_count - 1;
@@ -439,7 +442,7 @@ static int web_inventory_clamp_selection(int selected, int item_count)
 }
 
 /* Moves the selection up or down inside the current section. */
-static int web_inventory_move_vertical(const web_inventory_item_entry* entries,
+static int ui_inventory_move_vertical(const ui_inventory_item_entry* entries,
     int item_count, int selected, int initial_section, int delta)
 {
     int section;
@@ -451,16 +454,16 @@ static int web_inventory_move_vertical(const web_inventory_item_entry* entries,
 
     section = (selected >= 0) ? entries[selected].section : initial_section;
     row = (selected >= 0) ? entries[selected].section_row : 0;
-    count = web_inventory_section_count(entries, item_count, section);
+    count = ui_inventory_section_count(entries, item_count, section);
     if (count <= 0)
         return selected;
 
     row = (row + delta + count) % count;
-    return web_inventory_find_by_section_row(entries, item_count, section, row);
+    return ui_inventory_find_by_section_row(entries, item_count, section, row);
 }
 
 /* Moves the selection left or right between equipped and inventory columns. */
-static int web_inventory_move_horizontal(const web_inventory_item_entry* entries,
+static int ui_inventory_move_horizontal(const ui_inventory_item_entry* entries,
     int item_count, int selected, int initial_section, int preferred_section)
 {
     int current_section;
@@ -474,9 +477,9 @@ static int web_inventory_move_horizontal(const web_inventory_item_entry* entries
     current_section = (selected >= 0) ? entries[selected].section : initial_section;
     target_section = preferred_section;
     if (target_section == current_section)
-        target_section = web_inventory_other_section(current_section);
+        target_section = ui_inventory_other_section(current_section);
 
-    count = web_inventory_section_count(entries, item_count, target_section);
+    count = ui_inventory_section_count(entries, item_count, target_section);
     if (count <= 0)
         return selected;
 
@@ -484,12 +487,12 @@ static int web_inventory_move_horizontal(const web_inventory_item_entry* entries
     if (row >= count)
         row = count - 1;
 
-    return web_inventory_find_by_section_row(
+    return ui_inventory_find_by_section_row(
         entries, item_count, target_section, row);
 }
 
 /* Appends one compact item-summary block above the full lore text. */
-static void web_inventory_append_item_summary(
+static void ui_inventory_append_item_summary(
     ui_text_builder* builder, const object_type* o_ptr)
 {
     char buf[160];
@@ -552,7 +555,7 @@ static void web_inventory_append_item_summary(
 }
 
 /* Builds the details pane for the currently highlighted inventory item. */
-static void web_inventory_append_selected_details(ui_text_builder* builder,
+static void ui_inventory_append_selected_details(ui_text_builder* builder,
     int item, const object_type* o_ptr)
 {
     char buf[128];
@@ -582,14 +585,14 @@ static void web_inventory_append_selected_details(ui_text_builder* builder,
     }
 
     ui_text_builder_newline(builder, TERM_WHITE);
-    web_inventory_append_item_summary(builder, o_ptr);
+    ui_inventory_append_item_summary(builder, o_ptr);
     ui_text_builder_newline(builder, TERM_WHITE);
     object_info_append_ui_text(builder, o_ptr, TRUE);
 }
 
 /* Populates the details pane and preview visual for the current selection. */
-static void web_inventory_publish_selected_details(
-    const web_inventory_item_entry* entries, int item_count, int selected,
+static void ui_inventory_publish_selected_details(
+    const ui_inventory_item_entry* entries, int item_count, int selected,
     ui_text_builder* details_builder, char* details_text, byte* details_attrs)
 {
     object_type* o_ptr = NULL;
@@ -599,8 +602,8 @@ static void web_inventory_publish_selected_details(
 
     if ((selected >= 0) && (selected < item_count))
     {
-        o_ptr = web_inventory_object(entries[selected].item);
-        web_inventory_append_selected_details(
+        o_ptr = ui_inventory_object(entries[selected].item);
+        ui_inventory_append_selected_details(
             details_builder, entries[selected].item, o_ptr);
         ui_menu_set_details(
             details_text, details_attrs, ui_text_builder_length(details_builder));
@@ -616,8 +619,8 @@ static void web_inventory_publish_selected_details(
 }
 
 /* Renders one inventory column, including its empty-state message. */
-static void web_inventory_render_section(const web_inventory_item_entry* entries,
-    int item_count, int selected, const web_inventory_section_layout* layout)
+static void ui_inventory_render_section(const ui_inventory_item_entry* entries,
+    int item_count, int selected, const ui_inventory_section_layout* layout)
 {
     int count;
     int i;
@@ -627,7 +630,7 @@ static void web_inventory_render_section(const web_inventory_item_entry* entries
 
     Term_putstr(layout->term_col, 4, -1, TERM_L_BLUE, layout->heading);
 
-    count = web_inventory_section_count(entries, item_count, layout->section);
+    count = ui_inventory_section_count(entries, item_count, layout->section);
     if (count <= 0)
     {
         Term_putstr(layout->term_col, 6, -1, TERM_SLATE, layout->empty_text);
@@ -645,7 +648,7 @@ static void web_inventory_render_section(const web_inventory_item_entry* entries
             continue;
 
         term_row = 6 + entries[i].section_row;
-        web_inventory_build_nav(nav, sizeof(nav),
+        ui_inventory_build_nav(nav, sizeof(nav),
             entries[selected].section, entries[selected].section_row,
             entries[i].section, entries[i].section_row);
         is_selected = (i == selected);
@@ -661,13 +664,13 @@ static void web_inventory_render_section(const web_inventory_item_entry* entries
 }
 
 /* Publishes the main inventory browser view into the semantic menu model. */
-static void web_inventory_render_item_menu(
-    const web_inventory_item_entry* entries, int item_count, int selected)
+static void ui_inventory_render_item_menu(
+    const ui_inventory_item_entry* entries, int item_count, int selected)
 {
-    char menu_text[WEB_INVENTORY_TEXT_MAX];
-    byte menu_attrs[WEB_INVENTORY_TEXT_MAX];
-    char menu_details[WEB_INVENTORY_TEXT_MAX];
-    byte menu_details_attrs[WEB_INVENTORY_TEXT_MAX];
+    char menu_text[UI_INVENTORY_TEXT_MAX];
+    byte menu_attrs[UI_INVENTORY_TEXT_MAX];
+    char menu_details[UI_INVENTORY_TEXT_MAX];
+    byte menu_details_attrs[UI_INVENTORY_TEXT_MAX];
     ui_text_builder menu_builder;
     ui_text_builder details_builder;
     size_t i;
@@ -691,29 +694,29 @@ static void web_inventory_render_item_menu(
         menu_text, menu_attrs, ui_text_builder_length(&menu_builder));
     ui_menu_set_details_width(30);
 
-    for (i = 0; i < N_ELEMENTS(web_inventory_sections); i++)
+    for (i = 0; i < N_ELEMENTS(ui_inventory_sections); i++)
     {
-        web_inventory_render_section(
-            entries, item_count, selected, &web_inventory_sections[i]);
+        ui_inventory_render_section(
+            entries, item_count, selected, &ui_inventory_sections[i]);
     }
 
     ui_menu_set_active_column(-1);
-    web_inventory_publish_selected_details(entries, item_count, selected,
+    ui_inventory_publish_selected_details(entries, item_count, selected,
         &details_builder, menu_details, menu_details_attrs);
     ui_menu_end();
 }
 
 /* Shows the action chooser for one already-selected inventory item. */
-static int web_inventory_action_menu(int item)
+static int ui_inventory_action_menu(int item)
 {
-    char menu_text[WEB_INVENTORY_TEXT_MAX];
-    byte menu_attrs[WEB_INVENTORY_TEXT_MAX];
-    char menu_details[WEB_INVENTORY_TEXT_MAX];
-    byte menu_details_attrs[WEB_INVENTORY_TEXT_MAX];
+    char menu_text[UI_INVENTORY_TEXT_MAX];
+    byte menu_attrs[UI_INVENTORY_TEXT_MAX];
+    char menu_details[UI_INVENTORY_TEXT_MAX];
+    byte menu_details_attrs[UI_INVENTORY_TEXT_MAX];
     ui_text_builder menu_builder;
     ui_text_builder details_builder;
-    web_inventory_action_entry actions[WEB_INVENTORY_ACTION_MAX];
-    object_type* o_ptr = web_inventory_object(item);
+    ui_inventory_action_entry actions[UI_INVENTORY_ACTION_MAX];
+    object_type* o_ptr = ui_inventory_object(item);
     char item_name[80];
     int action_count;
     int highlight = 0;
@@ -725,12 +728,12 @@ static int web_inventory_action_menu(int item)
     if (!o_ptr || !o_ptr->k_idx)
         return 0;
 
-    action_count = web_inventory_build_actions(
+    action_count = ui_inventory_build_actions(
         actions, N_ELEMENTS(actions), item, o_ptr);
     if (action_count <= 0)
         return 0;
 
-    web_inventory_item_visual(o_ptr, &visual_kind, &visual_attr, &visual_char);
+    ui_inventory_item_visual(o_ptr, &visual_kind, &visual_attr, &visual_char);
     object_desc(item_name, sizeof(item_name), o_ptr, TRUE, 3);
 
     while (TRUE)
@@ -752,7 +755,7 @@ static int web_inventory_action_menu(int item)
         ui_text_builder_append_line(&menu_builder,
             "Choose an action with movement keys, Enter, or click.", TERM_SLATE);
 
-        web_inventory_format_action_label(
+        ui_inventory_format_action_label(
             action_label, sizeof(action_label), &actions[highlight]);
         ui_text_builder_append_line(&details_builder, action_label, TERM_L_WHITE);
         ui_text_builder_newline(&details_builder, TERM_WHITE);
@@ -773,7 +776,7 @@ static int web_inventory_action_menu(int item)
         {
             byte attr = (i == highlight) ? TERM_L_BLUE : TERM_WHITE;
 
-            web_inventory_format_action_label(
+            ui_inventory_format_action_label(
                 action_label, sizeof(action_label), &actions[i]);
             ui_menu_add(2, 4 + i, (int)strlen(action_label), 1, actions[i].key,
                 i == highlight, TERM_WHITE, action_label);
@@ -826,10 +829,11 @@ static int web_inventory_action_menu(int item)
 }
 
 /* Restores the pre-inventory screen state before running a real command. */
-static void web_inventory_finish_menu(void)
+static void ui_inventory_finish_menu(void)
 {
     ui_menu_clear();
     ui_clear_preselected_item();
+    ui_inventory_can_wear_hook = NULL;
     p_ptr->command_see = FALSE;
     p_ptr->command_wrk = 0;
     item_tester_full = FALSE;
@@ -837,14 +841,14 @@ static void web_inventory_finish_menu(void)
 }
 
 /* Dispatches one chosen action back into the normal command handlers. */
-static bool web_inventory_execute_action(int action_key, int item)
+static bool ui_inventory_execute_action(int action_key, int item)
 {
-    object_type* o_ptr = web_inventory_object(item);
+    object_type* o_ptr = ui_inventory_object(item);
 
     if (!o_ptr || !o_ptr->k_idx)
         return FALSE;
 
-    web_inventory_finish_menu();
+    ui_inventory_finish_menu();
 
     switch (action_key)
     {
@@ -916,55 +920,57 @@ static bool web_inventory_execute_action(int action_key, int item)
 }
 
 /* Opens the action chooser for the current selection and runs the result. */
-static bool web_inventory_open_selected_item(
-    const web_inventory_item_entry* entries, int selected)
+static bool ui_inventory_open_selected_item(
+    const ui_inventory_item_entry* entries, int selected)
 {
     int action_key;
 
     if (selected < 0)
         return FALSE;
 
-    action_key = web_inventory_action_menu(entries[selected].item);
+    action_key = ui_inventory_action_menu(entries[selected].item);
     if (!action_key)
         return FALSE;
 
-    return web_inventory_execute_action(action_key, entries[selected].item);
+    return ui_inventory_execute_action(action_key, entries[selected].item);
 }
 
-/* Runs the web-native inventory browser for inventory or equipment views. */
-static bool do_cmd_web_inventory_menu(int initial_section)
+/* Runs the unified inventory browser for inventory or equipment views. */
+bool do_cmd_ui_inventory_menu(
+    int initial_section, bool (*can_wear)(const object_type*))
 {
-    web_inventory_item_entry entries[INVEN_TOTAL];
+    ui_inventory_item_entry entries[INVEN_TOTAL];
     int item_count;
     int selected;
 
-    if (!web_inventory_menu_enabled())
+    if (!can_wear)
         return FALSE;
 
+    ui_inventory_can_wear_hook = can_wear;
     screen_save();
 
-    item_count = web_inventory_collect_items(
+    item_count = ui_inventory_collect_items(
         entries, N_ELEMENTS(entries), initial_section);
-    selected = web_inventory_default_selection(entries, item_count, initial_section);
+    selected = ui_inventory_default_selection(entries, item_count, initial_section);
 
     while (TRUE)
     {
-        web_inventory_action_entry actions[WEB_INVENTORY_ACTION_MAX];
+        ui_inventory_action_entry actions[UI_INVENTORY_ACTION_MAX];
         object_type* o_ptr = NULL;
         int action_count = 0;
         int label_index;
         char ch;
         int i;
 
-        selected = web_inventory_clamp_selection(selected, item_count);
+        selected = ui_inventory_clamp_selection(selected, item_count);
 
-        web_inventory_render_item_menu(entries, item_count, selected);
+        ui_inventory_render_item_menu(entries, item_count, selected);
         Term_fresh();
 
         if ((selected >= 0) && (selected < item_count))
         {
-            o_ptr = web_inventory_object(entries[selected].item);
-            action_count = web_inventory_build_actions(
+            o_ptr = ui_inventory_object(entries[selected].item);
+            action_count = ui_inventory_build_actions(
                 actions, N_ELEMENTS(actions), entries[selected].item, o_ptr);
         }
 
@@ -977,36 +983,36 @@ static bool do_cmd_web_inventory_menu(int initial_section)
 
         if ((item_count > 0) && (ch == '8'))
         {
-            selected = web_inventory_move_vertical(
+            selected = ui_inventory_move_vertical(
                 entries, item_count, selected, initial_section, -1);
             continue;
         }
 
         if ((item_count > 0) && (ch == '2'))
         {
-            selected = web_inventory_move_vertical(
+            selected = ui_inventory_move_vertical(
                 entries, item_count, selected, initial_section, 1);
             continue;
         }
 
         if ((item_count > 0) && (ch == '4'))
         {
-            selected = web_inventory_move_horizontal(entries, item_count, selected,
-                initial_section, WEB_INVENTORY_SECTION_EQUIP);
+            selected = ui_inventory_move_horizontal(entries, item_count, selected,
+                initial_section, UI_INVENTORY_SECTION_EQUIP);
             continue;
         }
 
         if ((item_count > 0) && (ch == '6'))
         {
-            selected = web_inventory_move_horizontal(entries, item_count, selected,
-                initial_section, WEB_INVENTORY_SECTION_INVEN);
+            selected = ui_inventory_move_horizontal(entries, item_count, selected,
+                initial_section, UI_INVENTORY_SECTION_INVEN);
             continue;
         }
 
         if ((item_count > 0)
             && ((ch == '\r') || (ch == '\n') || (ch == ' ') || (ch == '5')))
         {
-            if (web_inventory_open_selected_item(entries, selected))
+            if (ui_inventory_open_selected_item(entries, selected))
                 return TRUE;
             continue;
         }
@@ -1015,21 +1021,21 @@ static bool do_cmd_web_inventory_menu(int initial_section)
         {
             if (ch == actions[i].key)
             {
-                if (web_inventory_execute_action(ch, entries[selected].item))
+                if (ui_inventory_execute_action(ch, entries[selected].item))
                     return TRUE;
                 break;
             }
         }
 
-        label_index = web_inventory_find_by_label(entries, item_count, ch);
+        label_index = ui_inventory_find_by_label(entries, item_count, ch);
         if (label_index >= 0)
         {
             selected = label_index;
-            if (web_inventory_open_selected_item(entries, selected))
+            if (ui_inventory_open_selected_item(entries, selected))
                 return TRUE;
         }
     }
 
-    web_inventory_finish_menu();
+    ui_inventory_finish_menu();
     return TRUE;
 }
