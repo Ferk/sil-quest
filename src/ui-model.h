@@ -19,6 +19,7 @@
 
 typedef struct ui_text_builder ui_text_builder;
 typedef struct ui_menu_item ui_menu_item;
+typedef struct ui_simple_menu_entry ui_simple_menu_entry;
 
 enum
 {
@@ -55,6 +56,14 @@ struct ui_menu_item
     char nav[UI_MENU_NAV_MAX];
 };
 
+struct ui_simple_menu_entry
+{
+    int key;
+    int row;
+    cptr label;
+    cptr details;
+};
+
 /* Starts writing into one text-plus-attrs builder. */
 void ui_text_builder_init(
     ui_text_builder* builder, char* text, byte* attrs, size_t size);
@@ -68,6 +77,14 @@ void ui_text_builder_append_line(
     ui_text_builder* builder, cptr text, byte attr);
 /* Returns the current text length stored in one builder. */
 int ui_text_builder_length(const ui_text_builder* builder);
+
+/* Renders one simple vertical text menu plus its details pane. */
+void ui_simple_menu_render(cptr title, int title_row, int col,
+    const ui_simple_menu_entry* entries, int entry_count, int highlight,
+    cptr extra_details);
+/* Reads one action from a simple vertical text menu. */
+int ui_simple_menu_read_action(
+    int* highlight, const ui_simple_menu_entry* entries, int entry_count);
 
 /* Begins publishing a fresh semantic menu frame. */
 void ui_menu_begin(void);

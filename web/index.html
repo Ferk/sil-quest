@@ -148,51 +148,76 @@
             aria-hidden="true"
           ></span>
         </button>
-        <button
-          id="inventory-fab"
-          class="action-fab inventory-fab"
-          type="button"
-          aria-label="Open inventory"
-          title="Open inventory"
-          hidden
-        >
-          <img
-            src="./assets/icon-backpack.png"
-            alt=""
-            class="action-fab-icon"
-            aria-hidden="true"
+
+        <div id="player-action-fabs" class="action-row">
+          <div id="song-fab-wrap" class="action-fab-stack" hidden>
+            <button
+              id="song-fab"
+              class="action-fab song-fab"
+              type="button"
+              aria-label="Songs"
+              title="Songs"
+            >
+              <img
+                src="./assets/icon-song.png"
+                alt=""
+                class="action-fab-icon"
+                aria-hidden="true"
+              >
+            </button>
+            <span
+              id="song-fab-label"
+              class="action-fab-caption"
+              aria-hidden="true"
+              hidden
+            ></span>
+          </div>
+          <button
+            id="inventory-fab"
+            class="action-fab inventory-fab"
+            type="button"
+            aria-label="Open inventory"
+            title="Open inventory"
+            hidden
           >
-        </button>
-        <button
-          id="yes-fab"
-          class="action-fab yes-fab"
-          type="button"
-          aria-label="Yes"
-          title="Yes"
-          hidden
-        >
-          <img
-            src="./assets/icon-y.png"
-            alt=""
-            class="action-fab-icon"
-            aria-hidden="true"
+            <img
+              src="./assets/icon-backpack.png"
+              alt=""
+              class="action-fab-icon"
+              aria-hidden="true"
+            >
+          </button>
+          <button
+            id="yes-fab"
+            class="action-fab yes-fab"
+            type="button"
+            aria-label="Yes"
+            title="Yes"
+            hidden
           >
-        </button>
-        <button
-          id="close-fab"
-          class="action-fab close-fab"
-          type="button"
-          aria-label="Close"
-          title="Close"
-          hidden
-        >
-          <img
-            src="./assets/icon-x.png"
-            alt=""
-            class="action-fab-icon"
-            aria-hidden="true"
+            <img
+              src="./assets/icon-y.png"
+              alt=""
+              class="action-fab-icon"
+              aria-hidden="true"
+            >
+          </button>
+          <button
+            id="close-fab"
+            class="action-fab close-fab"
+            type="button"
+            aria-label="Close"
+            title="Close"
+            hidden
           >
-        </button>
+            <img
+              src="./assets/icon-x.png"
+              alt=""
+              class="action-fab-icon"
+              aria-hidden="true"
+            >
+          </button>
+        </div>
       </div>
       <div id="side-backdrop" class="side-backdrop" hidden></div>
       <div id="side-wrap" class="side-wrap">

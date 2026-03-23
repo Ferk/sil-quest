@@ -178,15 +178,6 @@ static int build_ability_menu_semantic_text(
     return ui_text_builder_length(&builder);
 }
 
-typedef struct command_menu_entry command_menu_entry;
-struct command_menu_entry
-{
-    int key;
-    int row;
-    cptr label;
-    cptr details;
-};
-
 static cptr song_menu_name(int song)
 {
     int idx;
@@ -254,7 +245,7 @@ static void build_song_menu_extra_details(char* details, size_t details_size)
     }
 }
 
-static int build_song_menu_entries(command_menu_entry* entries,
+static int build_song_menu_entries(ui_simple_menu_entry* entries,
     char labels[][80], char details[][1024], int max_entries)
 {
     int i;
@@ -325,114 +316,4 @@ static int build_song_menu_entries(command_menu_entry* entries,
     }
 
     return entry_count;
-}
-
-static void render_command_menu(cptr title, int title_row, int col,
-    const command_menu_entry* entries, int entry_count, int highlight,
-    cptr extra_details)
-{
-    int i;
-    char menu_text[1024];
-    byte menu_attrs[1024];
-    char menu_details[2048];
-    byte menu_details_attrs[2048];
-    ui_text_builder menu_builder;
-    ui_text_builder details_builder;
-
-    ui_text_builder_init(&menu_builder, menu_text, menu_attrs, sizeof(menu_text));
-    ui_text_builder_init(
-        &details_builder, menu_details, menu_details_attrs, sizeof(menu_details));
-
-    Term_putstr(col - 3, title_row, -1, TERM_WHITE, title);
-    ui_text_builder_append_line(&menu_builder, title, TERM_WHITE);
-    ui_text_builder_newline(&menu_builder, TERM_WHITE);
-    ui_text_builder_append_line(&menu_builder,
-        "Use 8/2 to move, Enter to choose, or click an option.", TERM_SLATE);
-
-    ui_menu_begin();
-    ui_menu_set_text(
-        menu_text, menu_attrs, ui_text_builder_length(&menu_builder));
-
-    for (i = 0; i < entry_count; i++)
-    {
-        byte attr = (i + 1 == highlight) ? TERM_L_BLUE : TERM_WHITE;
-        size_t label_len = strlen(entries[i].label);
-
-        Term_putstr(col, entries[i].row, -1, attr, entries[i].label);
-        ui_menu_add(col, entries[i].row, (int)label_len, 1, entries[i].key,
-            (i + 1 == highlight), TERM_WHITE, entries[i].label);
-    }
-
-    if ((highlight >= 1) && (highlight <= entry_count))
-    {
-        const command_menu_entry* selected = &entries[highlight - 1];
-
-        ui_text_builder_append_line(
-            &details_builder, selected->label, TERM_L_WHITE);
-        ui_text_builder_newline(&details_builder, TERM_WHITE);
-        ui_text_builder_append_line(
-            &details_builder, selected->details, TERM_SLATE);
-    }
-
-    if (extra_details && extra_details[0] != '\0')
-    {
-        if (ui_text_builder_length(&details_builder) > 0)
-        {
-            ui_text_builder_newline(&details_builder, TERM_WHITE);
-            ui_text_builder_newline(&details_builder, TERM_WHITE);
-        }
-        ui_text_builder_append_line(&details_builder, extra_details, TERM_SLATE);
-    }
-
-    ui_menu_set_details(
-        menu_details, menu_details_attrs, ui_text_builder_length(&details_builder));
-    ui_menu_end();
-}
-
-static int command_menu_read_action(
-    int* highlight, const command_menu_entry* entries, int entry_count)
-{
-    int i;
-    char ch;
-
-    if (entry_count <= 0)
-        return ESCAPE;
-
-    if (*highlight < 1)
-        *highlight = 1;
-    if (*highlight > entry_count)
-        *highlight = entry_count;
-
-    hide_cursor = TRUE;
-    ch = inkey();
-    hide_cursor = FALSE;
-
-    if (ch == ESCAPE)
-        return ESCAPE;
-
-    if (ch == '8')
-    {
-        *highlight = (*highlight + entry_count - 2) % entry_count + 1;
-        return 0;
-    }
-
-    if (ch == '2')
-    {
-        *highlight = *highlight % entry_count + 1;
-        return 0;
-    }
-
-    if ((ch == '\r') || (ch == '\n') || (ch == ' '))
-        return entries[*highlight - 1].key;
-
-    for (i = 0; i < entry_count; i++)
-    {
-        if (ch == entries[i].key)
-        {
-            *highlight = i + 1;
-            return entries[i].key;
-        }
-    }
-
-    return -1;
 }

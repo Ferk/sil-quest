@@ -210,6 +210,7 @@ EMSCRIPTEN_KEEPALIVE int web_get_cursor_visible(void);
 EMSCRIPTEN_KEEPALIVE int web_act_here(void);
 EMSCRIPTEN_KEEPALIVE int web_act_adjacent(int dir);
 EMSCRIPTEN_KEEPALIVE int web_open_inventory(void);
+EMSCRIPTEN_KEEPALIVE int web_open_song_menu(void);
 EMSCRIPTEN_KEEPALIVE int web_travel_to(int y, int x);
 EMSCRIPTEN_KEEPALIVE int web_push_key(int key);
 EMSCRIPTEN_KEEPALIVE uintptr_t web_get_log_text_ptr(void);
@@ -667,6 +668,11 @@ static cptr web_get_song_name(byte song)
 
     if (strncmp(name, "Song of ", 8) == 0)
         name += 8;
+    else if (strncmp(name, "Theme of ", 9) == 0)
+        name += 9;
+
+    if (strncmp(name, "the ", 4) == 0)
+        name += 4;
 
     return name;
 }
@@ -2447,6 +2453,24 @@ EMSCRIPTEN_KEEPALIVE int web_open_inventory(void)
         travel_clear();
 
     return web_key_enqueue(INVENTORY_CMD) ? 1 : 0;
+}
+
+/* Queues the song-selection command for one floating web action button. */
+EMSCRIPTEN_KEEPALIVE int web_open_song_menu(void)
+{
+    if (!p_ptr || !character_dungeon || !p_ptr->playing)
+        return 0;
+
+    if (travel_is_running())
+        travel_clear();
+
+    if (!web_key_enqueue('s'))
+        return 0;
+
+    if ((p_ptr->song1 != SNG_NOTHING) || (p_ptr->song2 != SNG_NOTHING))
+        return web_key_enqueue('s') ? 1 : 0;
+
+    return 1;
 }
 
 EMSCRIPTEN_KEEPALIVE int web_travel_to(int y, int x)

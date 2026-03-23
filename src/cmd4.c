@@ -558,9 +558,6 @@ void do_cmd_change_song(void)
     int song_choice = -1;
     int highlight = 0;
 
-    char out_val[80];
-    char tmp_val[80];
-
     char which;
 
     // count the abilities
@@ -601,7 +598,7 @@ void do_cmd_change_song(void)
     /* Repeat until done */
     while (!done)
     {
-        command_menu_entry entries[16];
+        ui_simple_menu_entry entries[16];
         char labels[16][80];
         char details[16][1024];
         char extra_details[256];
@@ -618,48 +615,19 @@ void do_cmd_change_song(void)
         if (highlight > entry_count)
             highlight = entry_count;
         build_song_menu_extra_details(extra_details, sizeof(extra_details));
-        render_command_menu(
+        ui_simple_menu_render(
             "Songs", 2, 26, entries, entry_count, highlight, extra_details);
 
-        /* Begin the prompt */
-        strnfmt(out_val, sizeof(out_val), "Songs: s");
-
-        // count the abilities
-        for (i = 0; i < SNG_WOVEN_THEMES; i++)
-        {
-            // keep track of the number of options
-            if (p_ptr->active_ability[S_SNG][i])
-            {
-                my_strcat(out_val, ",", sizeof(out_val));
-                strnfmt(tmp_val, sizeof(tmp_val), "%c", (char)'a' + i);
-
-                /* Append */
-                my_strcat(out_val, tmp_val, sizeof(out_val));
-            }
-        }
-
-        // add an 'x' option if using woven themes
-        if (p_ptr->song2 != SNG_NOTHING)
-        {
-            /* Append */
-            my_strcat(out_val, ",x", sizeof(out_val));
-        }
-
-        /* Indicate ability to "view" */
-        if (!p_ptr->command_see)
-            my_strcat(out_val, ", * to see", sizeof(out_val));
-
-        /* Build the prompt */
-        strnfmt(tmp_val, sizeof(tmp_val), "(%s) Sing which song: ", out_val);
-
-        /* Show the prompt */
-        prt(tmp_val, 0, 0);
-
-        which = (char)command_menu_read_action(&highlight, entries, entry_count);
+        which = (char)ui_simple_menu_read_action(&highlight, entries, entry_count);
 
         /* Parse it */
         switch (which)
         {
+        case 0:
+        {
+            break;
+        }
+
         case ESCAPE:
         case '\r':
         {
@@ -747,9 +715,6 @@ void do_cmd_change_song(void)
         /* Hack -- Cancel "display" */
         p_ptr->command_see = FALSE;
     }
-
-    /* Clear the prompt line */
-    prt("", 0, 0);
 
     if (song_choice >= 0)
     {
@@ -8419,7 +8384,7 @@ void do_cmd_macros(void)
     /* Process requests until done */
     while (1)
     {
-        command_menu_entry entries[10];
+        ui_simple_menu_entry entries[10];
         int entry_count = 0;
         char details[1400];
 
@@ -8501,14 +8466,11 @@ void do_cmd_macros(void)
 
         strnfmt(details, sizeof(details),
             "Current action:\n%s\n\nPress Escape to return to the game.", tmp);
-        render_command_menu(
+        ui_simple_menu_render(
             "Interact with Macros", 2, 5, entries, entry_count, highlight, details);
 
-        /* Prompt */
-        prt("Command: ", 16, 0);
-
         /* Get a command */
-        ch = (char)command_menu_read_action(&highlight, entries, entry_count);
+        ch = (char)ui_simple_menu_read_action(&highlight, entries, entry_count);
 
         /* Leave */
         if (ch == ESCAPE)
@@ -8991,7 +8953,7 @@ void do_cmd_visuals(void)
     /* Interact until done */
     while (1)
     {
-        command_menu_entry entries[10];
+        ui_simple_menu_entry entries[10];
         int entry_count = 0;
 
         /* Clear screen */
@@ -9061,14 +9023,10 @@ void do_cmd_visuals(void)
             = "Restore the default visual attr/char tables.";
         entry_count++;
 
-        render_command_menu("Interact with Visuals", 2, 5, entries, entry_count,
+        ui_simple_menu_render("Interact with Visuals", 2, 5, entries, entry_count,
             highlight, "Press Escape to return to the game.");
 
-        /* Prompt */
-        prt("Command: ", 15, 0);
-
-        /* Prompt */
-        ch = (char)command_menu_read_action(&highlight, entries, entry_count);
+        ch = (char)ui_simple_menu_read_action(&highlight, entries, entry_count);
 
         /* Done */
         if (ch == ESCAPE)
@@ -10238,7 +10196,7 @@ void do_cmd_colors(void)
     /* Interact until done */
     while (1)
     {
-        command_menu_entry entries[3];
+        ui_simple_menu_entry entries[3];
         int entry_count = 0;
 
         /* Clear screen */
@@ -10266,14 +10224,10 @@ void do_cmd_colors(void)
         entry_count++;
 #endif /* ALLOW_COLORS */
 
-        render_command_menu("Interact with Colors", 2, 5, entries, entry_count,
+        ui_simple_menu_render("Interact with Colors", 2, 5, entries, entry_count,
             highlight, "Press Escape to return to the game.");
 
-        /* Prompt */
-        prt("Command: ", 8, 0);
-
-        /* Prompt */
-        ch = (char)command_menu_read_action(&highlight, entries, entry_count);
+        ch = (char)ui_simple_menu_read_action(&highlight, entries, entry_count);
 
         /* Done */
         if (ch == ESCAPE)

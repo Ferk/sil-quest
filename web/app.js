@@ -22,6 +22,9 @@
     const yesFabEl = document.getElementById("yes-fab");
     const closeFabEl = document.getElementById("close-fab");
     const inventoryFabEl = document.getElementById("inventory-fab");
+    const songFabWrapEl = document.getElementById("song-fab-wrap");
+    const songFabEl = document.getElementById("song-fab");
+    const songFabLabelEl = document.getElementById("song-fab-label");
     const tileActionFabEl = document.getElementById("tile-action-fab");
     const tileActionFabVisualEl = document.getElementById("tile-action-fab-visual");
     const adjacentActionFabEls = Array.from(
@@ -1052,6 +1055,45 @@
         console.warn("Invalid player-state payload from wasm:", err);
         return null;
       }
+    }
+
+    // Normalizes one song/theme name from the semantic player-state blob.
+    function normalizeSongStateName(raw) {
+      const text = String(raw || "").trim();
+      return text && text !== "(none)" ? text : "";
+    }
+
+    // Trims the common song prefix so the compact FAB caption can stay short.
+    function getCompactSongName(raw) {
+      const text = normalizeSongStateName(raw);
+      return text.replace(/^(?:Song|Theme) of /i, "").replace(/^the /i, "").trim();
+    }
+
+    // Builds the active/inactive presentation state for the floating song button.
+    function getSongFabState(state = null) {
+      const songName = normalizeSongStateName(state?.song);
+      const themeName = normalizeSongStateName(state?.theme);
+      const activeName = songName || themeName;
+      const compactName = getCompactSongName(activeName);
+      let title = "Songs";
+      let ariaLabel = "Songs";
+
+      if (songName && themeName) {
+        const compactSong = getCompactSongName(songName);
+        const compactTheme = getCompactSongName(themeName);
+        title = `Stop singing ${compactSong} + ${compactTheme}`;
+        ariaLabel = `Stop singing ${compactSong} and ${compactTheme}`;
+      } else if (compactName) {
+        title = `Stop singing ${compactName}`;
+        ariaLabel = `Stop singing ${compactName}`;
+      }
+
+      return {
+        active: !!activeName,
+        label: compactName,
+        title,
+        ariaLabel,
+      };
     }
 
     /* ==========================================================================
@@ -2278,6 +2320,15 @@
         isGameplayViewIdle();
     }
 
+    // Returns whether the floating song button should currently be enabled.
+    function canUseSongFab(state = null) {
+      return !!api &&
+        typeof api.openSongMenu === "function" &&
+        !!state &&
+        Number(state.ready) === 1 &&
+        isGameplayViewIdle();
+    }
+
     // Returns whether the contextual current-tile action button should be visible.
     function canUseTileActionFab(state = null) {
       return !!api &&
@@ -2430,7 +2481,7 @@
 
     // Keeps floating action buttons visually in sync with the current gameplay state.
     function syncFloatingActionButtons(state = null) {
-      if (!actionFabsEl || !yesFabEl || !inventoryFabEl || !tileActionFabEl || !closeFabEl) {
+      if (!actionFabsEl || !yesFabEl || !inventoryFabEl || !songFabWrapEl || !songFabEl || !songFabLabelEl || !tileActionFabEl || !closeFabEl) {
         return;
       }
 
@@ -2438,22 +2489,30 @@
       const showClose = !compactSideOpen && canUseCloseFab();
       const showYes = showClose && yesNoPromptActive;
       const showInventory = !compactSideOpen && !showClose && canUseInventoryFab(state);
+      const showSong = !compactSideOpen && !showClose && canUseSongFab(state);
       const showTileAction = !compactSideOpen && !showClose && canUseTileActionFab(state);
       const showAdjacentActions =
         !compactSideOpen && !showClose && canUseAdjacentActionRow(state);
       const tileActionLabel = state && Number(state.tileActionVisible) === 1
         ? String(state.tileActionLabel || "Act here")
         : "Act here";
+      const songFabState = getSongFabState(state);
 
       renderTileActionFabVisual(state);
       const anyAdjacentActions = syncAdjacentActionButtons(state, showAdjacentActions);
 
       actionFabsEl.hidden =
-        !showYes && !showClose && !showInventory && !showTileAction && !anyAdjacentActions;
+        !showYes && !showClose && !showInventory && !showSong && !showTileAction && !anyAdjacentActions;
       yesFabEl.hidden = !showYes;
       yesFabEl.title = "Yes (y)";
       yesFabEl.setAttribute("aria-label", "Yes");
       inventoryFabEl.hidden = !showInventory;
+      songFabWrapEl.hidden = !showSong;
+      songFabEl.title = songFabState.title;
+      songFabEl.setAttribute("aria-label", songFabState.ariaLabel);
+      songFabEl.classList.toggle("song-fab-active", showSong && songFabState.active);
+      songFabLabelEl.hidden = !showSong || !songFabState.active || !songFabState.label;
+      songFabLabelEl.textContent = showSong && songFabState.active ? songFabState.label : "";
       tileActionFabEl.hidden = !showTileAction;
       tileActionFabEl.title = `${tileActionLabel} (,)`;
       tileActionFabEl.setAttribute("aria-label", tileActionLabel);
@@ -2772,7 +2831,7 @@
       });
     }
 
-    // Binds the floating backpack/close buttons to their current contextual actions.
+    // Binds the floating action buttons to their current contextual actions.
     function bindFloatingActionInput() {
       for (const buttonEl of adjacentActionFabEls) {
         buttonEl.addEventListener("pointerdown", (ev) => {
@@ -2824,6 +2883,24 @@
 
         setCompactSideOpen(false);
         if (api.openInventory()) {
+          hoveredMenuIndex = -1;
+          forceRedraw = true;
+        }
+      });
+
+      songFabEl.addEventListener("pointerdown", (ev) => {
+        ev.stopPropagation();
+      });
+
+      songFabEl.addEventListener("click", (ev) => {
+        ev.preventDefault();
+        ev.stopPropagation();
+        const heap = getHeapU8();
+        const state = heap ? readPlayerState(heap) : null;
+        if (!canUseSongFab(state)) return;
+
+        setCompactSideOpen(false);
+        if (api.openSongMenu()) {
           hoveredMenuIndex = -1;
           forceRedraw = true;
         }
@@ -3250,6 +3327,10 @@
           openInventory:
             typeof Module._web_open_inventory === "function"
               ? Module._web_open_inventory
+              : null,
+          openSongMenu:
+            typeof Module._web_open_song_menu === "function"
+              ? Module._web_open_song_menu
               : null,
           travelTo:
             typeof Module._web_travel_to === "function"
