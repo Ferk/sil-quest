@@ -14,6 +14,7 @@
 
 #include "angband.h"
 
+#include "ui-input.h"
 #include "ui-inventory.h"
 #include "ui-model.h"
 
@@ -709,17 +710,13 @@ static void ui_inventory_render_item_menu(
 /* Shows the action chooser for one already-selected inventory item. */
 static int ui_inventory_action_menu(int item)
 {
-    char menu_text[UI_INVENTORY_TEXT_MAX];
-    byte menu_attrs[UI_INVENTORY_TEXT_MAX];
-    char menu_details[UI_INVENTORY_TEXT_MAX];
-    byte menu_details_attrs[UI_INVENTORY_TEXT_MAX];
-    ui_text_builder menu_builder;
-    ui_text_builder details_builder;
     ui_inventory_action_entry actions[UI_INVENTORY_ACTION_MAX];
+    ui_simple_menu_entry menu_entries[UI_INVENTORY_ACTION_MAX];
+    char action_labels[UI_INVENTORY_ACTION_MAX][96];
     object_type* o_ptr = ui_inventory_object(item);
     char item_name[80];
     int action_count;
-    int highlight = 0;
+    int highlight = 1;
     int visual_kind = UI_MENU_VISUAL_NONE;
     int visual_attr = TERM_WHITE;
     int visual_char = 0;
@@ -736,94 +733,35 @@ static int ui_inventory_action_menu(int item)
     ui_inventory_item_visual(o_ptr, &visual_kind, &visual_attr, &visual_char);
     object_desc(item_name, sizeof(item_name), o_ptr, TRUE, 3);
 
+    for (i = 0; i < action_count; i++)
+    {
+        ui_inventory_format_action_label(
+            action_labels[i], sizeof(action_labels[i]), &actions[i]);
+        menu_entries[i].key = actions[i].key;
+        menu_entries[i].row = 4 + i;
+        menu_entries[i].label = action_labels[i];
+        menu_entries[i].details = actions[i].details;
+    }
+
     while (TRUE)
     {
-        char ch;
-        char action_label[96];
+        int action_key;
 
-        if (highlight < 0)
-            highlight = 0;
-        if (highlight >= action_count)
-            highlight = action_count - 1;
-
-        ui_text_builder_init(&menu_builder, menu_text, menu_attrs, sizeof(menu_text));
-        ui_text_builder_init(
-            &details_builder, menu_details, menu_details_attrs, sizeof(menu_details));
-
-        ui_text_builder_append_line(&menu_builder, item_name, TERM_WHITE);
-        ui_text_builder_newline(&menu_builder, TERM_WHITE);
-        ui_text_builder_append_line(&menu_builder,
-            "Choose an action with movement keys, Enter, or click.", TERM_SLATE);
-
-        ui_inventory_format_action_label(
-            action_label, sizeof(action_label), &actions[highlight]);
-        ui_text_builder_append_line(&details_builder, action_label, TERM_L_WHITE);
-        ui_text_builder_newline(&details_builder, TERM_WHITE);
-        ui_text_builder_append_line(
-            &details_builder, actions[highlight].details, TERM_SLATE);
-
-        Term_putstr(2, 1, -1, TERM_WHITE, item_name);
-
-        ui_menu_begin();
-        ui_menu_set_text(
-            menu_text, menu_attrs, ui_text_builder_length(&menu_builder));
-        ui_menu_set_details_width(36);
-        ui_menu_set_details(menu_details, menu_details_attrs,
-            ui_text_builder_length(&details_builder));
-        ui_menu_set_details_visual(visual_kind, visual_attr, visual_char);
-
-        for (i = 0; i < action_count; i++)
-        {
-            byte attr = (i == highlight) ? TERM_L_BLUE : TERM_WHITE;
-
-            ui_inventory_format_action_label(
-                action_label, sizeof(action_label), &actions[i]);
-            ui_menu_add(2, 4 + i, (int)strlen(action_label), 1, actions[i].key,
-                i == highlight, TERM_WHITE, action_label);
-            if (4 + i < Term->hgt)
-                Term_putstr(2, 4 + i, -1, attr, action_label);
-        }
-
-        ui_menu_end();
+        ui_simple_menu_render_custom(item_name, 1, 5, menu_entries, action_count,
+            highlight, NULL, 36, visual_kind, visual_attr, visual_char);
         Term_fresh();
 
-        hide_cursor = TRUE;
-        ch = inkey();
-        hide_cursor = FALSE;
-
-        if (ch == ESCAPE)
+        action_key = ui_simple_menu_read_action(&highlight, menu_entries, action_count);
+        if (action_key == ESCAPE)
         {
             ui_menu_clear();
             return 0;
         }
 
-        if (ch == '8')
+        if (action_key > 0)
         {
-            highlight = (highlight + action_count - 1) % action_count;
-            continue;
-        }
-
-        if (ch == '2')
-        {
-            highlight = (highlight + 1) % action_count;
-            continue;
-        }
-
-        if ((ch == '\r') || (ch == '\n') || (ch == ' '))
-        {
-            int key = actions[highlight].key;
-
             ui_menu_clear();
-            return key;
-        }
-
-        for (i = 0; i < action_count; i++)
-        {
-            if (ch == actions[i].key)
-            {
-                ui_menu_clear();
-                return actions[i].key;
-            }
+            return action_key;
         }
     }
 }
@@ -961,6 +899,7 @@ bool do_cmd_ui_inventory_menu(
         int action_count = 0;
         int label_index;
         char ch;
+        ui_input_nested_menu_action action;
         int i;
 
         selected = ui_inventory_clamp_selection(selected, item_count);
@@ -979,31 +918,32 @@ bool do_cmd_ui_inventory_menu(
         ch = inkey();
         hide_cursor = FALSE;
 
-        if (ch == ESCAPE)
+        action = ui_input_parse_nested_menu_key(ch);
+        if (action == UI_INPUT_NESTED_MENU_ACTION_CANCEL)
             break;
 
-        if ((item_count > 0) && (ch == '8'))
+        if ((item_count > 0) && (action == UI_INPUT_NESTED_MENU_ACTION_UP))
         {
             selected = ui_inventory_move_vertical(
                 entries, item_count, selected, initial_section, -1);
             continue;
         }
 
-        if ((item_count > 0) && (ch == '2'))
+        if ((item_count > 0) && (action == UI_INPUT_NESTED_MENU_ACTION_DOWN))
         {
             selected = ui_inventory_move_vertical(
                 entries, item_count, selected, initial_section, 1);
             continue;
         }
 
-        if ((item_count > 0) && (ch == '4'))
+        if ((item_count > 0) && (action == UI_INPUT_NESTED_MENU_ACTION_LEFT))
         {
             selected = ui_inventory_move_horizontal(entries, item_count, selected,
                 initial_section, UI_INVENTORY_SECTION_EQUIP);
             continue;
         }
 
-        if ((item_count > 0) && (ch == '6'))
+        if ((item_count > 0) && (action == UI_INPUT_NESTED_MENU_ACTION_RIGHT))
         {
             selected = ui_inventory_move_horizontal(entries, item_count, selected,
                 initial_section, UI_INVENTORY_SECTION_INVEN);
@@ -1011,7 +951,7 @@ bool do_cmd_ui_inventory_menu(
         }
 
         if ((item_count > 0)
-            && ((ch == '\r') || (ch == '\n') || (ch == ' ') || (ch == '5')))
+            && (action == UI_INPUT_NESTED_MENU_ACTION_CHOOSE))
         {
             if (ui_inventory_open_selected_item(entries, selected))
                 return TRUE;

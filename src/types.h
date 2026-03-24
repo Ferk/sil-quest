@@ -83,7 +83,6 @@ typedef struct start_item start_item;
 typedef struct names_type names_type;
 typedef struct flavor_type flavor_type;
 typedef struct editing_buffer editing_buffer;
-typedef struct autoinscription autoinscription;
 
 /**** Available structs ****/
 
@@ -238,9 +237,7 @@ struct object_kind
 
     bool tried; /* The player has "tried" one of the items */
 
-    byte squelch; /* Squelch setting for the particular item */
-
-    bool everseen; /* Used to despoilify squelch menus */
+    bool everseen; /* Has this kind been seen this game? */
 };
 
 /*
@@ -351,8 +348,7 @@ struct ego_item_type
     byte max_pval; /* Maximum pval */
 
     bool aware; /* Has its type been detected this game? */
-    bool everseen; /* Do not spoil squelch menus */
-    bool squelch; /* Squelch this special item */
+    bool everseen; /* Has this special item type been seen this game? */
 };
 
 /*
@@ -1227,11 +1223,4 @@ struct names_type
 {
     u16b lprobs[S_WORD + 1][S_WORD + 1][S_WORD + 1];
     u16b ltotal[S_WORD + 1][S_WORD + 1];
-};
-
-/*Information for object auto-inscribe*/
-struct autoinscription
-{
-    s16b kindIdx;
-    s16b inscriptionIdx;
 };

@@ -764,9 +764,6 @@ byte num_trap_on_level;
 /*occasionally allow chance of different inventory in a store*/
 byte allow_altered_inventory;
 
-autoinscription* inscriptions = 0;
-u16b inscriptionsCount = 0;
-
 /* The bones file a restored player ghost should use to collect extra
  * flags, and a unique name.  This also indicates that there is
  * a ghost active.  -LM-

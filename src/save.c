@@ -9,6 +9,7 @@
  */
 
 #include "angband.h"
+#include "item-rules.h"
 
 static const char* races[] = {
     "Noldor",
@@ -620,10 +621,8 @@ static void wr_xtra(int k_idx)
 
     wr_byte(tmp8u);
 
-    /*write the squelch settings*/
-    tmp8u = k_ptr->squelch;
-
-    wr_byte(tmp8u);
+    /* Write a zeroed legacy squelch byte for save compatibility. */
+    wr_byte(0);
 }
 
 /*
@@ -866,9 +865,9 @@ static void wr_extra(void)
     wr_u32b(0L);
     wr_u32b(0L);
 
-    /* Save item-quality squelch sub-menu */
+    /* Write zeroed legacy squelch settings. */
     for (i = 0; i < SQUELCH_BYTES; i++)
-        wr_byte(squelch_level[i]);
+        wr_byte(0);
 
     /* Store the name of the current greater vault */
     wr_string(g_vault_name);
@@ -876,14 +875,12 @@ static void wr_extra(void)
     /* Save the current number of special item types */
     wr_u16b(z_info->e_max);
 
-    /* Save special item squelch settings */
+    /* Save the remaining special item knowledge flags. */
     for (i = 0; i < z_info->e_max; i++)
     {
         ego_item_type* e_ptr = &e_info[i];
         byte tmp8u = 0;
 
-        if (e_ptr->squelch)
-            tmp8u |= 0x01;
         if (e_ptr->everseen)
             tmp8u |= 0x02;
         if (e_ptr->aware)
@@ -892,14 +889,14 @@ static void wr_extra(void)
         wr_byte(tmp8u);
     }
 
-    /*Write the current number of auto-inscriptions*/
-    wr_u16b(inscriptionsCount);
+    /* Write the current number of automatic notes. */
+    wr_u16b(item_rules_note_count());
 
-    /*Write the autoinscriptions array*/
-    for (i = 0; i < inscriptionsCount; i++)
+    /* Write the automatic note rules. */
+    for (i = 0; i < item_rules_note_count(); i++)
     {
-        wr_s16b(inscriptions[i].kindIdx);
-        wr_string(quark_str(inscriptions[i].inscriptionIdx));
+        wr_s16b(item_rules_note_kind_at(i));
+        wr_string(item_rules_note_text_at(i));
     }
 
     // Greater vaults seen

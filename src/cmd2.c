@@ -1066,12 +1066,6 @@ static bool do_cmd_open_chest(int y, int x, s16b o_idx)
         /* Let the Chest drop items */
         chest_death(y, x, o_idx);
 
-        /*squelch chest if autosquelch calls for it*/
-        if ((squelch_level[CHEST_INDEX]) == SQUELCH_OPENED_CHESTS)
-        {
-            delete_object_idx(o_idx);
-            msg_print("Chest squelched after it was opened.");
-        }
     }
 
     /* Result */

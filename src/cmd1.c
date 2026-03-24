@@ -9,6 +9,7 @@
  */
 
 #include "angband.h"
+#include "item-rules.h"
 
 bool graphics_are_ascii(void)
 {
@@ -1179,8 +1180,8 @@ extern void ident(object_type* o_ptr)
     object_aware(o_ptr);
     object_known(o_ptr);
 
-    /* Apply an autoinscription, if necessary */
-    apply_autoinscription(o_ptr);
+    /* Apply an automatic note rule, if necessary. */
+    item_rules_apply_note(o_ptr);
 
     /* Recalculate bonuses */
     p_ptr->update |= (PU_BONUS);
@@ -2203,9 +2204,9 @@ void ident_bow_arrow_by_use(object_type* j_ptr, object_type* i_ptr,
         object_aware(o_ptr);
         object_known(o_ptr);
 
-        /* Apply an autoinscription, if necessary */
-        apply_autoinscription(i_ptr);
-        apply_autoinscription(o_ptr);
+        /* Apply an automatic note rule, if necessary. */
+        item_rules_apply_note(i_ptr);
+        item_rules_apply_note(o_ptr);
 
         /* Recalculate bonuses */
         p_ptr->update |= (PU_BONUS);
@@ -2234,8 +2235,8 @@ void ident_bow_arrow_by_use(object_type* j_ptr, object_type* i_ptr,
         object_aware(j_ptr);
         object_known(j_ptr);
 
-        /* Apply an autoinscription, if necessary */
-        apply_autoinscription(j_ptr);
+        /* Apply an automatic note rule, if necessary. */
+        item_rules_apply_note(j_ptr);
 
         /* Recalculate bonuses */
         p_ptr->update |= (PU_BONUS);
@@ -2922,9 +2923,6 @@ void py_pickup(void)
 
     char o_name[80];
 
-    /* Automatically destroy squelched items in pile if necessary */
-    do_squelch_pile(py, px);
-
     /* Scan the pile of objects */
     for (this_o_idx = cave_o_idx[py][px]; this_o_idx; this_o_idx = next_o_idx)
     {
@@ -2939,14 +2937,6 @@ void py_pickup(void)
 
         /* Hack -- disturb */
         disturb(0, 0);
-
-        /* End loop if squelched stuff reached */
-        if ((k_info[o_ptr->k_idx].squelch == SQUELCH_ALWAYS)
-            && (k_info[o_ptr->k_idx].aware))
-        {
-            next_o_idx = 0;
-            continue;
-        }
 
         /* Note that the pack is too full */
         if (!inven_carry_okay(o_ptr))
@@ -5866,4 +5856,3 @@ void run_step(int dir)
     /* Move the player */
     move_player(p_ptr->run_cur_dir);
 }
-

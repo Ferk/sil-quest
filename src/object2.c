@@ -9,6 +9,7 @@
  */
 
 #include "angband.h"
+#include "item-rules.h"
 
 /*
  * Excise a dungeon object from any stacks
@@ -314,7 +315,7 @@ void compact_objects(int size)
 
     int i, y, x, num, cnt;
 
-    int cur_lev, cur_dis, chance;
+    int cur_dis, chance;
 
     /* Compact */
     if (size)
@@ -332,9 +333,6 @@ void compact_objects(int size)
     /* Compact at least 'size' objects */
     for (num = 0, cnt = 1; num < size; cnt++)
     {
-        /* Get more vicious each iteration */
-        cur_lev = 5 * cnt;
-
         /* Get closer each iteration */
         cur_dis = 5 * (20 - cnt);
 
@@ -343,14 +341,8 @@ void compact_objects(int size)
         {
             object_type* o_ptr = &o_list[i];
 
-            object_kind* k_ptr = &k_info[o_ptr->k_idx];
-
             /* Skip dead objects */
             if (!o_ptr->k_idx)
-                continue;
-
-            /* Hack -- High level objects start out "immune" */
-            if ((k_ptr->level > cur_lev) && (k_ptr->squelch != SQUELCH_ALWAYS))
                 continue;
 
             /* Monster */
@@ -366,7 +358,7 @@ void compact_objects(int size)
                 x = m_ptr->fx;
 
                 /* Monsters protect their objects */
-                if (percent_chance(90) && (k_ptr->squelch != SQUELCH_ALWAYS))
+                if (percent_chance(90))
                     continue;
             }
 
@@ -379,16 +371,11 @@ void compact_objects(int size)
             }
 
             /* Nearby objects start out "immune" */
-            if ((cur_dis > 0) && (distance(py, px, y, x) < cur_dis)
-                && (k_ptr->squelch != SQUELCH_ALWAYS))
+            if ((cur_dis > 0) && (distance(py, px, y, x) < cur_dis))
                 continue;
 
             /* Saving throw */
             chance = 90;
-
-            /* Squelched items get compacted */
-            if ((k_ptr->aware) && (k_ptr->squelch == SQUELCH_ALWAYS))
-                chance = 0;
 
             /* Hack -- only compact artefacts in emergencies */
             if (artefact_p(o_ptr) && (cnt < 1000))
@@ -806,7 +793,6 @@ void object_known(object_type* o_ptr)
  */
 void object_aware(object_type* o_ptr)
 {
-    int x, y;
     bool flag = k_info[o_ptr->k_idx].aware;
 
     /* Fully aware of the effects */
@@ -820,20 +806,8 @@ void object_aware(object_type* o_ptr)
         gain_exp(new_exp);
         p_ptr->ident_exp += new_exp;
 
-        // remove any autoinscription
-        obliterate_autoinscription(o_ptr->k_idx);
-    }
-
-    /* If newly aware and squelched, must rearrange stacks */
-    if ((!flag) && (k_info[o_ptr->k_idx].squelch == SQUELCH_ALWAYS))
-    {
-        for (x = 0; x < p_ptr->cur_map_wid; x++)
-        {
-            for (y = 0; y < p_ptr->cur_map_hgt; y++)
-            {
-                rearrange_stack(y, x);
-            }
-        }
+        /* Remove any automatic note for this kind. */
+        item_rules_clear_kind_note(o_ptr->k_idx);
     }
 }
 
@@ -3575,8 +3549,8 @@ bool make_object(object_type* j_ptr, bool good, bool great, int objecttype)
         }
     }
 
-    // apply the autoinscription (if any)
-    apply_autoinscription(j_ptr);
+    /* Apply the automatic note, if any. */
+    item_rules_apply_note(j_ptr);
 
     /* Notice "okay" out-of-depth objects */
     if (!cursed_p(j_ptr) && !broken_p(j_ptr)
@@ -3753,9 +3727,6 @@ s16b floor_carry(int y, int x, object_type* j_ptr)
 
         /* Link the floor to the object */
         cave_o_idx[y][x] = o_idx;
-
-        /* Rearrange to reflect squelching */
-        rearrange_stack(y, x);
 
         /* Notice */
         note_spot(y, x);
@@ -4963,8 +4934,8 @@ s16b inven_carry(object_type* o_ptr, bool combine_ammo)
     /* Use that slot */
     i = j;
 
-    /* Apply an autoinscription */
-    apply_autoinscription(o_ptr);
+    /* Apply an automatic note. */
+    item_rules_apply_note(o_ptr);
 
     /* Reset the pickup flag */
     o_ptr->pickup = FALSE;

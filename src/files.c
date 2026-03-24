@@ -9,6 +9,8 @@
  */
 
 #include "angband.h"
+#include "item-rules.h"
+#include "ui-input.h"
 #include "ui-model.h"
 
 // These are copied from birth.c and needed for displaying the character sheet
@@ -276,7 +278,7 @@ s16b tokenize(char* buf, s16b num, char** tokens)
  */
 errr process_pref_file_command(char* buf)
 {
-    long i, n1, n2, sq;
+    long i, n1, n2;
 
     char* zz[16];
 
@@ -319,52 +321,20 @@ errr process_pref_file_command(char* buf)
         }
     }
 
-    /* Process "B:<k_idx>:inscription */
+    /* Process "B:<k_idx>:automatic-note". */
     else if (buf[0] == 'B')
     {
         if (2 == tokenize(buf + 2, 2, zz))
         {
-            add_autoinscription(strtol(zz[0], NULL, 0), zz[1]);
+            item_rules_set_kind_note(strtol(zz[0], NULL, 0), zz[1]);
             return (0);
         }
     }
 
-    /* Process "Q:<idx>:<tval>:<sval>:<y|n>"  -- squelch bits   */
-    /* and     "Q:<idx>:<val>"                -- squelch levels */
-    /* and     "Q:<val>"                      -- auto_destroy   */
+    /* Ignore legacy squelch directives from older pref files. */
     else if (buf[0] == 'Q')
     {
-        i = tokenize(buf + 2, 4, zz);
-        if (i == 2)
-        {
-            n1 = strtol(zz[0], NULL, 0);
-            n2 = strtol(zz[1], NULL, 0);
-            squelch_level[n1] = n2;
-            return (0);
-        }
-        else if (i == 4)
-        {
-            i = strtol(zz[0], NULL, 0);
-            n1 = strtol(zz[1], NULL, 0);
-            n2 = strtol(zz[2], NULL, 0);
-            sq = strtol(zz[3], NULL, 0);
-            if ((k_info[i].tval == n1) && (k_info[i].sval == n2))
-            {
-                k_info[i].squelch = sq;
-                return (0);
-            }
-            else
-            {
-                for (i = 1; i < z_info->k_max; i++)
-                {
-                    if ((k_info[i].tval == n1) && (k_info[i].sval == n2))
-                    {
-                        k_info[i].squelch = sq;
-                        return (0);
-                    }
-                }
-            }
-        }
+        return (0);
     }
 
     /* Process "K:<num>:<a>/<c>"  -- attr/char for object kinds */
@@ -2036,29 +2006,52 @@ bool show_buffer(cptr main_buffer, cptr what, int line)
         /* Get a keypress */
         ch = inkey();
 
-        /* Back up one line */
-        if ((ch == '8') || (ch == '='))
+        switch (ui_input_parse_pager_key(ch))
         {
-            line = line - 1;
-            if (line < 0)
-                line = 0;
-        }
+        case UI_INPUT_PAGER_ACTION_CANCEL:
+            return (TRUE);
 
-        /* Advance one line */
-        if ((ch == '2') || (ch == '\n') || (ch == '\r'))
-        {
-            line = line + 1;
-        }
-
-        /* Advance one full page */
-        if ((ch == '3') || (ch == ' '))
-        {
-            line = line + (hgt - 5);
-        }
-
-        /* Exit on escape */
-        if (ch == ESCAPE)
+        case UI_INPUT_PAGER_ACTION_LINE_UP:
+            line = MAX(line - 1, 0);
             break;
+
+        case UI_INPUT_PAGER_ACTION_HALF_PAGE_UP:
+            line = line - ((hgt - 5) / 2);
+            break;
+
+        case UI_INPUT_PAGER_ACTION_PAGE_UP:
+            line = line - (hgt - 5);
+            break;
+
+        case UI_INPUT_PAGER_ACTION_TOP:
+            line = 0;
+            break;
+
+        case UI_INPUT_PAGER_ACTION_LINE_DOWN:
+            line = line + 1;
+            break;
+
+        case UI_INPUT_PAGER_ACTION_HALF_PAGE_DOWN:
+            line = line + ((hgt - 5) / 2);
+            break;
+
+        case UI_INPUT_PAGER_ACTION_PAGE_DOWN:
+            line = line + (hgt - 5);
+            break;
+
+        case UI_INPUT_PAGER_ACTION_BOTTOM:
+            line = size;
+            break;
+
+        case UI_INPUT_PAGER_ACTION_NONE:
+        case UI_INPUT_PAGER_ACTION_EXIT_HELP:
+        case UI_INPUT_PAGER_ACTION_TOGGLE_CASE:
+        case UI_INPUT_PAGER_ACTION_SHOW:
+        case UI_INPUT_PAGER_ACTION_FIND:
+        case UI_INPUT_PAGER_ACTION_GOTO_LINE:
+        default:
+            break;
+        }
     }
 
     /* Done */
@@ -2100,6 +2093,9 @@ bool show_file(cptr name, cptr what, int line)
 
     /* This screen has sub-screens */
     bool menu = FALSE;
+
+    /* Track whether '?' requested exit back to the parent help screen. */
+    bool exit_help = FALSE;
 
     /* Case sensitive search */
     bool case_sensitive = FALSE;
@@ -2401,121 +2397,93 @@ bool show_file(cptr name, cptr what, int line)
         /* Get a keypress */
         ch = inkey();
 
-        /* Exit the help */
-        if (ch == '?')
+        switch (ui_input_parse_pager_key(ch))
+        {
+        case UI_INPUT_PAGER_ACTION_EXIT_HELP:
+            exit_help = TRUE;
+            goto done;
+
+        case UI_INPUT_PAGER_ACTION_TOGGLE_CASE:
+            case_sensitive = !case_sensitive;
             break;
 
-        /* Toggle case sensitive on/off */
-        if (ch == '!')
-        {
-            case_sensitive = !case_sensitive;
-        }
-
-        /* Try showing */
-        if (ch == '&')
-        {
-            /* Get "shower" */
+        case UI_INPUT_PAGER_ACTION_SHOW:
             prt("Show: ", hgt - 1, 0);
             (void)askfor_aux(shower, sizeof(shower));
-
-            /* Make the "shower" lowercase */
             if (!case_sensitive)
                 string_lower(shower);
-        }
+            break;
 
-        /* Try finding */
-        if (ch == '/')
-        {
-            /* Get "finder" */
+        case UI_INPUT_PAGER_ACTION_FIND:
             prt("Find: ", hgt - 1, 0);
             if (askfor_aux(finder, sizeof(finder)))
             {
-                /* Find it */
                 find = finder;
                 back = line;
                 line = line + 1;
-
-                /* Make the "finder" lowercase */
                 if (!case_sensitive)
                     string_lower(finder);
-
-                /* Show it */
                 my_strcpy(shower, finder, sizeof(shower));
             }
-        }
+            break;
 
-        /* Go to a specific line */
-        if (ch == '#')
+        case UI_INPUT_PAGER_ACTION_GOTO_LINE:
         {
             char tmp[80];
             prt("Goto Line: ", hgt - 1, 0);
             my_strcpy(tmp, "0", sizeof(tmp));
             if (askfor_aux(tmp, sizeof(tmp)))
-            {
                 line = atoi(tmp);
-            }
-        }
-
-        /* Back up one line */
-        if ((ch == '8') || (ch == '='))
-        {
-            line = line - 1;
-            if (line < 0)
-                line = 0;
-        }
-
-        /* Back up one half page */
-        if (ch == '_')
-        {
-            line = line - ((hgt - 5) / 2);
-        }
-
-        /* Back up one full page */
-        if ((ch == '9') || (ch == '-'))
-        {
-            line = line - (hgt - 5);
-        }
-
-        /* Back to the top */
-        if (ch == '7')
-        {
-            line = 0;
-        }
-
-        /* Advance one line */
-        if ((ch == '2') || (ch == '\n') || (ch == '\r'))
-        {
-            line = line + 1;
-        }
-
-        /* Advance one half page */
-        if (ch == '+')
-        {
-            line = line + ((hgt - 5) / 2);
-        }
-
-        /* Advance one full page */
-        if ((ch == '3') || (ch == ' '))
-        {
-            line = line + (hgt - 5);
-        }
-
-        /* Advance to the bottom */
-        if (ch == '1')
-        {
-            line = size;
-        }
-
-        /* Exit on escape */
-        if (ch == ESCAPE)
             break;
+        }
+
+        case UI_INPUT_PAGER_ACTION_LINE_UP:
+            line = MAX(line - 1, 0);
+            break;
+
+        case UI_INPUT_PAGER_ACTION_HALF_PAGE_UP:
+            line = line - ((hgt - 5) / 2);
+            break;
+
+        case UI_INPUT_PAGER_ACTION_PAGE_UP:
+            line = line - (hgt - 5);
+            break;
+
+        case UI_INPUT_PAGER_ACTION_TOP:
+            line = 0;
+            break;
+
+        case UI_INPUT_PAGER_ACTION_LINE_DOWN:
+            line = line + 1;
+            break;
+
+        case UI_INPUT_PAGER_ACTION_HALF_PAGE_DOWN:
+            line = line + ((hgt - 5) / 2);
+            break;
+
+        case UI_INPUT_PAGER_ACTION_PAGE_DOWN:
+            line = line + (hgt - 5);
+            break;
+
+        case UI_INPUT_PAGER_ACTION_BOTTOM:
+            line = size;
+            break;
+
+        case UI_INPUT_PAGER_ACTION_CANCEL:
+            goto done;
+
+        case UI_INPUT_PAGER_ACTION_NONE:
+        default:
+            break;
+        }
     }
 
+done:
     /* Close the file */
     my_fclose(fff);
 
     /* Done */
-    return (ch != '?');
+    return !exit_help;
 }
 
 static void show_help_screen(int i)

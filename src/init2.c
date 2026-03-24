@@ -11,6 +11,7 @@
 #include "angband.h"
 
 #include "init.h"
+#include "item-rules.h"
 #include "ui-model.h"
 
 #ifdef RUNTIME_PRIVATE_USER_PATH
@@ -947,25 +948,6 @@ static errr init_flavor_info(void)
     return (err);
 }
 
-extern void autoinscribe_clean(void)
-{
-    if (inscriptions)
-    {
-        FREE(inscriptions);
-    }
-
-    inscriptions = 0;
-    inscriptionsCount = 0;
-}
-
-extern void autoinscribe_init(void)
-{
-    /* Paranoia */
-    autoinscribe_clean();
-
-    C_MAKE(inscriptions, AUTOINSCRIPTIONS_MAX, autoinscription);
-}
-
 /*
  * Reinitialize some things between games
  *
@@ -1008,9 +990,8 @@ extern void re_init_some_things(void)
         Term_activate(old);
     }
 
-    // Reset the autoinscriptions
-    autoinscribe_clean();
-    autoinscribe_init();
+    /* Reset the item kind rules. */
+    item_rules_clear();
 
     // display the introduction message again
     display_introduction();
@@ -1133,8 +1114,8 @@ static errr init_other(void)
     /* Initialize the "quark" package */
     (void)quarks_init();
 
-    /* Initialize autoinscriptions */
-    (void)autoinscribe_init();
+    /* Initialize item kind rules. */
+    item_rules_clear();
 
     /* Initialize the "message" package */
     (void)messages_init();
@@ -1925,8 +1906,8 @@ void cleanup_angband(void)
     /* Free the player inventory */
     FREE(inventory);
 
-    /*Clean the Autoinscribe*/
-    autoinscribe_clean();
+    /* Clear the item kind rules. */
+    item_rules_clear();
 
     /* Free the lore, monster, and object lists */
     FREE(l_list);

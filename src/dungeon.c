@@ -9,6 +9,7 @@
  */
 
 #include "angband.h"
+#include "item-rules.h"
 #include "ui-marks.h"
 
 /*
@@ -1150,13 +1151,6 @@ static void process_command(void)
         break;
     }
 
-    /* Target monster or location */
-    // case '*':
-    //{
-    //	do_cmd_target();
-    //	break;
-    //}
-
     /*** Help and Such ***/
 
     /* Help */
@@ -1179,13 +1173,6 @@ static void process_command(void)
         break;
     }
 
-    /* Identify symbol */
-    // case '/':
-    //{
-    //	do_cmd_query_symbol();
-    //	break;
-    //}
-
     /* Character sheet */
     case '@':
     {
@@ -1202,26 +1189,12 @@ static void process_command(void)
         break;
     }
 
-    /* Single line from a pref file */
-    // case '"':
-    //{
-    //	do_cmd_pref();
-    //	break;
-    //}
-
     /* Interact with macros */
     case '$':
     {
         do_cmd_macros();
         break;
     }
-
-    /* Interact with visuals */
-    // case '%':
-    //{
-    //	do_cmd_visuals();
-    //	break;
-    //}
 
     /* Interact with colors */
     case '&':
@@ -1352,16 +1325,6 @@ static bool auto_pickup_okay(const object_type* o_ptr)
     /* It can't be carried */
     if (!inven_carry_okay(o_ptr))
         return (FALSE);
-
-    /*object is marked to not pickup*/
-    if ((k_info[o_ptr->k_idx].squelch == NO_SQUELCH_NEVER_PICKUP)
-        && object_aware_p(o_ptr))
-        return (FALSE);
-
-    /*object is marked to not pickup*/
-    if ((k_info[o_ptr->k_idx].squelch == NO_SQUELCH_ALWAYS_PICKUP)
-        && object_aware_p(o_ptr))
-        return (TRUE);
 
     /* object has pickup flag set */
     if (o_ptr->pickup)
@@ -2710,9 +2673,6 @@ static void dungeon(void)
     if (p_ptr->is_dead)
         return;
 
-    /* Announce (or repeat) the feeling */
-    // if ((p_ptr->depth) && (do_feeling)) do_cmd_feeling();
-
     /* Announce a player ghost challenge. -LM- */
     if (bones_selector)
         ghost_challenge();
@@ -2909,7 +2869,7 @@ static void process_some_user_pref_files(void)
     /* Process the "user.prf" file */
     (void)process_pref_file("user.prf");
 
-    /* Process the "user.scb" autoinscriptions file */
+    /* Process the legacy "user.scb" automatic note rules file. */
     (void)process_pref_file("user.scb");
 
     /* Process the "races.prf" file */
@@ -3069,9 +3029,8 @@ void play_game(bool new_game)
         /* Roll up a new character */
         player_birth();
 
-        // Reset the autoinscriptions
-        autoinscribe_clean();
-        autoinscribe_init();
+        /* Reset the item kind rules. */
+        item_rules_clear();
 
         /* Hack -- enter the world */
         turn = 1;

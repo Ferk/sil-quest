@@ -82,6 +82,11 @@ int ui_text_builder_length(const ui_text_builder* builder);
 void ui_simple_menu_render(cptr title, int title_row, int col,
     const ui_simple_menu_entry* entries, int entry_count, int highlight,
     cptr extra_details);
+/* Renders one simple vertical text menu with custom details-pane settings. */
+void ui_simple_menu_render_custom(cptr title, int title_row, int col,
+    const ui_simple_menu_entry* entries, int entry_count, int highlight,
+    cptr extra_details, int details_width, int details_visual_kind,
+    int details_visual_attr, int details_visual_char);
 /* Reads one action from a simple vertical text menu. */
 int ui_simple_menu_read_action(
     int* highlight, const ui_simple_menu_entry* entries, int entry_count);

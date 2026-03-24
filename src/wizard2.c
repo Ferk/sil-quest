@@ -9,6 +9,7 @@
  */
 
 #include "angband.h"
+#include "item-rules.h"
 
 #ifdef ALLOW_DEBUG
 
@@ -1056,8 +1057,8 @@ static void wiz_create_item_aux(int k_idx, int y, int x)
     /* Apply magic (no messages, no artefacts) */
     apply_magic(i_ptr, p_ptr->depth, FALSE, FALSE, FALSE, FALSE);
 
-    // apply the autoinscription (if any)
-    apply_autoinscription(i_ptr);
+    /* Apply the automatic note, if any. */
+    item_rules_apply_note(i_ptr);
 
     if (i_ptr->tval == TV_ARROW)
         i_ptr->number = 24;

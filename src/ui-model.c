@@ -14,6 +14,7 @@
 
 #include "angband.h"
 
+#include "ui-input.h"
 #include "ui-model.h"
 
 #define UI_MENU_ITEMS_MAX 96
@@ -198,6 +199,16 @@ void ui_simple_menu_render(cptr title, int title_row, int col,
     const ui_simple_menu_entry* entries, int entry_count, int highlight,
     cptr extra_details)
 {
+    ui_simple_menu_render_custom(title, title_row, col, entries, entry_count,
+        highlight, extra_details, 0, UI_MENU_VISUAL_NONE, TERM_WHITE, 0);
+}
+
+/* Renders one simple vertical text menu with custom details-pane settings. */
+void ui_simple_menu_render_custom(cptr title, int title_row, int col,
+    const ui_simple_menu_entry* entries, int entry_count, int highlight,
+    cptr extra_details, int details_width, int details_visual_kind,
+    int details_visual_attr, int details_visual_char)
+{
     int i;
     char menu_text[1024];
     byte menu_attrs[1024];
@@ -214,12 +225,15 @@ void ui_simple_menu_render(cptr title, int title_row, int col,
     ui_text_builder_append_line(&menu_builder, title, TERM_WHITE);
     ui_text_builder_newline(&menu_builder, TERM_WHITE);
     ui_text_builder_append_line(&menu_builder,
-        "Use 8/2 to move, Enter to choose, Escape to cancel, or click an option.",
+        "Use 8/2 to move, Enter/Space to choose, Escape to cancel, or click an option.",
         TERM_SLATE);
 
     ui_menu_begin();
     ui_menu_set_text(
         menu_text, menu_attrs, ui_text_builder_length(&menu_builder));
+    ui_menu_set_details_width(details_width);
+    ui_menu_set_details_visual(
+        details_visual_kind, details_visual_attr, details_visual_char);
 
     for (i = 0; i < entry_count; i++)
     {
@@ -264,6 +278,7 @@ int ui_simple_menu_read_action(
 {
     int i;
     char ch;
+    ui_input_simple_menu_action action;
 
     if (entry_count <= 0)
         return ESCAPE;
@@ -277,22 +292,11 @@ int ui_simple_menu_read_action(
     ch = inkey();
     hide_cursor = FALSE;
 
-    if (ch == ESCAPE)
+    action = ui_input_parse_simple_menu_key(ch);
+    if (action == UI_INPUT_SIMPLE_MENU_ACTION_CANCEL)
         return ESCAPE;
 
-    if (ch == '8')
-    {
-        *highlight = (*highlight + entry_count - 2) % entry_count + 1;
-        return 0;
-    }
-
-    if (ch == '2')
-    {
-        *highlight = *highlight % entry_count + 1;
-        return 0;
-    }
-
-    if ((ch == '\r') || (ch == '\n') || (ch == ' '))
+    if (action == UI_INPUT_SIMPLE_MENU_ACTION_CHOOSE)
         return entries[*highlight - 1].key;
 
     for (i = 0; i < entry_count; i++)
@@ -302,6 +306,18 @@ int ui_simple_menu_read_action(
             *highlight = i + 1;
             return entries[i].key;
         }
+    }
+
+    if (action == UI_INPUT_SIMPLE_MENU_ACTION_PREV)
+    {
+        *highlight = (*highlight + entry_count - 2) % entry_count + 1;
+        return 0;
+    }
+
+    if (action == UI_INPUT_SIMPLE_MENU_ACTION_NEXT)
+    {
+        *highlight = *highlight % entry_count + 1;
+        return 0;
     }
 
     return -1;

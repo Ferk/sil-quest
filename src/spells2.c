@@ -9,6 +9,7 @@
  */
 
 #include "angband.h"
+#include "item-rules.h"
 
 /*
  * Increase player's hit points by the given percentage of maximum, notice
@@ -228,7 +229,7 @@ bool do_inc_stat(int stat)
 /*
  * Identify everything being carried.
  */
-void identify_pack(void)
+static void identify_unknown_pack(void)
 {
     int i;
 
@@ -2154,8 +2155,6 @@ bool ident_spell(void)
 {
     int item;
 
-    int squelch;
-
     object_type* o_ptr;
 
     cptr q, s;
@@ -2181,11 +2180,8 @@ bool ident_spell(void)
         o_ptr = &o_list[0 - item];
     }
 
-    /* Identify the object and get squelch setting */
-    squelch = do_ident_item(item, o_ptr);
-
-    /* Now squelch it if needed */
-    do_squelch_item(squelch, item, o_ptr);
+    /* Identify the object. */
+    (void)do_ident_item(item, o_ptr);
 
     /* Something happened */
     return (TRUE);
@@ -3928,11 +3924,11 @@ bool item_tester_hook_ordinary_ammo(const object_type* o_ptr)
 
 /*
  * Identifies all objects in the equipment and inventory.
- * Applies quality/special item squelch in the inventory.
+ * Identifies all objects in the equipment and inventory.
  */
-void identify_and_squelch_pack(void)
+void identify_pack(void)
 {
-    int item, squelch;
+    int item;
     object_type* o_ptr;
 
     /* Identify equipment */
@@ -3969,18 +3965,9 @@ void identify_and_squelch_pack(void)
             if (object_known_p(o_ptr))
                 break;
 
-            /* Identify it and get the squelch setting */
-            squelch = do_ident_item(item, o_ptr);
-
-            /*
-             * If the object was squelched, keep analyzing
-             * the same slot (the inventory was displaced). -DG-
-             */
-            if (squelch != SQUELCH_YES)
-                break;
-
-            /* Now squelch the object */
-            do_squelch_item(squelch, item, o_ptr);
+            /* Identify it. */
+            (void)do_ident_item(item, o_ptr);
+            break;
         }
     }
 }
@@ -3994,8 +3981,8 @@ bool mass_identify(int rad)
     /* Cast the ball spell */
     fire_ball(GF_IDENTIFY, 5, 0, 0, -1, rad);
 
-    /* Identify equipment and inventory, apply quality squelch */
-    identify_and_squelch_pack();
+    /* Identify equipment and inventory. */
+    identify_unknown_pack();
 
     /* This spell always works */
     return (TRUE);
@@ -4007,24 +3994,17 @@ bool mass_identify(int rad)
  * ANY negative value assigned to "item" can be used for specifying an object
  * on the floor (they don't have a slot, example: the code used to handle
  * GF_IDENTIFY in project_o).
- * It returns the value returned by squelch_itemp.
- * The object is NOT squelched here.
  */
-int do_ident_item(int item, object_type* o_ptr)
+void do_ident_item(int item, object_type* o_ptr)
 {
     char o_name[80];
-    int squelch = SQUELCH_NO;
 
     /* Identify it */
     object_aware(o_ptr);
     object_known(o_ptr);
 
-    /* Apply an autoinscription, if necessary */
-    apply_autoinscription(o_ptr);
-
-    /* Squelch it? */
-    if (item < INVEN_WIELD)
-        squelch = squelch_itemp(o_ptr, 0, TRUE);
+    /* Apply an automatic note, if necessary. */
+    item_rules_apply_note(o_ptr);
 
     /* Recalculate bonuses */
     p_ptr->update |= (PU_BONUS);
@@ -4046,13 +4026,11 @@ int do_ident_item(int item, object_type* o_ptr)
     }
     else if (item >= 0)
     {
-        msg_format("In your pack: %s (%c).  %s", o_name, index_to_label(item),
-            squelch_to_label(squelch));
+        msg_format("In your pack: %s (%c).", o_name, index_to_label(item));
     }
     else
     {
-        msg_format("On the ground: %s.  %s", o_name, squelch_to_label(squelch));
+        msg_format("On the ground: %s.", o_name);
     }
 
-    return (squelch);
 }

@@ -9,6 +9,7 @@
  */
 
 #include "angband.h"
+#include "item-rules.h"
 
 /*
  * Determines the total melee damage dice (before criticals and slays)
@@ -3080,8 +3081,8 @@ void notice_stuff(void)
     if (p_ptr->notice & PN_AUTOINSCRIBE)
     {
         p_ptr->notice &= ~(PN_AUTOINSCRIBE);
-        autoinscribe_pack();
-        autoinscribe_ground();
+        item_rules_apply_pack();
+        item_rules_apply_ground();
     }
 }
 

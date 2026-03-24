@@ -1,76 +1,94 @@
-/*
- * Additional UI-model menu helpers kept separate from the Angband-derived
- * command flow in cmd4.c.
+/* File: ui-abilities.c
+ *
+ * Copyright (c) 2026 Fernando Carmona Varo
+ * This file is part of Sil-Quest.
+ * Licensed under the EUPL, Version 1.2 or subsequent versions of the EUPL
+ * You may not use this work except in compliance with the Licence.
+ * You may obtain copy of it at: https://joinup.ec.europa.eu/software/page/eupl
  */
+
+/*
+ * Ability and song menu presentation helpers kept separate from cmd4.c.
+ */
+
+#include "angband.h"
+
+#include "ui-abilities.h"
 
 extern char* oath_desc2[];
 extern char* oath_reward[];
-static int bane_type_killed(int i);
-static int bane_bonus_aux(void);
 
-static byte ability_menu_attr(int skilltype, ability_type* b_ptr)
+/* Returns the preferred terminal attr for one ability menu entry. */
+byte ui_ability_menu_attr(int skilltype, ability_type* b_ptr,
+    bool (*prereqs_fn)(int skilltype, int abilitynum))
 {
+    if (!b_ptr || !prereqs_fn)
+        return TERM_L_DARK;
+
     if (p_ptr->have_ability[skilltype][b_ptr->abilitynum])
     {
         if (p_ptr->innate_ability[skilltype][b_ptr->abilitynum])
-        {
-            if (p_ptr->active_ability[skilltype][b_ptr->abilitynum])
-                return TERM_WHITE;
-            else
-                return TERM_RED;
-        }
-        else
-        {
-            if (p_ptr->active_ability[skilltype][b_ptr->abilitynum])
-                return TERM_L_GREEN;
-            else
-                return TERM_RED;
-        }
+            return p_ptr->active_ability[skilltype][b_ptr->abilitynum]
+                ? TERM_WHITE
+                : TERM_RED;
+
+        return p_ptr->active_ability[skilltype][b_ptr->abilitynum]
+            ? TERM_L_GREEN
+            : TERM_RED;
     }
 
-    if (prereqs(skilltype, b_ptr->abilitynum))
+    if (prereqs_fn(skilltype, b_ptr->abilitynum))
         return TERM_SLATE;
 
     return TERM_L_DARK;
 }
 
-static void ability_menu_label(
+/* Formats the visible label for one ability menu entry. */
+void ui_ability_menu_label(
     int skilltype, ability_type* b_ptr, char* buf, size_t buf_size)
 {
+    if (!b_ptr || !buf || (buf_size == 0))
+        return;
+
     if ((skilltype == S_PER) && (b_ptr->abilitynum == PER_BANE)
         && (p_ptr->bane_type > 0))
     {
         strnfmt(buf, buf_size, "%c) %s-%s", (char)'a' + b_ptr->abilitynum,
-            bane_name[p_ptr->bane_type], (b_name + b_ptr->name));
+            bane_name[p_ptr->bane_type], b_name + b_ptr->name);
     }
     else if ((skilltype == S_WIL) && (b_ptr->abilitynum == WIL_OATH)
         && (p_ptr->oath_type > 0))
     {
         strnfmt(buf, buf_size, "%c) %s: %s", (char)'a' + b_ptr->abilitynum,
-            (b_name + b_ptr->name), oath_name[p_ptr->oath_type]);
+            b_name + b_ptr->name, oath_name[p_ptr->oath_type]);
     }
     else
     {
         strnfmt(buf, buf_size, "%c) %s", (char)'a' + b_ptr->abilitynum,
-            (b_name + b_ptr->name));
+            b_name + b_ptr->name);
     }
 }
 
-static int build_ability_menu_semantic_text(
-    int skilltype, ability_type* b_ptr, byte attr, char* text, byte* attrs,
-    size_t size)
+/* Builds the semantic details text for one ability menu entry. */
+int ui_ability_menu_build_details(int skilltype, ability_type* b_ptr, byte attr,
+    char* text, byte* attrs, size_t size,
+    bool (*prereqs_fn)(int skilltype, int abilitynum),
+    int (*abilities_in_skill_fn)(int skilltype),
+    int (*bane_type_killed_fn)(int bane_type),
+    int (*bane_bonus_aux_fn)(void))
 {
     ui_text_builder builder;
     char buf[160];
 
-    if (!b_ptr || !text || !attrs || (size == 0))
+    if (!b_ptr || !text || !attrs || (size == 0) || !prereqs_fn
+        || !abilities_in_skill_fn)
         return 0;
 
     ui_text_builder_init(&builder, text, attrs, size);
     ui_text_builder_append_line(&builder, "Abilities", TERM_WHITE);
     ui_text_builder_newline(&builder, TERM_WHITE);
 
-    ability_menu_label(skilltype, b_ptr, buf, sizeof(buf));
+    ui_ability_menu_label(skilltype, b_ptr, buf, sizeof(buf));
     ui_text_builder_append_line(&builder, buf, attr);
     ui_text_builder_newline(&builder, TERM_WHITE);
 
@@ -122,9 +140,9 @@ static int build_ability_menu_semantic_text(
             ui_text_builder_append_line(&builder, "Quick Study", TERM_GREEN);
         }
 
-        if (prereqs(skilltype, b_ptr->abilitynum))
+        if (prereqs_fn(skilltype, b_ptr->abilitynum))
         {
-            int exp_cost = (abilities_in_skill(skilltype) + 1) * 500;
+            int exp_cost = (abilities_in_skill_fn(skilltype) + 1) * 500;
             byte cost_attr = TERM_L_DARK;
 
             exp_cost -= 500 * affinity_level(skilltype);
@@ -146,28 +164,30 @@ static int build_ability_menu_semantic_text(
         }
     }
     else if ((skilltype == S_PER) && (b_ptr->abilitynum == PER_BANE)
-        && (p_ptr->bane_type > 0))
+        && (p_ptr->bane_type > 0) && bane_type_killed_fn && bane_bonus_aux_fn)
     {
         strnfmt(buf, sizeof(buf), "%s-Bane:", bane_name[p_ptr->bane_type]);
         ui_text_builder_append_line(&builder, buf, TERM_WHITE);
         strnfmt(buf, sizeof(buf), "%d slain, giving a %+d bonus",
-            bane_type_killed(p_ptr->bane_type), bane_bonus_aux());
+            bane_type_killed_fn(p_ptr->bane_type), bane_bonus_aux_fn());
         ui_text_builder_append_line(&builder, buf, TERM_WHITE);
     }
     else if ((skilltype == S_WIL) && (b_ptr->abilitynum == WIL_OATH)
         && (p_ptr->oath_type > 0))
     {
         ui_text_builder_append(&builder, "Oath: ", TERM_WHITE);
-        ui_text_builder_append_line(&builder, oath_name[p_ptr->oath_type],
-            TERM_L_BLUE);
+        ui_text_builder_append_line(
+            &builder, oath_name[p_ptr->oath_type], TERM_L_BLUE);
 
         strnfmt(buf, sizeof(buf), "You have sworn not to %s.",
             oath_desc2[p_ptr->oath_type]);
         ui_text_builder_append_line(&builder, buf, TERM_L_WHITE);
 
         if (oath_invalid(p_ptr->oath_type))
+        {
             ui_text_builder_append_line(
                 &builder, "You are an oathbreaker.", TERM_RED);
+        }
         else
         {
             strnfmt(buf, sizeof(buf), "Bonus: %s.", oath_reward[p_ptr->oath_type]);
@@ -178,7 +198,8 @@ static int build_ability_menu_semantic_text(
     return ui_text_builder_length(&builder);
 }
 
-static cptr song_menu_name(int song)
+/* Returns the display name for one song menu selection. */
+static cptr ui_song_menu_name(int song)
 {
     int idx;
 
@@ -192,7 +213,8 @@ static cptr song_menu_name(int song)
     return b_name + b_info[idx].name;
 }
 
-static int song_menu_default_highlight(void)
+/* Picks the default highlight for the change-song menu. */
+int ui_song_menu_default_highlight(void)
 {
     int i;
     int highlight = 1;
@@ -219,10 +241,11 @@ static int song_menu_default_highlight(void)
     return 1;
 }
 
-static void build_song_menu_extra_details(char* details, size_t details_size)
+/* Builds the extra status text shown beside the change-song menu. */
+void ui_song_menu_build_extra_details(char* details, size_t details_size)
 {
-    cptr song1_name = song_menu_name(p_ptr->song1);
-    cptr song2_name = song_menu_name(p_ptr->song2);
+    cptr song1_name = ui_song_menu_name(p_ptr->song1);
+    cptr song2_name = ui_song_menu_name(p_ptr->song2);
 
     if (!details || (details_size == 0))
         return;
@@ -245,8 +268,9 @@ static void build_song_menu_extra_details(char* details, size_t details_size)
     }
 }
 
-static int build_song_menu_entries(ui_simple_menu_entry* entries,
-    char labels[][80], char details[][1024], int max_entries)
+/* Builds the simple-menu entries used by the change-song menu. */
+int ui_song_menu_build_entries(ui_simple_menu_entry* entries, char labels[][80],
+    char details[][1024], int max_entries)
 {
     int i;
     int entry_count = 0;

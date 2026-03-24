@@ -164,6 +164,7 @@ set(SIL_SOURCES
     src/melee2.c
     src/monster1.c
     src/monster2.c
+    src/item-rules.c
     src/obj-info.c
     src/object1.c
     src/object2.c
@@ -171,12 +172,16 @@ set(SIL_SOURCES
     src/save.c
     src/spells1.c
     src/spells2.c
-    src/squelch.c
     src/tables.c
+    src/ui-abilities.c
+    src/ui-input.c
     src/ui-item-select.c
     src/ui-inventory.c
+    src/ui-knowledge.c
     src/ui-marks.c
     src/ui-model.c
+    src/ui-smithing.c
+    src/ui-view.c
     src/use-obj.c
     src/util.c
     src/variable.c

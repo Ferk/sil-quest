@@ -331,7 +331,7 @@ cptr option_text[OPT_MAX] = {
     "always_show_list", /* OPT_always_show_list */
     "easy_main_menu", /* OPT_easy_main_menu */
     NULL, /* xxx verify_leave_quests*/
-    NULL, /* xxx mark_squelch_items */
+    NULL, /* xxx reserved legacy item-filter option */
     "display_hits", /* OPT_display_hits */
     NULL, /* xxx */
     NULL, /* xxx */
@@ -393,7 +393,7 @@ cptr option_text[OPT_MAX] = {
     NULL, /* xxx */
     NULL, /* xxx */
     NULL, /* xxx birth_force_small_lev */
-    NULL, /* xxx birth_retain_squelch */
+    NULL, /* xxx reserved legacy item-filter option */
     NULL, /* xxx birth_no_quests*/
     NULL, /* xxx birth_no_player ghosts*/
     NULL, /* xxx birth_no_store_services*/
@@ -457,7 +457,7 @@ cptr option_text[OPT_MAX] = {
     NULL, /* xxx adult_no_stacking */
     NULL, /* xxx adult_auto_notes */
     NULL, /* xxx adult_force_small_lev*/
-    NULL, /* xxx adult_retain_squelch */
+    NULL, /* xxx reserved legacy item-filter option */
     NULL, /* xxx adult_no_quests*/
     NULL, /* xxx adult_no_player ghosts*/
     NULL, /* xxx adult_no_store_services*/
@@ -592,7 +592,7 @@ cptr option_desc[OPT_MAX] = {
     "Automatically display drop-down lists", /* OPT_auto_display_lists */
     "Use the Escape key to access the main menu", /* OPT_easy_main_menu */
     NULL, /* xxx verify_leave_quest */
-    NULL, /* xxx mark_squelch_items */
+    NULL, /* xxx reserved legacy item-filter option */
     "Display a mark when something gets hit", /* OPT_display_hits */
     NULL, /* xxx */
     NULL, /* xxx */
@@ -655,7 +655,7 @@ cptr option_desc[OPT_MAX] = {
     NULL, /* xxx */
     NULL, /* xxx birth_take_notes */
     NULL, /* xxx birth_force_small_lev */
-    NULL, /* xxx birth_retain_squelch*/
+    NULL, /* xxx reserved legacy item-filter option */
     NULL, /* xxx birth_no_quests*/
     NULL, /* xxx birth_no_player ghosts*/
     NULL, /* xxx birth_no_store_services*/
@@ -718,7 +718,7 @@ cptr option_desc[OPT_MAX] = {
     NULL, /* xxx adult_adult_no_stacking */
     NULL, /* xxx adult_take_notes */
     NULL, /* xxx adult_force_small_lev */
-    NULL, /* xxx adult_retain_squelch*/
+    NULL, /* xxx reserved legacy item-filter option */
     NULL, /* xxx adult_no_quests*/
     NULL, /* xxx adult_no_player ghosts*/
     NULL, /* xxx adult_no_store_services*/
@@ -853,7 +853,7 @@ const bool option_norm[OPT_MAX] = {
     FALSE, /* OPT_auto_display_lists */
     TRUE, /* OPT_easy_main_menu */
     FALSE, /* xxx verify_quest_leave */
-    FALSE, /* xxx mark_squelch_items */
+    FALSE, /* xxx reserved legacy item-filter option */
     TRUE, /* OPT_display_hits */
     FALSE, /* OPT_display_wakings */
     FALSE, /* xxx */
@@ -917,7 +917,7 @@ const bool option_norm[OPT_MAX] = {
     FALSE, /* xxx */
     FALSE, /* xxx */
     FALSE, /* xxx birth_force_small_lev */
-    FALSE, /* xxx birth_retain_squelch */
+    FALSE, /* xxx reserved legacy item-filter option */
     FALSE, /* xxx OPT_birth_no_quests*/
     FALSE, /* xxx birth_no_player ghosts*/
     FALSE, /* xxx birth_no_store_services*/
@@ -981,7 +981,7 @@ const bool option_norm[OPT_MAX] = {
     FALSE, /* xxx adult_no_stacking */
     FALSE, /* xxx adult_take_notes */
     FALSE, /* xxx adult_force_small_lev*/
-    FALSE, /* xxx adult_retain_squelch */
+    FALSE, /* xxx reserved legacy item-filter option */
     FALSE, /* xxx OPT_adult_no_quests */
     FALSE, /* xxx adult_no_player ghosts */
     FALSE, /* xxx adult_no_store_services */

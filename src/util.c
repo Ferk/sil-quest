@@ -9,6 +9,7 @@
  */
 
 #include "angband.h"
+#include "ui-input.h"
 #include "ui-marks.h"
 #include "ui-model.h"
 
@@ -3434,44 +3435,28 @@ bool askfor_aux(char* buf, size_t len)
         /* Get a key */
         ch = inkey();
 
-        /* Analyze the key */
-        switch (ch)
-        {
-        case ESCAPE:
+        if (ui_input_is_cancel_key(ch))
         {
             k = 0;
             done = TRUE;
-            break;
         }
-
-        case '\n':
-        case '\r':
+        else if (ui_input_is_accept_key(ch))
         {
             k = strlen(buf);
             done = TRUE;
-            break;
         }
-
-        case 0x7F:
-        case '\010':
+        else if (ui_input_is_backspace_key(ch))
         {
             if (k > 0)
                 k--;
-            break;
         }
-
-        default:
+        else if ((k < len - 1) && (isprint((unsigned char)ch)))
         {
-            if ((k < len - 1) && (isprint((unsigned char)ch)))
-            {
-                buf[k++] = ch;
-            }
-            else
-            {
-                bell("Illegal edit key!");
-            }
-            break;
+            buf[k++] = ch;
         }
+        else
+        {
+            bell("Illegal edit key!");
         }
 
         /* Terminate */
@@ -3483,7 +3468,7 @@ bool askfor_aux(char* buf, size_t len)
     }
 
     /* Done */
-    return (ch != ESCAPE);
+    return !ui_input_is_cancel_key(ch);
 }
 
 /*
@@ -3529,54 +3514,36 @@ bool askfor_name(char* buf, size_t len)
         /* Get a key */
         ch = inkey();
 
-        /* Analyze the key */
-        switch (ch)
-        {
-        case ESCAPE:
+        if (ui_input_is_cancel_key(ch))
         {
             k = 0;
             done = TRUE;
-            break;
         }
-
-        case '\n':
-        case '\r':
+        else if (ui_input_is_accept_key(ch))
         {
             k = strlen(buf);
             done = TRUE;
-            break;
         }
-
-        case 0x7F:
-        case '\010':
+        else if (ui_input_is_backspace_key(ch))
         {
             if (k > 0)
                 k--;
-            break;
         }
-
-        case '\t':
+        else if (ch == '\t')
         {
             /*get the random name, display for approval. */
             make_random_name(buf, len);
 
             new_default_name = TRUE;
             k = 0;
-            break;
         }
-
-        default:
+        else if ((k < len - 1) && (isprint((unsigned char)ch)))
         {
-            if ((k < len - 1) && (isprint((unsigned char)ch)))
-            {
-                buf[k++] = ch;
-            }
-            else
-            {
-                bell("Illegal edit key!");
-            }
-            break;
+            buf[k++] = ch;
         }
+        else
+        {
+            bell("Illegal edit key!");
         }
 
         if (new_default_name)
@@ -3599,7 +3566,7 @@ bool askfor_name(char* buf, size_t len)
     }
 
     /* Done */
-    return (ch != ESCAPE);
+    return !ui_input_is_cancel_key(ch);
 }
 
 /*
@@ -3711,8 +3678,7 @@ s16b get_quantity(cptr prompt, int max)
 }
 
 /*
- * Hack - duplication of get_check prompt to give option of setting destroyed
- * option to squelch.
+ * Variant of get_check() with a caller-specified third answer choice.
  *
  * 0 - No
  * 1 = Yes
@@ -3746,9 +3712,9 @@ int get_check_other(cptr prompt, char other)
         ch = inkey();
         if (quick_messages)
             break;
-        if (ch == ESCAPE)
+        if (ui_input_is_cancel_key(ch))
             break;
-        if (strchr("YyNn", ch))
+        if (ui_input_is_yes_key(ch) || ui_input_is_no_key(ch))
             break;
         if (ch == toupper(other))
             break;
@@ -3761,7 +3727,7 @@ int get_check_other(cptr prompt, char other)
     prt("", 0, 0);
 
     /* Normal negation */
-    if ((ch == 'Y') || (ch == 'y'))
+    if (ui_input_is_yes_key(ch))
         result = 1;
     /*other option*/
     else if ((ch == toupper(other)) || (ch == tolower(other)))
@@ -3800,9 +3766,9 @@ bool get_check(cptr prompt)
         ch = inkey();
         if (quick_messages)
             break;
-        if (ch == ESCAPE)
+        if (ui_input_is_cancel_key(ch))
             break;
-        if (strchr("YyNn", ch))
+        if (ui_input_is_yes_key(ch) || ui_input_is_no_key(ch))
             break;
         bell("Illegal response to a 'yes/no' question!");
     }
@@ -3811,7 +3777,7 @@ bool get_check(cptr prompt)
     prt("", 0, 0);
 
     /* Normal negation */
-    if ((ch != 'Y') && (ch != 'y'))
+    if (!ui_input_is_yes_key(ch))
         return (FALSE);
 
     /* Success */
@@ -3835,18 +3801,11 @@ int get_menu_choice(s16b max, char* prompt)
     {
         ch = inkey();
 
-        /* Letters are used for selection */
-        if (isalpha(ch))
-        {
-            if (islower(ch))
-            {
-                choice = A2I(ch);
-            }
-            else
-            {
-                choice = ch - 'A' + 26;
-            }
+        choice = ui_input_alpha_choice_index(ch);
 
+        /* Letters are used for selection */
+        if (choice >= 0)
+        {
             /* Validate input */
             if ((choice > -1) && (choice < max))
             {
@@ -3860,7 +3819,7 @@ int get_menu_choice(s16b max, char* prompt)
         }
 
         /* Allow user to exit the fuction */
-        else if (ch == ESCAPE)
+        else if (ui_input_is_cancel_key(ch))
         {
             /* Mark as no choice made */
             choice = -1;
@@ -3908,7 +3867,7 @@ bool get_com(cptr prompt, char* command)
     *command = ch;
 
     /* Done */
-    return (ch != ESCAPE);
+    return !ui_input_is_cancel_key(ch);
 }
 
 /*

@@ -9,6 +9,8 @@
  */
 
 #include "angband.h"
+#include "item-rules.h"
+#include "ui-input.h"
 #include "ui-marks.h"
 
 /*
@@ -3490,7 +3492,7 @@ static int target_set_interactive_aux(int y, int x, int mode, cptr info)
             query = inkey();
 
             /* Stop on everything but "return" */
-            if ((query != '\n') && (query != '\r'))
+            if (!ui_input_is_accept_key(query))
                 break;
 
             if (mode & (TARGET_KILL))
@@ -3630,7 +3632,7 @@ static int target_set_interactive_aux(int y, int x, int mode, cptr info)
                 }
 
                 /* Stop on everything but "return"/"space" */
-                if ((query != '\n') && (query != '\r') && (query != ' '))
+                if (!ui_input_is_accept_key(query) && (query != ' '))
                     break;
 
                 /* Sometimes stop at "space" key */
@@ -3694,7 +3696,8 @@ static int target_set_interactive_aux(int y, int x, int mode, cptr info)
                     query = inkey();
 
                     /* Stop on everything but "return"/"space" */
-                    if ((query != '\n') && (query != '\r') && (query != ' '))
+                    if (!ui_input_is_accept_key(query)
+                        && (query != ' '))
                         break;
 
                     /* Sometimes stop at "space" key */
@@ -3773,7 +3776,8 @@ static int target_set_interactive_aux(int y, int x, int mode, cptr info)
                     query = inkey();
 
                     /* Stop on everything but "return"/"space" */
-                    if ((query != '\n') && (query != '\r') && (query != ' '))
+                    if (!ui_input_is_accept_key(query)
+                        && (query != ' '))
                         break;
 
                     /* Sometimes stop at "space" key */
@@ -3852,12 +3856,12 @@ static int target_set_interactive_aux(int y, int x, int mode, cptr info)
             query = inkey();
 
             /* Stop on everything but "return"/"space" */
-            if ((query != '\n') && (query != '\r') && (query != ' '))
+            if (!ui_input_is_accept_key(query) && (query != ' '))
                 break;
         }
 
         /* Stop on everything but "return" */
-        if ((query != '\n') && (query != '\r'))
+        if (!ui_input_is_accept_key(query))
             break;
 
         if (mode & (TARGET_KILL))
@@ -4148,102 +4152,105 @@ bool target_set_interactive(int mode, int range)
             }
 
             /* Analyze */
-            switch (query)
             {
-            case ESCAPE:
-            case 'q':
-            {
-                done = TRUE;
-                break;
-            }
+                ui_input_target input =
+                    ui_input_parse_target_interesting_key(query, mode);
 
-            case ' ':
-            case '*':
-            case '+':
-            {
-                if (++m == temp_n)
+                switch (input.action)
                 {
-                    m = 0;
-                }
-                break;
-            }
-
-            case '-':
-            {
-                if (m-- == 0)
+                case UI_INPUT_TARGET_ACTION_CANCEL:
                 {
-                    m = temp_n - 1;
-                }
-                break;
-            }
-
-            case 'p':
-            {
-                /* Recenter around player */
-                verify_panel();
-
-                /* Handle stuff */
-                handle_stuff();
-
-                y = py;
-                x = px;
-                break;
-            }
-
-            case 'm':
-            {
-                flag = FALSE;
-                break;
-            }
-
-            case 't':
-            case '5':
-            case 'z':
-            case '\n':
-            case '\r':
-            {
-                if (((query == '\n') || (query == '\r'))
-                    && !(mode & TARGET_KILL))
+                    done = TRUE;
                     break;
-
-                int m_idx = cave_m_idx[y][x];
-
-                if ((p_ptr->py == y) && (p_ptr->px == x))
-                {
-                    done = TRUE;
                 }
-                else if ((m_idx > 0) && target_able(m_idx))
-                {
-                    health_track(m_idx);
-                    target_set_monster(m_idx);
-                    new_target = TRUE;
-                    done = TRUE;
-                }
-                else if (valid_target)
-                {
-                    target_set_location(y, x);
-                    health_track(0);
-                    new_target = TRUE;
-                    done = TRUE;
-                }
-                else
-                {
-                    bell("Illegal target.");
-                }
-                break;
-            }
 
-            default:
-            {
-                /* Extract direction */
-                d = target_dir(query);
+                case UI_INPUT_TARGET_ACTION_NEXT:
+                {
+                    if (++m == temp_n)
+                    {
+                        m = 0;
+                    }
+                    break;
+                }
 
-                /* Oops */
-                if (!d)
+                case UI_INPUT_TARGET_ACTION_PREV:
+                {
+                    if (m-- == 0)
+                    {
+                        m = temp_n - 1;
+                    }
+                    break;
+                }
+
+                case UI_INPUT_TARGET_ACTION_RECENTER:
+                {
+                    /* Recenter around player */
+                    verify_panel();
+
+                    /* Handle stuff */
+                    handle_stuff();
+
+                    y = py;
+                    x = px;
+                    break;
+                }
+
+                case UI_INPUT_TARGET_ACTION_MANUAL:
+                {
+                    flag = FALSE;
+                    break;
+                }
+
+                case UI_INPUT_TARGET_ACTION_CONFIRM:
+                {
+                    int m_idx = cave_m_idx[y][x];
+
+                    if ((p_ptr->py == y) && (p_ptr->px == x))
+                    {
+                        done = TRUE;
+                    }
+                    else if ((m_idx > 0) && target_able(m_idx))
+                    {
+                        health_track(m_idx);
+                        target_set_monster(m_idx);
+                        new_target = TRUE;
+                        done = TRUE;
+                    }
+                    else if (valid_target)
+                    {
+                        target_set_location(y, x);
+                        health_track(0);
+                        new_target = TRUE;
+                        done = TRUE;
+                    }
+                    else
+                    {
+                        bell("Illegal target.");
+                    }
+                    break;
+                }
+
+                case UI_INPUT_TARGET_ACTION_MOVE:
+                {
+                    d = input.direction;
+                    break;
+                }
+
+                case UI_INPUT_TARGET_ACTION_ERROR:
+                {
                     bell("Illegal command for target mode!");
+                    break;
+                }
 
-                break;
-            }
+                case UI_INPUT_TARGET_ACTION_NONE:
+                case UI_INPUT_TARGET_ACTION_AUTO:
+                case UI_INPUT_TARGET_ACTION_RETARGET:
+                case UI_INPUT_TARGET_ACTION_USE_TARGET:
+                default:
+                {
+                    break;
+                }
+                }
             }
 
             /* Hack -- move around */
@@ -4343,93 +4350,101 @@ bool target_set_interactive(int mode, int range)
                 continue;
 
             /* Analyze the keypress */
-            switch (query)
             {
-            case ESCAPE:
-            case 'q':
-            {
-                done = TRUE;
-                break;
-            }
+                ui_input_target input =
+                    ui_input_parse_target_arbitrary_key(query, mode);
 
-            case 'p':
-            {
-                /* Recenter around player */
-                verify_panel();
-
-                /* Handle stuff */
-                handle_stuff();
-
-                y = py;
-                x = px;
-                break;
-            }
-            case 'a':
-            {
-                flag = TRUE;
-
-                m = 0;
-                bd = 999;
-
-                /* Pick a nearby monster */
-                for (i = 0; i < temp_n; i++)
+                switch (input.action)
                 {
-                    t = distance(y, x, temp_y[i], temp_x[i]);
-
-                    /* Pick closest */
-                    if (t < bd)
-                    {
-                        m = i;
-                        bd = t;
-                    }
-                }
-
-                /* Nothing interesting */
-                if (bd == 999)
-                    flag = FALSE;
-
-                break;
-            }
-
-            case 't':
-            case '5':
-            case 'z':
-            case '\n':
-            case '\r':
-            {
-                if (((query == '\n') || (query == '\r'))
-                    && !(mode & TARGET_KILL))
+                case UI_INPUT_TARGET_ACTION_CANCEL:
+                {
+                    done = TRUE;
                     break;
-
-                if ((p_ptr->py == y) && (p_ptr->px == x))
-                {
-                    done = TRUE;
                 }
-                else if (valid_target || p_ptr->wizard)
-                {
-                    target_set_location(y, x);
-                    health_track(0);
-                    new_target = TRUE;
-                    done = TRUE;
-                }
-                else
-                {
-                    bell("Illegal target.");
-                }
-                break;
-            }
 
-            default:
-            {
-                /* Extract a direction */
-                d = target_dir(query);
+                case UI_INPUT_TARGET_ACTION_RECENTER:
+                {
+                    /* Recenter around player */
+                    verify_panel();
 
-                /* Oops */
-                if (!d)
+                    /* Handle stuff */
+                    handle_stuff();
+
+                    y = py;
+                    x = px;
+                    break;
+                }
+
+                case UI_INPUT_TARGET_ACTION_AUTO:
+                {
+                    flag = TRUE;
+
+                    m = 0;
+                    bd = 999;
+
+                    /* Pick a nearby monster */
+                    for (i = 0; i < temp_n; i++)
+                    {
+                        t = distance(y, x, temp_y[i], temp_x[i]);
+
+                        /* Pick closest */
+                        if (t < bd)
+                        {
+                            m = i;
+                            bd = t;
+                        }
+                    }
+
+                    /* Nothing interesting */
+                    if (bd == 999)
+                        flag = FALSE;
+
+                    break;
+                }
+
+                case UI_INPUT_TARGET_ACTION_CONFIRM:
+                {
+                    if ((p_ptr->py == y) && (p_ptr->px == x))
+                    {
+                        done = TRUE;
+                    }
+                    else if (valid_target || p_ptr->wizard)
+                    {
+                        target_set_location(y, x);
+                        health_track(0);
+                        new_target = TRUE;
+                        done = TRUE;
+                    }
+                    else
+                    {
+                        bell("Illegal target.");
+                    }
+                    break;
+                }
+
+                case UI_INPUT_TARGET_ACTION_MOVE:
+                {
+                    d = input.direction;
+                    break;
+                }
+
+                case UI_INPUT_TARGET_ACTION_ERROR:
+                {
                     bell("Illegal command for target mode!");
+                    break;
+                }
 
-                break;
-            }
+                case UI_INPUT_TARGET_ACTION_NONE:
+                case UI_INPUT_TARGET_ACTION_NEXT:
+                case UI_INPUT_TARGET_ACTION_PREV:
+                case UI_INPUT_TARGET_ACTION_MANUAL:
+                case UI_INPUT_TARGET_ACTION_RETARGET:
+                case UI_INPUT_TARGET_ACTION_USE_TARGET:
+                default:
+                {
+                    break;
+                }
+                }
             }
 
             /* Handle "direction" */
@@ -4696,8 +4711,8 @@ bool target_set_interactive(int mode, int range)
                     apply_magic(
                         i_ptr, p_ptr->depth, FALSE, FALSE, FALSE, FALSE);
 
-                    // apply the autoinscription (if any)
-                    apply_autoinscription(i_ptr);
+                    /* Apply the automatic note, if any. */
+                    item_rules_apply_note(i_ptr);
 
                     if (i_ptr->tval == TV_ARROW)
                         i_ptr->number = 24;
@@ -4956,61 +4971,58 @@ bool get_aim_dir(int* dp, int range)
             break;
 
         /* Analyze */
-        switch (ch)
         {
-        /* Set new target, use target if legal */
-        case '*':
-        {
-            if (target_set_interactive(TARGET_KILL, range))
-                dir = 5;
-            break;
-        }
+            ui_input_target input = ui_input_parse_target_aim_key(ch);
 
-        /* Use current target, if set and legal, otherwise pick next target */
-        case 'f':
-        case 'F':
-        case 't':
-        case '5':
-        case 'z':
-        {
-            if (target_okay(range))
-                dir = 5;
-            else
+            switch (input.action)
             {
-                /* Prepare the "temp" array */
-                get_sorted_target_list(TARGET_KILL, range);
-
-                /* Monster */
-                if (temp_n)
-                {
-                    target_set_monster(cave_m_idx[temp_y[0]][temp_x[0]]);
-                    health_track(cave_m_idx[temp_y[0]][temp_x[0]]);
+            case UI_INPUT_TARGET_ACTION_RETARGET:
+            {
+                if (target_set_interactive(TARGET_KILL, range))
                     dir = 5;
-                }
+                break;
             }
-            break;
-        }
 
-            // Sil-y: there is some chance that these UP and DOWN things
-            //        will cause trouble elsewhere
+            case UI_INPUT_TARGET_ACTION_USE_TARGET:
+            {
+                if (target_okay(range))
+                    dir = 5;
+                else
+                {
+                    /* Prepare the "temp" array */
+                    get_sorted_target_list(TARGET_KILL, range);
 
-        case '>':
-        {
-            dir = DIRECTION_DOWN;
-            break;
-        }
-        case '<':
-        {
-            dir = DIRECTION_UP;
-            break;
-        }
+                    /* Monster */
+                    if (temp_n)
+                    {
+                        target_set_monster(cave_m_idx[temp_y[0]][temp_x[0]]);
+                        health_track(cave_m_idx[temp_y[0]][temp_x[0]]);
+                        dir = 5;
+                    }
+                }
+                break;
+            }
 
-        /* Possible direction */
-        default:
-        {
-            dir = target_dir(ch);
-            break;
-        }
+            case UI_INPUT_TARGET_ACTION_MOVE:
+            {
+                dir = input.direction;
+                break;
+            }
+
+            case UI_INPUT_TARGET_ACTION_NONE:
+            case UI_INPUT_TARGET_ACTION_CANCEL:
+            case UI_INPUT_TARGET_ACTION_NEXT:
+            case UI_INPUT_TARGET_ACTION_PREV:
+            case UI_INPUT_TARGET_ACTION_RECENTER:
+            case UI_INPUT_TARGET_ACTION_MANUAL:
+            case UI_INPUT_TARGET_ACTION_AUTO:
+            case UI_INPUT_TARGET_ACTION_CONFIRM:
+            case UI_INPUT_TARGET_ACTION_ERROR:
+            default:
+            {
+                break;
+            }
+            }
         }
 
         /* Error */

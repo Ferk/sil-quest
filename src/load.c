@@ -11,6 +11,7 @@
 #include "angband.h"
 
 #include "init.h"
+#include "item-rules.h"
 
 /*
  * This file loads savefiles from Sil.
@@ -714,6 +715,7 @@ static errr rd_extra(void)
     int i, j;
 
     byte tmp8u;
+    u16b tmp16u;
     u16b file_e_max;
 
     rd_string(op_ptr->full_name, sizeof(op_ptr->full_name));
@@ -849,9 +851,9 @@ static errr rd_extra(void)
     // 19 spare bytes
     strip_bytes(19);
 
-    /* Read item-quality squelch sub-menu */
+    /* Read and discard legacy squelch settings. */
     for (i = 0; i < SQUELCH_BYTES; i++)
-        rd_byte(&squelch_level[i]);
+        rd_byte(&tmp8u);
 
     /* Load the name of the current greater vault */
     rd_string(g_vault_name, sizeof(g_vault_name));
@@ -859,7 +861,7 @@ static errr rd_extra(void)
     /* Read the number of saved special item types */
     rd_u16b(&file_e_max);
 
-    /* Read special item squelch settings */
+    /* Read the legacy special item flags. */
     for (i = 0; i < z_info->e_max; i++)
     {
         ego_item_type* e_ptr = &e_info[i];
@@ -869,13 +871,12 @@ static errr rd_extra(void)
         if (i < file_e_max)
             rd_byte(&tmp8u);
 
-        e_ptr->squelch |= (tmp8u & 0x01);
         e_ptr->everseen |= (tmp8u & 0x02);
         e_ptr->aware |= (tmp8u & 0x04);
 
         /* Hack - Repair the savefile */
         if (!e_ptr->everseen)
-            e_ptr->squelch = FALSE;
+            e_ptr->aware = FALSE;
     }
 
     /* Read possible extra elements */
@@ -885,19 +886,21 @@ static errr rd_extra(void)
         i++;
     }
 
-    /*Write the current number of auto-inscriptions*/
-    rd_u16b(&inscriptionsCount);
+    /* Read the current number of automatic notes. */
+    rd_u16b(&tmp16u);
+    item_rules_clear();
 
-    /*Write the autoinscriptions array*/
-    for (i = 0; i < inscriptionsCount; i++)
+    /* Read the automatic note rules. */
+    for (i = 0; i < tmp16u; i++)
     {
         char tmp[80];
+        s16b kind_idx;
 
-        rd_s16b(&inscriptions[i].kindIdx);
+        rd_s16b(&kind_idx);
 
         rd_string(tmp, 80);
 
-        inscriptions[i].inscriptionIdx = quark_add(tmp);
+        item_rules_set_kind_note(kind_idx, tmp);
     }
 
     for (i = 0; i < MAX_GREATER_VAULTS; i++)
@@ -1457,8 +1460,6 @@ static errr rd_dungeon(void)
             /* Link the floor to the object */
             cave_o_idx[y][x] = o_idx;
 
-            /* Rearrange stack if needed */
-            rearrange_stack(y, x);
         }
     }
 
@@ -1648,7 +1649,8 @@ static errr rd_savefile_new_aux(void)
         k_ptr->tried = (tmp8u & 0x02) ? TRUE : FALSE;
         k_ptr->everseen = (tmp8u & 0x08) ? TRUE : FALSE;
 
-        rd_byte(&k_ptr->squelch);
+        /* Read and discard the removed per-kind squelch byte. */
+        rd_byte(&tmp8u);
     }
     if (arg_fiddle)
         note("Loaded Object Memory");

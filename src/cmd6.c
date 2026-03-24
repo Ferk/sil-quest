@@ -9,6 +9,7 @@
  */
 
 #include "angband.h"
+#include "item-rules.h"
 
 /*
  * This file includes code for eating food, drinking potions,
@@ -143,21 +144,21 @@ void do_cmd_eat_food(object_type* default_o_ptr, int default_item)
         floor_item_optimize(0 - item);
     }
 
-    // allow autoinscribing of the herb
+    // Allow storing an automatic note for this herb type.
     if (!ident && !aware)
     {
         if (easter_time())
         {
-            if (get_check("Autoinscribe this easter egg type? "))
+            if (get_check("Automatically inscribe this easter egg type? "))
             {
-                do_cmd_autoinscribe_item(kind_index);
+                item_rules_prompt_kind_note(kind_index);
             }
         }
         else
         {
-            if (get_check("Autoinscribe this herb type? "))
+            if (get_check("Automatically inscribe this herb type? "))
             {
-                do_cmd_autoinscribe_item(kind_index);
+                item_rules_prompt_kind_note(kind_index);
             }
         }
     }
@@ -256,12 +257,12 @@ void do_cmd_quaff_potion(object_type* default_o_ptr, int default_item)
         floor_item_optimize(0 - item);
     }
 
-    // allow autoinscribing of the potion
+    // Allow storing an automatic note for this potion type.
     if (!ident && !aware)
     {
-        if (get_check("Autoinscribe this potion type? "))
+        if (get_check("Automatically inscribe this potion type? "))
         {
-            do_cmd_autoinscribe_item(kind_index);
+            item_rules_prompt_kind_note(kind_index);
         }
     }
 }

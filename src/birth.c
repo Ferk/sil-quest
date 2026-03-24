@@ -9,6 +9,7 @@
  */
 
 #include "angband.h"
+#include "ui-input.h"
 
 /* Locations of the tables on the screen */
 #define HEADER_ROW 1
@@ -1487,22 +1488,10 @@ static bool player_birth_aux_1(void)
         op_ptr->delay_factor = 5;
     }
 
-    /* reset squelch bits */
-
-    for (i = 0; i < z_info->k_max; i++)
-    {
-        k_info[i].squelch = SQUELCH_NEVER;
-    }
-    /*Clear the squelch bytes*/
-    for (i = 0; i < SQUELCH_BYTES; i++)
-    {
-        squelch_level[i] = SQUELCH_NONE;
-    }
-    /* Clear the special item squelching flags */
+    /* Clear the special item knowledge flags. */
     for (i = 0; i < z_info->e_max; i++)
     {
         e_info[i].aware = FALSE;
-        e_info[i].squelch = FALSE;
     }
 
     /* Clear */
@@ -1658,41 +1647,36 @@ static bool player_birth_aux_2(void)
         if ((ch == 'Q') || (ch == 'q'))
             quit(NULL);
 
-        /* Start over */
-        if (ch == ESCAPE)
+        switch (ui_input_parse_adjust_key(ch))
+        {
+        case UI_INPUT_ADJUST_ACTION_CANCEL:
             return (FALSE);
 
-        /* Done */
-        if ((ch == '\r') || (ch == '\n'))
+        case UI_INPUT_ADJUST_ACTION_CONFIRM:
+            return (TRUE);
+
+        case UI_INPUT_ADJUST_ACTION_PREV:
+            stat = (stat + A_MAX - 1) % A_MAX;
             break;
 
-        /* Prev stat */
-        if (ch == '8')
-        {
-            stat = (stat + A_MAX - 1) % A_MAX;
-        }
-
-        /* Next stat */
-        if (ch == '2')
-        {
+        case UI_INPUT_ADJUST_ACTION_NEXT:
             stat = (stat + 1) % A_MAX;
-        }
+            break;
 
-        /* Decrease stat */
-        if ((ch == '4') && (stats[stat] > 0))
-        {
-            stats[stat]--;
-        }
+        case UI_INPUT_ADJUST_ACTION_DECREASE:
+            if (stats[stat] > 0)
+                stats[stat]--;
+            break;
 
-        /* Increase stat */
-        if (ch == '6')
-        {
+        case UI_INPUT_ADJUST_ACTION_INCREASE:
             stats[stat]++;
+            break;
+
+        case UI_INPUT_ADJUST_ACTION_NONE:
+        default:
+            break;
         }
     }
-
-    /* Done */
-    return (TRUE);
 }
 
 /*
@@ -1875,47 +1859,43 @@ extern bool gain_skills(void)
         if (((ch == 'Q') || (ch == 'q')) && (turn == 0))
             quit(NULL);
 
-        /* Done */
-        if ((ch == '\r') || (ch == '\n'))
+        switch (ui_input_parse_adjust_key(ch))
         {
+        case UI_INPUT_ADJUST_ACTION_CONFIRM:
             accepted = TRUE;
             break;
-        }
 
-        /* Abort */
-        if (ch == ESCAPE)
-        {
+        case UI_INPUT_ADJUST_ACTION_CANCEL:
             p_ptr->new_exp = old_new_exp;
             for (i = 0; i < S_MAX; i++)
                 p_ptr->skill_base[i] = old_base[i];
             // p_ptr->csp = old_csp;
             accepted = FALSE;
             break;
-        }
 
-        /* Prev skill */
-        if (ch == '8')
-        {
+        case UI_INPUT_ADJUST_ACTION_PREV:
             skill = (skill + S_MAX - 1) % S_MAX;
-        }
+            continue;
 
-        /* Next skill */
-        if (ch == '2')
-        {
+        case UI_INPUT_ADJUST_ACTION_NEXT:
             skill = (skill + 1) % S_MAX;
-        }
+            continue;
 
-        /* Decrease skill */
-        if ((ch == '4') && (skill_gain[skill] > 0))
-        {
-            skill_gain[skill]--;
-        }
+        case UI_INPUT_ADJUST_ACTION_DECREASE:
+            if (skill_gain[skill] > 0)
+                skill_gain[skill]--;
+            continue;
 
-        /* Increase stat */
-        if (ch == '6')
-        {
+        case UI_INPUT_ADJUST_ACTION_INCREASE:
             skill_gain[skill]++;
+            continue;
+
+        case UI_INPUT_ADJUST_ACTION_NONE:
+        default:
+            continue;
         }
+
+        break;
     }
 
     // reset hack global variable
