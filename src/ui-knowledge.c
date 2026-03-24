@@ -157,6 +157,57 @@ static void ui_knowledge_build_browser_nav(char* buf, size_t buf_size,
     buf[off] = '\0';
 }
 
+/* Formats the terminal summary line shown for the current monster group. */
+static void ui_knowledge_monster_group_summary(
+    char* buf, size_t buf_size, cptr group_char[], int grp_cur)
+{
+    int i;
+    u32b known_uniques = 0;
+    u32b dead_uniques = 0;
+    u32b slay_count = 0;
+
+    if (!buf || (buf_size == 0))
+        return;
+
+    buf[0] = '\0';
+
+    for (i = 1; i < z_info->r_max - 1; i++)
+    {
+        monster_race* r_ptr = &r_info[i];
+        monster_lore* l_ptr = &l_list[i];
+
+        if ((r_ptr->rarity == 0) || (r_ptr->level > 25))
+            continue;
+
+        if (r_ptr->flags1 & RF1_UNIQUE)
+        {
+            if (l_ptr->tsights)
+            {
+                known_uniques++;
+                if (r_ptr->max_num == 0)
+                {
+                    dead_uniques++;
+                    slay_count++;
+                }
+            }
+            else if (know_monster_info || cheat_know)
+            {
+                known_uniques++;
+            }
+        }
+        else
+        {
+            slay_count += l_ptr->pkills;
+        }
+    }
+
+    if (group_char[grp_cur] != (char*)-1L)
+        strnfmt(buf, buf_size, "Total Creatures Slain: %u.", slay_count);
+    else
+        strnfmt(buf, buf_size, "Known Uniques: %u, Slain Uniques: %u.",
+            known_uniques, dead_uniques);
+}
+
 /* Appends the details pane text for one monster entry. */
 static void ui_knowledge_monster_append_details(
     ui_text_builder* builder, int r_idx)
@@ -212,51 +263,12 @@ static void ui_knowledge_monster_set_details_visual(int r_idx)
 static void ui_knowledge_monster_group_append_summary(
     ui_text_builder* builder, cptr group_char[], int grp_cur)
 {
-    int i;
-    u32b known_uniques = 0;
-    u32b dead_uniques = 0;
-    u32b slay_count = 0;
     char buf[128];
 
     if (!builder)
         return;
 
-    for (i = 1; i < z_info->r_max - 1; i++)
-    {
-        monster_race* r_ptr = &r_info[i];
-        monster_lore* l_ptr = &l_list[i];
-
-        if ((r_ptr->rarity == 0) || (r_ptr->level > 25))
-            continue;
-
-        if (r_ptr->flags1 & RF1_UNIQUE)
-        {
-            if (l_ptr->tsights)
-            {
-                known_uniques++;
-                if (r_ptr->max_num == 0)
-                {
-                    dead_uniques++;
-                    slay_count++;
-                }
-            }
-            else if (know_monster_info || cheat_know)
-            {
-                known_uniques++;
-            }
-        }
-        else
-        {
-            slay_count += l_ptr->pkills;
-        }
-    }
-
-    if (group_char[grp_cur] != (char*)-1L)
-        strnfmt(buf, sizeof(buf), "Total Creatures Slain: %u.", slay_count);
-    else
-        strnfmt(buf, sizeof(buf), "Known Uniques: %u, Slain Uniques: %u.",
-            known_uniques, dead_uniques);
-
+    ui_knowledge_monster_group_summary(buf, sizeof(buf), group_char, grp_cur);
     ui_text_builder_append_line(builder, buf, TERM_L_BLUE);
 }
 
@@ -399,8 +411,6 @@ static int ui_knowledge_menu_choose(int* highlight)
 
     ui_simple_menu_render("Display current knowledge", 2, 5, entries, 6,
         *highlight, "Use the keyboard or mouse to choose a knowledge screen.");
-    Term_fresh();
-    Term_gotoxy(5, 3 + *highlight);
 
     action = ui_simple_menu_read_action(highlight, entries, 6);
     if (action == ESCAPE)

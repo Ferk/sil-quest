@@ -81,6 +81,11 @@
     const WEB_FLAG_FG_PICT = 0x04;
     const WEB_FLAG_BG_PICT = 0x08;
     const WEB_FLAG_MARK = 0x10;
+    const UI_PROMPT_KIND_NONE = 0;
+    const UI_PROMPT_KIND_GENERIC = 1;
+    const UI_PROMPT_KIND_YES_NO = 2;
+    const UI_PROMPT_KIND_TARGET = 3;
+    const UI_PROMPT_KIND_MORE = 4;
 
     const colors = [
       "#000000", "#ffffff", "#9ca3af", "#f59e0b",
@@ -98,6 +103,7 @@
     let lastFrameId = -1;
     let lastMenuRevision = -1;
     let lastModalRevision = -1;
+    let lastPromptRevision = -1;
     let cellStride = 8;
     let tileSrcW = 16;
     let tileSrcH = 16;
@@ -127,13 +133,12 @@
     let lastDepthText = null;
     let morePromptActive = false;
     let morePromptText = "";
+    let morePromptAttrs = [];
     let topPromptActive = false;
+    let topPromptKind = UI_PROMPT_KIND_NONE;
+    let topPromptMoreHint = false;
     let topPromptText = "";
     let topPromptAttrs = null;
-    let overlayMorePromptActive = false;
-    let overlayMorePromptText = "";
-    let lineMorePromptActive = false;
-    let lineMorePromptText = "";
     let persistFsEnabled = false;
     let idbSyncTimer = null;
     let idbSyncInFlight = false;
@@ -866,30 +871,21 @@
 
     // Returns whether the top line is showing a prompt that still expects input.
     function isInteractiveTopPromptActive() {
-      if (!topPromptActive) return false;
-
-      const prompt = String(topPromptText || "").trimEnd();
-      if (!prompt) return false;
-
-      return /\[[^\]]+\]\s*$/.test(prompt) ||
-        /\?\s*$/.test(prompt) ||
-        /:\s*$/.test(prompt);
+      return topPromptActive && (
+        topPromptKind === UI_PROMPT_KIND_GENERIC ||
+        topPromptKind === UI_PROMPT_KIND_YES_NO ||
+        topPromptKind === UI_PROMPT_KIND_TARGET
+      );
     }
 
     // Returns whether the top prompt is one of the blocking yes/no confirmations.
     function isYesNoTopPromptActive() {
-      if (!isInteractiveTopPromptActive()) return false;
-
-      const prompt = String(topPromptText || "").trimEnd();
-      return /\[y\/n(?:\/[^\]]+)?\]\s*$/i.test(prompt);
+      return topPromptActive && topPromptKind === UI_PROMPT_KIND_YES_NO;
     }
 
     // Returns whether the top prompt represents an active target-preview state.
     function isTargetPreviewTopPromptActive() {
-      if (!isInteractiveTopPromptActive()) return false;
-
-      const prompt = String(topPromptText || "").trimEnd();
-      return /\(t\)arget/i.test(prompt) && /<dir>/i.test(prompt);
+      return topPromptActive && topPromptKind === UI_PROMPT_KIND_TARGET;
     }
 
     // Only interactive prompts should keep the last semantic menu visible as context.
@@ -1880,86 +1876,49 @@
      * Renders overlays, side panel, and log from semantic text buffers.
      * ========================================================================== */
 
-    // Merges overlay-driven and top-line-driven more prompts into one active prompt.
-    function syncMorePromptState() {
-      if (lineMorePromptActive) {
-        morePromptActive = true;
-        morePromptText = lineMorePromptText || "-more-";
-        return;
-      }
-
-      if (overlayMorePromptActive) {
-        morePromptActive = true;
-        morePromptText = overlayMorePromptText || "-more-";
-        return;
-      }
-
-      morePromptActive = false;
-      morePromptText = "";
-    }
-
-    // Extracts live top-line prompt text from terminal row 0 (input prompts and -more-).
-    function updateToplinePrompt(heap, cols) {
+    // Reads the semantic prompt exported by wasm instead of scraping terminal text.
+    function updatePromptState(heap) {
+      topPromptKind = UI_PROMPT_KIND_NONE;
+      topPromptMoreHint = false;
       topPromptActive = false;
       topPromptText = "";
       topPromptAttrs = null;
-      lineMorePromptActive = false;
-      lineMorePromptText = "";
+      morePromptActive = false;
+      morePromptText = "";
+      morePromptAttrs = [];
 
-      if (!api || !heap || cols <= 0) {
-        syncMorePromptState();
+      if (
+        !api ||
+        !heap ||
+        typeof api.getPromptKind !== "function" ||
+        typeof api.getPromptTextPtr !== "function" ||
+        typeof api.getPromptTextLen !== "function" ||
+        typeof api.getPromptAttrsPtr !== "function" ||
+        typeof api.getPromptAttrsLen !== "function"
+      ) {
         return;
       }
 
-      const cellPtr = api.getCellsPtr();
-      if (!cellPtr) {
-        syncMorePromptState();
+      const promptKind = Number(api.getPromptKind()) || UI_PROMPT_KIND_NONE;
+      const promptText = readUtf8(heap, api.getPromptTextPtr(), api.getPromptTextLen()).trimEnd();
+      const promptAttrs = readBytes(heap, api.getPromptAttrsPtr(), api.getPromptAttrsLen());
+      const promptMoreHint =
+        typeof api.getPromptMoreHint === "function" && api.getPromptMoreHint() !== 0;
+
+      if (promptKind === UI_PROMPT_KIND_MORE) {
+        morePromptActive = true;
+        morePromptText = promptText;
+        morePromptAttrs = promptAttrs;
         return;
       }
 
-      const chars = [];
-      const attrs = new Uint8Array(cols);
-      let lastNonSpace = -1;
+      if (!promptText) return;
 
-      for (let x = 0; x < cols; x++) {
-        const cell = readCell(heap, cellPtr, cols, x, 0);
-        let ch = " ";
-        let attr = 1;
-
-        if (cell.kind === WEB_CELL_TEXT) {
-          const code = cell.textChar & 0xff;
-          if (code >= 32 && code <= 126) {
-            ch = String.fromCharCode(code);
-          }
-          attr = cell.textAttr & 0x0f;
-        }
-
-        chars.push(ch);
-        attrs[x] = attr;
-        if (ch !== " ") {
-          lastNonSpace = x;
-        }
-      }
-
-      if (lastNonSpace < 0) {
-        syncMorePromptState();
-        return;
-      }
-
-      const rawText = chars.slice(0, lastNonSpace + 1).join("");
-      const rawAttrs = attrs.slice(0, lastNonSpace + 1);
-
-      if (/-more-/i.test(rawText)) {
-        lineMorePromptActive = true;
-        lineMorePromptText =
-          rawText.replace(/\s*-more-\s*/gi, " ").trim() || "-more-";
-      } else {
-        topPromptActive = true;
-        topPromptText = rawText.trimEnd();
-        topPromptAttrs = rawAttrs;
-      }
-
-      syncMorePromptState();
+      topPromptKind = promptKind;
+      topPromptMoreHint = promptMoreHint;
+      topPromptActive = true;
+      topPromptText = promptText;
+      topPromptAttrs = promptAttrs;
     }
 
     // Renders an active semantic menu as an HTML overlay instead of raw captured text.
@@ -2016,9 +1975,6 @@
       const bodyClass = hasDetailsPane ? "menu-body-with-details" : "menu-body-no-details";
       const menuHtml = `<div class="menu-shell ${shellClass}">${introHtml}<div class="menu-body ${bodyClass}"><div class="menu-columns-wrap"><div class="menu-columns">${menuColumnsHtml}</div></div>${detailsHtml}</div></div>`;
 
-      overlayMorePromptActive = false;
-      overlayMorePromptText = "";
-      syncMorePromptState();
       overlayModalEl.style.display = "block";
       overlayModalEl.classList.remove("overlay-dismissable");
       overlayModalEl.classList.add("overlay-menu");
@@ -2063,10 +2019,6 @@
         return false;
       }
 
-      overlayMorePromptActive = false;
-      overlayMorePromptText = "";
-      syncMorePromptState();
-
       overlayModalEl.style.display = "block";
       overlayModalEl.classList.remove("overlay-menu");
       overlayModalEl.classList.toggle("overlay-dismissable", dismissKey > 0);
@@ -2092,9 +2044,6 @@
 
       const mode = api.getOverlayMode();
       if (!mode) {
-        overlayMorePromptActive = false;
-        overlayMorePromptText = "";
-        syncMorePromptState();
         overlayModalEl.style.display = "none";
         overlayModalEl.classList.remove("overlay-dismissable");
         overlayModalEl.classList.remove("overlay-menu");
@@ -2110,40 +2059,11 @@
       const attrs = readBytes(heap, attrPtr, attrLen);
 
       if (!text) {
-        overlayMorePromptActive = false;
-        overlayMorePromptText = "";
-        syncMorePromptState();
         overlayModalEl.style.display = "none";
         overlayModalEl.classList.remove("overlay-dismissable");
         setHtmlIfChanged(overlayModalEl, "");
         return false;
       }
-
-      const moreLines = text.split("\n");
-      let hasMorePrompt = false;
-      const cleanedLines = moreLines.map((lineRaw) => {
-        const line = lineRaw.replace(/\r/g, "");
-        if (/-more-\s*$/i.test(line)) {
-          hasMorePrompt = true;
-          return line.replace(/\s*-more-\s*$/i, "").trimEnd();
-        }
-        return line;
-      });
-
-      if (hasMorePrompt) {
-        overlayMorePromptActive = true;
-        overlayMorePromptText = cleanedLines.join("\n").trim() || "-more-";
-        syncMorePromptState();
-        overlayModalEl.style.display = "none";
-        overlayModalEl.classList.remove("overlay-dismissable");
-        overlayModalEl.classList.remove("overlay-menu");
-        setHtmlIfChanged(overlayModalEl, "");
-        return false;
-      }
-
-      overlayMorePromptActive = false;
-      overlayMorePromptText = "";
-      syncMorePromptState();
 
       overlayModalEl.style.display = "block";
       overlayModalEl.classList.remove("overlay-dismissable");
@@ -2208,26 +2128,27 @@
 
       const logText = readUtf8(heap, logPtr, logLen).trimEnd();
       const logAttrs = readBytes(heap, logAttrPtr, logAttrLen);
-      const logHasMoreToken = /-more-/i.test(logText);
-      const cleanedLogText = logHasMoreToken
-        ? logText.replace(/\s*-more-\s*/gi, " ").trimEnd()
-        : logText;
 
       const sideHtml = state
         ? renderSideState(state)
         : "<span class=\"term-c2\">(side panel empty)</span>";
-      const hasLogText = Boolean(cleanedLogText);
+      const hasLogText = Boolean(logText);
       let logHtml = hasLogText
-        ? renderColoredText(cleanedLogText, logHasMoreToken ? null : logAttrs, 1)
+        ? renderColoredText(logText, logAttrs, 1)
         : "<span class=\"term-c2\">(message panel empty)</span>";
 
       if (topPromptActive && topPromptText) {
-        const promptHtml = renderColoredText(topPromptText, topPromptAttrs, 11);
+        const promptHtml = `${renderColoredText(topPromptText, topPromptAttrs, 11)}${
+          topPromptMoreHint ? "<span class=\"more-indicator\">-more-</span>" : ""
+        }`;
         logHtml = hasLogText ? `${logHtml}<br>${promptHtml}` : promptHtml;
       }
 
       if (morePromptActive) {
-        const promptHtml = `${renderColoredText(morePromptText || "-more-", null, 11)}<span class="more-indicator">-more-</span>`;
+        const promptLead = morePromptText
+          ? `${renderColoredText(morePromptText, morePromptAttrs, 11)} `
+          : "";
+        const promptHtml = `${promptLead}<span class="more-indicator">-more-</span>`;
         logHtml = hasLogText ? `${logHtml}<br>${promptHtml}` : promptHtml;
       }
 
@@ -2256,11 +2177,14 @@
         typeof api.getMenuRevision === "function" ? api.getMenuRevision() : 0;
       const modalRevision =
         typeof api.getModalRevision === "function" ? api.getModalRevision() : 0;
+      const promptRevision =
+        typeof api.getPromptRevision === "function" ? api.getPromptRevision() : 0;
       if (
         !forceRedraw &&
         frameId === lastFrameId &&
         menuRevision === lastMenuRevision &&
         modalRevision === lastModalRevision &&
+        promptRevision === lastPromptRevision &&
         !mapFxStateChanged &&
         !mapFxActive
       ) {
@@ -2270,6 +2194,7 @@
       lastFrameId = frameId;
       lastMenuRevision = menuRevision;
       lastModalRevision = modalRevision;
+      lastPromptRevision = promptRevision;
       lastMapFxActive = mapFxActive;
 
       const cols = api.getCols();
@@ -2282,7 +2207,7 @@
       refreshLayoutMetadata(cols, rows);
       refreshIconMetadata();
       refreshMenuItems(heap);
-      updateToplinePrompt(heap, cols);
+      updatePromptState(heap);
 
       const overlayActive = updateOverlaySemantic(heap);
       const state = readPlayerState(heap);
@@ -2377,8 +2302,6 @@
         !overlayModalEl.classList.contains("overlay-menu") &&
         !overlayModalEl.classList.contains("overlay-dismissable") &&
         !isInteractiveTopPromptActive() &&
-        !lineMorePromptActive &&
-        !overlayMorePromptActive &&
         !morePromptActive;
     }
 
@@ -2688,7 +2611,7 @@
     // Binds semantic hover/click handling for menus exported by the wasm frontend.
     function bindMenuPointerInput() {
       const hoverMenuAtPoint = (clientX, clientY) => {
-        if (isInteractiveTopPromptActive() || lineMorePromptActive) {
+        if (isInteractiveTopPromptActive() || morePromptActive) {
           hoveredMenuIndex = -1;
           return -1;
         }
@@ -2726,7 +2649,7 @@
 
       mapCanvas.addEventListener("pointerdown", (ev) => {
         if (ev.button !== 0) return;
-        if (isInteractiveTopPromptActive() || lineMorePromptActive) return;
+        if (isInteractiveTopPromptActive() || morePromptActive) return;
 
         const index = findMenuItemIndexAtClientPoint(ev.clientX, ev.clientY);
         if (index < 0 || !api) return;
@@ -2747,7 +2670,7 @@
     // Binds semantic hover/click handling for HTML menu overlays.
     function bindOverlayMenuInput() {
       const hoverFromOverlayEvent = (target) => {
-        if (isInteractiveTopPromptActive() || lineMorePromptActive) {
+        if (isInteractiveTopPromptActive() || morePromptActive) {
           hoveredMenuIndex = -1;
           return;
         }
@@ -2788,7 +2711,7 @@
 
       overlayModalEl.addEventListener("click", (ev) => {
         if (!overlayModalEl.classList.contains("overlay-menu")) return;
-        if (isInteractiveTopPromptActive() || lineMorePromptActive) return;
+        if (isInteractiveTopPromptActive() || morePromptActive) return;
 
         const itemEl = ev.target.closest("[data-menu-index]");
         if (!itemEl || !api || typeof api.menuActivate !== "function") return;
@@ -2867,11 +2790,6 @@
 
       // Advances an active -more- prompt using one supplied or default key.
       const advanceMorePrompt = (keyCode) => {
-        overlayMorePromptActive = false;
-        overlayMorePromptText = "";
-        lineMorePromptActive = false;
-        lineMorePromptText = "";
-        syncMorePromptState();
         forceRedraw = true;
         pushAscii(keyCode !== null ? keyCode : " ".charCodeAt(0));
       };
@@ -3437,6 +3355,13 @@
           typeof Module._web_get_modal_attrs_len === "function" &&
           typeof Module._web_get_modal_dismiss_key === "function" &&
           typeof Module._web_get_modal_revision === "function" &&
+          typeof Module._web_get_prompt_kind === "function" &&
+          typeof Module._web_get_prompt_more_hint === "function" &&
+          typeof Module._web_get_prompt_text_ptr === "function" &&
+          typeof Module._web_get_prompt_text_len === "function" &&
+          typeof Module._web_get_prompt_attrs_ptr === "function" &&
+          typeof Module._web_get_prompt_attrs_len === "function" &&
+          typeof Module._web_get_prompt_revision === "function" &&
           typeof Module._web_menu_hover === "function" &&
           typeof Module._web_menu_activate === "function" &&
           typeof Module._web_modal_activate === "function";
@@ -3552,6 +3477,13 @@
           getModalAttrsLen: Module._web_get_modal_attrs_len,
           getModalDismissKey: Module._web_get_modal_dismiss_key,
           getModalRevision: Module._web_get_modal_revision,
+          getPromptKind: Module._web_get_prompt_kind,
+          getPromptMoreHint: Module._web_get_prompt_more_hint,
+          getPromptTextPtr: Module._web_get_prompt_text_ptr,
+          getPromptTextLen: Module._web_get_prompt_text_len,
+          getPromptAttrsPtr: Module._web_get_prompt_attrs_ptr,
+          getPromptAttrsLen: Module._web_get_prompt_attrs_len,
+          getPromptRevision: Module._web_get_prompt_revision,
           getSoundCount:
             typeof Module._web_get_sound_count === "function"
               ? Module._web_get_sound_count

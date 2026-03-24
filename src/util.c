@@ -2725,7 +2725,7 @@ static void msg_flush(int x)
     byte a = TERM_L_BLUE;
 
     /* Pause for response */
-    Term_putstr(x, 0, -1, a, "-more-");
+    ui_prompt_show_more(x, a);
 
     /* Place the cursor on the player or target */
     if (hilite_player)
@@ -2752,7 +2752,7 @@ static void msg_flush(int x)
     }
 
     /* Clear the line */
-    Term_erase(0, 0, 255);
+    ui_prompt_clear_line();
 }
 
 static int message_column = 0;
@@ -2871,7 +2871,7 @@ static void msg_print_aux(u16b type, cptr msg)
         t[split] = '\0';
 
         /* Display part of the message */
-        Term_putstr(0, 0, split, color, t);
+        ui_prompt_putstr(0, color, t);
 
         /* Flush it */
         msg_flush(split + 1);
@@ -2888,7 +2888,7 @@ static void msg_print_aux(u16b type, cptr msg)
     }
 
     /* Display the tail of the message */
-    Term_putstr(message_column, 0, n, color, t);
+    ui_prompt_putstr(message_column, color, t);
 
     /* Remember the message */
     msg_flag = TRUE;
@@ -3087,6 +3087,9 @@ void put_str(cptr str, int row, int col)
  */
 void c_prt(byte attr, cptr str, int row, int col)
 {
+    if (ui_prompt_render(row, col, attr, str))
+        return;
+
     /* Clear line, position cursor */
     Term_erase(col, row, 255);
 
@@ -3585,6 +3588,7 @@ bool term_get_string(cptr prompt, char* buf, size_t len)
     message_flush();
 
     /* Display prompt */
+    ui_prompt_plan(UI_PROMPT_KIND_GENERIC, FALSE);
     prt(prompt, 0, 0);
 
     /* Ask the user for a string */
@@ -3704,6 +3708,7 @@ int get_check_other(cptr prompt, char other)
     strnfmt(buf, 78, "%.70s[y/n/%c] ", prompt, other);
 
     /* Prompt for it */
+    ui_prompt_plan(UI_PROMPT_KIND_YES_NO, FALSE);
     prt(buf, 0, 0);
 
     /* Get an acceptable answer */
@@ -3758,6 +3763,7 @@ bool get_check(cptr prompt)
     strnfmt(buf, 78, "%.70s[y/n] ", prompt);
 
     /* Prompt for it */
+    ui_prompt_plan(UI_PROMPT_KIND_YES_NO, FALSE);
     prt(buf, 0, 0);
 
     /* Get an acceptable answer */
@@ -3795,6 +3801,7 @@ int get_menu_choice(s16b max, char* prompt)
 
     bool done = FALSE;
 
+    ui_prompt_plan(UI_PROMPT_KIND_GENERIC, FALSE);
     prt(prompt, 0, 0);
 
     while (!done)
@@ -3854,6 +3861,7 @@ bool get_com(cptr prompt, char* command)
     message_flush();
 
     /* Display a prompt */
+    ui_prompt_plan(UI_PROMPT_KIND_GENERIC, FALSE);
     prt(prompt, 0, 0);
     ui_marks_place_target_cursor();
 

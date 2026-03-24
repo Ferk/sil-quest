@@ -112,10 +112,10 @@ ui_input_simple_menu_action ui_input_parse_simple_menu_key(int key)
 {
     int direction = ui_input_simple_menu_direction(key);
 
-    if (ui_input_is_cancel_key(key))
+    if (ui_input_is_cancel_key(key) || (key == '4'))
         return UI_INPUT_SIMPLE_MENU_ACTION_CANCEL;
 
-    if (ui_input_is_accept_key(key) || (key == ' '))
+    if (ui_input_is_accept_key(key) || (key == ' ') || (key == '6'))
         return UI_INPUT_SIMPLE_MENU_ACTION_CHOOSE;
 
     if (direction < 0)

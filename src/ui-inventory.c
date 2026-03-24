@@ -749,7 +749,6 @@ static int ui_inventory_action_menu(int item)
 
         ui_simple_menu_render_custom(item_name, 1, 5, menu_entries, action_count,
             highlight, NULL, 36, visual_kind, visual_attr, visual_char);
-        Term_fresh();
 
         action_key = ui_simple_menu_read_action(&highlight, menu_entries, action_count);
         if (action_key == ESCAPE)

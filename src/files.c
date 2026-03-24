@@ -277,7 +277,7 @@ s16b tokenize(char* buf, s16b num, char** tokens)
  * Specify the attr/char values for "flavors" by flavors index.
  *   L:<num>:<a>/<c>
  */
-errr process_pref_file_command(char* buf)
+static errr process_pref_file_command(char* buf)
 {
     long i, n1, n2;
 
@@ -5095,11 +5095,12 @@ void close_game(void)
         do_cmd_save_game();
 
         /* Prompt for scores XXX XXX XXX */
-        Term_putstr(21, 0, -1, TERM_L_BLUE, "-more-");
+        ui_prompt_show_more(21, TERM_L_BLUE);
 
         /* Predict score (or ESCAPE) */
         if (inkey() != ESCAPE)
             predict_score();
+        ui_prompt_clear_line();
 
         // Sil-y: Sil used to crash on loading a saved game from the main menu
         //        immediately after quitting via Control-X.

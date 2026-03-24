@@ -174,6 +174,7 @@ set(SIL_SOURCES
     src/spells2.c
     src/tables.c
     src/ui-abilities.c
+    src/ui-command-menus.c
     src/ui-input.c
     src/ui-item-select.c
     src/ui-inventory.c
@@ -182,6 +183,7 @@ set(SIL_SOURCES
     src/ui-model.c
     src/ui-preview.c
     src/ui-smithing.c
+    src/ui-term.c
     src/ui-view.c
     src/use-obj.c
     src/util.c

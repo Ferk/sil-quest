@@ -12,6 +12,7 @@
 #include "item-rules.h"
 #include "ui-input.h"
 #include "ui-marks.h"
+#include "ui-model.h"
 
 /*
  * The saving throw is a will skill check.
@@ -3455,9 +3456,7 @@ static int target_set_interactive_aux(int y, int x, int mode, cptr info)
     /* Repeat forever */
     while (1)
     {
-        char more[8];
-        // reset the 'more' buffer
-        strnfmt(more, 1, "");
+        bool has_more_hint = FALSE;
 
         /* Paranoia */
         query = ' ';
@@ -3487,6 +3486,7 @@ static int target_set_interactive_aux(int y, int x, int mode, cptr info)
             strnfmt(out_val, sizeof(out_val),
                 "What you see is not to be believed.  [%s]", info);
 
+            ui_prompt_plan(UI_PROMPT_KIND_TARGET, FALSE);
             prt(out_val, 0, 0);
             move_cursor_relative(y, x);
             query = inkey();
@@ -3545,6 +3545,8 @@ static int target_set_interactive_aux(int y, int x, int mode, cptr info)
                     /* Recall, but not when raging */
                     if ((recall) && !p_ptr->rage)
                     {
+                        char recall_prompt[80];
+
                         /* Save screen */
                         screen_save();
 
@@ -3552,8 +3554,12 @@ static int target_set_interactive_aux(int y, int x, int mode, cptr info)
                         screen_roff(m_ptr->r_idx);
 
                         /* Hack -- Complete the prompt (again) */
-                        Term_addstr(
-                            -1, TERM_WHITE, format("  [(r)ecall, %s]", info));
+                        strnfmt(recall_prompt, sizeof(recall_prompt),
+                            "[(r)ecall, %s]", info);
+                        ui_prompt_set_text(recall_prompt, TERM_WHITE,
+                            UI_PROMPT_KIND_TARGET, has_more_hint);
+                        Term_addstr(-1, TERM_WHITE,
+                            format("  [(r)ecall, %s]", info));
 
                         /* Command */
                         query = inkey();
@@ -3593,27 +3599,24 @@ static int target_set_interactive_aux(int y, int x, int mode, cptr info)
                         {
                             show_more = TRUE;
                         }
-
-                        if (show_more)
-                        {
-                            strnfmt(more, 8, "-more- ");
-                        }
+                        has_more_hint = show_more;
 
                         /* Describe, and prompt for recall */
                         if (p_ptr->wizard)
                         {
                             strnfmt(out_val, sizeof(out_val),
-                                "%s%s%s%s %s%s [(r)ecall, %s] (%d:%d)", s1, s2,
-                                s3, m_name, buf, more, info, y, x);
+                                "%s%s%s%s %s [(r)ecall, %s] (%d:%d)", s1, s2,
+                                s3, m_name, buf, info, y, x);
                         }
 
                         else
                         {
                             strnfmt(out_val, sizeof(out_val),
-                                "%s%s%s%s %s%s [(r)ecall, %s]", s1, s2, s3,
-                                m_name, buf, more, info);
+                                "%s%s%s%s %s [(r)ecall, %s]", s1, s2, s3,
+                                m_name, buf, info);
                         }
 
+                        ui_prompt_plan(UI_PROMPT_KIND_TARGET, has_more_hint);
                         prt(out_val, 0, 0);
 
                         /* Place cursor */
@@ -3682,15 +3685,16 @@ static int target_set_interactive_aux(int y, int x, int mode, cptr info)
                     if (p_ptr->wizard)
                     {
                         strnfmt(out_val, sizeof(out_val),
-                            "%s%s%s%s %s [%s] (%d:%d)", s1, s2, s3, o_name,
-                            more, info, y, x);
+                            "%s%s%s%s [%s] (%d:%d)", s1, s2, s3, o_name, info,
+                            y, x);
                     }
                     else
                     {
-                        strnfmt(out_val, sizeof(out_val), "%s%s%s%s %s [%s]",
-                            s1, s2, s3, o_name, more, info);
+                        strnfmt(out_val, sizeof(out_val), "%s%s%s%s [%s]", s1,
+                            s2, s3, o_name, info);
                     }
 
+                    ui_prompt_plan(UI_PROMPT_KIND_TARGET, has_more_hint);
                     prt(out_val, 0, 0);
                     move_cursor_relative(y, x);
                     query = inkey();
@@ -3762,15 +3766,16 @@ static int target_set_interactive_aux(int y, int x, int mode, cptr info)
                     if (p_ptr->wizard)
                     {
                         strnfmt(out_val, sizeof(out_val),
-                            "%s%s%s%s %s [%s] (%d:%d)", s1, s2, s3, o_name,
-                            more, info, y, x);
+                            "%s%s%s%s [%s] (%d:%d)", s1, s2, s3, o_name, info,
+                            y, x);
                     }
                     else
                     {
-                        strnfmt(out_val, sizeof(out_val), "%s%s%s%s %s [%s]",
-                            s1, s2, s3, o_name, more, info);
+                        strnfmt(out_val, sizeof(out_val), "%s%s%s%s [%s]", s1,
+                            s2, s3, o_name, info);
                     }
 
+                    ui_prompt_plan(UI_PROMPT_KIND_TARGET, has_more_hint);
                     prt(out_val, 0, 0);
                     move_cursor_relative(y, x);
                     query = inkey();
@@ -3842,15 +3847,16 @@ static int target_set_interactive_aux(int y, int x, int mode, cptr info)
             if (p_ptr->wizard)
             {
                 strnfmt(out_val, sizeof(out_val),
-                    "%s%s%s%s (%d) %s [%s] (%d:%d)", s1, s2, s3, name,
-                    cave_feat[y][x], more, info, y, x);
+                    "%s%s%s%s (%d) [%s] (%d:%d)", s1, s2, s3, name,
+                    cave_feat[y][x], info, y, x);
             }
             else
             {
-                strnfmt(out_val, sizeof(out_val), "%s%s%s%s %s [%s]", s1, s2,
-                    s3, name, more, info);
+                strnfmt(out_val, sizeof(out_val), "%s%s%s%s [%s]", s1, s2, s3,
+                    name, info);
             }
 
+            ui_prompt_plan(UI_PROMPT_KIND_TARGET, has_more_hint);
             prt(out_val, 0, 0);
             move_cursor_relative(y, x);
             query = inkey();

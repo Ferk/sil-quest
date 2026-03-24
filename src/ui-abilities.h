@@ -45,6 +45,8 @@ int ui_ability_menu_build_details(int skilltype, ability_type* b_ptr, byte attr,
     int (*bane_bonus_aux_fn)(void));
 /* Picks the default highlight for the change-song menu. */
 int ui_song_menu_default_highlight(void);
+/* Runs the shared song chooser and returns the chosen song action or -1. */
+int ui_song_menu_choose(void);
 /* Builds the extra status text shown beside the change-song menu. */
 void ui_song_menu_build_extra_details(char* details, size_t details_size);
 /* Builds the simple-menu entries used by the change-song menu. */

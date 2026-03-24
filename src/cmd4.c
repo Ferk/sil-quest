@@ -10,6 +10,7 @@
 
 #include "angband.h"
 #include "ui-abilities.h"
+#include "ui-command-menus.h"
 #include "ui-input.h"
 #include "ui-knowledge.h"
 #include "ui-model.h"
@@ -434,99 +435,11 @@ static bool prereqs(int skilltype, int abilitynum)
     return (TRUE);
 }
 
-/*
- * Display the available songs (modelled on show_inven).
- */
-static void show_songs(void)
-{
-    int i, j, k = 0;
-
-    int col = 26;
-
-    char tmp_val[80];
-
-    int out_index[24];
-    char out_desc[24][80];
-
-    /* Display the songs */
-    for (k = 0, i = 0; i < SNG_WOVEN_THEMES; i++)
-    {
-        /* Is this song acceptable? */
-        if (!p_ptr->active_ability[S_SNG][i])
-            continue;
-
-        /* Save the index */
-        out_index[k] = i;
-
-        /* Save the song name */
-        my_strcpy(out_desc[k],
-            b_name + (&b_info[ability_index(S_SNG, i)])->name,
-            sizeof(out_desc[0]));
-
-        /* Advance to next "line" */
-        k++;
-    }
-
-    // add a line for the 'stop singing' command
-
-    /* Clear the line */
-    prt("", 1, col - 2);
-
-    /* Clear the line with the (possibly indented) index */
-    put_str("s)", 1, col);
-
-    /* Display the entry itself */
-    c_put_str(TERM_SLATE, "Stop Singing", 1, col + 3);
-
-    /* Output each entry */
-    for (j = 0; j < k; j++)
-    {
-        /* Get the index */
-        i = out_index[j];
-
-        /* Clear the line */
-        prt("", j + 2, col - 2);
-
-        /* Prepare an index --(-- */
-        strnfmt(tmp_val, sizeof(tmp_val), "%c)", index_to_label(i));
-
-        /* Clear the line with the (possibly indented) index */
-        put_str(tmp_val, j + 2, col);
-
-        /* Display the entry itself */
-        c_put_str(TERM_L_WHITE, out_desc[j], j + 2, col + 3);
-    }
-
-    // add a line for the 'exchange themes' command
-    if (p_ptr->song2 != SNG_NOTHING)
-    {
-        /* Clear the line */
-        prt("", j + 2, col - 2);
-
-        /* Clear the line with the (possibly indented) index */
-        put_str("x)", j + 2, col);
-
-        /* Display the entry itself */
-        c_put_str(TERM_L_BLUE, "Exchange themes", j + 2, col + 3);
-
-        j++;
-    }
-
-    /* Make a "shadow" below the list (only if needed) */
-    if (j && (j < 23))
-        prt("", j + 2, col - 2);
-}
-
 void do_cmd_change_song(void)
 {
     int i;
-    bool done = FALSE;
-
     int options = 0;
     int song_choice = -1;
-    int highlight = 0;
-
-    char which;
 
     // count the abilities
     for (i = 0; i < SNG_WOVEN_THEMES; i++)
@@ -545,144 +458,7 @@ void do_cmd_change_song(void)
         return;
     }
 
-    highlight = ui_song_menu_default_highlight();
-
-    /* Flush the prompt */
-    Term_fresh();
-
-    /* Option to always show a list */
-    if (auto_display_lists)
-    {
-        p_ptr->command_see = TRUE;
-    }
-
-    /* Start out in "display" mode */
-    if (p_ptr->command_see)
-    {
-        /* Save screen */
-        screen_save();
-    }
-
-    /* Repeat until done */
-    while (!done)
-    {
-        ui_simple_menu_entry entries[16];
-        char labels[16][80];
-        char details[16][1024];
-        char extra_details[256];
-        int entry_count = 0;
-
-        /* Redraw if needed */
-        if (p_ptr->command_see)
-            show_songs();
-
-        entry_count = ui_song_menu_build_entries(
-            entries, labels, details, (int)(sizeof(entries) / sizeof(entries[0])));
-        if (highlight < 1)
-            highlight = 1;
-        if (highlight > entry_count)
-            highlight = entry_count;
-        ui_song_menu_build_extra_details(extra_details, sizeof(extra_details));
-        ui_simple_menu_render(
-            "Songs", 2, 26, entries, entry_count, highlight, extra_details);
-
-        which = (char)ui_simple_menu_read_action(&highlight, entries, entry_count);
-
-        /* Parse it */
-        switch (which)
-        {
-        case 0:
-        {
-            break;
-        }
-
-        case ESCAPE:
-        case '\r':
-        {
-            done = TRUE;
-            break;
-        }
-
-        case '*':
-        case '?':
-        case ' ':
-        {
-            /* Hide the list */
-            if (p_ptr->command_see)
-            {
-                /* Flip flag */
-                p_ptr->command_see = FALSE;
-
-                /* Load screen */
-                screen_load();
-            }
-
-            /* Show the list */
-            else
-            {
-                /* Save screen */
-                screen_save();
-
-                /* Flip flag */
-                p_ptr->command_see = TRUE;
-            }
-
-            break;
-        }
-
-        case 's':
-        {
-            song_choice = SNG_NOTHING;
-            done = TRUE;
-            break;
-        }
-
-        case 'x':
-        {
-            if (p_ptr->song2 != SNG_NOTHING)
-            {
-                song_choice = SNG_EXCHANGE_THEMES;
-                done = TRUE;
-                break;
-            }
-            else
-            {
-                bell("Illegal song choice.");
-                break;
-            }
-        }
-
-        default:
-        {
-            if ((which >= 'a') && (which < 'a' + SNG_WOVEN_THEMES))
-            {
-                song_choice = (int)which - 'a';
-                if (p_ptr->active_ability[S_SNG][song_choice])
-                {
-                    done = TRUE;
-                    break;
-                }
-                else
-                {
-                    song_choice = -1;
-                }
-            }
-
-            bell("Illegal song choice.");
-            break;
-        }
-        }
-    }
-
-    /* Fix the screen if necessary */
-    if (p_ptr->command_see)
-    {
-        /* Load screen */
-        screen_load();
-
-        /* Hack -- Cancel "display" */
-        p_ptr->command_see = FALSE;
-    }
+    song_choice = ui_song_menu_choose();
 
     if (song_choice >= 0)
     {
@@ -707,8 +483,6 @@ void do_cmd_change_song(void)
 
         change_song(song_choice);
     }
-
-    ui_menu_clear();
 }
 
 static void wipe_screen_from(int col)
@@ -6836,109 +6610,76 @@ void create_smithing_item(void)
 
 #define MAIN_MENU_MAX 18
 
-#define COL_MAIN 29
-
-static const char* const main_menu_labels[MAIN_MENU_MAX] = {
-    "a) Return to game",
-    "b) Character sheet",
-    "c) Options",
-    "d) Map",
-    "e) Names of the fallen",
-    "f) Known objects",
-    "g) Known artefacts",
-    "h) Known monsters",
-    "i) Slain monsters",
-    "j) Write a note",
-    "k) Take HTML screenshot",
-    "l) Set macros",
-    "m) Set colours",
-    "n) Show old messages",
-    "o) Sil version info",
-    "p) Abort current game",
-    "q) Save game",
-    "r) Save and quit",
+static const ui_simple_menu_entry cmd4_main_menu_entries[] = {
+    { 'a', 4, "a) Return to game", "Close the menu and return to play." },
+    { 'b', 5, "b) Character sheet", "Open the full character sheet." },
+    { 'c', 6, "c) Options",
+        "Configure interface, visuals, and challenge options." },
+    { 'd', 7, "d) Map", "Show the full dungeon map." },
+    { 'e', 8, "e) Names of the fallen", "Browse the names of fallen characters." },
+    { 'f', 9, "f) Known objects", "Browse known object kinds." },
+    { 'g', 10, "g) Known artefacts", "Browse known artefacts." },
+    { 'h', 11, "h) Known monsters", "Browse known monsters." },
+    { 'i', 12, "i) Slain monsters", "Review the list of slain monsters." },
+    { 'j', 13, "j) Write a note", "Write a note in the message log." },
+    { 'k', 14, "k) Take HTML screenshot",
+        "Save an HTML screenshot of the current game state." },
+    { 'l', 15, "l) Set macros", "Open the macro and keymap tools." },
+    { 'm', 16, "m) Set colours", "Open the color tools." },
+    { 'n', 17, "n) Show old messages", "Review older messages." },
+    { 'o', 18, "o) Sil version info", "Show version information for the game." },
+    { 'p', 19, "p) Abort current game", "Abort the current game." },
+    { 'q', 20, "q) Save game", "Save the current game without quitting." },
+    { 'r', 21, "r) Save and quit", "Save and leave the current game." }
 };
 
-/*
- * Performs the interface and selection work for the main menu.
- */
-static int main_menu_aux(int* highlight)
-{
-    char ch;
-    int i;
+static const ui_simple_menu_entry cmd4_options_menu_entries[] = {
+    { 'a', 4, "a) Interface Options",
+        "Adjust interface and gameplay presentation settings." },
+    { 'b', 5, "b) Visual Options",
+        "Change display-related settings such as visuals and highlighting." },
+    { 'c', 6, "c) Challenge Options",
+        "Configure challenge options for the current run." },
+    { 'd', 7, "d) Load a 'Pref' File",
+        "Load options and bindings from a pref file." },
+    { 'e', 8, "e) Append Options to a 'Pref' File",
+        "Append the current options to a pref file." },
+    { 'f', 9, "f) Return to Game", "Leave this menu and return to play." },
+    { 'g', 10, "g) Debugging Options",
+        "Open the debugging and wizard options." }
+};
 
-    for (i = 0; i < MAIN_MENU_MAX + 3; i++)
-    {
-        Term_putstr(
-            COL_MAIN - 2, i, -1, TERM_WHITE, "                           ");
-    }
+static const ui_simple_menu_entry cmd4_macros_menu_entries[] = {
+    { '1', 4, "(1) Load a user pref file",
+        "Load macro and keymap settings from one of your pref files." },
+    { '2', 5, "(2) Append macros to a file",
+        "Write the current macro definitions to a pref file." },
+    { '3', 6, "(3) Query a macro",
+        "Look up a macro trigger and show the bound action." },
+    { '4', 7, "(4) Create a macro",
+        "Bind a trigger sequence to the current action text." },
+    { '5', 8, "(5) Remove a macro",
+        "Delete a macro by selecting its trigger sequence." },
+    { '6', 9, "(6) Append keymaps to a file",
+        "Write the current keymap bindings to a pref file." },
+    { '7', 10, "(7) Query a keymap",
+        "Inspect the command sequence bound to one keypress." },
+    { '8', 11, "(8) Create a keymap",
+        "Bind a single keypress to the current action text." },
+    { '9', 12, "(9) Remove a keymap",
+        "Delete a keymap binding for a chosen keypress." },
+    { '0', 13, "(0) Enter a new action",
+        "Edit the action text used by the macro and keymap tools." }
+};
 
-    ui_menu_begin();
-    for (i = 0; i < MAIN_MENU_MAX; i++)
-    {
-        bool selected = (*highlight == i + 1);
-        int row = 2 + i;
-
-        Term_putstr(COL_MAIN, row, -1, selected ? TERM_L_BLUE : TERM_WHITE,
-            main_menu_labels[i]);
-        ui_menu_add(COL_MAIN, row, (int)strlen(main_menu_labels[i]), 1, '\r',
-            selected, TERM_WHITE, main_menu_labels[i]);
-    }
-    ui_menu_end();
-
-    /* Flush the prompt */
-    Term_fresh();
-
-    /* Place cursor at current choice */
-    Term_gotoxy(COL_MAIN, 1 + *highlight);
-
-    /* Get key (while allowing menu commands) */
-    hide_cursor = TRUE;
-    ch = inkey();
-    hide_cursor = FALSE;
-
-    // choose an option by letter
-    if ((ch >= 'a') && (ch <= (char)'a' + MAIN_MENU_MAX - 1))
-    {
-        *highlight = (int)ch - 'a' + 1;
-        ui_menu_clear();
-        return (*highlight);
-    }
-
-    /* Choose current  */
-    if ((ch == '\r') || (ch == '\n') || (ch == ' ') || (ch == '6'))
-    {
-        ui_menu_clear();
-        return (*highlight);
-    }
-
-    /* Prev item */
-    if (ch == '8')
-    {
-        if (*highlight > 1)
-            (*highlight)--;
-        else if (*highlight == 1)
-            *highlight = MAIN_MENU_MAX;
-    }
-
-    /* Next item */
-    if (ch == '2')
-    {
-        if (*highlight < MAIN_MENU_MAX)
-            (*highlight)++;
-        else if (*highlight == MAIN_MENU_MAX)
-            *highlight = 1;
-    }
-
-    /* Leave menu */
-    if ((ch == ESCAPE) || (ch == '4'))
-    {
-        ui_menu_clear();
-        return (-1);
-    }
-
-    return (0);
-}
+static const ui_simple_menu_entry cmd4_colors_menu_entries[] = {
+    { '1', 4, "(1) Load a user pref file",
+        "Load color definitions from one of your pref files." },
+    { '2', 5, "(2) Dump colors",
+        "Write the current color table to a pref file." },
+    { '3', 6, "(3) Modify colors",
+        "Open the interactive color editor." }
+};
 
 /*
  * Brings up a menu for choosing some of the game's more abstruse options.
@@ -6956,7 +6697,9 @@ void do_cmd_main_menu(void)
     /* Process Events until "Return to Game" is selected */
     while (!leave_menu)
     {
-        actiontype = main_menu_aux(&highlight);
+        actiontype = ui_command_menu_choose("Main Menu", 29,
+            cmd4_main_menu_entries, N_ELEMENTS(cmd4_main_menu_entries),
+            &highlight, "Press Escape to return to the game.", -1, -1);
         leave_menu = TRUE;
 
         // if an action has been selected...
@@ -7723,96 +7466,6 @@ static errr option_dump(cptr fname)
     return (0);
 }
 
-static int options_menu(int* highlight)
-{
-    static const char* const options_menu_labels[] = {
-        "a) Interface Options",
-        "b) Visual Options",
-        "c) Challenge Options",
-        "d) Load a 'Pref' File",
-        "e) Append Options to a 'Pref' File",
-        "f) Return to Game",
-        "g) Debugging Options",
-    };
-
-    int ch;
-    int options = 6;
-    int i;
-
-    if (p_ptr->noscore)
-        options++;
-    if (*highlight > options)
-        *highlight = options;
-
-    Term_putstr(2, 1, -1, TERM_WHITE, "Options");
-    ui_menu_begin();
-    ui_menu_set_text("Options", NULL, 0);
-    for (i = 0; i < options; i++)
-    {
-        int row = 3 + i;
-        bool selected = (*highlight == i + 1);
-
-        Term_putstr(2, row, -1, selected ? TERM_L_BLUE : TERM_WHITE,
-            options_menu_labels[i]);
-        ui_menu_add(2, row, (int)strlen(options_menu_labels[i]), 1, '\r',
-            selected, TERM_WHITE, options_menu_labels[i]);
-    }
-    ui_menu_end();
-
-    /* Flush the prompt */
-    Term_fresh();
-
-    /* Place cursor at current choice */
-    Term_gotoxy(2, 2 + *highlight);
-
-    /* Get key (while allowing menu commands) */
-    hide_cursor = TRUE;
-    ch = inkey();
-    hide_cursor = FALSE;
-
-    if ((ch >= 'a') && (ch <= (char)'a' + options - 1))
-    {
-        *highlight = (int)ch - 'a' + 1;
-        ui_menu_clear();
-        return (*highlight);
-    }
-
-    if ((ch >= 'A') && (ch <= (char)'A' + options - 1))
-    {
-        *highlight = (int)ch - 'A' + 1;
-        ui_menu_clear();
-        return (*highlight);
-    }
-
-    if ((ch == 'f') || (ch == 'F') || (ch == ESCAPE) || (ch == 'q'))
-    {
-        *highlight = 6;
-        ui_menu_clear();
-        return (6);
-    }
-
-    /* Choose current  */
-    if ((ch == '\r') || (ch == '\n') || (ch == ' '))
-    {
-        ui_menu_clear();
-        return (*highlight);
-    }
-
-    /* Prev item */
-    if (ch == '8')
-    {
-        *highlight = (*highlight + (options - 2)) % options + 1;
-    }
-
-    /* Next item */
-    if (ch == '2')
-    {
-        *highlight = *highlight % options + 1;
-    }
-
-    return (0);
-}
-
 /*
  * Set or unset various options.
  *
@@ -7838,7 +7491,10 @@ void do_cmd_options(void)
     /* Process Events until "Return to Game" is selected */
     while (!return_to_game)
     {
-        choice = options_menu(&highlight);
+        choice = ui_command_menu_choose("Options", 2, cmd4_options_menu_entries,
+            (p_ptr->noscore != 0) ? N_ELEMENTS(cmd4_options_menu_entries)
+                                  : N_ELEMENTS(cmd4_options_menu_entries) - 1,
+            &highlight, "Press Escape to return to the game.", 6, 6);
 
         switch (choice)
         {
@@ -8221,10 +7877,6 @@ void do_cmd_macros(void)
     /* Process requests until done */
     while (1)
     {
-        ui_simple_menu_entry entries[10];
-        int entry_count = 0;
-        char details[1400];
-
         /* Clear screen */
         Term_clear();
         Term_fresh();
@@ -8237,77 +7889,18 @@ void do_cmd_macros(void)
 
         /* Display the current action */
         prt(tmp, 22, 0);
-
-        entries[entry_count].key = '1';
-        entries[entry_count].row = 4;
-        entries[entry_count].label = "(1) Load a user pref file";
-        entries[entry_count].details
-            = "Load macro and keymap settings from one of your pref files.";
-        entry_count++;
+        ch = ui_command_menu_choose("Interact with Macros", 5,
+            cmd4_macros_menu_entries,
 #ifdef ALLOW_MACROS
-        entries[entry_count].key = '2';
-        entries[entry_count].row = 5;
-        entries[entry_count].label = "(2) Append macros to a file";
-        entries[entry_count].details
-            = "Write the current macro definitions to a pref file.";
-        entry_count++;
-        entries[entry_count].key = '3';
-        entries[entry_count].row = 6;
-        entries[entry_count].label = "(3) Query a macro";
-        entries[entry_count].details
-            = "Look up a macro trigger and show the bound action.";
-        entry_count++;
-        entries[entry_count].key = '4';
-        entries[entry_count].row = 7;
-        entries[entry_count].label = "(4) Create a macro";
-        entries[entry_count].details
-            = "Bind a trigger sequence to the current action text.";
-        entry_count++;
-        entries[entry_count].key = '5';
-        entries[entry_count].row = 8;
-        entries[entry_count].label = "(5) Remove a macro";
-        entries[entry_count].details
-            = "Delete a macro by selecting its trigger sequence.";
-        entry_count++;
-        entries[entry_count].key = '6';
-        entries[entry_count].row = 9;
-        entries[entry_count].label = "(6) Append keymaps to a file";
-        entries[entry_count].details
-            = "Write the current keymap bindings to a pref file.";
-        entry_count++;
-        entries[entry_count].key = '7';
-        entries[entry_count].row = 10;
-        entries[entry_count].label = "(7) Query a keymap";
-        entries[entry_count].details
-            = "Inspect the command sequence bound to one keypress.";
-        entry_count++;
-        entries[entry_count].key = '8';
-        entries[entry_count].row = 11;
-        entries[entry_count].label = "(8) Create a keymap";
-        entries[entry_count].details
-            = "Bind a single keypress to the current action text.";
-        entry_count++;
-        entries[entry_count].key = '9';
-        entries[entry_count].row = 12;
-        entries[entry_count].label = "(9) Remove a keymap";
-        entries[entry_count].details
-            = "Delete a keymap binding for a chosen keypress.";
-        entry_count++;
-        entries[entry_count].key = '0';
-        entries[entry_count].row = 13;
-        entries[entry_count].label = "(0) Enter a new action";
-        entries[entry_count].details
-            = "Edit the action text used by the macro and keymap tools.";
-        entry_count++;
-#endif /* ALLOW_MACROS */
+            N_ELEMENTS(cmd4_macros_menu_entries),
+#else
+            1,
+#endif
+            &highlight, format("Current action:\n%s\n\nPress Escape to return "
+                "to the game.", tmp), -1, ESCAPE);
 
-        strnfmt(details, sizeof(details),
-            "Current action:\n%s\n\nPress Escape to return to the game.", tmp);
-        ui_simple_menu_render(
-            "Interact with Macros", 2, 5, entries, entry_count, highlight, details);
-
-        /* Get a command */
-        ch = (char)ui_simple_menu_read_action(&highlight, entries, entry_count);
+        if (ch > 0)
+            ch = cmd4_macros_menu_entries[ch - 1].key;
 
         /* Leave */
         if (ch == ESCAPE)
@@ -9125,38 +8718,20 @@ void do_cmd_colors(void)
     /* Interact until done */
     while (1)
     {
-        ui_simple_menu_entry entries[3];
-        int entry_count = 0;
-
         /* Clear screen */
         Term_clear();
         Term_fresh();
-
-        entries[entry_count].key = '1';
-        entries[entry_count].row = 4;
-        entries[entry_count].label = "(1) Load a user pref file";
-        entries[entry_count].details
-            = "Load color definitions from one of your pref files.";
-        entry_count++;
+        ch = ui_command_menu_choose("Interact with Colors", 5,
+            cmd4_colors_menu_entries,
 #ifdef ALLOW_COLORS
-        entries[entry_count].key = '2';
-        entries[entry_count].row = 5;
-        entries[entry_count].label = "(2) Dump colors";
-        entries[entry_count].details
-            = "Write the current color table to a pref file.";
-        entry_count++;
-        entries[entry_count].key = '3';
-        entries[entry_count].row = 6;
-        entries[entry_count].label = "(3) Modify colors";
-        entries[entry_count].details
-            = "Open the interactive color editor.";
-        entry_count++;
-#endif /* ALLOW_COLORS */
+            N_ELEMENTS(cmd4_colors_menu_entries),
+#else
+            1,
+#endif
+            &highlight, "Press Escape to return to the game.", -1, ESCAPE);
 
-        ui_simple_menu_render("Interact with Colors", 2, 5, entries, entry_count,
-            highlight, "Press Escape to return to the game.");
-
-        ch = (char)ui_simple_menu_read_action(&highlight, entries, entry_count);
+        if (ch > 0)
+            ch = cmd4_colors_menu_entries[ch - 1].key;
 
         /* Done */
         if (ch == ESCAPE)
@@ -9707,177 +9282,11 @@ static int collect_artefacts(int grp_cur, int object_idx[])
 }
 
 /*
- * Display the object groups.
- */
-static void display_group_list(int col, int row, int wid, int per_page,
-    int grp_idx[], cptr group_text[], int grp_cur, int grp_top)
-{
-    int i;
-
-    /* Display lines until done */
-    for (i = 0; i < per_page && (grp_idx[i] >= 0); i++)
-    {
-        /* Get the group index */
-        int grp = grp_idx[grp_top + i];
-
-        /* Choose a color */
-        byte attr = (grp_top + i == grp_cur) ? TERM_L_BLUE : TERM_WHITE;
-
-        /* Erase the entire line */
-        Term_erase(col, row + i, wid);
-
-        /* Display the group label */
-        c_put_str(attr, group_text[grp], row + i, col);
-    }
-}
-
-/*
- * Move the cursor in a browser window
- */
-static void browser_cursor(int d, int* column, int* grp_cur, int grp_cnt,
-    int* list_cur, int list_cnt)
-{
-    int col = *column;
-    int grp = *grp_cur;
-    int list = *list_cur;
-
-    if (!d)
-        return;
-
-    /* Diagonals - hack */
-    if ((ddx[d] > 0) && ddy[d])
-    {
-        /* Browse group list */
-        if (!col)
-        {
-            int old_grp = grp;
-
-            /* Move up or down */
-            grp += ddy[d] * UI_KNOWLEDGE_BROWSER_ROWS;
-
-            /* Verify */
-            if (grp >= grp_cnt)
-                grp = grp_cnt - 1;
-            if (grp < 0)
-                grp = 0;
-            if (grp != old_grp)
-                list = 0;
-        }
-
-        /* Browse sub-list list */
-        else
-        {
-            /* Move up or down */
-            list += ddy[d] * UI_KNOWLEDGE_BROWSER_ROWS;
-
-            /* Verify */
-            if (list >= list_cnt)
-                list = list_cnt - 1;
-            if (list < 0)
-                list = 0;
-        }
-
-        (*grp_cur) = grp;
-        (*list_cur) = list;
-
-        return;
-    }
-
-    if (ddx[d])
-    {
-        col += ddx[d];
-        if (col < 0)
-            col = 0;
-        if (col > 1)
-            col = 1;
-
-        (*column) = col;
-
-        return;
-    }
-
-    /* Browse group list */
-    if (!col)
-    {
-        int old_grp = grp;
-
-        /* Move up or down */
-        grp += ddy[d];
-
-        /* Verify */
-        if (grp >= grp_cnt)
-            grp = grp_cnt - 1;
-        if (grp < 0)
-            grp = 0;
-        if (grp != old_grp)
-            list = 0;
-    }
-
-    /* Browse sub-list list */
-    else
-    {
-        /* Move up or down */
-        list += ddy[d];
-
-        /* Verify */
-        if (list >= list_cnt)
-            list = list_cnt - 1;
-        if (list < 0)
-            list = 0;
-    }
-
-    (*grp_cur) = grp;
-    (*list_cur) = list;
-}
-
-/*
- * Display the objects in a group.
- */
-static void display_artefact_list(int col, int row, int per_page,
-    int object_idx[], int object_cur, int object_top)
-{
-    int i;
-    char o_name[80];
-
-    /* Display lines until done */
-    for (i = 0; i < per_page && object_idx[object_top + i]; i++)
-    {
-        /* Get the object index */
-        int a_idx = object_idx[object_top + i];
-
-        /* Choose a color */
-        byte attr = TERM_WHITE;
-        byte cursor = TERM_L_BLUE;
-        attr = ((i + object_top == object_cur) ? cursor : attr);
-
-        ui_knowledge_artefact_name(a_idx, o_name, sizeof(o_name));
-
-        /* Display the name */
-        c_prt(attr, o_name, row + i, col);
-
-        if (cheat_know)
-        {
-            artefact_type* a_ptr = &a_info[a_idx];
-
-            c_prt(attr, format("%3d", a_idx), row + i, 68);
-            c_prt(attr, format("%3d", a_ptr->level), row + i, 72);
-            c_prt(attr, format("%3d", a_ptr->rarity), row + i, 76);
-        }
-    }
-
-    /* Clear remaining lines */
-    for (; i < per_page; i++)
-    {
-        Term_erase(col, row + i, 255);
-    }
-}
-
-/*
  * Display known artefacts
  */
 void do_cmd_knowledge_artefacts(void)
 {
-    int i, len, max;
+    int i;
     int grp_cur, grp_top;
     int artefact_old, artefact_cur, artefact_top;
     int grp_cnt, grp_idx[100];
@@ -9886,24 +9295,15 @@ void do_cmd_knowledge_artefacts(void)
 
     int column = 0;
     bool flag;
-    bool redraw;
 
     /* Allocate the "artefact_idx" array */
     C_MAKE(artefact_idx, z_info->art_max, int);
 
-    max = 0;
     grp_cnt = 0;
 
     /* Check every group */
     for (i = 0; object_group_text[i] != NULL; i++)
     {
-        /* Measure the label */
-        len = strlen(object_group_text[i]);
-
-        /* Save the maximum length */
-        if (len > max)
-            max = len;
-
         /* See if artefact are known */
         if (collect_artefacts(i, artefact_idx))
         {
@@ -9928,71 +9328,28 @@ void do_cmd_knowledge_artefacts(void)
     artefact_old = -1;
 
     flag = FALSE;
-    redraw = TRUE;
 
     while (!flag)
     {
         char ch;
 
-        if (redraw)
-        {
-            clear_from(0);
-
-            prt("Knowledge - Artefacts", 2, 0);
-            prt("Group", 4, 0);
-            prt("Name", 4, max + 3);
-
-            if (cheat_know)
-            {
-                prt("Idx", 4, 68);
-                prt("Dep", 4, 72);
-                prt("Rar", 4, 76);
-            }
-
-            for (i = 0; i < 78; i++)
-            {
-                Term_putch(i, 5, TERM_L_DARK, '=');
-            }
-
-            for (i = 0; i < UI_KNOWLEDGE_BROWSER_ROWS; i++)
-            {
-                Term_putch(max + 1, 6 + i, TERM_L_DARK, '|');
-            }
-
-            redraw = FALSE;
-        }
-
-        /* Scroll group list */
-        if (grp_cur < grp_top)
-            grp_top = grp_cur;
-        if (grp_cur >= grp_top + UI_KNOWLEDGE_BROWSER_ROWS)
-            grp_top = grp_cur - UI_KNOWLEDGE_BROWSER_ROWS + 1;
-
-        /* Scroll artefact list */
-        if (artefact_cur < artefact_top)
-            artefact_top = artefact_cur;
-        if (artefact_cur >= artefact_top + UI_KNOWLEDGE_BROWSER_ROWS)
-            artefact_top = artefact_cur - UI_KNOWLEDGE_BROWSER_ROWS + 1;
-
-        /* Display a list of object groups */
-        display_group_list(0, 6, max, UI_KNOWLEDGE_BROWSER_ROWS, grp_idx, object_group_text,
-            grp_cur, grp_top);
+        ui_menu_scroll_selection_into_view(
+            grp_cur, &grp_top, grp_cnt, UI_KNOWLEDGE_BROWSER_ROWS);
 
         /* Get a list of objects in the current group */
         artefact_cnt = collect_artefacts(grp_idx[grp_cur], artefact_idx);
-
-        /* Display a list of objects in the current group */
-        display_artefact_list(
-            max + 3, 6, UI_KNOWLEDGE_BROWSER_ROWS, artefact_idx, artefact_cur, artefact_top);
-        ui_knowledge_publish_artefacts(object_group_text, grp_idx, grp_cnt,
-            grp_cur, grp_top,
-            artefact_idx, artefact_cnt, artefact_cur, artefact_top, column);
-
-        /* Prompt */
-        Term_putstr(1, 23, -1, TERM_SLATE, "<dir>   recall   ESC");
-        Term_putstr(1, 23, -1, TERM_L_WHITE, "<dir>");
-        Term_putstr(9, 23, -1, TERM_L_WHITE, "r");
-        Term_putstr(18, 23, -1, TERM_L_WHITE, "ESC");
+        if (artefact_cnt <= 0)
+            artefact_cur = 0;
+        else if (artefact_cur >= artefact_cnt)
+            artefact_cur = artefact_cnt - 1;
+        else if (artefact_cur < 0)
+            artefact_cur = 0;
+        ui_menu_scroll_selection_into_view(
+            artefact_cur, &artefact_top, artefact_cnt, UI_KNOWLEDGE_BROWSER_ROWS);
+        ui_knowledge_publish_artefacts(object_group_text, grp_idx, grp_cnt, grp_cur,
+            grp_top, artefact_idx, artefact_cnt, artefact_cur, artefact_top,
+            column);
+        ui_menu_render_current();
 
         /* The "current" object changed */
         if (artefact_old != artefact_idx[artefact_cur])
@@ -10002,15 +9359,6 @@ void do_cmd_knowledge_artefacts(void)
 
             /* Remember the "current" object */
             artefact_old = artefact_idx[artefact_cur];
-        }
-
-        if (!column)
-        {
-            Term_gotoxy(0, 6 + (grp_cur - grp_top));
-        }
-        else
-        {
-            Term_gotoxy(max + 3, 6 + (artefact_cur - artefact_top));
         }
 
         ch = inkey();
@@ -10030,15 +9378,14 @@ void do_cmd_knowledge_artefacts(void)
             case UI_INPUT_BROWSER_ACTION_RECALL:
             {
                 ui_knowledge_recall_artefact(artefact_idx[artefact_cur]);
-
-                redraw = TRUE;
                 break;
             }
 
             case UI_INPUT_BROWSER_ACTION_MOVE:
             {
-                browser_cursor(input.direction, &column, &grp_cur, grp_cnt,
-                    &artefact_cur, artefact_cnt);
+                ui_menu_move_two_column_selection(input.direction,
+                    UI_KNOWLEDGE_BROWSER_ROWS, &column, &grp_cur, grp_top,
+                    grp_cnt, &artefact_cur, artefact_top, artefact_cnt);
                 break;
             }
 
@@ -10229,134 +9576,11 @@ static int collect_monsters(int grp_cur, ui_knowledge_monster_entry* mon_idx, in
 }
 
 /*
- * Display the monsters in a group.
- */
-static void display_monster_list(int col, int row, int per_page,
-    ui_knowledge_monster_entry* mon_idx, int mon_cur, int mon_top, int grp_cur)
-{
-    int i;
-
-    u32b known_uniques, dead_uniques, slay_count;
-
-    /* Start with 0 kills*/
-    known_uniques = dead_uniques = slay_count = 0;
-
-    /* Count up monster kill counts */
-    for (i = 1; i < z_info->r_max - 1; i++)
-    {
-        monster_race* r_ptr = &r_info[i];
-        monster_lore* l_ptr = &l_list[i];
-
-        // skip monsters that cannot be generated
-        if ((r_ptr->rarity == 0) || (r_ptr->level > 25))
-            continue;
-
-        /* Require non-unique monsters */
-        if (r_ptr->flags1 & RF1_UNIQUE)
-        {
-            /*Count if we have seen the unique*/
-            if (l_ptr->tsights)
-            {
-                known_uniques++;
-
-                /*Count if the unique is dead*/
-                if (r_ptr->max_num == 0)
-                {
-                    dead_uniques++;
-                    slay_count++;
-                }
-            }
-
-            // increase the uniques count anyway for forewarned or cheaters
-            else if (know_monster_info || cheat_know)
-            {
-                known_uniques++;
-            }
-        }
-
-        /* Collect "appropriate" monsters */
-        else
-            slay_count += l_ptr->pkills;
-    }
-
-    /* Display lines until done */
-    for (i = 0; i < per_page && mon_idx[mon_top + i].r_idx; i++)
-    {
-        byte attr;
-
-        /* Get the race index */
-        int r_idx = mon_idx[mon_top + i].r_idx;
-
-        /* Access the race */
-        monster_race* r_ptr = &r_info[r_idx];
-        monster_lore* l_ptr = &l_list[r_idx];
-
-        char race_name[80];
-
-        /* Get the monster race name (singular)*/
-        monster_desc_race(race_name, sizeof(race_name), r_idx);
-
-        /* Choose a color */
-        attr = ((i + mon_top == mon_cur) ? TERM_L_BLUE : TERM_WHITE);
-
-        /* Display the name */
-        c_prt(attr, race_name, row + i, col);
-
-        if (cheat_know)
-        {
-            c_prt(attr, format("%d", r_idx), row + i, 60);
-        }
-
-        /* Display symbol */
-        Term_putch(68, row + i, r_ptr->x_attr, r_ptr->x_char);
-        if (use_bigtile)
-        {
-            if ((byte)(r_ptr->x_attr) & 0x80)
-                Term_putch(69, row + i, 255, -1);
-            else
-                Term_putch(69, row + i, 0, ' ');
-        }
-
-        /* Display kills */
-        if (r_ptr->flags1 & (RF1_UNIQUE))
-        {
-            /*use alive/dead for uniques*/
-            put_str(format("%s", (r_ptr->max_num == 0) ? " dead" : "alive"),
-                row + i, 73);
-        }
-        else
-            put_str(format("%5d", l_ptr->pkills), row + i, 73);
-    }
-
-    /* Clear remaining lines */
-    for (; i < per_page; i++)
-    {
-        Term_erase(col, row + i, 255);
-    }
-
-    /*Clear the monster count line*/
-    Term_erase(0, 23, 255);
-
-    if (monster_group_char[grp_cur] != (char*)-1L)
-    {
-        c_put_str(TERM_L_BLUE,
-            format("Total Creatures Slain: %d. ", slay_count), 23, col + 2);
-    }
-    else
-    {
-        c_put_str(TERM_L_BLUE,
-            format("Known Uniques: %d, Slain Uniques: %d.", known_uniques,
-                dead_uniques),
-            23, col + 2);
-    }
-}
-
-/*
  * Display known monsters.
  */
 void do_cmd_knowledge_monsters(void)
 {
-    int i, len, max;
+    int i;
     int grp_cur, grp_top;
     int mon_cur, mon_top;
     int grp_cnt, grp_idx[100];
@@ -10365,24 +9589,15 @@ void do_cmd_knowledge_monsters(void)
 
     int column = 0;
     bool flag;
-    bool redraw;
 
     /* Allocate the "mon_idx" array */
     C_MAKE(mon_idx, z_info->r_max, ui_knowledge_monster_entry);
 
-    max = 0;
     grp_cnt = 0;
 
     /* Check every group */
     for (i = 0; monster_group_text[i] != NULL; i++)
     {
-        /* Measure the label */
-        len = strlen(monster_group_text[i]);
-
-        /* Save the maximum length */
-        if (len > max)
-            max = len;
-
         /* See if any monsters are known */
         if ((monster_group_char[i] == ((char*)-1L))
             || collect_monsters(i, mon_idx, 0x01))
@@ -10399,82 +9614,34 @@ void do_cmd_knowledge_monsters(void)
     mon_cur = mon_top = 0;
 
     flag = FALSE;
-    redraw = TRUE;
 
     while (!flag)
     {
         char ch;
 
-        if (redraw)
-        {
-            clear_from(0);
-
-            prt("Knowledge - Monsters", 2, 0);
-            prt("Group", 4, 0);
-            prt("Name", 4, max + 3);
-            if (cheat_know)
-                prt("Idx", 4, 60);
-            prt("Sym   Kills", 4, 67);
-
-            for (i = 0; i < 78; i++)
-            {
-                Term_putch(i, 5, TERM_L_DARK, '=');
-            }
-
-            for (i = 0; i < UI_KNOWLEDGE_BROWSER_ROWS; i++)
-            {
-                Term_putch(max + 1, 6 + i, TERM_L_DARK, '|');
-            }
-
-            redraw = FALSE;
-        }
-
-        /* Scroll group list */
-        if (grp_cur < grp_top)
-            grp_top = grp_cur;
-        if (grp_cur >= grp_top + UI_KNOWLEDGE_BROWSER_ROWS)
-            grp_top = grp_cur - UI_KNOWLEDGE_BROWSER_ROWS + 1;
-
-        /* Scroll monster list */
-        if (mon_cur < mon_top)
-            mon_top = mon_cur;
-        if (mon_cur >= mon_top + UI_KNOWLEDGE_BROWSER_ROWS)
-            mon_top = mon_cur - UI_KNOWLEDGE_BROWSER_ROWS + 1;
-
-        /* Display a list of monster groups */
-        display_group_list(0, 6, max, UI_KNOWLEDGE_BROWSER_ROWS, grp_idx, monster_group_text,
-            grp_cur, grp_top);
+        ui_menu_scroll_selection_into_view(
+            grp_cur, &grp_top, grp_cnt, UI_KNOWLEDGE_BROWSER_ROWS);
 
         /* Get a list of monsters in the current group */
         monster_count = collect_monsters(grp_idx[grp_cur], mon_idx, 0x00);
-
-        /* Display a list of monsters in the current group */
-        display_monster_list(
-            max + 3, 6, UI_KNOWLEDGE_BROWSER_ROWS, mon_idx, mon_cur, mon_top, grp_cur);
+        if (monster_count <= 0)
+            mon_cur = 0;
+        else if (mon_cur >= monster_count)
+            mon_cur = monster_count - 1;
+        else if (mon_cur < 0)
+            mon_cur = 0;
+        ui_menu_scroll_selection_into_view(
+            mon_cur, &mon_top, monster_count, UI_KNOWLEDGE_BROWSER_ROWS);
         ui_knowledge_publish_monsters(monster_group_text, monster_group_char,
-            grp_idx, grp_cnt, grp_cur, grp_top,
-            mon_idx, monster_count, mon_cur, mon_top, column);
+            grp_idx, grp_cnt, grp_cur, grp_top, mon_idx, monster_count, mon_cur,
+            mon_top, column);
+        ui_menu_render_current();
 
         /* Track selected monster, to enable recall in sub-win*/
         p_ptr->monster_race_idx = (monster_count > 0) ? mon_idx[mon_cur].r_idx : 0;
 
-        /* Prompt */
-        Term_putstr(1, 23, -1, TERM_SLATE, "<dir>   recall   ESC");
-        Term_putstr(1, 23, -1, TERM_L_WHITE, "<dir>");
-        Term_putstr(9, 23, -1, TERM_L_WHITE, "r");
-        Term_putstr(18, 23, -1, TERM_L_WHITE, "ESC");
-
         /* Hack -- handle stuff */
         handle_stuff();
-
-        if (!column)
-        {
-            Term_gotoxy(0, 6 + (grp_cur - grp_top));
-        }
-        else
-        {
-            Term_gotoxy(max + 3, 6 + (mon_cur - mon_top));
-        }
 
         ch = inkey();
 
@@ -10496,16 +9663,15 @@ void do_cmd_knowledge_monsters(void)
                 if (mon_idx[mon_cur].r_idx)
                 {
                     ui_knowledge_recall_monster(mon_idx[mon_cur].r_idx);
-
-                    redraw = TRUE;
                 }
                 break;
             }
 
             case UI_INPUT_BROWSER_ACTION_MOVE:
             {
-                browser_cursor(input.direction, &column, &grp_cur, grp_cnt,
-                    &mon_cur, monster_count);
+                ui_menu_move_two_column_selection(input.direction,
+                    UI_KNOWLEDGE_BROWSER_ROWS, &column, &grp_cur, grp_top,
+                    grp_cnt, &mon_cur, mon_top, monster_count);
 
                 /*Update to a new monster*/
                 p_ptr->window |= (PW_MONSTER);
@@ -10529,57 +9695,11 @@ void do_cmd_knowledge_monsters(void)
 }
 
 /*
- * Display the objects in a group. (Incorporates some code from jdh)
- */
-static void display_object_list(int col, int row, int per_page,
-    ui_knowledge_object_entry object_idx[], int object_cur, int object_top)
-{
-    int i;
-
-    /* Display lines until done */
-    for (i = 0;
-         i < per_page
-         && object_idx[object_top + i].type != UI_KNOWLEDGE_OBJECT_NONE; i++)
-    {
-        char buf[80];
-
-        /* Get the object index */
-        int oidx = object_top + i;
-        ui_knowledge_object_entry* obj = &object_idx[oidx];
-        byte attr = ui_knowledge_object_entry_attr(obj, (oidx == object_cur));
-
-        ui_knowledge_object_entry_label(buf, sizeof(buf), obj);
-        c_prt(attr, buf, row + i, col);
-
-        if ((obj->type == UI_KNOWLEDGE_OBJECT_NORMAL) && cheat_know)
-            c_prt(attr, format("%d", obj->idx), row + i, 70);
-
-        if ((obj->type == UI_KNOWLEDGE_OBJECT_NORMAL) && k_info[obj->idx].aware)
-        {
-            object_kind* k_ptr = &k_info[obj->idx];
-            byte a = k_ptr->flavor ? (flavor_info[k_ptr->flavor].x_attr)
-                                   : k_ptr->d_attr;
-            byte c = k_ptr->flavor ? (flavor_info[k_ptr->flavor].x_char)
-                                   : k_ptr->d_char;
-
-            /* Display symbol */
-            Term_putch(76, row + i, a, c);
-        }
-    }
-
-    /* Clear remaining lines */
-    for (; i < per_page; i++)
-    {
-        Term_erase(col, row + i, 255);
-    }
-}
-
-/*
  * Display known objects
  */
 void do_cmd_knowledge_objects(void)
 {
-    int i, len, max;
+    int i;
     int grp_cur, grp_top, grp_max;
     int object_old_id, object_cur, object_top;
     int grp_cnt, grp_idx[100];
@@ -10588,22 +9708,13 @@ void do_cmd_knowledge_objects(void)
 
     int column = 0;
     bool flag;
-    bool redraw;
 
-    max = 0;
     grp_max = 0;
     grp_cnt = 0;
 
     /* Check every group */
     for (i = 0; object_group_text[i] != NULL; i++)
     {
-        /* Measure the label */
-        len = strlen(object_group_text[i]);
-
-        /* Save the maximum length */
-        if (len > max)
-            max = len;
-
         /* See if any monsters are known */
         object_cnt = collect_objects(i, NULL);
         if (object_cnt)
@@ -10634,67 +9745,27 @@ void do_cmd_knowledge_objects(void)
     object_old_id = -1;
 
     flag = FALSE;
-    redraw = TRUE;
 
     while (!flag)
     {
         char ch;
 
-        if (redraw)
-        {
-            clear_from(0);
-
-            prt("Knowledge - Objects", 2, 0);
-            prt("Group", 4, 0);
-            prt("Name", 4, max + 3);
-            if (cheat_know)
-                prt("Idx", 4, 70);
-            prt("Sym", 4, 75);
-
-            for (i = 0; i < 78; i++)
-            {
-                Term_putch(i, 5, TERM_L_DARK, '=');
-            }
-
-            for (i = 0; i < UI_KNOWLEDGE_BROWSER_ROWS; i++)
-            {
-                Term_putch(max + 1, 6 + i, TERM_L_DARK, '|');
-            }
-
-            redraw = FALSE;
-        }
-
-        /* Scroll group list */
-        if (grp_cur < grp_top)
-            grp_top = grp_cur;
-        if (grp_cur >= grp_top + UI_KNOWLEDGE_BROWSER_ROWS)
-            grp_top = grp_cur - UI_KNOWLEDGE_BROWSER_ROWS + 1;
-
-        /* Scroll monster list */
-        if (object_cur < object_top)
-            object_top = object_cur;
-        if (object_cur >= object_top + UI_KNOWLEDGE_BROWSER_ROWS)
-            object_top = object_cur - UI_KNOWLEDGE_BROWSER_ROWS + 1;
-
-        /* Display a list of object groups */
-        display_group_list(0, 6, max, UI_KNOWLEDGE_BROWSER_ROWS, grp_idx, object_group_text,
-            grp_cur, grp_top);
+        ui_menu_scroll_selection_into_view(
+            grp_cur, &grp_top, grp_cnt, UI_KNOWLEDGE_BROWSER_ROWS);
 
         /* Get a list of objects in the current group */
         object_cnt = collect_objects(grp_idx[grp_cur], object_idx);
-
-        /* Display a list of objects in the current group */
-        display_object_list(
-            max + 3, 6, UI_KNOWLEDGE_BROWSER_ROWS, object_idx, object_cur, object_top);
-        ui_knowledge_publish_objects(object_group_text, grp_idx, grp_cnt,
-            grp_cur, grp_top,
-            object_idx, object_cnt, object_cur, object_top, column);
-
-        /* Prompt */
-        Term_putstr(1, 23, -1, TERM_SLATE, "<dir>   recall   ESC");
-        Term_putstr(1, 23, -1, TERM_L_WHITE, "<dir>");
-        Term_putstr(9, 23, -1, TERM_L_WHITE, "r");
-        Term_putstr(18, 23, -1, TERM_L_WHITE, "ESC");
+        if (object_cnt <= 0)
+            object_cur = 0;
+        else if (object_cur >= object_cnt)
+            object_cur = object_cnt - 1;
+        else if (object_cur < 0)
+            object_cur = 0;
+        ui_menu_scroll_selection_into_view(
+            object_cur, &object_top, object_cnt, UI_KNOWLEDGE_BROWSER_ROWS);
+        ui_knowledge_publish_objects(object_group_text, grp_idx, grp_cnt, grp_cur,
+            grp_top, object_idx, object_cnt, object_cur, object_top, column);
+        ui_menu_render_current();
 
         /* Track the selected object kind for any recall subwindow. */
         if (object_cnt
@@ -10710,15 +9781,6 @@ void do_cmd_knowledge_objects(void)
 
             /* Remember the "current" object */
             object_old_id = ui_knowledge_object_entry_id(&object_idx[object_cur]);
-        }
-
-        if (!column)
-        {
-            Term_gotoxy(0, 6 + (grp_cur - grp_top));
-        }
-        else
-        {
-            Term_gotoxy(max + 3, 6 + (object_cur - object_top));
         }
 
         ch = inkey();
@@ -10742,16 +9804,15 @@ void do_cmd_knowledge_objects(void)
                     && k_info[obj->idx].aware)
                 {
                     ui_knowledge_recall_object(obj);
-
-                    redraw = TRUE;
                 }
                 break;
             }
 
             case UI_INPUT_BROWSER_ACTION_MOVE:
             {
-                browser_cursor(input.direction, &column, &grp_cur, grp_cnt,
-                    &object_cur, object_cnt);
+                ui_menu_move_two_column_selection(input.direction,
+                    UI_KNOWLEDGE_BROWSER_ROWS, &column, &grp_cur, grp_top,
+                    grp_cnt, &object_cur, object_top, object_cnt);
                 break;
             }
 

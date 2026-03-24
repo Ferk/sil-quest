@@ -195,6 +195,13 @@ EMSCRIPTEN_KEEPALIVE uintptr_t web_get_modal_attrs_ptr(void);
 EMSCRIPTEN_KEEPALIVE int web_get_modal_attrs_len(void);
 EMSCRIPTEN_KEEPALIVE int web_get_modal_dismiss_key(void);
 EMSCRIPTEN_KEEPALIVE unsigned int web_get_modal_revision(void);
+EMSCRIPTEN_KEEPALIVE int web_get_prompt_kind(void);
+EMSCRIPTEN_KEEPALIVE int web_get_prompt_more_hint(void);
+EMSCRIPTEN_KEEPALIVE uintptr_t web_get_prompt_text_ptr(void);
+EMSCRIPTEN_KEEPALIVE int web_get_prompt_text_len(void);
+EMSCRIPTEN_KEEPALIVE uintptr_t web_get_prompt_attrs_ptr(void);
+EMSCRIPTEN_KEEPALIVE int web_get_prompt_attrs_len(void);
+EMSCRIPTEN_KEEPALIVE unsigned int web_get_prompt_revision(void);
 EMSCRIPTEN_KEEPALIVE int web_modal_activate(void);
 EMSCRIPTEN_KEEPALIVE int web_get_cursor_x(void);
 EMSCRIPTEN_KEEPALIVE int web_get_cursor_y(void);
@@ -2386,6 +2393,47 @@ EMSCRIPTEN_KEEPALIVE int web_get_modal_dismiss_key(void)
 EMSCRIPTEN_KEEPALIVE unsigned int web_get_modal_revision(void)
 {
     return ui_modal_get_revision();
+}
+
+EMSCRIPTEN_KEEPALIVE int web_get_prompt_kind(void)
+{
+    ui_prompt_kind kind = ui_prompt_get_kind();
+
+    return (int)kind;
+}
+
+EMSCRIPTEN_KEEPALIVE int web_get_prompt_more_hint(void)
+{
+    return ui_prompt_get_more_hint() ? 1 : 0;
+}
+
+EMSCRIPTEN_KEEPALIVE uintptr_t web_get_prompt_text_ptr(void)
+{
+    const char* text = ui_prompt_get_text();
+
+    return (uintptr_t)text;
+}
+
+EMSCRIPTEN_KEEPALIVE int web_get_prompt_text_len(void)
+{
+    return ui_prompt_get_text_len();
+}
+
+EMSCRIPTEN_KEEPALIVE uintptr_t web_get_prompt_attrs_ptr(void)
+{
+    const byte* attrs = ui_prompt_get_attrs();
+
+    return (uintptr_t)attrs;
+}
+
+EMSCRIPTEN_KEEPALIVE int web_get_prompt_attrs_len(void)
+{
+    return ui_prompt_get_attrs_len();
+}
+
+EMSCRIPTEN_KEEPALIVE unsigned int web_get_prompt_revision(void)
+{
+    return ui_prompt_get_revision();
 }
 
 EMSCRIPTEN_KEEPALIVE int web_modal_activate(void)

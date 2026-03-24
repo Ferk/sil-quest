@@ -38,6 +38,7 @@
 #ifdef USE_GCU
 
 #include "main.h"
+#include "ui-term.h"
 
 /*
  * Hack -- play games with "bool" and "term"
@@ -762,6 +763,7 @@ errr init_gcu(int argc, char** argv)
     /* Activate hooks */
     quit_aux = hook_quit;
     core_aux = hook_quit;
+    ui_term_init();
 
     /* Require standard size screen */
     if ((LINES < 24) || (COLS < 80))

@@ -21,6 +21,10 @@ typedef struct ui_text_builder ui_text_builder;
 typedef struct ui_menu_item ui_menu_item;
 typedef struct ui_simple_menu_entry ui_simple_menu_entry;
 typedef struct ui_text_output_state ui_text_output_state;
+typedef enum ui_prompt_kind ui_prompt_kind;
+typedef bool (*ui_prompt_render_hook)(int row, int col);
+typedef void (*ui_prompt_clear_hook)(void);
+typedef void (*ui_menu_render_hook)(void);
 
 enum
 {
@@ -72,6 +76,15 @@ struct ui_simple_menu_entry
     cptr details;
 };
 
+enum ui_prompt_kind
+{
+    UI_PROMPT_KIND_NONE = 0,
+    UI_PROMPT_KIND_GENERIC = 1,
+    UI_PROMPT_KIND_YES_NO = 2,
+    UI_PROMPT_KIND_TARGET = 3,
+    UI_PROMPT_KIND_MORE = 4
+};
+
 /* Starts writing into one text-plus-attrs builder. */
 void ui_text_builder_init(
     ui_text_builder* builder, char* text, byte* attrs, size_t size);
@@ -91,6 +104,11 @@ void ui_text_output_begin(ui_text_output_state* state,
 /* Restores the previous text_out() globals after a temporary override. */
 void ui_text_output_end(const ui_text_output_state* state);
 
+/* Publishes the semantic state for one simple vertical text menu. */
+void ui_model_publish_simple_menu(cptr title, int title_row, int col,
+    const ui_simple_menu_entry* entries, int entry_count, int highlight,
+    cptr extra_details, int details_width, int details_visual_kind,
+    int details_visual_attr, int details_visual_char);
 /* Renders one simple vertical text menu plus its details pane. */
 void ui_simple_menu_render(cptr title, int title_row, int col,
     const ui_simple_menu_entry* entries, int entry_count, int highlight,
@@ -103,6 +121,17 @@ void ui_simple_menu_render_custom(cptr title, int title_row, int col,
 /* Reads one action from a simple vertical text menu. */
 int ui_simple_menu_read_action(
     int* highlight, const ui_simple_menu_entry* entries, int entry_count);
+/* Registers frontend-specific rendering hooks for prompts and menus. */
+void ui_front_set_hooks(ui_prompt_render_hook prompt_render,
+    ui_prompt_clear_hook prompt_clear, ui_menu_render_hook menu_render);
+
+/* Keeps one paged menu selection visible inside its current viewport. */
+void ui_menu_scroll_selection_into_view(
+    int current, int* top, int count, int page_rows);
+/* Moves one two-column menu selection using viewport-aware semantics. */
+void ui_menu_move_two_column_selection(int direction, int page_rows,
+    int* column, int* left_cur, int left_top, int left_count, int* right_cur,
+    int right_top, int right_count);
 
 /* Begins publishing a fresh semantic menu frame. */
 void ui_menu_begin(void);
@@ -173,6 +202,8 @@ int ui_menu_get_details_visual_kind(void);
 int ui_menu_get_details_visual_attr(void);
 /* Returns the visual character exported for the details pane. */
 int ui_menu_get_details_visual_char(void);
+/* Asks the active frontend to render the current semantic menu state. */
+void ui_menu_render_current(void);
 
 /* Publishes one modal text block plus its dismiss key. */
 void ui_modal_set(cptr text, const byte* attrs, int attrs_len, int dismiss_key);
@@ -190,6 +221,36 @@ int ui_modal_get_attrs_len(void);
 int ui_modal_get_dismiss_key(void);
 /* Returns the modal revision used by the frontend cache. */
 unsigned int ui_modal_get_revision(void);
+
+/* Plans the semantic kind and inline-more hint for the next top-line prompt. */
+void ui_prompt_plan(ui_prompt_kind kind, bool has_more_hint);
+/* Publishes one prompt text buffer with a uniform terminal attribute. */
+void ui_prompt_set_text(
+    cptr text, byte attr, ui_prompt_kind kind, bool has_more_hint);
+/* Writes one colored text run into the semantic top-line prompt buffer. */
+void ui_prompt_putstr(int col, byte attr, cptr text);
+/* Clears the current semantic prompt state. */
+void ui_prompt_clear(void);
+/* Publishes and optionally renders one semantic top-line prompt. */
+bool ui_prompt_render(int row, int col, byte attr, cptr text);
+/* Publishes and optionally renders one semantic "-more-" prompt. */
+void ui_prompt_show_more(int col, byte attr);
+/* Clears the semantic prompt state and any frontend-specific prompt line. */
+void ui_prompt_clear_line(void);
+/* Returns the current semantic prompt kind. */
+ui_prompt_kind ui_prompt_get_kind(void);
+/* Returns whether the current prompt has extra inline detail to cycle. */
+bool ui_prompt_get_more_hint(void);
+/* Returns the current semantic prompt text buffer. */
+const char* ui_prompt_get_text(void);
+/* Returns the current semantic prompt text length. */
+int ui_prompt_get_text_len(void);
+/* Returns the attrs paired with the semantic prompt text. */
+const byte* ui_prompt_get_attrs(void);
+/* Returns how many attrs are valid in the semantic prompt text buffer. */
+int ui_prompt_get_attrs_len(void);
+/* Returns the prompt revision used by the frontend cache. */
+unsigned int ui_prompt_get_revision(void);
 
 /* Marks the start of one saved-screen scope such as screen_save(). */
 void ui_saved_screen_begin(void);

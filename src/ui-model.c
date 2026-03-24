@@ -43,6 +43,17 @@ static char ui_modal_text[UI_MENU_TEXT_MAX];
 static byte ui_modal_attrs[UI_MENU_TEXT_MAX];
 static int ui_modal_attrs_len = 0;
 static int ui_modal_dismiss_key = 0;
+static unsigned int ui_prompt_revision = 1;
+static char ui_prompt_text[UI_MENU_TEXT_MAX];
+static byte ui_prompt_attrs[UI_MENU_TEXT_MAX];
+static int ui_prompt_attrs_len = 0;
+static ui_prompt_kind ui_prompt_kind_value = UI_PROMPT_KIND_NONE;
+static bool ui_prompt_more_hint = FALSE;
+static ui_prompt_kind ui_prompt_pending_kind = UI_PROMPT_KIND_NONE;
+static bool ui_prompt_pending_more_hint = FALSE;
+static ui_prompt_render_hook ui_front_prompt_render = NULL;
+static ui_prompt_clear_hook ui_front_prompt_clear = NULL;
+static ui_menu_render_hook ui_front_menu_render = NULL;
 static int ui_saved_screen_depth = 0;
 static bool ui_saved_screen_restored = FALSE;
 static unsigned int ui_saved_screen_revision = 1;
@@ -61,6 +72,14 @@ static void ui_modal_touch(void)
     ui_modal_revision++;
     if (ui_modal_revision == 0)
         ui_modal_revision = 1;
+}
+
+/* Bumps the prompt revision so frontends can detect updates. */
+static void ui_prompt_touch(void)
+{
+    ui_prompt_revision++;
+    if (ui_prompt_revision == 0)
+        ui_prompt_revision = 1;
 }
 
 /* Bumps the saved-screen revision so frontends can detect lifecycle changes. */
@@ -154,6 +173,71 @@ static void ui_model_set_buffer_text(char* text_buf, byte* attr_buf, int* attr_l
     }
 }
 
+/* Returns the plain title text for one prefixed simple-menu label. */
+static cptr ui_model_simple_menu_title(cptr label)
+{
+    const char* title = label ? label : "";
+    int i = 0;
+
+    while (isspace((unsigned char)title[i]))
+        i++;
+
+    if (title[i] == '(')
+    {
+        int end = i + 1;
+
+        while (title[end] && (title[end] != ')') && !isspace((unsigned char)title[end]))
+            end++;
+        if (title[end] == ')')
+        {
+            end++;
+            while (isspace((unsigned char)title[end]))
+                end++;
+            if (title[end])
+                return title + end;
+        }
+    }
+    else if (title[i] && !isspace((unsigned char)title[i]))
+    {
+        int end = i;
+
+        while (title[end] && (title[end] != ')') && !isspace((unsigned char)title[end]))
+            end++;
+        if (title[end] == ')')
+        {
+            end++;
+            while (isspace((unsigned char)title[end]))
+                end++;
+            if (title[end])
+                return title + end;
+        }
+    }
+
+    return title + i;
+}
+
+/* Stores one new semantic prompt state and invalidates frontend caches. */
+static void ui_prompt_set_state(
+    cptr text, byte attr, ui_prompt_kind kind, bool has_more_hint)
+{
+    ui_model_set_buffer_text(ui_prompt_text, ui_prompt_attrs, &ui_prompt_attrs_len,
+        sizeof(ui_prompt_text), text, NULL, 0);
+
+    if (ui_prompt_attrs_len > 0)
+        memset(ui_prompt_attrs, attr, (size_t)ui_prompt_attrs_len);
+
+    ui_prompt_kind_value = kind;
+    ui_prompt_more_hint = has_more_hint ? TRUE : FALSE;
+    ui_prompt_touch();
+}
+
+/* Asks the active frontend to redraw the current semantic top-line prompt. */
+static void ui_prompt_render_current_frontend(int row, int col)
+{
+    if (ui_front_prompt_render)
+        ui_front_prompt_render(row, col);
+}
+
 /* Starts writing into one text-plus-attrs builder. */
 void ui_text_builder_init(
     ui_text_builder* builder, char* text, byte* attrs, size_t size)
@@ -221,17 +305,128 @@ int ui_text_builder_length(const ui_text_builder* builder)
     return (int)builder->off;
 }
 
-/* Renders one simple vertical text menu plus its details pane. */
-void ui_simple_menu_render(cptr title, int title_row, int col,
-    const ui_simple_menu_entry* entries, int entry_count, int highlight,
-    cptr extra_details)
+/* Clamps one menu selection index into the valid range for its list. */
+static int ui_menu_clamp_index(int current, int count)
 {
-    ui_simple_menu_render_custom(title, title_row, col, entries, entry_count,
-        highlight, extra_details, 0, UI_MENU_VISUAL_NONE, TERM_WHITE, 0);
+    if (count <= 0)
+        return 0;
+
+    if (current < 0)
+        return 0;
+
+    if (current >= count)
+        return count - 1;
+
+    return current;
 }
 
-/* Renders one simple vertical text menu with custom details-pane settings. */
-void ui_simple_menu_render_custom(cptr title, int title_row, int col,
+/* Registers frontend-specific rendering hooks for prompts and menus. */
+void ui_front_set_hooks(ui_prompt_render_hook prompt_render,
+    ui_prompt_clear_hook prompt_clear, ui_menu_render_hook menu_render)
+{
+    ui_front_prompt_render = prompt_render;
+    ui_front_prompt_clear = prompt_clear;
+    ui_front_menu_render = menu_render;
+}
+
+/* Keeps one paged menu selection visible inside its current viewport. */
+void ui_menu_scroll_selection_into_view(
+    int current, int* top, int count, int page_rows)
+{
+    int max_top;
+
+    if (!top)
+        return;
+
+    if ((count <= 0) || (page_rows <= 0))
+    {
+        *top = 0;
+        return;
+    }
+
+    current = ui_menu_clamp_index(current, count);
+    max_top = count - page_rows;
+    if (max_top < 0)
+        max_top = 0;
+
+    if (*top < 0)
+        *top = 0;
+    if (*top > max_top)
+        *top = max_top;
+
+    if (current < *top)
+        *top = current;
+    else if (current >= *top + page_rows)
+        *top = current - page_rows + 1;
+
+    if (*top > max_top)
+        *top = max_top;
+}
+
+/* Moves one two-column menu selection using viewport-aware semantics. */
+void ui_menu_move_two_column_selection(int direction, int page_rows,
+    int* column, int* left_cur, int left_top, int left_count, int* right_cur,
+    int right_top, int right_count)
+{
+    int active_column;
+    int dx;
+    int dy;
+    int* active_cur;
+    int active_count;
+    int* target_cur;
+    int target_count;
+
+    if (!column || !left_cur || !right_cur || !direction)
+        return;
+
+    (void)left_top;
+    (void)right_top;
+
+    active_column = (*column > 0) ? 1 : 0;
+    dx = ddx[direction];
+    dy = ddy[direction];
+
+    active_cur = active_column ? right_cur : left_cur;
+    active_count = active_column ? right_count : left_count;
+    *active_cur = ui_menu_clamp_index(*active_cur, active_count);
+
+    if (dx && !dy)
+    {
+        if ((active_column == 0) && (right_count > 0))
+        {
+            *column = 1;
+            *right_cur = ui_menu_clamp_index(*right_cur, right_count);
+        }
+        else if ((active_column == 1) && (left_count > 0))
+        {
+            *column = 0;
+            *left_cur = ui_menu_clamp_index(*left_cur, left_count);
+        }
+
+        return;
+    }
+
+    if (dx && dy)
+    {
+        if (page_rows <= 0)
+            page_rows = 1;
+        *active_cur = ui_menu_clamp_index(*active_cur + (dy * page_rows),
+            active_count);
+        return;
+    }
+
+    if (!dy)
+        return;
+
+    *active_cur = ui_menu_clamp_index(*active_cur + dy, active_count);
+
+    target_cur = active_column ? right_cur : left_cur;
+    target_count = active_column ? right_count : left_count;
+    *target_cur = ui_menu_clamp_index(*target_cur, target_count);
+}
+
+/* Renders one simple vertical text menu plus its details pane. */
+void ui_model_publish_simple_menu(cptr title, int title_row, int col,
     const ui_simple_menu_entry* entries, int entry_count, int highlight,
     cptr extra_details, int details_width, int details_visual_kind,
     int details_visual_attr, int details_visual_char)
@@ -244,15 +439,17 @@ void ui_simple_menu_render_custom(cptr title, int title_row, int col,
     ui_text_builder menu_builder;
     ui_text_builder details_builder;
 
+    (void)title_row;
+    (void)col;
+
     ui_text_builder_init(&menu_builder, menu_text, menu_attrs, sizeof(menu_text));
     ui_text_builder_init(
         &details_builder, menu_details, menu_details_attrs, sizeof(menu_details));
 
-    Term_putstr(col - 3, title_row, -1, TERM_WHITE, title);
     ui_text_builder_append_line(&menu_builder, title, TERM_WHITE);
     ui_text_builder_newline(&menu_builder, TERM_WHITE);
     ui_text_builder_append_line(&menu_builder,
-        "Use 8/2 to move, Enter/Space to choose, Escape to cancel, or click an option.",
+        "Use 8/2 to move, 6 or Enter/Space to choose, 4 or Escape to cancel, or click an option.",
         TERM_SLATE);
 
     ui_menu_begin();
@@ -264,21 +461,20 @@ void ui_simple_menu_render_custom(cptr title, int title_row, int col,
 
     for (i = 0; i < entry_count; i++)
     {
-        byte attr = (i + 1 == highlight) ? TERM_L_BLUE : TERM_WHITE;
         cptr label = entries[i].label ? entries[i].label : "";
         size_t label_len = strlen(label);
 
-        Term_putstr(col, entries[i].row, -1, attr, label);
-        ui_menu_add(col, entries[i].row, (int)label_len, 1, entries[i].key,
+        ui_menu_add(0, entries[i].row, (int)label_len, 1, entries[i].key,
             (i + 1 == highlight), TERM_WHITE, label);
     }
 
     if ((highlight >= 1) && (highlight <= entry_count))
     {
         const ui_simple_menu_entry* selected = &entries[highlight - 1];
+        cptr title = ui_model_simple_menu_title(selected->label);
 
         ui_text_builder_append_line(&details_builder,
-            selected->label ? selected->label : "", TERM_L_WHITE);
+            title, TERM_YELLOW);
         ui_text_builder_newline(&details_builder, TERM_WHITE);
         ui_text_builder_append_line(&details_builder,
             selected->details ? selected->details : "", TERM_SLATE);
@@ -297,6 +493,27 @@ void ui_simple_menu_render_custom(cptr title, int title_row, int col,
     ui_menu_set_details(
         menu_details, menu_details_attrs, ui_text_builder_length(&details_builder));
     ui_menu_end();
+}
+
+/* Renders one simple vertical text menu plus its details pane. */
+void ui_simple_menu_render(cptr title, int title_row, int col,
+    const ui_simple_menu_entry* entries, int entry_count, int highlight,
+    cptr extra_details)
+{
+    ui_simple_menu_render_custom(title, title_row, col, entries, entry_count,
+        highlight, extra_details, 0, UI_MENU_VISUAL_NONE, TERM_WHITE, 0);
+}
+
+/* Renders one simple vertical text menu with custom details-pane settings. */
+void ui_simple_menu_render_custom(cptr title, int title_row, int col,
+    const ui_simple_menu_entry* entries, int entry_count, int highlight,
+    cptr extra_details, int details_width, int details_visual_kind,
+    int details_visual_attr, int details_visual_char)
+{
+    ui_model_publish_simple_menu(title, title_row, col, entries, entry_count,
+        highlight, extra_details, details_width, details_visual_kind,
+        details_visual_attr, details_visual_char);
+    ui_menu_render_current();
 }
 
 /* Reads one action from a simple vertical text menu. */
@@ -328,10 +545,16 @@ int ui_simple_menu_read_action(
 
     for (i = 0; i < entry_count; i++)
     {
-        if (ch == entries[i].key)
+        int entry_key = entries[i].key;
+
+        if ((ch == entry_key)
+            || (isalpha((unsigned char)ch)
+                && isalpha((unsigned char)entry_key)
+                && (tolower((unsigned char)ch)
+                    == tolower((unsigned char)entry_key))))
         {
             *highlight = i + 1;
-            return entries[i].key;
+            return entry_key;
         }
     }
 
@@ -348,6 +571,13 @@ int ui_simple_menu_read_action(
     }
 
     return -1;
+}
+
+/* Asks the active frontend to render the current semantic menu state. */
+void ui_menu_render_current(void)
+{
+    if (ui_front_menu_render)
+        ui_front_menu_render();
 }
 
 /* Begins publishing a fresh semantic menu frame. */
@@ -729,6 +959,176 @@ int ui_modal_get_dismiss_key(void)
 unsigned int ui_modal_get_revision(void)
 {
     return ui_modal_revision;
+}
+
+/* Plans the semantic kind and inline-more hint for the next top-line prompt. */
+void ui_prompt_plan(ui_prompt_kind kind, bool has_more_hint)
+{
+    ui_prompt_pending_kind = kind;
+    ui_prompt_pending_more_hint = has_more_hint ? TRUE : FALSE;
+}
+
+/* Publishes one prompt text buffer with a uniform terminal attribute. */
+void ui_prompt_set_text(
+    cptr text, byte attr, ui_prompt_kind kind, bool has_more_hint)
+{
+    ui_prompt_set_state(text, attr, kind, has_more_hint);
+    ui_prompt_pending_kind = UI_PROMPT_KIND_NONE;
+    ui_prompt_pending_more_hint = FALSE;
+}
+
+/* Writes one colored text run into the semantic top-line prompt buffer. */
+void ui_prompt_putstr(int col, byte attr, cptr text)
+{
+    size_t len;
+    size_t text_len;
+    size_t i;
+
+    if (!text || !text[0])
+        return;
+
+    if (col < 0)
+        col = 0;
+
+    if ((size_t)col >= sizeof(ui_prompt_text) - 1)
+        return;
+
+    if (col == 0)
+    {
+        ui_prompt_text[0] = '\0';
+        ui_prompt_attrs_len = 0;
+    }
+
+    len = strlen(ui_prompt_text);
+    if ((size_t)col > len)
+    {
+        size_t fill_end = (size_t)col;
+
+        if (fill_end >= sizeof(ui_prompt_text))
+            fill_end = sizeof(ui_prompt_text) - 1;
+
+        for (i = len; i < fill_end; i++)
+        {
+            ui_prompt_text[i] = ' ';
+            ui_prompt_attrs[i] = TERM_WHITE;
+        }
+        len = fill_end;
+        ui_prompt_text[len] = '\0';
+    }
+
+    text_len = strlen(text);
+    if ((size_t)col + text_len >= sizeof(ui_prompt_text))
+        text_len = sizeof(ui_prompt_text) - (size_t)col - 1;
+
+    for (i = 0; i < text_len; i++)
+    {
+        ui_prompt_text[col + (int)i] = text[i];
+        ui_prompt_attrs[col + (int)i] = attr;
+    }
+
+    len = strlen(ui_prompt_text);
+    if ((size_t)col + text_len > len)
+        len = (size_t)col + text_len;
+    ui_prompt_text[len] = '\0';
+    ui_prompt_attrs_len = (int)len;
+    ui_prompt_kind_value = UI_PROMPT_KIND_GENERIC;
+    ui_prompt_more_hint = FALSE;
+    ui_prompt_pending_kind = UI_PROMPT_KIND_NONE;
+    ui_prompt_pending_more_hint = FALSE;
+    ui_prompt_touch();
+    ui_prompt_render_current_frontend(0, 0);
+}
+
+/* Clears the current semantic prompt state. */
+void ui_prompt_clear(void)
+{
+    ui_prompt_text[0] = '\0';
+    ui_prompt_attrs_len = 0;
+    ui_prompt_kind_value = UI_PROMPT_KIND_NONE;
+    ui_prompt_more_hint = FALSE;
+    ui_prompt_pending_kind = UI_PROMPT_KIND_NONE;
+    ui_prompt_pending_more_hint = FALSE;
+    ui_prompt_touch();
+}
+
+/* Publishes and optionally renders one semantic top-line prompt. */
+bool ui_prompt_render(int row, int col, byte attr, cptr text)
+{
+    cptr prompt_text = text ? text : "";
+
+    if ((row != 0) || (col != 0))
+        return FALSE;
+
+    ui_prompt_set_text(prompt_text, attr, ui_prompt_pending_kind,
+        ui_prompt_pending_more_hint);
+
+    ui_prompt_render_current_frontend(row, col);
+
+    return TRUE;
+}
+
+/* Publishes and optionally renders one semantic "-more-" prompt. */
+void ui_prompt_show_more(int col, byte attr)
+{
+    (void)attr;
+
+    ui_prompt_kind_value = UI_PROMPT_KIND_MORE;
+    ui_prompt_more_hint = FALSE;
+    ui_prompt_pending_kind = UI_PROMPT_KIND_NONE;
+    ui_prompt_pending_more_hint = FALSE;
+    ui_prompt_touch();
+    ui_prompt_render_current_frontend(0, col);
+}
+
+/* Clears the semantic prompt state and any frontend-specific prompt line. */
+void ui_prompt_clear_line(void)
+{
+    ui_prompt_clear();
+
+    if (ui_front_prompt_clear)
+        ui_front_prompt_clear();
+}
+
+/* Returns the current semantic prompt kind. */
+ui_prompt_kind ui_prompt_get_kind(void)
+{
+    return ui_prompt_kind_value;
+}
+
+/* Returns whether the current prompt has extra inline detail to cycle. */
+bool ui_prompt_get_more_hint(void)
+{
+    return ui_prompt_more_hint;
+}
+
+/* Returns the current semantic prompt text buffer. */
+const char* ui_prompt_get_text(void)
+{
+    return ui_prompt_text;
+}
+
+/* Returns the current semantic prompt text length. */
+int ui_prompt_get_text_len(void)
+{
+    return (int)strlen(ui_prompt_text);
+}
+
+/* Returns the attrs paired with the semantic prompt text. */
+const byte* ui_prompt_get_attrs(void)
+{
+    return ui_prompt_attrs;
+}
+
+/* Returns how many attrs are valid in the semantic prompt text buffer. */
+int ui_prompt_get_attrs_len(void)
+{
+    return ui_prompt_attrs_len;
+}
+
+/* Returns the prompt revision used by the frontend cache. */
+unsigned int ui_prompt_get_revision(void)
+{
+    return ui_prompt_revision;
 }
 
 /* Marks the start of one saved-screen scope such as screen_save(). */

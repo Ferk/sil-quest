@@ -299,6 +299,89 @@ int ui_song_menu_default_highlight(void)
     return 1;
 }
 
+/* Runs the shared song chooser and returns the chosen song action or -1. */
+int ui_song_menu_choose(void)
+{
+    int highlight;
+    int song_choice = -1;
+    bool done = FALSE;
+
+    screen_save();
+    highlight = ui_song_menu_default_highlight();
+
+    while (!done)
+    {
+        ui_simple_menu_entry entries[16];
+        char labels[16][80];
+        char details[16][1024];
+        char extra_details[256];
+        int entry_count;
+        char which;
+
+        entry_count = ui_song_menu_build_entries(
+            entries, labels, details, (int)N_ELEMENTS(entries));
+        if (highlight < 1)
+            highlight = 1;
+        if (highlight > entry_count)
+            highlight = entry_count;
+
+        ui_song_menu_build_extra_details(extra_details, sizeof(extra_details));
+        ui_simple_menu_render(
+            "Songs", 2, 26, entries, entry_count, highlight, extra_details);
+
+        which = (char)ui_simple_menu_read_action(&highlight, entries, entry_count);
+
+        switch (which)
+        {
+        case 0:
+            break;
+
+        case ESCAPE:
+        case '\r':
+            done = TRUE;
+            break;
+
+        case 's':
+            song_choice = SNG_NOTHING;
+            done = TRUE;
+            break;
+
+        case 'x':
+            if (p_ptr->song2 != SNG_NOTHING)
+            {
+                song_choice = SNG_EXCHANGE_THEMES;
+                done = TRUE;
+            }
+            else
+            {
+                bell("Illegal song choice.");
+            }
+            break;
+
+        default:
+            if ((which >= 'a') && (which < 'a' + SNG_WOVEN_THEMES))
+            {
+                song_choice = (int)which - 'a';
+                if (p_ptr->active_ability[S_SNG][song_choice])
+                {
+                    done = TRUE;
+                    break;
+                }
+
+                song_choice = -1;
+            }
+
+            bell("Illegal song choice.");
+            break;
+        }
+    }
+
+    ui_menu_clear();
+    screen_load();
+
+    return song_choice;
+}
+
 /* Builds the extra status text shown beside the change-song menu. */
 void ui_song_menu_build_extra_details(char* details, size_t details_size)
 {
