@@ -180,6 +180,7 @@ set(SIL_SOURCES
     src/ui-knowledge.c
     src/ui-marks.c
     src/ui-model.c
+    src/ui-preview.c
     src/ui-smithing.c
     src/ui-view.c
     src/use-obj.c

@@ -13,6 +13,7 @@
 #include "ui-input.h"
 #include "ui-knowledge.h"
 #include "ui-model.h"
+#include "ui-preview.h"
 #include "ui-smithing.h"
 
 /* String used to show a color sample */
@@ -968,37 +969,7 @@ static int bane_menu(int* highlight)
     return (0);
 }
 
-#define OATH_TYPES 4
-
 static u32b oath_flag[] = { 0L, OATH_MERCY_FLAG, OATH_SILENCE_FLAG, OATH_IRON_FLAG };
-
-char* oath_name[] = {
-    "Nothing",
-    "Mercy",
-    "Silence",
-    "Iron",
-};
-
-char* oath_desc1[] = {
-    "Nothing",
-    "to leave Angband without shedding blood of Man or Elf",
-    "to leave Angband as you came, grim and silent",
-    "that none will daunt you from facing Morgoth forthwith",
-};
-
-char* oath_desc2[] = {
-    "Nothing",
-    "attack Men or Elves",
-    "sing",
-    "go up stairs without a Silmaril",
-};
-
-char* oath_reward[] = {
-    "Nothing",
-    "+1 Grace",
-    "+1 Strength",
-    "+2 Constitution",
-};
 
 bool oath_invalid(int i) { return ((p_ptr->oaths_broken & oath_flag[i]) > 0); }
 
@@ -1032,7 +1003,7 @@ static int oath_menu(int* highlight)
     ui_menu_begin();
 
     // list the oaths
-    for (i = 1; i < OATH_TYPES; i++)
+    for (i = 1; i < UI_OATH_COUNT; i++)
     {
         if (!oath_invalid(i))
         {
@@ -1043,7 +1014,7 @@ static int oath_menu(int* highlight)
             attr = TERM_L_DARK;
         }
 
-        strnfmt(buf, 120, "%c) %s", (char)'a' + i - 1, oath_name[i]);
+        strnfmt(buf, 120, "%c) %s", (char)'a' + i - 1, ui_oath_name(i));
         Term_putstr(COL_DESCRIPTION, i + 3, -1, attr, buf);
         ui_menu_add(COL_DESCRIPTION, i + 3, (int)strlen(buf), 1, '\r',
             (*highlight == i), attr, buf);
@@ -1054,7 +1025,7 @@ static int oath_menu(int* highlight)
             strnfmt(buf, 120, "%c)", (char)'a' + i - 1);
             Term_putstr(COL_DESCRIPTION, i + 3, -1, TERM_L_BLUE, buf);
 
-            strnfmt(buf, 120, "%c) %s", (char)'a' + i - 1, oath_name[i]);
+            strnfmt(buf, 120, "%c) %s", (char)'a' + i - 1, ui_oath_name(i));
             ui_text_builder_append_line(&builder, buf, attr);
             ui_text_builder_newline(&builder, TERM_WHITE);
 
@@ -1062,33 +1033,32 @@ static int oath_menu(int* highlight)
             text_out_wrap = 79;
             text_out_indent = COL_DESCRIPTION;
 
-            Term_gotoxy(text_out_indent, OATH_TYPES + 4);
+            Term_gotoxy(text_out_indent, UI_OATH_COUNT + 4);
 
             if (oath_invalid(i))
             {
-                strnfmt(buf, 120, "It is too late to vow %s.",
-                    oath_desc1[i]);
+                strnfmt(buf, 120, "It is too late to vow %s.", ui_oath_desc1(i));
                 text_out_to_screen(attr, buf);
                 ui_text_builder_append_line(&builder, buf, attr);
             }
             else
             {
-                strnfmt(buf, 120, "You vow %s.\n\n", oath_desc1[i]);
+                strnfmt(buf, 120, "You vow %s.\n\n", ui_oath_desc1(i));
                 text_out_to_screen(attr, buf);
-                strnfmt(buf, 120, "You vow %s.", oath_desc1[i]);
+                strnfmt(buf, 120, "You vow %s.", ui_oath_desc1(i));
                 ui_text_builder_append_line(&builder, buf, attr);
                 ui_text_builder_newline(&builder, TERM_WHITE);
 
-                strnfmt(buf, 120, "You may not %s.\n", oath_desc2[i]);
+                strnfmt(buf, 120, "You may not %s.\n", ui_oath_desc2(i));
                 text_out_to_screen(attr, buf);
-                strnfmt(buf, 120, "You may not %s.", oath_desc2[i]);
+                strnfmt(buf, 120, "You may not %s.", ui_oath_desc2(i));
                 ui_text_builder_append_line(&builder, buf, attr);
 
                 strnfmt(buf, 120, "As long as you keep this oath, gain %s.\n\n",
-                    oath_reward[i]);
+                    ui_oath_reward(i));
                 text_out_to_screen(attr, buf);
                 strnfmt(buf, 120, "As long as you keep this oath, gain %s.",
-                    oath_reward[i]);
+                    ui_oath_reward(i));
                 ui_text_builder_append_line(&builder, buf, attr);
             }
 
@@ -1134,7 +1104,7 @@ static int oath_menu(int* highlight)
     if ((ch == ESCAPE) || (ch == 'q') || (ch == '4'))
     {
         ui_menu_clear();
-        return (OATH_TYPES + 1);
+        return (UI_OATH_COUNT + 1);
     }
 
     /* Choose current  */
@@ -1439,7 +1409,7 @@ static int abilities_menu2(int skilltype, int* highlight)
             {
                 Term_putstr(COL_DESCRIPTION, 10, -1, TERM_WHITE, "Oath:");
                 Term_putstr(COL_DESCRIPTION + 6, 10, -1, TERM_L_BLUE,
-                    oath_name[p_ptr->oath_type]);
+                    ui_oath_name(p_ptr->oath_type));
 
                 /* Indent output by 2 character, and wrap at column 70 */
                 text_out_wrap = 79;
@@ -1448,7 +1418,7 @@ static int abilities_menu2(int skilltype, int* highlight)
                 /* History */
                 Term_gotoxy(text_out_indent, 11);
                 strnfmt(buf, 80, "You have sworn not to %s.",
-                    oath_desc2[p_ptr->oath_type]);
+                    ui_oath_desc2(p_ptr->oath_type));
                 text_out_to_screen(TERM_L_WHITE, buf);
 
                 /* Reset text_out() vars */
@@ -1460,7 +1430,7 @@ static int abilities_menu2(int skilltype, int* highlight)
                         "You are an oathbreaker.");
                 else
                     Term_putstr(COL_DESCRIPTION, 14, -1, TERM_WHITE,
-                        format("Bonus: %s.", oath_reward[p_ptr->oath_type]));
+                        format("Bonus: %s.", ui_oath_reward(p_ptr->oath_type)));
             }
         }
 
@@ -1639,7 +1609,7 @@ void do_cmd_ability_screen(void)
                                         oathchoice = oath_menu(&highlight3);
 
                                         if ((oathchoice >= 1)
-                                            && (oathchoice <= OATH_TYPES))
+                                            && (oathchoice <= UI_OATH_COUNT))
                                         {
                                             if (oath_invalid(oathchoice))
                                             {
@@ -1653,7 +1623,7 @@ void do_cmd_ability_screen(void)
                                                 return_to_abilities = TRUE;
                                             }
                                         }
-                                        else if (oathchoice == OATH_TYPES + 1)
+                                        else if (oathchoice == UI_OATH_COUNT + 1)
                                         {
                                             return_to_abilities = TRUE;
                                             return_to_skills = TRUE;
@@ -1724,7 +1694,7 @@ void do_cmd_ability_screen(void)
                                                                skilltype,
                                                                abilitynum)])
                                                               ->name,
-                                                    oath_name[oathchoice]),
+                                                    ui_oath_name(oathchoice)),
                                                 p_ptr->depth);
                                         }
 
@@ -1840,7 +1810,7 @@ object_type* smith3_o_ptr = &smith3_o_body;
 #define smith2_a_name (z_info->art_self_made_max - 2)
 #define smith2_a_ptr (&a_info[smith2_a_name])
 
-smithing_cost_type smithing_cost;
+ui_smithing_costs smithing_cost;
 
 #define CAT_WEAPON 0
 #define CAT_ARMOUR 1
@@ -3512,6 +3482,21 @@ static int too_difficult(object_type* o_ptr)
         return (FALSE);
 }
 
+/* Appends the shared smithing details pane through the extracted UI helper. */
+static void append_smithing_ui_details(ui_text_builder* builder)
+{
+    ui_smithing_details_context context;
+
+    context.smith_item = smith_o_ptr;
+    context.cost = &smithing_cost;
+    context.too_difficult_fn = too_difficult;
+    context.forge_uses_fn = forge_uses;
+    context.mithril_carried_fn = mithril_carried;
+    context.forge_bonus_fn = forge_bonus;
+
+    ui_smithing_menu_append_details(builder, &context);
+}
+
 /*
  * Displays the object's difficulty and costs in the right hand side of the
  * screen.
@@ -3869,33 +3854,6 @@ static void smithing_tval_menu_label(int index, char* buf, size_t buf_size)
 }
 
 /*
- * Creates the base object (not in the dungeon, but just as a work in progress).
- */
-static void create_base_object(int tval, int sval)
-{
-    /* Wipe the object */
-    object_wipe(smith_o_ptr);
-
-    /* Prepare the item */
-    object_prep(smith_o_ptr, lookup_kind(tval, sval));
-
-    // set the pval to 1 if needed (and evasion/accuracy for rings)
-    apply_magic_fake(smith_o_ptr);
-
-    // use a default weight
-    smith_o_ptr->weight = (&k_info[smith_o_ptr->k_idx])->weight;
-
-    // display all attributes
-    smith_o_ptr->ident |= (IDENT_KNOWN | IDENT_SPOIL);
-
-    // create arrows by the two dozen
-    if (tval == TV_ARROW)
-    {
-        smith_o_ptr->number = 12;
-    }
-}
-
-/*
  * Performs the interface and selection work for the sval part of the base item
  * menu.
  */
@@ -3963,7 +3921,8 @@ static int create_sval_menu_aux(int* tval_highlight, int* highlight)
             strip_name(name, i);
 
             // make a simple version of the object
-            create_base_object(tval, k_ptr->sval);
+            (void)ui_preview_prepare_smithing_base_object(
+                smith_o_ptr, tval, k_ptr->sval);
 
             // Check whether it is a valid choice for creating
             if (affordable(smith_o_ptr))
@@ -4003,7 +3962,8 @@ static int create_sval_menu_aux(int* tval_highlight, int* highlight)
 
     // make a simple version of the object
     if ((num > 0) && (*highlight >= 1) && (*highlight <= num))
-        create_base_object(tval, sval[*highlight - 1]);
+        (void)ui_preview_prepare_smithing_base_object(
+            smith_o_ptr, tval, sval[*highlight - 1]);
 
     if ((num > 0) && (*highlight >= 1) && (*highlight <= num))
     {
@@ -4012,7 +3972,7 @@ static int create_sval_menu_aux(int* tval_highlight, int* highlight)
         ui_text_builder_append(&builder, " > ", TERM_SLATE);
         ui_text_builder_append_line(
             &builder, labels[*highlight - 1], item_attr[*highlight - 1]);
-        ui_smithing_menu_append_details(&details_builder, smith_o_ptr, &smithing_cost, too_difficult, forge_uses, mithril_carried, forge_bonus);
+        append_smithing_ui_details(&details_builder);
     }
     else
     {
@@ -4062,7 +4022,8 @@ static int create_sval_menu_aux(int* tval_highlight, int* highlight)
         *highlight = (int)ch - 'a' + 1;
 
         // make a simple version of the object
-        create_base_object(tval, sval[*highlight - 1]);
+        (void)ui_preview_prepare_smithing_base_object(
+            smith_o_ptr, tval, sval[*highlight - 1]);
 
         ui_menu_clear();
         return (*highlight);
@@ -4507,7 +4468,7 @@ static int numbers_menu_aux(int* highlight)
     {
         ui_text_builder_append_line(
             &builder, numbers_menu_labels[*highlight - 1], attr[*highlight - 1]);
-        ui_smithing_menu_append_details(&details_builder, smith_o_ptr, &smithing_cost, too_difficult, forge_uses, mithril_carried, forge_bonus);
+        append_smithing_ui_details(&details_builder);
     }
     ui_smithing_menu_publish(&builder, &details_builder);
 
@@ -4751,7 +4712,7 @@ static int enchant_menu_aux(int* highlight)
     {
         ui_text_builder_append_line(
             &builder, labels[*highlight - 1], item_attr[*highlight - 1]);
-        ui_smithing_menu_append_details(&details_builder, smith_o_ptr, &smithing_cost, too_difficult, forge_uses, mithril_carried, forge_bonus);
+        append_smithing_ui_details(&details_builder);
     }
     else
     {
@@ -5122,7 +5083,7 @@ static int artefact_flag_menu_aux(int category, int* highlight)
         ui_text_builder_append(&builder, " > ", TERM_SLATE);
         ui_text_builder_append_line(
             &builder, labels[*highlight - 1], item_attr[*highlight - 1]);
-        ui_smithing_menu_append_details(&details_builder, smith_o_ptr, &smithing_cost, too_difficult, forge_uses, mithril_carried, forge_bonus);
+        append_smithing_ui_details(&details_builder);
     }
     else
     {
@@ -5576,7 +5537,7 @@ static int artefact_ability_menu_aux(int skill, int* highlight)
                 ui_text_builder_newline(&details_builder, TERM_L_WHITE);
             }
         }
-        ui_smithing_menu_append_details(&details_builder, smith_o_ptr, &smithing_cost, too_difficult, forge_uses, mithril_carried, forge_bonus);
+        append_smithing_ui_details(&details_builder);
     }
     else
     {
@@ -5859,7 +5820,7 @@ static int artefact_menu_aux(int* highlight)
     if ((*highlight >= 1) && (*highlight <= num))
     {
         ui_text_builder_append_line(&builder, labels[*highlight - 1], TERM_WHITE);
-        ui_smithing_menu_append_details(&details_builder, smith_o_ptr, &smithing_cost, too_difficult, forge_uses, mithril_carried, forge_bonus);
+        append_smithing_ui_details(&details_builder);
     }
     ui_smithing_menu_publish(&builder, &details_builder);
 
@@ -5963,13 +5924,15 @@ static void artefact_menu(void)
         // artefacts
         if (smith_o_ptr->tval == TV_RING)
         {
-            create_base_object(TV_RING, SV_RING_SELF_MADE);
+            (void)ui_preview_prepare_smithing_base_object(
+                smith_o_ptr, TV_RING, SV_RING_SELF_MADE);
             object_copy(smith2_o_ptr, smith_o_ptr);
             smith2_o_ptr->pd = 1;
         }
         if (smith_o_ptr->tval == TV_AMULET)
         {
-            create_base_object(TV_AMULET, SV_AMULET_SELF_MADE);
+            (void)ui_preview_prepare_smithing_base_object(
+                smith_o_ptr, TV_AMULET, SV_AMULET_SELF_MADE);
             object_copy(smith2_o_ptr, smith_o_ptr);
         }
     }
@@ -6471,7 +6434,7 @@ static int smithing_menu_aux(int* highlight)
 
     if (ui_text_builder_length(&details_builder) > 0)
         ui_text_builder_newline(&details_builder, TERM_WHITE);
-    ui_smithing_menu_append_details(&details_builder, smith_o_ptr, &smithing_cost, too_difficult, forge_uses, mithril_carried, forge_bonus);
+    append_smithing_ui_details(&details_builder);
     ui_smithing_menu_publish(&builder, &details_builder);
 
     // highlight the label
@@ -9560,7 +9523,7 @@ static byte object_group_tval[] = { TV_FOOD, TV_POTION, TV_RING, TV_AMULET,
  * largest number of objects that will be collected.
  *  (Incorporates some code from jdh)
  */
-static int collect_objects(int grp_cur, object_list_entry object_idx[])
+static int collect_objects(int grp_cur, ui_knowledge_object_entry object_idx[])
 {
     int i, j, k, object_cnt = 0;
     int max_sval = -1;
@@ -9609,7 +9572,7 @@ static int collect_objects(int grp_cur, object_list_entry object_idx[])
             /* Add the object type */
             if (object_idx)
             {
-                object_idx[object_cnt].type = OBJ_NORMAL;
+                object_idx[object_cnt].type = UI_KNOWLEDGE_OBJECT_NORMAL;
                 object_idx[object_cnt].idx = i;
             }
 
@@ -9639,7 +9602,7 @@ static int collect_objects(int grp_cur, object_list_entry object_idx[])
             {
                 if (object_idx)
                 {
-                    object_idx[object_cnt].type = OBJ_SPECIAL;
+                    object_idx[object_cnt].type = UI_KNOWLEDGE_OBJECT_SPECIAL;
                     object_idx[object_cnt].idx = -1;
                     object_idx[object_cnt].e_idx = i;
                     object_idx[object_cnt].tval = group_tval;
@@ -9654,7 +9617,7 @@ static int collect_objects(int grp_cur, object_list_entry object_idx[])
 
     /* Terminate the list */
     if (object_idx)
-        object_idx[object_cnt].type = OBJ_NONE;
+        object_idx[object_cnt].type = UI_KNOWLEDGE_OBJECT_NONE;
 
     /* Return the number of object types */
     return object_cnt;
@@ -10210,7 +10173,7 @@ static cptr monster_group_char[] = { (char*)-1L,
  * Build a list of monster indexes in the given group. Return the number
  * of monsters in the group.
  */
-static int collect_monsters(int grp_cur, monster_list_entry* mon_idx, int mode)
+static int collect_monsters(int grp_cur, ui_knowledge_monster_entry* mon_idx, int mode)
 {
     int i, mon_count = 0;
 
@@ -10269,7 +10232,7 @@ static int collect_monsters(int grp_cur, monster_list_entry* mon_idx, int mode)
  * Display the monsters in a group.
  */
 static void display_monster_list(int col, int row, int per_page,
-    monster_list_entry* mon_idx, int mon_cur, int mon_top, int grp_cur)
+    ui_knowledge_monster_entry* mon_idx, int mon_cur, int mon_top, int grp_cur)
 {
     int i;
 
@@ -10397,7 +10360,7 @@ void do_cmd_knowledge_monsters(void)
     int grp_cur, grp_top;
     int mon_cur, mon_top;
     int grp_cnt, grp_idx[100];
-    monster_list_entry* mon_idx;
+    ui_knowledge_monster_entry* mon_idx;
     int monster_count;
 
     int column = 0;
@@ -10405,7 +10368,7 @@ void do_cmd_knowledge_monsters(void)
     bool redraw;
 
     /* Allocate the "mon_idx" array */
-    C_MAKE(mon_idx, z_info->r_max, monster_list_entry);
+    C_MAKE(mon_idx, z_info->r_max, ui_knowledge_monster_entry);
 
     max = 0;
     grp_cnt = 0;
@@ -10566,191 +10529,32 @@ void do_cmd_knowledge_monsters(void)
 }
 
 /*
- * Add a pval so the object descriptions don't look strange*
- */
-void apply_magic_fake(object_type* o_ptr)
-{
-    /* Analyze type */
-    switch (o_ptr->tval)
-    {
-    case TV_DIGGING:
-    {
-        if (o_ptr->pval < 1)
-            o_ptr->pval = 1;
-        break;
-    }
-
-    /*many rings need a pval*/
-    case TV_RING:
-    {
-        /* Analyze */
-        switch (o_ptr->sval)
-        {
-        /* Strength, Dexterity */
-        case SV_RING_STR:
-        case SV_RING_DEX:
-        {
-            if (o_ptr->pval < 1)
-                o_ptr->pval = 1;
-
-            break;
-        }
-
-        /* Ring of Accuracy */
-        case SV_RING_ACCURACY:
-        {
-            /* Bonus to hit */
-            if (o_ptr->att < 1)
-                o_ptr->att = 1;
-
-            break;
-        }
-
-        /* Ring of Protection */
-        case SV_RING_PROTECTION:
-        {
-            /* Bonus to protection */
-            o_ptr->pd = 1;
-            if (o_ptr->ps < 1)
-                o_ptr->ps = 1;
-
-            break;
-        }
-
-        /* Ring of Evasion */
-        case SV_RING_EVASION:
-        {
-            /* Bonus to evasion */
-            if (o_ptr->evn < 1)
-                o_ptr->evn = 1;
-
-            break;
-        }
-
-        /* Ring of Secrets */
-        case SV_RING_SECRETS:
-        {
-            /* Bonus to perception */
-            if (o_ptr->pval < 1)
-                o_ptr->pval = 1;
-
-            break;
-        }
-
-        /* Ring of Ered Luin */
-        case SV_RING_ERED_LUIN:
-        {
-            /* Bonus to will */
-            if (o_ptr->pval < 1)
-                o_ptr->pval = 1;
-            break;
-        }
-
-        /* Ring of the Laiquendi */
-        case SV_RING_LAIQUENDI:
-        {
-            /* Bonus to stealth and archery */
-            if (o_ptr->pval < 1)
-                o_ptr->pval = 1;
-            break;
-        }
-        }
-
-        /*break for TVAL-Rings*/
-        break;
-    }
-
-    case TV_AMULET:
-    {
-        /* Analyze */
-        switch (o_ptr->sval)
-        {
-        /* Various amulets */
-        case SV_AMULET_CON:
-        case SV_AMULET_GRA:
-        {
-            if (o_ptr->pval < 1)
-                o_ptr->pval = 1;
-            break;
-        }
-
-        /* Amulet of the Blessed Realm */
-        case SV_AMULET_BLESSED_REALM:
-        {
-            if (o_ptr->pval < 1)
-                o_ptr->pval = 1;
-            break;
-        }
-
-        /* Amulet of the Vigilant Eye */
-        case SV_AMULET_VIGILANT_EYE:
-        {
-            if (o_ptr->pval < 1)
-                o_ptr->pval = 1;
-            break;
-        }
-
-        default:
-            break;
-        }
-        /*break for TVAL-Amulets*/
-        break;
-    }
-
-    case TV_LIGHT:
-    {
-        /* Analyze */
-        switch (o_ptr->sval)
-        {
-        case SV_LIGHT_TORCH:
-        case SV_LIGHT_MALLORN:
-        case SV_LIGHT_LANTERN:
-        {
-            o_ptr->timeout = 0;
-
-            break;
-        }
-        }
-        /*break for TVAL-Lights*/
-        break;
-    }
-
-    /*give them one charge*/
-    case TV_STAFF:
-    {
-        if (o_ptr->pval < 1)
-            o_ptr->pval = 1;
-
-        break;
-    }
-    }
-}
-
-/*
  * Display the objects in a group. (Incorporates some code from jdh)
  */
 static void display_object_list(int col, int row, int per_page,
-    object_list_entry object_idx[], int object_cur, int object_top)
+    ui_knowledge_object_entry object_idx[], int object_cur, int object_top)
 {
     int i;
 
     /* Display lines until done */
-    for (i = 0; i < per_page && object_idx[object_top + i].type != OBJ_NONE; i++)
+    for (i = 0;
+         i < per_page
+         && object_idx[object_top + i].type != UI_KNOWLEDGE_OBJECT_NONE; i++)
     {
         char buf[80];
 
         /* Get the object index */
         int oidx = object_top + i;
-        object_list_entry* obj = &object_idx[oidx];
+        ui_knowledge_object_entry* obj = &object_idx[oidx];
         byte attr = ui_knowledge_object_entry_attr(obj, (oidx == object_cur));
 
         ui_knowledge_object_entry_label(buf, sizeof(buf), obj);
         c_prt(attr, buf, row + i, col);
 
-        if ((obj->type == OBJ_NORMAL) && cheat_know)
+        if ((obj->type == UI_KNOWLEDGE_OBJECT_NORMAL) && cheat_know)
             c_prt(attr, format("%d", obj->idx), row + i, 70);
 
-        if ((obj->type == OBJ_NORMAL) && k_info[obj->idx].aware)
+        if ((obj->type == UI_KNOWLEDGE_OBJECT_NORMAL) && k_info[obj->idx].aware)
         {
             object_kind* k_ptr = &k_info[obj->idx];
             byte a = k_ptr->flavor ? (flavor_info[k_ptr->flavor].x_attr)
@@ -10780,7 +10584,7 @@ void do_cmd_knowledge_objects(void)
     int object_old_id, object_cur, object_top;
     int grp_cnt, grp_idx[100];
     int object_cnt;
-    object_list_entry* object_idx;
+    ui_knowledge_object_entry* object_idx;
 
     int column = 0;
     bool flag;
@@ -10823,7 +10627,7 @@ void do_cmd_knowledge_objects(void)
     }
 
     /* Allocate the "object_idx" array */
-    C_MAKE(object_idx, 1 + grp_max, object_list_entry);
+    C_MAKE(object_idx, 1 + grp_max, ui_knowledge_object_entry);
 
     grp_cur = grp_top = 0;
     object_cur = object_top = 0;
@@ -10893,7 +10697,8 @@ void do_cmd_knowledge_objects(void)
         Term_putstr(18, 23, -1, TERM_L_WHITE, "ESC");
 
         /* Track the selected object kind for any recall subwindow. */
-        if (object_cnt && (object_idx[object_cur].type == OBJ_NORMAL))
+        if (object_cnt
+            && (object_idx[object_cur].type == UI_KNOWLEDGE_OBJECT_NORMAL))
             object_kind_track(object_idx[object_cur].idx);
 
         /* The "current" object changed */
@@ -10932,8 +10737,9 @@ void do_cmd_knowledge_objects(void)
 
             case UI_INPUT_BROWSER_ACTION_RECALL:
             {
-                object_list_entry* obj = &object_idx[object_cur];
-                if (obj->type == OBJ_NORMAL && k_info[obj->idx].aware)
+                ui_knowledge_object_entry* obj = &object_idx[object_cur];
+                if ((obj->type == UI_KNOWLEDGE_OBJECT_NORMAL)
+                    && k_info[obj->idx].aware)
                 {
                     ui_knowledge_recall_object(obj);
 

@@ -903,24 +903,17 @@ void object_info_append_ui_text(
 {
     bool has_description;
     bool has_info;
-    void (*old_text_out_hook)(byte a, cptr str);
-    int old_text_out_wrap;
-    int old_text_out_indent;
+    ui_text_output_state text_output_state;
     void (*old_object_info_out_flags)(
         const object_type* o_ptr, u32b* f1, u32b* f2, u32b* f3);
 
     if (!builder || !o_ptr)
         return;
 
-    old_text_out_hook = text_out_hook;
-    old_text_out_wrap = text_out_wrap;
-    old_text_out_indent = text_out_indent;
     old_object_info_out_flags = object_info_out_flags;
 
     object_info_builder = builder;
-    text_out_hook = text_out_to_ui_builder;
-    text_out_wrap = 0;
-    text_out_indent = 0;
+    ui_text_output_begin(&text_output_state, text_out_to_ui_builder, 0, 0);
 
     has_description = screen_out_head(o_ptr);
 
@@ -941,9 +934,7 @@ void object_info_append_ui_text(
     }
 
     object_info_out_flags = old_object_info_out_flags;
-    text_out_hook = old_text_out_hook;
-    text_out_wrap = old_text_out_wrap;
-    text_out_indent = old_text_out_indent;
+    ui_text_output_end(&text_output_state);
     object_info_builder = NULL;
 }
 

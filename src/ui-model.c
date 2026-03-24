@@ -80,6 +80,33 @@ static int ui_menu_normalize_visual_kind(int visual_kind)
     return visual_kind;
 }
 
+/* Saves the current text_out() globals and applies a temporary override. */
+void ui_text_output_begin(ui_text_output_state* state,
+    void (*hook)(byte a, cptr str), int indent, int wrap)
+{
+    if (!state)
+        return;
+
+    state->hook = text_out_hook;
+    state->wrap = text_out_wrap;
+    state->indent = text_out_indent;
+
+    text_out_hook = hook;
+    text_out_indent = indent;
+    text_out_wrap = wrap;
+}
+
+/* Restores the previous text_out() globals after a temporary override. */
+void ui_text_output_end(const ui_text_output_state* state)
+{
+    if (!state)
+        return;
+
+    text_out_hook = state->hook;
+    text_out_wrap = state->wrap;
+    text_out_indent = state->indent;
+}
+
 /* Resets all exported semantic menu state to an empty menu. */
 static void ui_menu_reset_state(void)
 {

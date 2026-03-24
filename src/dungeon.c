@@ -10,7 +10,9 @@
 
 #include "angband.h"
 #include "item-rules.h"
+#include "ui-knowledge.h"
 #include "ui-marks.h"
+#include "ui-view.h"
 
 /*
  * Return a "feeling" (or NULL) about an item.  Method 1 (Weak).

@@ -16,34 +16,37 @@
 
 #include "angband.h"
 
-typedef struct monster_list_entry monster_list_entry;
-typedef struct object_list_entry object_list_entry;
+typedef struct ui_knowledge_monster_entry ui_knowledge_monster_entry;
+typedef struct ui_knowledge_object_entry ui_knowledge_object_entry;
+typedef enum ui_knowledge_object_type ui_knowledge_object_type;
 
 /* Shared page size for the two-column knowledge browsers. */
 #define UI_KNOWLEDGE_BROWSER_ROWS 16
 
-struct monster_list_entry
+enum ui_knowledge_object_type
+{
+    UI_KNOWLEDGE_OBJECT_NONE,
+    UI_KNOWLEDGE_OBJECT_NORMAL,
+    UI_KNOWLEDGE_OBJECT_SPECIAL
+};
+
+struct ui_knowledge_monster_entry
 {
     s16b r_idx;
     byte amount;
 };
 
-struct object_list_entry
+struct ui_knowledge_object_entry
 {
-    enum
-    {
-        OBJ_NONE,
-        OBJ_NORMAL,
-        OBJ_SPECIAL
-    } type;
+    ui_knowledge_object_type type;
     int idx;
     int e_idx;
     int tval;
     int sval;
 };
 
-/* Runs one interaction step for the top-level knowledge menu. */
-int ui_knowledge_menu_choose(int* highlight);
+/* Runs the top-level knowledge command loop. */
+void do_cmd_knowledge(void);
 /* Formats the display name for one artefact browser entry. */
 void ui_knowledge_artefact_name(int a_idx, char* name, size_t name_size);
 /* Publishes the semantic artefact browser UI for the current selection. */
@@ -55,23 +58,23 @@ void ui_knowledge_recall_artefact(int a_idx);
 /* Publishes the semantic monster browser UI for the current selection. */
 void ui_knowledge_publish_monsters(cptr group_text[], cptr group_char[],
     int grp_idx[], int grp_cnt, int grp_cur, int grp_top,
-    monster_list_entry* mon_idx, int monster_count, int mon_cur, int mon_top,
-    int column);
+    ui_knowledge_monster_entry* mon_idx, int monster_count, int mon_cur,
+    int mon_top, int column);
 /* Shows the full recall modal for one monster entry. */
 void ui_knowledge_recall_monster(int r_idx);
 /* Formats the display label for one object browser entry. */
 void ui_knowledge_object_entry_label(
-    char* buf, size_t buf_size, const object_list_entry* obj);
+    char* buf, size_t buf_size, const ui_knowledge_object_entry* obj);
 /* Returns the preferred terminal attr for one object browser entry. */
 byte ui_knowledge_object_entry_attr(
-    const object_list_entry* obj, bool selected);
+    const ui_knowledge_object_entry* obj, bool selected);
 /* Returns a stable tracking id for one object browser entry. */
-int ui_knowledge_object_entry_id(const object_list_entry* obj);
+int ui_knowledge_object_entry_id(const ui_knowledge_object_entry* obj);
 /* Publishes the semantic object browser UI for the current selection. */
 void ui_knowledge_publish_objects(cptr group_text[], int grp_idx[], int grp_cnt,
-    int grp_cur, int grp_top, object_list_entry object_idx[], int object_cnt,
-    int object_cur, int object_top, int column);
+    int grp_cur, int grp_top, ui_knowledge_object_entry object_idx[],
+    int object_cnt, int object_cur, int object_top, int column);
 /* Shows the full recall modal for one object browser entry. */
-void ui_knowledge_recall_object(const object_list_entry* obj);
+void ui_knowledge_recall_object(const ui_knowledge_object_entry* obj);
 
 #endif

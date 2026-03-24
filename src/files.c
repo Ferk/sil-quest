@@ -10,6 +10,7 @@
 
 #include "angband.h"
 #include "item-rules.h"
+#include "ui-abilities.h"
 #include "ui-input.h"
 #include "ui-model.h"
 
@@ -4537,10 +4538,10 @@ errr file_character(cptr name, bool full)
             {
                 if (oath_invalid(p_ptr->oath_type))
                     fprintf(fff, "%s: %s (Broken)\n", (b_name + b_ptr->name),
-                        oath_name[p_ptr->oath_type]);
+                        ui_oath_name(p_ptr->oath_type));
                 else
                     fprintf(fff, "%s: %s\n", (b_name + b_ptr->name),
-                        oath_name[p_ptr->oath_type]);
+                        ui_oath_name(p_ptr->oath_type));
             }
             else
                 fprintf(fff, "%s\n", (b_name + b_ptr->name));

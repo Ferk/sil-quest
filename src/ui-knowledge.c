@@ -16,6 +16,7 @@
 #include "ui-input.h"
 #include "ui-knowledge.h"
 #include "ui-model.h"
+#include "ui-preview.h"
 
 #define UI_KNOWLEDGE_TEXT_MAX 8192
 
@@ -56,50 +57,6 @@ static void ui_knowledge_finish_modal(ui_text_builder* builder)
     ui_text_builder_append_line(builder, "(press any key)", TERM_L_BLUE);
 }
 
-/* Builds one fake artefact object for knowledge and recall screens. */
-static bool ui_knowledge_prepare_fake_artefact(object_type* o_ptr, int a_idx)
-{
-    s16b kind_idx;
-    s16b i;
-    artefact_type* a_ptr = &a_info[a_idx];
-
-    if (!o_ptr)
-        return FALSE;
-
-    if (a_ptr->tval + a_ptr->sval == 0)
-        return FALSE;
-
-    kind_idx = lookup_kind(a_ptr->tval, a_ptr->sval);
-    if (!kind_idx)
-        return FALSE;
-
-    object_prep(o_ptr, kind_idx);
-    o_ptr->name1 = a_idx;
-    o_ptr->pval = a_ptr->pval;
-    o_ptr->att = a_ptr->att;
-    o_ptr->dd = a_ptr->dd;
-    o_ptr->ds = a_ptr->ds;
-    o_ptr->evn = a_ptr->evn;
-    o_ptr->pd = a_ptr->pd;
-    o_ptr->ps = a_ptr->ps;
-    o_ptr->weight = a_ptr->weight;
-
-    for (i = 0; i < a_ptr->abilities; i++)
-    {
-        o_ptr->skilltype[i + o_ptr->abilities] = a_ptr->skilltype[i];
-        o_ptr->abilitynum[i + o_ptr->abilities] = a_ptr->abilitynum[i];
-    }
-    o_ptr->abilities += a_ptr->abilities;
-
-    object_known(o_ptr);
-    o_ptr->ident |= IDENT_SPOIL;
-
-    if (a_ptr->flags3 & TR3_LIGHT_CURSE)
-        o_ptr->ident |= IDENT_CURSED;
-
-    return TRUE;
-}
-
 /* Fills one object buffer with the fake artefact information for browsing. */
 static bool ui_knowledge_artefact_prepare_info(
     int a_idx, object_type* o_ptr, char* name, size_t name_size)
@@ -107,8 +64,7 @@ static bool ui_knowledge_artefact_prepare_info(
     if (!o_ptr)
         return FALSE;
 
-    object_wipe(o_ptr);
-    if (!ui_knowledge_prepare_fake_artefact(o_ptr, a_idx))
+    if (!ui_preview_prepare_artefact_object(o_ptr, a_idx))
         return FALSE;
 
     if (name && (name_size > 0))
@@ -207,9 +163,7 @@ static void ui_knowledge_monster_append_details(
 {
     char race_name[80];
     char buf[80];
-    void (*old_text_out_hook)(byte a, cptr str);
-    int old_text_out_wrap;
-    int old_text_out_indent;
+    ui_text_output_state text_output_state;
 
     if (!builder || (r_idx <= 0))
         return;
@@ -223,20 +177,13 @@ static void ui_knowledge_monster_append_details(
     }
     ui_text_builder_newline(builder, TERM_WHITE);
 
-    old_text_out_hook = text_out_hook;
-    old_text_out_wrap = text_out_wrap;
-    old_text_out_indent = text_out_indent;
-
     ui_knowledge_browser_builder = builder;
-    text_out_hook = ui_knowledge_text_out_to_builder;
-    text_out_wrap = 0;
-    text_out_indent = 0;
+    ui_text_output_begin(
+        &text_output_state, ui_knowledge_text_out_to_builder, 0, 0);
 
     describe_monster(r_idx, FALSE);
 
-    text_out_hook = old_text_out_hook;
-    text_out_wrap = old_text_out_wrap;
-    text_out_indent = old_text_out_indent;
+    ui_text_output_end(&text_output_state);
     ui_knowledge_browser_builder = NULL;
 }
 
@@ -315,7 +262,7 @@ static void ui_knowledge_monster_group_append_summary(
 
 /* Returns the details-pane visual for one object browser entry. */
 static bool ui_knowledge_object_entry_visual(
-    const object_list_entry* obj, int* attr, int* chr, int* kind)
+    const ui_knowledge_object_entry* obj, int* attr, int* chr, int* kind)
 {
     int k_idx = -1;
     int i;
@@ -326,11 +273,11 @@ static bool ui_knowledge_object_entry_visual(
 
     switch (obj->type)
     {
-    case OBJ_NORMAL:
+    case UI_KNOWLEDGE_OBJECT_NORMAL:
         k_idx = obj->idx;
         break;
 
-    case OBJ_SPECIAL:
+    case UI_KNOWLEDGE_OBJECT_SPECIAL:
         for (i = 0; i < z_info->k_max; i++)
         {
             if (k_info[i].tval != obj->tval)
@@ -343,7 +290,7 @@ static bool ui_knowledge_object_entry_visual(
         }
         break;
 
-    case OBJ_NONE:
+    case UI_KNOWLEDGE_OBJECT_NONE:
     default:
         return FALSE;
     }
@@ -370,24 +317,21 @@ static bool ui_knowledge_object_entry_visual(
 
 /* Appends the details pane text for one object browser entry. */
 static void ui_knowledge_object_append_details(
-    ui_text_builder* builder, const object_list_entry* obj)
+    ui_text_builder* builder, const ui_knowledge_object_entry* obj)
 {
     char buf[80];
     cptr title;
 
-    if (!builder || !obj || (obj->type == OBJ_NONE))
+    if (!builder || !obj || (obj->type == UI_KNOWLEDGE_OBJECT_NONE))
         return;
 
-    if ((obj->type == OBJ_NORMAL) && k_info[obj->idx].aware)
+    if ((obj->type == UI_KNOWLEDGE_OBJECT_NORMAL) && k_info[obj->idx].aware)
     {
         object_type object_type_body;
         object_type* i_ptr = &object_type_body;
 
-        object_wipe(i_ptr);
-        object_prep(i_ptr, obj->idx);
-        apply_magic_fake(i_ptr);
-        object_aware(i_ptr);
-        object_known(i_ptr);
+        if (!ui_preview_prepare_kind_object(i_ptr, obj->idx, TRUE))
+            return;
         if (cheat_know)
         {
             strnfmt(buf, sizeof(buf), "Idx: %d", obj->idx);
@@ -404,14 +348,14 @@ static void ui_knowledge_object_append_details(
         title++;
 
     ui_text_builder_append_line(builder, title, TERM_YELLOW);
-    if ((obj->type == OBJ_NORMAL) && cheat_know)
+    if ((obj->type == UI_KNOWLEDGE_OBJECT_NORMAL) && cheat_know)
     {
         strnfmt(buf, sizeof(buf), "Idx: %d", obj->idx);
         ui_text_builder_append_line(builder, buf, TERM_L_BLUE);
     }
     ui_text_builder_newline(builder, TERM_WHITE);
 
-    if (obj->type == OBJ_SPECIAL)
+    if (obj->type == UI_KNOWLEDGE_OBJECT_SPECIAL)
     {
         ego_item_type* e_ptr = &e_info[obj->e_idx];
 
@@ -435,39 +379,8 @@ static void ui_knowledge_object_append_details(
         builder, "This item has not been identified.", TERM_SLATE);
 }
 
-/* Opens the full recall screen for one fake object kind. */
-static void ui_knowledge_desc_fake_object(int k_idx)
-{
-    object_type object_type_body;
-    object_type* i_ptr = &object_type_body;
-
-    object_wipe(i_ptr);
-    object_prep(i_ptr, k_idx);
-    apply_magic_fake(i_ptr);
-    i_ptr->ident |= IDENT_KNOWN;
-
-    handle_stuff();
-    Term_gotoxy(0, 0);
-    object_info_screen(i_ptr);
-}
-
-/* Describes one fake artefact on the standard full recall screen. */
-void desc_art_fake(int a_idx)
-{
-    object_type object_type_body;
-    object_type* i_ptr = &object_type_body;
-
-    object_wipe(i_ptr);
-    if (!ui_knowledge_prepare_fake_artefact(i_ptr, a_idx))
-        return;
-
-    handle_stuff();
-    Term_gotoxy(0, 0);
-    object_info_screen(i_ptr);
-}
-
 /* Runs one interaction step for the top-level knowledge menu. */
-int ui_knowledge_menu_choose(int* highlight)
+static int ui_knowledge_menu_choose(int* highlight)
 {
     int action;
     int i;
@@ -601,7 +514,7 @@ void ui_knowledge_recall_artefact(int a_idx)
     ui_modal_set(modal_text, modal_attrs, ui_text_builder_length(&modal_builder),
         '\r');
 
-    desc_art_fake(a_idx);
+    ui_preview_show_artefact_recall(a_idx);
 
     ui_modal_clear();
 }
@@ -609,7 +522,7 @@ void ui_knowledge_recall_artefact(int a_idx)
 /* Publishes the semantic monster browser UI for the current selection. */
 void ui_knowledge_publish_monsters(cptr group_text[], cptr group_char[],
     int grp_idx[], int grp_cnt, int grp_cur, int grp_top,
-    monster_list_entry* mon_idx, int monster_count, int mon_cur, int mon_top,
+    ui_knowledge_monster_entry* mon_idx, int monster_count, int mon_cur, int mon_top,
     int column)
 {
     char menu_text[UI_KNOWLEDGE_TEXT_MAX];
@@ -708,7 +621,7 @@ void ui_knowledge_recall_monster(int r_idx)
 
 /* Formats the display label for one object browser entry. */
 void ui_knowledge_object_entry_label(
-    char* buf, size_t buf_size, const object_list_entry* obj)
+    char* buf, size_t buf_size, const ui_knowledge_object_entry* obj)
 {
     if (!buf || (buf_size == 0))
         return;
@@ -720,11 +633,11 @@ void ui_knowledge_object_entry_label(
 
     switch (obj->type)
     {
-    case OBJ_NORMAL:
+    case UI_KNOWLEDGE_OBJECT_NORMAL:
         strip_name(buf, obj->idx);
         break;
 
-    case OBJ_SPECIAL:
+    case UI_KNOWLEDGE_OBJECT_SPECIAL:
     {
         ego_item_type* e_ptr = &e_info[obj->e_idx];
 
@@ -752,7 +665,7 @@ void ui_knowledge_object_entry_label(
         break;
     }
 
-    case OBJ_NONE:
+    case UI_KNOWLEDGE_OBJECT_NONE:
     default:
         break;
     }
@@ -760,7 +673,7 @@ void ui_knowledge_object_entry_label(
 
 /* Returns the preferred terminal attr for one object browser entry. */
 byte ui_knowledge_object_entry_attr(
-    const object_list_entry* obj, bool selected)
+    const ui_knowledge_object_entry* obj, bool selected)
 {
     bool aware = FALSE;
 
@@ -769,15 +682,15 @@ byte ui_knowledge_object_entry_attr(
 
     switch (obj->type)
     {
-    case OBJ_NORMAL:
+    case UI_KNOWLEDGE_OBJECT_NORMAL:
         aware = k_info[obj->idx].aware ? TRUE : FALSE;
         break;
 
-    case OBJ_SPECIAL:
+    case UI_KNOWLEDGE_OBJECT_SPECIAL:
         aware = e_info[obj->e_idx].aware ? TRUE : FALSE;
         break;
 
-    case OBJ_NONE:
+    case UI_KNOWLEDGE_OBJECT_NONE:
     default:
         break;
     }
@@ -789,20 +702,20 @@ byte ui_knowledge_object_entry_attr(
 }
 
 /* Returns a stable tracking id for one object browser entry. */
-int ui_knowledge_object_entry_id(const object_list_entry* obj)
+int ui_knowledge_object_entry_id(const ui_knowledge_object_entry* obj)
 {
     if (!obj)
         return -1;
 
     switch (obj->type)
     {
-    case OBJ_NORMAL:
+    case UI_KNOWLEDGE_OBJECT_NORMAL:
         return obj->idx + 1;
 
-    case OBJ_SPECIAL:
+    case UI_KNOWLEDGE_OBJECT_SPECIAL:
         return -(obj->e_idx + 1);
 
-    case OBJ_NONE:
+    case UI_KNOWLEDGE_OBJECT_NONE:
     default:
         return 0;
     }
@@ -810,7 +723,7 @@ int ui_knowledge_object_entry_id(const object_list_entry* obj)
 
 /* Publishes the semantic object browser UI for the current selection. */
 void ui_knowledge_publish_objects(cptr group_text[], int grp_idx[], int grp_cnt,
-    int grp_cur, int grp_top, object_list_entry object_idx[], int object_cnt,
+    int grp_cur, int grp_top, ui_knowledge_object_entry object_idx[], int object_cnt,
     int object_cur, int object_top, int column)
 {
     char menu_text[UI_KNOWLEDGE_TEXT_MAX];
@@ -860,7 +773,7 @@ void ui_knowledge_publish_objects(cptr group_text[], int grp_idx[], int grp_cnt,
         char buf[80];
         char nav[UI_MENU_NAV_MAX];
         int object_index = object_top + i;
-        object_list_entry* obj = &object_idx[object_index];
+        ui_knowledge_object_entry* obj = &object_idx[object_index];
 
         ui_knowledge_object_entry_label(buf, sizeof(buf), obj);
         ui_knowledge_build_browser_nav(nav, sizeof(nav), column, grp_cur,
@@ -887,7 +800,7 @@ void ui_knowledge_publish_objects(cptr group_text[], int grp_idx[], int grp_cnt,
 }
 
 /* Shows the full recall modal for one object browser entry. */
-void ui_knowledge_recall_object(const object_list_entry* obj)
+void ui_knowledge_recall_object(const ui_knowledge_object_entry* obj)
 {
     char modal_text[UI_KNOWLEDGE_TEXT_MAX];
     byte modal_attrs[UI_KNOWLEDGE_TEXT_MAX];
@@ -903,8 +816,8 @@ void ui_knowledge_recall_object(const object_list_entry* obj)
     ui_modal_set(modal_text, modal_attrs, ui_text_builder_length(&modal_builder),
         '\r');
 
-    if ((obj->type == OBJ_NORMAL) && k_info[obj->idx].aware)
-        ui_knowledge_desc_fake_object(obj->idx);
+    if ((obj->type == UI_KNOWLEDGE_OBJECT_NORMAL) && k_info[obj->idx].aware)
+        ui_preview_show_kind_recall(obj->idx);
 
     ui_modal_clear();
 }

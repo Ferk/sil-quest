@@ -425,8 +425,6 @@ extern void do_cmd_refuel_torch(
 extern void do_cmd_refuel(void);
 extern void do_cmd_look(void);
 extern void do_cmd_locate(void);
-extern void do_cmd_view_monsters(void);
-extern void do_cmd_view_objects(void);
 extern bool ang_sort_comp_hook(const void* u, const void* v, int a, int b);
 extern void ang_sort_swap_hook(void* u, void* v, int a, int b);
 extern void py_steal(int y, int x);
@@ -442,7 +440,6 @@ extern int elf_bane_bonus(monster_type* m_ptr);
 extern char* bane_name[];
 extern int bane_bonus(monster_type* m_ptr);
 extern int spider_bane_bonus(void);
-extern char* oath_name[];
 extern bool oath_invalid(int i);
 extern bool chosen_oath(int oath);
 extern void do_cmd_ability_screen(void);
@@ -465,9 +462,6 @@ extern void do_cmd_knowledge_objects(void);
 extern void do_cmd_knowledge_kills(void);
 extern void ghost_challenge(void);
 extern void do_cmd_save_screen(void);
-extern void desc_art_fake(int a_idx);
-extern void apply_magic_fake(object_type* o_ptr);
-extern void do_cmd_knowledge(void);
 
 /* cmd5.c */
 extern void display_koff(int k_idx);

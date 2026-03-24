@@ -20,6 +20,7 @@
 typedef struct ui_text_builder ui_text_builder;
 typedef struct ui_menu_item ui_menu_item;
 typedef struct ui_simple_menu_entry ui_simple_menu_entry;
+typedef struct ui_text_output_state ui_text_output_state;
 
 enum
 {
@@ -34,6 +35,13 @@ struct ui_text_builder
     byte* attrs;
     size_t size;
     size_t off;
+};
+
+struct ui_text_output_state
+{
+    void (*hook)(byte a, cptr str);
+    int wrap;
+    int indent;
 };
 
 #define UI_MENU_LABEL_MAX 64
@@ -77,6 +85,11 @@ void ui_text_builder_append_line(
     ui_text_builder* builder, cptr text, byte attr);
 /* Returns the current text length stored in one builder. */
 int ui_text_builder_length(const ui_text_builder* builder);
+/* Saves the current text_out() globals and applies a temporary override. */
+void ui_text_output_begin(ui_text_output_state* state,
+    void (*hook)(byte a, cptr str), int indent, int wrap);
+/* Restores the previous text_out() globals after a temporary override. */
+void ui_text_output_end(const ui_text_output_state* state);
 
 /* Renders one simple vertical text menu plus its details pane. */
 void ui_simple_menu_render(cptr title, int title_row, int col,

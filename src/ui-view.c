@@ -14,6 +14,7 @@
 #include "angband.h"
 
 #include "ui-model.h"
+#include "ui-view.h"
 
 #define UI_VIEW_MAX_LINES 20
 #define UI_VIEW_TEXT_MAX 8192

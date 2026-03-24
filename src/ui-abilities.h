@@ -8,7 +8,7 @@
  */
 
 /*
- * Ability and song menu presentation helpers.
+ * Ability, oath, and song menu presentation helpers.
  */
 
 #ifndef INCLUDED_UI_ABILITIES_H
@@ -17,6 +17,18 @@
 #include "angband.h"
 
 #include "ui-model.h"
+
+/* Number of oath entries, including the empty slot at index zero. */
+#define UI_OATH_COUNT 4
+
+/* Returns the display name for one oath. */
+cptr ui_oath_name(int oath);
+/* Returns the long-form vow description for one oath. */
+cptr ui_oath_desc1(int oath);
+/* Returns the restriction text for one oath. */
+cptr ui_oath_desc2(int oath);
+/* Returns the reward text for one oath. */
+cptr ui_oath_reward(int oath);
 
 /* Returns the preferred terminal attr for one ability menu entry. */
 byte ui_ability_menu_attr(int skilltype, ability_type* b_ptr,

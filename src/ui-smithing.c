@@ -28,7 +28,7 @@ static void ui_smithing_text_out_to_builder(byte attr, cptr str)
 
 /* Appends the current smithing requirements to the details pane. */
 static void ui_smithing_append_requirement_details(ui_text_builder* builder,
-    const smithing_cost_type* cost, int dif,
+    const ui_smithing_costs* cost, int dif,
     int (*forge_uses_fn)(int y, int x), int (*mithril_carried_fn)(void))
 {
     char buf[80];
@@ -236,23 +236,34 @@ void ui_smithing_menu_publish(const ui_text_builder* menu_builder,
 }
 
 /* Appends the current smithing item summary and cost details. */
-void ui_smithing_menu_append_details(ui_text_builder* builder,
-    object_type* smith_item, const smithing_cost_type* cost,
-    int (*too_difficult_fn)(object_type* o_ptr),
-    int (*forge_uses_fn)(int y, int x), int (*mithril_carried_fn)(void),
-    int (*forge_bonus_fn)(int y, int x))
+void ui_smithing_menu_append_details(
+    ui_text_builder* builder, const ui_smithing_details_context* context)
 {
     char o_desc[160];
     char buf[160];
     int display_flag;
     int dif;
     byte dif_attr;
-    void (*old_text_out_hook)(byte a, cptr str);
-    int old_text_out_indent;
-    int old_text_out_wrap;
+    object_type* smith_item;
+    const ui_smithing_costs* cost;
+    int (*too_difficult_fn)(object_type* o_ptr);
+    int (*forge_uses_fn)(int y, int x);
+    int (*mithril_carried_fn)(void);
+    int (*forge_bonus_fn)(int y, int x);
+    ui_text_output_state text_output_state;
 
-    if (!builder || !smith_item || !cost || !too_difficult_fn
-        || !forge_uses_fn || !mithril_carried_fn || !forge_bonus_fn)
+    if (!builder || !context)
+        return;
+
+    smith_item = context->smith_item;
+    cost = context->cost;
+    too_difficult_fn = context->too_difficult_fn;
+    forge_uses_fn = context->forge_uses_fn;
+    mithril_carried_fn = context->mithril_carried_fn;
+    forge_bonus_fn = context->forge_bonus_fn;
+
+    if (!smith_item || !cost || !too_difficult_fn || !forge_uses_fn
+        || !mithril_carried_fn || !forge_bonus_fn)
         return;
 
     if (p_ptr->smithing_leftover)
@@ -290,15 +301,10 @@ void ui_smithing_menu_append_details(ui_text_builder* builder,
         builder, cost, dif, forge_uses_fn, mithril_carried_fn);
     ui_text_builder_newline(builder, TERM_WHITE);
 
-    old_text_out_hook = text_out_hook;
-    old_text_out_indent = text_out_indent;
-    old_text_out_wrap = text_out_wrap;
-
     object_info_out_flags = object_flags;
     ui_smithing_builder = builder;
-    text_out_hook = ui_smithing_text_out_to_builder;
-    text_out_indent = 0;
-    text_out_wrap = 0;
+    ui_text_output_begin(
+        &text_output_state, ui_smithing_text_out_to_builder, 0, 0);
 
     if ((k_text + k_info[smith_item->k_idx].text)[0] != '\0')
     {
@@ -309,8 +315,6 @@ void ui_smithing_menu_append_details(ui_text_builder* builder,
     if (object_info_out(smith_item))
         text_out("\n");
 
-    text_out_hook = old_text_out_hook;
-    text_out_indent = old_text_out_indent;
-    text_out_wrap = old_text_out_wrap;
+    ui_text_output_end(&text_output_state);
     ui_smithing_builder = NULL;
 }

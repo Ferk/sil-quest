@@ -18,9 +18,10 @@
 
 #include "ui-model.h"
 
-typedef struct smithing_cost_type smithing_cost_type;
+typedef struct ui_smithing_costs ui_smithing_costs;
+typedef struct ui_smithing_details_context ui_smithing_details_context;
 
-struct smithing_cost_type
+struct ui_smithing_costs
 {
     int str;
     int dex;
@@ -38,6 +39,16 @@ struct smithing_cost_type
     int artifice;
 };
 
+struct ui_smithing_details_context
+{
+    object_type* smith_item;
+    const ui_smithing_costs* cost;
+    int (*too_difficult_fn)(object_type* o_ptr);
+    int (*forge_uses_fn)(int y, int x);
+    int (*mithril_carried_fn)(void);
+    int (*forge_bonus_fn)(int y, int x);
+};
+
 /* Starts one smithing menu text block with an optional title line. */
 void ui_smithing_menu_text_init(
     ui_text_builder* builder, char* text, byte* attrs, size_t size, cptr title);
@@ -45,10 +56,7 @@ void ui_smithing_menu_text_init(
 void ui_smithing_menu_publish(const ui_text_builder* menu_builder,
     const ui_text_builder* details_builder);
 /* Appends the current smithing item summary and cost details. */
-void ui_smithing_menu_append_details(ui_text_builder* builder,
-    object_type* smith_item, const smithing_cost_type* cost,
-    int (*too_difficult_fn)(object_type* o_ptr),
-    int (*forge_uses_fn)(int y, int x), int (*mithril_carried_fn)(void),
-    int (*forge_bonus_fn)(int y, int x));
+void ui_smithing_menu_append_details(
+    ui_text_builder* builder, const ui_smithing_details_context* context);
 
 #endif
