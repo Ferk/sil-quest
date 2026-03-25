@@ -79,10 +79,11 @@ struct ui_simple_menu_entry
 enum ui_prompt_kind
 {
     UI_PROMPT_KIND_NONE = 0,
-    UI_PROMPT_KIND_GENERIC = 1,
-    UI_PROMPT_KIND_YES_NO = 2,
-    UI_PROMPT_KIND_TARGET = 3,
-    UI_PROMPT_KIND_MORE = 4
+    UI_PROMPT_KIND_MESSAGE = 1,
+    UI_PROMPT_KIND_GENERIC = 2,
+    UI_PROMPT_KIND_YES_NO = 3,
+    UI_PROMPT_KIND_TARGET = 4,
+    UI_PROMPT_KIND_MORE = 5
 };
 
 /* Starts writing into one text-plus-attrs builder. */
@@ -227,7 +228,7 @@ void ui_prompt_plan(ui_prompt_kind kind, bool has_more_hint);
 /* Publishes one prompt text buffer with a uniform terminal attribute. */
 void ui_prompt_set_text(
     cptr text, byte attr, ui_prompt_kind kind, bool has_more_hint);
-/* Writes one colored text run into the semantic top-line prompt buffer. */
+/* Writes one colored text run into the semantic top-line message buffer. */
 void ui_prompt_putstr(int col, byte attr, cptr text);
 /* Clears the current semantic prompt state. */
 void ui_prompt_clear(void);

@@ -82,10 +82,11 @@
     const WEB_FLAG_BG_PICT = 0x08;
     const WEB_FLAG_MARK = 0x10;
     const UI_PROMPT_KIND_NONE = 0;
-    const UI_PROMPT_KIND_GENERIC = 1;
-    const UI_PROMPT_KIND_YES_NO = 2;
-    const UI_PROMPT_KIND_TARGET = 3;
-    const UI_PROMPT_KIND_MORE = 4;
+    const UI_PROMPT_KIND_MESSAGE = 1;
+    const UI_PROMPT_KIND_GENERIC = 2;
+    const UI_PROMPT_KIND_YES_NO = 3;
+    const UI_PROMPT_KIND_TARGET = 4;
+    const UI_PROMPT_KIND_MORE = 5;
 
     const colors = [
       "#000000", "#ffffff", "#9ca3af", "#f59e0b",
@@ -2137,7 +2138,11 @@
         ? renderColoredText(logText, logAttrs, 1)
         : "<span class=\"term-c2\">(message panel empty)</span>";
 
-      if (topPromptActive && topPromptText) {
+      if (
+        topPromptActive &&
+        topPromptText &&
+        topPromptKind !== UI_PROMPT_KIND_MESSAGE
+      ) {
         const promptHtml = `${renderColoredText(topPromptText, topPromptAttrs, 11)}${
           topPromptMoreHint ? "<span class=\"more-indicator\">-more-</span>" : ""
         }`;

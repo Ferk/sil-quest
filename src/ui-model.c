@@ -977,7 +977,7 @@ void ui_prompt_set_text(
     ui_prompt_pending_more_hint = FALSE;
 }
 
-/* Writes one colored text run into the semantic top-line prompt buffer. */
+/* Writes one colored text run into the semantic top-line message buffer. */
 void ui_prompt_putstr(int col, byte attr, cptr text)
 {
     size_t len;
@@ -1031,7 +1031,7 @@ void ui_prompt_putstr(int col, byte attr, cptr text)
         len = (size_t)col + text_len;
     ui_prompt_text[len] = '\0';
     ui_prompt_attrs_len = (int)len;
-    ui_prompt_kind_value = UI_PROMPT_KIND_GENERIC;
+    ui_prompt_kind_value = UI_PROMPT_KIND_MESSAGE;
     ui_prompt_more_hint = FALSE;
     ui_prompt_pending_kind = UI_PROMPT_KIND_NONE;
     ui_prompt_pending_more_hint = FALSE;
