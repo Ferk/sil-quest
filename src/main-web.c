@@ -1620,6 +1620,8 @@ static void web_build_birth_state(void)
     {
         web_json_append_field_string(web_birth_state, sizeof(web_birth_state),
             &off, &first, "text", snapshot.text ? snapshot.text : "");
+        web_json_append_field_int(web_birth_state, sizeof(web_birth_state), &off,
+            &first, "maxLength", snapshot.max_length);
         strnfcat(web_birth_state, sizeof(web_birth_state), &off, "}");
         return;
     }
