@@ -54,7 +54,10 @@
     const PERSIST_SAVE_DIR = "/persist/save-web";
     const PERSIST_USER_DIR = "/persist/user";
     const PERSIST_DATA_DIR = "/persist/data";
+    const PERSIST_AUTO_RESUME_MARKER = `${PERSIST_USER_DIR}/web-autoresume.txt`;
     const IDB_SYNC_INTERVAL_MSEC = 5000;
+    const AUTOSAVE_IDLE_MSEC = 8000;
+    const AUTOSAVE_MIN_INTERVAL_MSEC = 30000;
     const ADJACENT_ACTION_DIRECTIONS = [7, 8, 9, 4, 6, 1, 2, 3];
     const ADJACENT_DIRECTION_NAMES = {
       1: "South-west",
@@ -159,6 +162,9 @@
     let idbSyncInFlight = false;
     let idbSyncPending = false;
     let idbSyncHooksBound = false;
+    let autosaveTimer = null;
+    let autosaveLastAt = 0;
+    let autosavePrimed = false;
     let activeMenuItems = [];
     let activeMenuColumnX = null;
     let activeMenuText = "";
@@ -206,6 +212,12 @@
       persistFsEnabled = false;
       idbSyncInFlight = false;
       idbSyncPending = false;
+      autosavePrimed = false;
+
+      if (autosaveTimer !== null) {
+        globalThis.clearTimeout(autosaveTimer);
+        autosaveTimer = null;
+      }
 
       if (idbSyncTimer !== null) {
         globalThis.clearInterval(idbSyncTimer);
@@ -244,6 +256,91 @@
       });
     }
 
+    // Clears any pending delayed autosave request.
+    function clearAutosaveTimer() {
+      if (autosaveTimer === null) return;
+      globalThis.clearTimeout(autosaveTimer);
+      autosaveTimer = null;
+    }
+
+    // Returns whether the current runtime state can be persisted as a gameplay save.
+    function canAutosaveGame(state = activePlayerState) {
+      return persistFsEnabled &&
+        !!api &&
+        typeof api.saveGameAutomatically === "function" &&
+        !!state &&
+        Number(state.ready) === 1;
+    }
+
+    // Performs one real in-engine autosave and flushes the persisted filesystem.
+    function performAutosave(reason, { force = false, flush = true } = {}) {
+      clearAutosaveTimer();
+
+      const heap = getHeapU8();
+      const state = heap ? readPlayerState(heap) : activePlayerState;
+      if (!canAutosaveGame(state)) {
+        if (flush) flushPersistFs(true);
+        return false;
+      }
+
+      const now = Date.now();
+      const elapsed = autosaveLastAt > 0 ? now - autosaveLastAt : AUTOSAVE_MIN_INTERVAL_MSEC;
+      if (!force && elapsed < AUTOSAVE_MIN_INTERVAL_MSEC) {
+        scheduleAutosave(reason, AUTOSAVE_MIN_INTERVAL_MSEC - elapsed);
+        return false;
+      }
+
+      let saved = false;
+      try {
+        saved = api.saveGameAutomatically() !== 0;
+      } catch (error) {
+        console.warn(`Autosave failed during ${reason}:`, error);
+      }
+
+      if (saved) {
+        autosaveLastAt = Date.now();
+      }
+
+      if (flush || saved) {
+        flushPersistFs(true);
+      }
+
+      return saved;
+    }
+
+    // Schedules one debounced gameplay autosave after recent activity settles.
+    function scheduleAutosave(reason, delay = AUTOSAVE_IDLE_MSEC) {
+      if (!persistFsEnabled || !api || typeof api.saveGameAutomatically !== "function") {
+        return;
+      }
+
+      clearAutosaveTimer();
+      autosaveTimer = globalThis.setTimeout(() => {
+        autosaveTimer = null;
+        performAutosave(reason, { force: false, flush: true });
+      }, Math.max(0, Math.floor(delay)));
+    }
+
+    // Tracks gameplay frame activity so active runs are saved in the background too.
+    function noteAutosaveGameplayActivity(frameChanged, stateReady) {
+      if (!persistFsEnabled) return;
+
+      if (!stateReady) {
+        autosavePrimed = false;
+        clearAutosaveTimer();
+        return;
+      }
+
+      if (!frameChanged) return;
+
+      if (!autosavePrimed) {
+        autosavePrimed = true;
+        return;
+      }
+
+      scheduleAutosave("gameplay");
+    }
+
     // Starts periodic and lifecycle-triggered persistence flushes for IDBFS.
     function startPersistSyncLoop() {
       if (!persistFsEnabled) return;
@@ -258,18 +355,48 @@
       idbSyncHooksBound = true;
 
       globalThis.addEventListener("pagehide", () => {
-        flushPersistFs(true);
+        performAutosave("pagehide", { force: true, flush: true });
       });
 
       globalThis.addEventListener("beforeunload", () => {
-        flushPersistFs(true);
+        performAutosave("beforeunload", { force: true, flush: true });
       });
 
       document.addEventListener("visibilitychange", () => {
         if (document.visibilityState === "hidden") {
-          flushPersistFs(true);
+          performAutosave("visibilitychange", { force: true, flush: true });
         }
       });
+
+      document.addEventListener("freeze", () => {
+        performAutosave("freeze", { force: true, flush: true });
+      });
+    }
+
+    // Returns the saved-character base name to auto-open, if one was persisted.
+    function readPersistedAutoResumeBaseName(FS) {
+      if (!FS || typeof FS.readFile !== "function") return "";
+
+      let resumePath = "";
+      try {
+        resumePath = String(
+          FS.readFile(PERSIST_AUTO_RESUME_MARKER, { encoding: "utf8" }) || ""
+        ).trim();
+      } catch (_) {
+        return "";
+      }
+
+      if (!resumePath.startsWith(`${PERSIST_SAVE_DIR}/`)) {
+        return "";
+      }
+
+      const stat = FS.analyzePath(resumePath);
+      if (!stat || !stat.exists) {
+        return "";
+      }
+
+      const parts = resumePath.split("/");
+      return String(parts[parts.length - 1] || "").trim();
     }
 
     /* ==========================================================================
@@ -3900,6 +4027,7 @@
         typeof api.getCharacterSheetStateRevision === "function"
           ? api.getCharacterSheetStateRevision()
           : 0;
+      const frameChanged = frameId !== lastFrameId;
       if (
         !forceRedraw &&
         frameId === lastFrameId &&
@@ -3963,6 +4091,7 @@
       drawMap(mapPtr, fxPtr, fxCols, fxRows, blockFx, heap, overlayActive);
       setMapDisplayReady(stateReady && mapCanvas.width > 0 && mapCanvas.height > 0);
       updateSemanticPanels(heap, state);
+      noteAutosaveGameplayActivity(frameChanged, stateReady);
 
       if (!initialViewportPlaced) {
         followPlayerInViewport(false, true);
@@ -5587,13 +5716,26 @@
 
         Module.addRunDependency("syncfs");
         FS.syncfs(true, (err) => {
+          let autoResumeBaseName = "";
+
           ensurePersistDirs();
           if (err) {
             disablePersistFs("syncfs init failed; continuing with session storage only", err);
           } else {
             persistFsEnabled = true;
+            autoResumeBaseName = readPersistedAutoResumeBaseName(FS);
             flushPersistFs(true);
           }
+
+          if (
+            autoResumeBaseName &&
+            Array.isArray(Module.arguments) &&
+            !Module.arguments.some((arg) => /^-u/i.test(String(arg || ""))) &&
+            !Module.arguments.some((arg) => /^-n$/i.test(String(arg || "")))
+          ) {
+            Module.arguments.push(`-u${autoResumeBaseName}`);
+          }
+
           Module.removeRunDependency("syncfs");
         });
       }],
@@ -5724,6 +5866,12 @@
           openSongMenu:
             typeof Module._web_open_song_menu === "function"
               ? Module._web_open_song_menu
+              : null,
+          saveGameAutomatically:
+            typeof Module._web_request_autosave === "function"
+              ? Module._web_request_autosave
+              : typeof Module._web_save_game_automatically === "function"
+                ? Module._web_save_game_automatically
               : null,
           targetMap:
             typeof Module._web_target_map === "function"

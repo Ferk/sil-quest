@@ -518,6 +518,7 @@ extern bool get_name(void);
 extern void do_cmd_escape(void);
 extern void do_cmd_suicide(void);
 extern void do_cmd_save_game(void);
+extern bool save_game_automatically(void);
 extern void show_scores(void);
 extern void comma_number(char* output, size_t max, int number);
 extern void atomonth(int number, char* output, size_t max);
@@ -968,6 +969,8 @@ extern void travel_clear(void);
 extern void travel_step(void);
 /* Starts automatic travel from the most recently chosen target. */
 extern void travel_command(void);
+/* Stores or clears the persisted web resume marker for the current savefile. */
+extern void web_update_auto_resume_marker(int active);
 #endif
 
 #ifdef SUPPORT_GAMMA

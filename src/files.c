@@ -3272,6 +3272,40 @@ void do_cmd_save_game(void)
 }
 
 /*
+ * Save the current game state without disturbing the player or touching UI.
+ * Intended for automatic persistence hooks such as the web frontend.
+ */
+bool save_game_automatically(void)
+{
+    char previous_died_from[80];
+    bool saved = FALSE;
+
+    if (!character_generated || !character_dungeon || !p_ptr || !p_ptr->playing
+        || p_ptr->is_dead)
+    {
+        return FALSE;
+    }
+
+    if (DEPLOYMENT && p_ptr->game_type != 0)
+        return FALSE;
+
+    handle_stuff();
+
+    my_strcpy(previous_died_from, p_ptr->died_from,
+        sizeof(previous_died_from));
+    my_strcpy(p_ptr->died_from, "(saved)", sizeof(p_ptr->died_from));
+
+    signals_ignore_tstp();
+    saved = save_player();
+    signals_handle_tstp();
+
+    my_strcpy(p_ptr->died_from, previous_died_from, sizeof(p_ptr->died_from));
+
+    save_game_quietly = FALSE;
+    return saved;
+}
+
+/*
  * Hack - save the time of death
  */
 static time_t death_time = (time_t)0;
@@ -5023,6 +5057,9 @@ void close_game(void)
     /* Handle death */
     if (p_ptr->is_dead)
     {
+#ifdef USE_WEB
+        web_update_auto_resume_marker(FALSE);
+#endif /* USE_WEB */
         /* Auxiliary routine in normal games */
         if (p_ptr->game_type == 0)
         {

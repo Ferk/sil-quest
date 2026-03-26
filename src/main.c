@@ -586,6 +586,9 @@ int main(int argc, char* argv[])
                 switch (choice)
                 {
                 case 1:
+#ifdef USE_WEB
+                    web_update_auto_resume_marker(FALSE);
+#endif /* USE_WEB */
                     path_build(savefile, sizeof(savefile), ANGBAND_DIR_XTRA,
                         "tutorial");
                     game_in_progress = TRUE;
@@ -598,6 +601,9 @@ int main(int argc, char* argv[])
                      * Leave savefile empty so play_game() goes straight to
                      * birth and only names the save after character creation.
                      */
+#ifdef USE_WEB
+                    web_update_auto_resume_marker(FALSE);
+#endif /* USE_WEB */
                     savefile[0] = '\0';
                     game_in_progress = TRUE;
                     new_game = TRUE;

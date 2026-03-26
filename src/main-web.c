@@ -96,6 +96,7 @@ static term_data data;
 #define WEB_CHARACTER_SHEET_STATE_MAX 8192
 #define WEB_PLAYER_STATE_MAX 8192
 #define WEB_TILE_CONTEXT_STATE_MAX 4096
+#define WEB_AUTO_RESUME_MARKER_NAME "web-autoresume.txt"
 
 struct web_birth_submission
 {
@@ -143,6 +144,7 @@ static void web_capture_fx_cells(void);
 static void web_set_text_cell(web_cell* cell, byte attr, byte chr);
 static void web_mark_dirty(term_data* td, int x, int y, int w, int h);
 static void web_overlay_capture_clear(void);
+static void web_get_auto_resume_marker_path(char* buf, size_t max);
 
 /* MicroChasm defaults */
 static int web_tile_wid = 16;
@@ -237,6 +239,8 @@ EMSCRIPTEN_KEEPALIVE int web_open_inventory(void);
 EMSCRIPTEN_KEEPALIVE int web_open_ranged_target(void);
 EMSCRIPTEN_KEEPALIVE int web_toggle_stealth(void);
 EMSCRIPTEN_KEEPALIVE int web_open_song_menu(void);
+EMSCRIPTEN_KEEPALIVE int web_save_game_automatically(void);
+EMSCRIPTEN_KEEPALIVE int web_request_autosave(void);
 EMSCRIPTEN_KEEPALIVE int web_target_map(int y, int x);
 EMSCRIPTEN_KEEPALIVE int web_travel_to(int y, int x);
 EMSCRIPTEN_KEEPALIVE int web_push_key(int key);
@@ -367,6 +371,51 @@ static bool web_get_target_mark(int y, int x, byte* attr, byte* chr)
 static void web_clear_birth_submission(void)
 {
     WIPE(&web_birth_submission, struct web_birth_submission);
+}
+
+/* Builds the persisted marker path used to remember the latest resumable save. */
+static void web_get_auto_resume_marker_path(char* buf, size_t max)
+{
+    if (!buf || (max == 0))
+        return;
+
+    if (!ANGBAND_DIR_USER)
+    {
+        buf[0] = '\0';
+        return;
+    }
+
+    path_build(buf, max, ANGBAND_DIR_USER, WEB_AUTO_RESUME_MARKER_NAME);
+}
+
+/* Stores or clears the savefile marker used for automatic web resume. */
+void web_update_auto_resume_marker(int active)
+{
+    char marker_path[1024];
+
+    web_get_auto_resume_marker_path(marker_path, sizeof(marker_path));
+    if (!marker_path[0])
+        return;
+
+    if (!active || !savefile[0] || !ANGBAND_DIR_SAVE
+        || !prefix(savefile, ANGBAND_DIR_SAVE))
+    {
+        fd_kill(marker_path);
+        return;
+    }
+
+    FILE_TYPE(FILE_TYPE_TEXT);
+
+    {
+        FILE* marker = my_fopen(marker_path, "w");
+
+        if (!marker)
+            return;
+
+        (void)my_fputs(marker, savefile, strlen(savefile));
+        (void)my_fputs(marker, "\n", 1);
+        (void)my_fclose(marker);
+    }
 }
 
 /* Consumes one accepted birth submission for the active web birth screen. */
@@ -3190,6 +3239,22 @@ EMSCRIPTEN_KEEPALIVE int web_open_song_menu(void)
         return web_key_enqueue('s') ? 1 : 0;
 
     return 1;
+}
+
+/* Saves the active game state without disturbing the player. */
+EMSCRIPTEN_KEEPALIVE int web_save_game_automatically(void)
+{
+    if (!save_game_automatically())
+        return 0;
+
+    web_update_auto_resume_marker(TRUE);
+    return 1;
+}
+
+/* Requests one immediate autosave from the web frontend. */
+EMSCRIPTEN_KEEPALIVE __attribute__((noinline)) int web_request_autosave(void)
+{
+    return web_save_game_automatically();
 }
 
 EMSCRIPTEN_KEEPALIVE int web_travel_to(int y, int x)
