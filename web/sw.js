@@ -1,4 +1,4 @@
-const APP_CACHE = "sil-q-web-v4";
+const APP_CACHE = "sil-q-web-v5";
 const APP_ASSETS = [
   "./",
   "./index.html",

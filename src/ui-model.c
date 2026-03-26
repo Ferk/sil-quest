@@ -33,7 +33,12 @@ static int ui_menu_attrs_len = 0;
 static char ui_menu_details[UI_MENU_TEXT_MAX];
 static byte ui_menu_details_attrs[UI_MENU_TEXT_MAX];
 static int ui_menu_details_attrs_len = 0;
+static char ui_menu_summary[UI_MENU_TEXT_MAX];
+static byte ui_menu_summary_attrs[UI_MENU_TEXT_MAX];
+static int ui_menu_summary_attrs_len = 0;
 static int ui_menu_details_width = 0;
+static int ui_menu_details_rows = 0;
+static int ui_menu_summary_rows = 0;
 static int ui_menu_details_visual_kind = UI_MENU_VISUAL_NONE;
 static int ui_menu_details_visual_attr = TERM_WHITE;
 static int ui_menu_details_visual_char = 0;
@@ -138,7 +143,11 @@ static void ui_menu_reset_state(void)
     ui_menu_attrs_len = 0;
     ui_menu_details[0] = '\0';
     ui_menu_details_attrs_len = 0;
+    ui_menu_summary[0] = '\0';
+    ui_menu_summary_attrs_len = 0;
     ui_menu_details_width = 0;
+    ui_menu_details_rows = 0;
+    ui_menu_summary_rows = 0;
     ui_menu_details_visual_kind = UI_MENU_VISUAL_NONE;
     ui_menu_details_visual_attr = TERM_WHITE;
     ui_menu_details_visual_char = 0;
@@ -573,6 +582,41 @@ int ui_simple_menu_read_action(
     return -1;
 }
 
+/* Runs one command-style simple menu and returns the chosen 1-based index. */
+int ui_command_menu_choose(cptr title, int col,
+    const ui_simple_menu_entry* entries, int entry_count, int* highlight,
+    cptr extra_details, int escape_choice, int escape_result)
+{
+    int action;
+    int i;
+
+    if (!highlight || !entries || (entry_count <= 0))
+        return 0;
+
+    ui_simple_menu_render(
+        title, 1, col, entries, entry_count, *highlight, extra_details);
+
+    action = ui_simple_menu_read_action(highlight, entries, entry_count);
+    if (action == ESCAPE)
+    {
+        if (escape_choice > 0)
+            *highlight = escape_choice;
+        ui_menu_clear();
+        return escape_result;
+    }
+
+    for (i = 0; i < entry_count; i++)
+    {
+        if (action == entries[i].key)
+        {
+            ui_menu_clear();
+            return i + 1;
+        }
+    }
+
+    return 0;
+}
+
 /* Asks the active frontend to render the current semantic menu state. */
 void ui_menu_render_current(void)
 {
@@ -675,10 +719,33 @@ void ui_menu_set_details(cptr text, const byte* attrs, int attrs_len)
     ui_menu_touch();
 }
 
+/* Publishes the menu's bottom summary text block. */
+void ui_menu_set_summary(cptr text, const byte* attrs, int attrs_len)
+{
+    ui_model_set_buffer_text(ui_menu_summary, ui_menu_summary_attrs,
+        &ui_menu_summary_attrs_len, sizeof(ui_menu_summary), text, attrs,
+        attrs_len);
+    ui_menu_touch();
+}
+
 /* Sets the preferred details-pane width in character cells. */
 void ui_menu_set_details_width(int chars)
 {
     ui_menu_details_width = (chars > 0) ? chars : 0;
+    ui_menu_touch();
+}
+
+/* Sets the preferred details-pane height in text rows. */
+void ui_menu_set_details_rows(int rows)
+{
+    ui_menu_details_rows = (rows > 0) ? rows : 0;
+    ui_menu_touch();
+}
+
+/* Sets the preferred summary-block height in text rows. */
+void ui_menu_set_summary_rows(int rows)
+{
+    ui_menu_summary_rows = (rows > 0) ? rows : 0;
     ui_menu_touch();
 }
 
@@ -883,10 +950,46 @@ int ui_menu_get_details_attrs_len(void)
     return ui_menu_details_attrs_len;
 }
 
+/* Returns the current menu summary text buffer. */
+const char* ui_menu_get_summary(void)
+{
+    return ui_menu_summary;
+}
+
+/* Returns the current menu summary text length. */
+int ui_menu_get_summary_len(void)
+{
+    return (int)strlen(ui_menu_summary);
+}
+
+/* Returns the attrs paired with the menu summary buffer. */
+const byte* ui_menu_get_summary_attrs(void)
+{
+    return ui_menu_summary_attrs;
+}
+
+/* Returns how many attrs are valid in the menu summary buffer. */
+int ui_menu_get_summary_attrs_len(void)
+{
+    return ui_menu_summary_attrs_len;
+}
+
 /* Returns the requested details-pane width in characters. */
 int ui_menu_get_details_width(void)
 {
     return ui_menu_details_width;
+}
+
+/* Returns the requested details-pane height in rows. */
+int ui_menu_get_details_rows(void)
+{
+    return ui_menu_details_rows;
+}
+
+/* Returns the requested summary-block height in rows. */
+int ui_menu_get_summary_rows(void)
+{
+    return ui_menu_summary_rows;
 }
 
 /* Returns the visual kind exported for the details pane. */

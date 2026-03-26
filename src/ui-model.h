@@ -122,6 +122,10 @@ void ui_simple_menu_render_custom(cptr title, int title_row, int col,
 /* Reads one action from a simple vertical text menu. */
 int ui_simple_menu_read_action(
     int* highlight, const ui_simple_menu_entry* entries, int entry_count);
+/* Runs one command-style simple menu and returns the chosen 1-based index. */
+int ui_command_menu_choose(cptr title, int col,
+    const ui_simple_menu_entry* entries, int entry_count, int* highlight,
+    cptr extra_details, int escape_choice, int escape_result);
 /* Registers frontend-specific rendering hooks for prompts and menus. */
 void ui_front_set_hooks(ui_prompt_render_hook prompt_render,
     ui_prompt_clear_hook prompt_clear, ui_menu_render_hook menu_render);
@@ -155,8 +159,14 @@ void ui_menu_set_active_column(int x);
 void ui_menu_set_text(cptr text, const byte* attrs, int attrs_len);
 /* Publishes the menu's details pane text block. */
 void ui_menu_set_details(cptr text, const byte* attrs, int attrs_len);
+/* Publishes the menu's bottom summary text block. */
+void ui_menu_set_summary(cptr text, const byte* attrs, int attrs_len);
 /* Sets the preferred details-pane width in character cells. */
 void ui_menu_set_details_width(int chars);
+/* Sets the preferred details-pane height in text rows. */
+void ui_menu_set_details_rows(int rows);
+/* Sets the preferred summary-block height in text rows. */
+void ui_menu_set_summary_rows(int rows);
 /* Publishes the visual preview shown beside the details text. */
 void ui_menu_set_details_visual(int kind, int attr, int chr);
 /* Marks the current menu frame as complete. */
@@ -195,8 +205,20 @@ int ui_menu_get_details_len(void);
 const byte* ui_menu_get_details_attrs(void);
 /* Returns how many attrs are valid in the menu details buffer. */
 int ui_menu_get_details_attrs_len(void);
+/* Returns the current menu summary text buffer. */
+const char* ui_menu_get_summary(void);
+/* Returns the current menu summary text length. */
+int ui_menu_get_summary_len(void);
+/* Returns the attrs paired with the menu summary buffer. */
+const byte* ui_menu_get_summary_attrs(void);
+/* Returns how many attrs are valid in the menu summary buffer. */
+int ui_menu_get_summary_attrs_len(void);
 /* Returns the requested details-pane width in characters. */
 int ui_menu_get_details_width(void);
+/* Returns the requested details-pane height in rows. */
+int ui_menu_get_details_rows(void);
+/* Returns the requested summary-block height in rows. */
+int ui_menu_get_summary_rows(void);
 /* Returns the visual kind exported for the details pane. */
 int ui_menu_get_details_visual_kind(void);
 /* Returns the visual attr exported for the details pane. */

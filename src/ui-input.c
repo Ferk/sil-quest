@@ -168,9 +168,11 @@ ui_input_adjust_action ui_input_parse_adjust_key(int key)
 
     switch (direction)
     {
+    case 8:
     case DIRECTION_UP:
         return UI_INPUT_ADJUST_ACTION_PREV;
 
+    case 2:
     case DIRECTION_DOWN:
         return UI_INPUT_ADJUST_ACTION_NEXT;
 
@@ -198,9 +200,11 @@ ui_input_option_action ui_input_parse_option_key(int key)
 
     switch (direction)
     {
+    case 8:
     case DIRECTION_UP:
         return UI_INPUT_OPTION_ACTION_PREV;
 
+    case 2:
     case DIRECTION_DOWN:
         return UI_INPUT_OPTION_ACTION_NEXT;
 
@@ -337,6 +341,44 @@ ui_input_pager_action ui_input_parse_pager_key(int key)
         return UI_INPUT_PAGER_ACTION_BOTTOM;
 
     return UI_INPUT_PAGER_ACTION_NONE;
+}
+
+/* Classifies one keypress for the semantic character-sheet screen. */
+ui_input_character_sheet_action ui_input_parse_character_sheet_key(int key)
+{
+    if (ui_input_is_cancel_key(key) || ui_input_is_accept_key(key)
+        || (key == 'q') || (key == 'Q'))
+    {
+        return UI_INPUT_CHARACTER_SHEET_ACTION_CLOSE;
+    }
+
+    switch (key)
+    {
+    case 'n':
+    case 'N':
+    case ' ':
+        return UI_INPUT_CHARACTER_SHEET_ACTION_NOTES;
+
+    case 'c':
+    case 'C':
+        return UI_INPUT_CHARACTER_SHEET_ACTION_CHANGE_NAME;
+
+    case 's':
+    case 'S':
+        return UI_INPUT_CHARACTER_SHEET_ACTION_SAVE;
+
+    case 'a':
+    case 'A':
+    case '\t':
+        return UI_INPUT_CHARACTER_SHEET_ACTION_ABILITIES;
+
+    case 'i':
+    case 'I':
+        return UI_INPUT_CHARACTER_SHEET_ACTION_SKILLS;
+
+    default:
+        return UI_INPUT_CHARACTER_SHEET_ACTION_NONE;
+    }
 }
 
 /* Classifies one keypress for the interesting-grid targeting prompt. */

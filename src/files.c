@@ -10,6 +10,8 @@
 
 #include "angband.h"
 #include "item-rules.h"
+#include "ui-birth.h"
+#include "ui-character.h"
 #include "ui-abilities.h"
 #include "ui-input.h"
 #include "ui-model.h"
@@ -3058,70 +3060,31 @@ void process_player_name(bool sf)
  */
 bool get_name(void)
 {
-    char tmp[14];
-    char old_name[14];
-    bool name_selected = FALSE;
+    char draft[sizeof(op_ptr->full_name)];
+    char old_name[sizeof(op_ptr->full_name)];
 
-    // Clear the names
-    tmp[0] = '\0';
-    old_name[0] = '\0';
-
-    /* Display the player */
-    display_player(0);
-
-    /* Prompt */
-    Term_putstr(
-        QUESTION_COL, INSTRUCT_ROW + 1, -1, TERM_SLATE, "Enter accept name");
-    Term_putstr(
-        QUESTION_COL, INSTRUCT_ROW + 2, -1, TERM_SLATE, "  Tab random name");
-
-    /* Hack - highlight the key names */
-    Term_putstr(QUESTION_COL, INSTRUCT_ROW + 1, -1, TERM_L_WHITE, "Enter");
-    Term_putstr(QUESTION_COL + 2, INSTRUCT_ROW + 2, -1, TERM_L_WHITE, "Tab");
-
-    /* Special Prompt? */
-    if (character_dungeon)
-    {
-        Term_putstr(QUESTION_COL + 38 + 2, INSTRUCT_ROW + 1, -1, TERM_SLATE,
-            "ESC abort name change                  ");
-
-        /* Hack - highlight the key names */
-        Term_putstr(
-            QUESTION_COL + 38 + 2, INSTRUCT_ROW + 1, -1, TERM_L_WHITE, "ESC");
-    }
-
-    // use old name as a default
-    my_strcpy(tmp, op_ptr->full_name, sizeof(tmp));
-
-    // save a copy too
+    my_strcpy(draft, op_ptr->full_name, sizeof(draft));
     my_strcpy(old_name, op_ptr->full_name, sizeof(old_name));
 
-    /* Prompt for a new name */
-    Term_gotoxy(8, 2);
-
-    while (!name_selected)
+    while (TRUE)
     {
-        if (askfor_name(tmp, sizeof(tmp)))
-        {
-            my_strcpy(op_ptr->full_name, tmp, sizeof(op_ptr->full_name));
-            p_ptr->redraw |= (PR_MISC);
-        }
-        else
+        if (!ui_birth_prompt_name(draft, sizeof(draft)))
         {
             my_strcpy(op_ptr->full_name, old_name, sizeof(op_ptr->full_name));
             return (FALSE);
         }
 
-        if (tmp[0] != '\0')
-            name_selected = TRUE;
-        else
+        if (!draft[0])
+        {
             bell("You must choose a name.");
+            continue;
+        }
+
+        my_strcpy(op_ptr->full_name, draft, sizeof(op_ptr->full_name));
+        process_player_name(FALSE);
+        p_ptr->redraw |= PR_MISC;
+        return (TRUE);
     }
-
-    /* Process the player name */
-    process_player_name(FALSE);
-
-    return (TRUE);
 }
 
 /*

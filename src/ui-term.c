@@ -13,6 +13,9 @@
 
 #include "angband.h"
 
+#include "ui-birth.h"
+#include "ui-character.h"
+#include "ui-input.h"
 #include "ui-model.h"
 #include "ui-term.h"
 
@@ -22,6 +25,41 @@
 #define UI_TERM_MENU_MIN_DETAILS_COL 42
 #define UI_TERM_LOCAL_MENU_MAX_ITEMS 16
 #define UI_TERM_LOCAL_MENU_MAX_WIDTH 52
+#define UI_TERM_LOCAL_MENU_FRAME_PAD_X 2
+#define UI_TERM_LOCAL_MENU_FRAME_PAD_Y 1
+#define UI_TERM_LOCAL_MENU_FRAME_EXTRA_W \
+    (2 * UI_TERM_LOCAL_MENU_FRAME_PAD_X)
+#define UI_TERM_LOCAL_MENU_FRAME_EXTRA_H \
+    (2 * UI_TERM_LOCAL_MENU_FRAME_PAD_Y)
+#define UI_TERM_BIRTH_STATS_COL 42
+#define UI_TERM_BIRTH_STATS_ROW 2
+#define UI_TERM_BIRTH_COST_COL (UI_TERM_BIRTH_STATS_COL + 32)
+#define UI_TERM_BIRTH_POINTS_COL (UI_TERM_BIRTH_STATS_COL + 21)
+#define UI_TERM_BIRTH_HELP_COL 2
+#define UI_TERM_BIRTH_HELP_ROW 22
+#define UI_TERM_BIRTH_PROMPT_COL 2
+#define UI_TERM_BIRTH_INSTRUCT_ROW 21
+#define UI_TERM_SKILL_EDITOR_ROW 7
+#define UI_TERM_SKILL_EDITOR_SELECT_COL 40
+#define UI_TERM_SKILL_EDITOR_COST_COL 72
+#define UI_TERM_SKILL_EDITOR_POINTS_ROW 5
+#define UI_TERM_SKILL_EDITOR_POINTS_COL 59
+#define UI_TERM_SKILL_EDITOR_HELP_COL 2
+#define UI_TERM_SKILL_EDITOR_HELP_ROW 22
+
+/* Returns the width available for one centered local modal within the map area. */
+static int ui_term_local_menu_max_width(int term_wid)
+{
+    int available_wid = term_wid - COL_MAP - UI_TERM_LOCAL_MENU_FRAME_EXTRA_W;
+
+    if (available_wid < 1)
+        available_wid = term_wid - UI_TERM_LOCAL_MENU_FRAME_EXTRA_W;
+
+    if (available_wid < 1)
+        return term_wid;
+
+    return available_wid;
+}
 
 static bool ui_term_local_menu_valid = FALSE;
 static int ui_term_local_menu_left = 0;
@@ -547,6 +585,7 @@ static void ui_term_menu_render(void)
     int active_column = ui_menu_get_active_column();
     cptr menu_text = ui_menu_get_text();
     cptr menu_details = ui_menu_get_details();
+    cptr menu_summary = ui_menu_get_summary();
     int columns[UI_TERM_MENU_MAX_COLUMNS];
     int widths[UI_TERM_MENU_MAX_COLUMNS];
     int positions[UI_TERM_MENU_MAX_COLUMNS];
@@ -556,8 +595,12 @@ static void ui_term_menu_render(void)
     int text_width;
     int text_lines;
     int details_lines;
+    int details_rows;
     int details_width;
     int details_available_width;
+    int summary_lines;
+    int summary_rows;
+    int summary_width;
     int min_row = 0;
     int max_row = 0;
     int row_shift = 0;
@@ -565,15 +608,31 @@ static void ui_term_menu_render(void)
     int selected;
     int details_col = UI_TERM_MENU_MIN_DETAILS_COL;
     int details_row = 0;
+    int summary_row = 0;
     int details_visual_height = 0;
+    int details_bottom = -1;
     int menu_right = 0;
     int panel_right = 0;
     int panel_bottom = 0;
     int panel_origin_x = 0;
     int panel_origin_y = 0;
+    int frame_left = 0;
+    int frame_top = 0;
+    int frame_right = 0;
+    int frame_bottom = 0;
     bool local_modal = FALSE;
+    bool has_details_pane = FALSE;
+    bool has_summary = FALSE;
+    bool details_side = FALSE;
+    int local_modal_max_width;
     Term_get_size(&term_wid, &term_hgt);
     (void)term_hgt;
+
+    has_details_pane =
+        ((ui_menu_get_details_visual_kind() != UI_MENU_VISUAL_NONE)
+            || (menu_details && menu_details[0] != '\0'));
+    has_summary = menu_summary && (menu_summary[0] != '\0');
+    local_modal_max_width = ui_term_local_menu_max_width(term_wid);
 
     selected = ui_term_menu_cursor_index(items, count, active_column);
 
@@ -590,6 +649,8 @@ static void ui_term_menu_render(void)
     if (local_modal)
     {
         text_width = UI_TERM_LOCAL_MENU_MAX_WIDTH;
+        if (text_width > local_modal_max_width)
+            text_width = local_modal_max_width;
         if (text_width > term_wid)
             text_width = term_wid;
         if (menu_right + 1 > text_width)
@@ -614,7 +675,7 @@ static void ui_term_menu_render(void)
             row_shift = text_lines - min_row;
     }
 
-    if (!local_modal && (column_count > 0))
+    if (has_details_pane && !local_modal && (column_count > 0))
     {
         details_col = menu_right + UI_TERM_MENU_MIN_LIST_GAP;
         if (details_col < UI_TERM_MENU_MIN_DETAILS_COL)
@@ -626,7 +687,7 @@ static void ui_term_menu_render(void)
     }
 
     details_available_width = local_modal ? text_width : (term_wid - details_col);
-    if (!local_modal && (details_available_width < 12))
+    if (!local_modal && has_details_pane && (details_available_width < 12))
     {
         details_col = term_wid - 12;
         if (details_col < 0)
@@ -644,11 +705,29 @@ static void ui_term_menu_render(void)
     details_visual_height =
         (ui_menu_get_details_visual_kind() == UI_MENU_VISUAL_NONE) ? 0 : 2;
     details_lines = ui_term_wrapped_text_line_count(menu_details, details_width);
+    details_rows = ui_menu_get_details_rows();
+    summary_width = local_modal ? text_width : (panel_right + 1);
+    summary_lines = 0;
+    summary_rows = ui_menu_get_summary_rows();
+
+    if (has_details_pane && local_modal)
+    {
+        int desired_right = menu_right + UI_TERM_MENU_MIN_LIST_GAP + details_width;
+
+        if (desired_right + 1 <= local_modal_max_width)
+        {
+            details_side = TRUE;
+            details_col = menu_right + UI_TERM_MENU_MIN_LIST_GAP;
+            text_width = desired_right + 1;
+        }
+    }
+    else if (has_details_pane)
+    {
+        details_side = TRUE;
+    }
 
     panel_right = local_modal ? (text_width - 1) : menu_right;
-    if (!local_modal
-        && (ui_menu_get_details_visual_kind() != UI_MENU_VISUAL_NONE
-            || details_lines > 0))
+    if (details_side && has_details_pane)
     {
         int details_right = details_col + details_width - 1;
 
@@ -660,33 +739,56 @@ static void ui_term_menu_render(void)
     if ((count > 0) && (max_row + row_shift > panel_bottom))
         panel_bottom = max_row + row_shift;
 
-    details_row = local_modal
-        ? ((count > 0) ? (max_row + row_shift + 2) : text_lines)
-        : ((count > 0) ? (min_row + row_shift) : text_lines);
-    if ((details_visual_height > 0) || (details_lines > 0))
+    details_row = details_side
+        ? ((count > 0) ? (min_row + row_shift) : text_lines)
+        : ((count > 0) ? (max_row + row_shift + 2) : text_lines);
+    if (has_details_pane && ((details_visual_height > 0) || (details_lines > 0)))
     {
-        int details_bottom =
-            details_row + details_visual_height + details_lines - 1;
+        int details_height = details_visual_height + details_lines;
+
+        if ((details_rows > 0) && (details_height < details_rows))
+            details_height = details_rows;
+
+        details_bottom = details_row + details_height - 1;
 
         if (details_bottom > panel_bottom)
             panel_bottom = details_bottom;
     }
 
+    summary_width = panel_right + 1;
+    summary_lines = ui_term_wrapped_text_line_count(menu_summary, summary_width);
+    if ((summary_rows > 0) && (summary_lines < summary_rows))
+        summary_lines = summary_rows;
+    if (has_summary && (summary_lines > 0))
+    {
+        int content_bottom = panel_bottom;
+
+        if ((details_bottom > content_bottom))
+            content_bottom = details_bottom;
+
+        summary_row = content_bottom + 2;
+        panel_bottom = summary_row + summary_lines - 1;
+    }
+
     if (local_modal)
     {
-        ui_term_local_menu_origin(panel_right + 1, panel_bottom + 1,
-            term_wid, term_hgt, &panel_origin_x, &panel_origin_y);
+        ui_term_local_menu_origin(panel_right + 1 + UI_TERM_LOCAL_MENU_FRAME_EXTRA_W,
+            panel_bottom + 1 + UI_TERM_LOCAL_MENU_FRAME_EXTRA_H,
+            term_wid, term_hgt, &frame_left, &frame_top);
+        frame_right = frame_left + panel_right + UI_TERM_LOCAL_MENU_FRAME_EXTRA_W;
+        frame_bottom = frame_top + panel_bottom + UI_TERM_LOCAL_MENU_FRAME_EXTRA_H;
+        panel_origin_x = frame_left + UI_TERM_LOCAL_MENU_FRAME_PAD_X;
+        panel_origin_y = frame_top + UI_TERM_LOCAL_MENU_FRAME_PAD_Y;
     }
 
     if (local_modal)
     {
         ui_term_clear_previous_local_menu();
-        ui_term_erase_rect(panel_origin_x, panel_origin_y,
-            panel_origin_x + panel_right, panel_origin_y + panel_bottom);
-        ui_term_local_menu_left = panel_origin_x;
-        ui_term_local_menu_top = panel_origin_y;
-        ui_term_local_menu_right = panel_origin_x + panel_right;
-        ui_term_local_menu_bottom = panel_origin_y + panel_bottom;
+        ui_term_erase_rect(frame_left, frame_top, frame_right, frame_bottom);
+        ui_term_local_menu_left = frame_left;
+        ui_term_local_menu_top = frame_top;
+        ui_term_local_menu_right = frame_right;
+        ui_term_local_menu_bottom = frame_bottom;
         ui_term_local_menu_valid = TRUE;
     }
     else
@@ -709,12 +811,22 @@ static void ui_term_menu_render(void)
             ui_term_menu_item_attr(&items[i], active_column), items[i].label);
     }
 
-    details_row = ui_term_draw_menu_details_visual(
-        panel_origin_x + details_col, panel_origin_y + details_row);
-    ui_term_draw_wrapped_text_block(panel_origin_x + details_col, details_row,
-        menu_details,
-        ui_menu_get_details_attrs(), ui_menu_get_details_attrs_len(),
-        details_width);
+    if (has_details_pane)
+    {
+        details_row = ui_term_draw_menu_details_visual(
+            panel_origin_x + details_col, panel_origin_y + details_row);
+        ui_term_draw_wrapped_text_block(panel_origin_x + details_col, details_row,
+            menu_details,
+            ui_menu_get_details_attrs(), ui_menu_get_details_attrs_len(),
+            details_width);
+    }
+
+    if (has_summary && (summary_lines > 0))
+    {
+        ui_term_draw_wrapped_text_block(panel_origin_x, panel_origin_y + summary_row,
+            menu_summary, ui_menu_get_summary_attrs(),
+            ui_menu_get_summary_attrs_len(), summary_width);
+    }
 
     Term_fresh();
 
@@ -728,9 +840,494 @@ static void ui_term_menu_render(void)
     }
 }
 
+/* Draws the shared birth stat-allocation screen on top of the character sheet. */
+static void ui_term_birth_stats_render(void)
+{
+    struct ui_birth_state_snapshot snapshot;
+    int i;
+    char buf[32];
+
+    ui_birth_get_state_snapshot(&snapshot);
+
+    if (!snapshot.active || (snapshot.kind != UI_BIRTH_SCREEN_STATS))
+        return;
+
+    Term_erase(UI_TERM_BIRTH_POINTS_COL, 0, 18);
+    c_put_str(TERM_WHITE, "Points Left:", 0, UI_TERM_BIRTH_POINTS_COL);
+    strnfmt(buf, sizeof(buf), "%2d", snapshot.points_left);
+    c_put_str(TERM_L_GREEN, buf, 0, UI_TERM_BIRTH_POINTS_COL + 13);
+
+    for (i = 0; i < snapshot.stats_count; i++)
+    {
+        bool selected = snapshot.stats[i].selected ? TRUE : FALSE;
+        byte attr = selected ? TERM_L_BLUE : TERM_L_WHITE;
+
+        Term_erase(UI_TERM_BIRTH_STATS_COL - 3, UI_TERM_BIRTH_STATS_ROW + i, 1);
+        if (selected)
+            c_put_str(attr, ">", UI_TERM_BIRTH_STATS_ROW + i,
+                UI_TERM_BIRTH_STATS_COL - 3);
+
+        Term_erase(UI_TERM_BIRTH_COST_COL, UI_TERM_BIRTH_STATS_ROW + i, 8);
+        strnfmt(buf, sizeof(buf), "%4d", snapshot.stats[i].cost);
+        c_put_str(attr, buf, UI_TERM_BIRTH_STATS_ROW + i, UI_TERM_BIRTH_COST_COL);
+    }
+
+    Term_erase(0, UI_TERM_BIRTH_HELP_ROW, 255);
+    Term_erase(0, UI_TERM_BIRTH_HELP_ROW + 1, 255);
+    c_put_str(TERM_SLATE, "Arrow keys move, left/right spend points",
+        UI_TERM_BIRTH_HELP_ROW, UI_TERM_BIRTH_HELP_COL);
+    c_put_str(TERM_SLATE, "Enter accepts current values, Escape goes back",
+        UI_TERM_BIRTH_HELP_ROW + 1, UI_TERM_BIRTH_HELP_COL);
+    c_put_str(TERM_L_WHITE, "Arrow keys", UI_TERM_BIRTH_HELP_ROW,
+        UI_TERM_BIRTH_HELP_COL);
+    c_put_str(TERM_L_WHITE, "left/right", UI_TERM_BIRTH_HELP_ROW,
+        UI_TERM_BIRTH_HELP_COL + 17);
+    c_put_str(TERM_L_WHITE, "Enter", UI_TERM_BIRTH_HELP_ROW + 1,
+        UI_TERM_BIRTH_HELP_COL);
+    c_put_str(TERM_L_WHITE, "Escape", UI_TERM_BIRTH_HELP_ROW + 1,
+        UI_TERM_BIRTH_HELP_COL + 29);
+}
+
+/* Runs the terminal-native history prompt for one shared working draft. */
+static ui_birth_history_prompt_result ui_term_birth_history_prompt(
+    char* history, size_t size)
+{
+    int i;
+    char line[70];
+
+    while (TRUE)
+    {
+        char query2;
+
+        display_player(0);
+        display_player_xtra_info(2);
+
+        Term_putstr(UI_TERM_BIRTH_PROMPT_COL, UI_TERM_BIRTH_INSTRUCT_ROW + 1, -1,
+            TERM_SLATE, "Enter accept history");
+        Term_putstr(UI_TERM_BIRTH_PROMPT_COL, UI_TERM_BIRTH_INSTRUCT_ROW + 2, -1,
+            TERM_SLATE, "Space reroll history");
+        Term_putstr(UI_TERM_BIRTH_PROMPT_COL, UI_TERM_BIRTH_INSTRUCT_ROW + 3, -1,
+            TERM_SLATE, "    m manually enter history");
+
+        Term_putstr(UI_TERM_BIRTH_PROMPT_COL, UI_TERM_BIRTH_INSTRUCT_ROW + 1, -1,
+            TERM_L_WHITE, "Enter");
+        Term_putstr(UI_TERM_BIRTH_PROMPT_COL, UI_TERM_BIRTH_INSTRUCT_ROW + 2, -1,
+            TERM_L_WHITE, "Space");
+        Term_putstr(UI_TERM_BIRTH_PROMPT_COL + 4, UI_TERM_BIRTH_INSTRUCT_ROW + 3,
+            -1, TERM_L_WHITE, "m");
+
+        Term_gotoxy(0, UI_TERM_BIRTH_INSTRUCT_ROW + 1);
+        query2 = inkey();
+
+        if (ui_input_is_accept_key(query2))
+            return UI_BIRTH_HISTORY_PROMPT_ACCEPT;
+
+        if (query2 == ' ')
+            return UI_BIRTH_HISTORY_PROMPT_REROLL;
+
+        if ((query2 == 'm') || (query2 == 'M'))
+        {
+            history[0] = '\0';
+
+            display_player(0);
+
+            for (i = 1; i <= 3; i++)
+            {
+                line[0] = '\0';
+                Term_gotoxy(1, 15 + i);
+
+                if (askfor_aux(line, sizeof(line)))
+                {
+                    my_strcat(history, line, size);
+                    my_strcat(history, "\n", size);
+                    p_ptr->redraw |= PR_MISC;
+                    display_player(0);
+                }
+                else
+                {
+                    return UI_BIRTH_HISTORY_PROMPT_CANCEL;
+                }
+            }
+
+            continue;
+        }
+
+        if (ui_input_is_cancel_key(query2))
+            return UI_BIRTH_HISTORY_PROMPT_CANCEL;
+
+        if (((query2 == 'Q') || (query2 == 'q')) && (turn == 0))
+            quit(NULL);
+    }
+}
+
+/* Runs the terminal-native age/height/weight prompt for one working draft. */
+static ui_birth_ahw_prompt_result ui_term_birth_ahw_prompt(int* age,
+    int* height, int* weight, int age_min, int age_max, int height_min,
+    int height_max, int weight_min, int weight_max)
+{
+    char prompt[50];
+    char line[70];
+
+    if (!age || !height || !weight)
+        return UI_BIRTH_AHW_PROMPT_CANCEL;
+
+    while (TRUE)
+    {
+        char query2;
+
+        p_ptr->age = *age;
+        p_ptr->ht = *height;
+        p_ptr->wt = *weight;
+
+        display_player(0);
+        display_player_xtra_info(1);
+
+        Term_putstr(UI_TERM_BIRTH_PROMPT_COL, UI_TERM_BIRTH_INSTRUCT_ROW + 1, -1,
+            TERM_SLATE, "Enter accept age/height/weight");
+        Term_putstr(UI_TERM_BIRTH_PROMPT_COL, UI_TERM_BIRTH_INSTRUCT_ROW + 2, -1,
+            TERM_SLATE, "Space reroll");
+        Term_putstr(UI_TERM_BIRTH_PROMPT_COL, UI_TERM_BIRTH_INSTRUCT_ROW + 3, -1,
+            TERM_SLATE, "    m manually enter");
+
+        Term_putstr(UI_TERM_BIRTH_PROMPT_COL, UI_TERM_BIRTH_INSTRUCT_ROW + 1, -1,
+            TERM_L_WHITE, "Enter");
+        Term_putstr(UI_TERM_BIRTH_PROMPT_COL, UI_TERM_BIRTH_INSTRUCT_ROW + 2, -1,
+            TERM_L_WHITE, "Space");
+        Term_putstr(UI_TERM_BIRTH_PROMPT_COL + 4, UI_TERM_BIRTH_INSTRUCT_ROW + 3,
+            -1, TERM_L_WHITE, "m");
+
+        Term_gotoxy(0, UI_TERM_BIRTH_INSTRUCT_ROW + 1);
+        query2 = inkey();
+
+        if (ui_input_is_accept_key(query2))
+            return UI_BIRTH_AHW_PROMPT_ACCEPT;
+
+        if (query2 == ' ')
+            return UI_BIRTH_AHW_PROMPT_REROLL;
+
+        if ((query2 == 'm') || (query2 == 'M'))
+        {
+            line[0] = '\0';
+
+            while ((*age < age_min) || (*age > age_max))
+            {
+                strnfmt(prompt, sizeof(prompt), "Enter age (%d-%d): ",
+                    age_min, age_max);
+                if (!term_get_string(prompt, line, sizeof(line)))
+                    return UI_BIRTH_AHW_PROMPT_CANCEL;
+                *age = atoi(line);
+                p_ptr->age = *age;
+            }
+
+            p_ptr->redraw |= PR_MISC;
+            display_player(0);
+            line[0] = '\0';
+
+            while ((*height < height_min) || (*height > height_max))
+            {
+                strnfmt(prompt, sizeof(prompt),
+                    "Enter height in inches (%d-%d): ", height_min,
+                    height_max);
+                if (!term_get_string(prompt, line, sizeof(line)))
+                    return UI_BIRTH_AHW_PROMPT_CANCEL;
+                *height = atoi(line);
+                p_ptr->ht = *height;
+            }
+
+            p_ptr->redraw |= PR_MISC;
+            display_player(0);
+            line[0] = '\0';
+
+            while ((*weight < weight_min) || (*weight > weight_max))
+            {
+                strnfmt(prompt, sizeof(prompt),
+                    "Enter weight in pounds (%d-%d): ", weight_min,
+                    weight_max);
+                if (!term_get_string(prompt, line, sizeof(line)))
+                    return UI_BIRTH_AHW_PROMPT_CANCEL;
+                *weight = atoi(line);
+                p_ptr->wt = *weight;
+            }
+
+            p_ptr->redraw |= PR_MISC;
+            display_player(0);
+            continue;
+        }
+
+        if (ui_input_is_cancel_key(query2))
+            return UI_BIRTH_AHW_PROMPT_CANCEL;
+
+        if (((query2 == 'Q') || (query2 == 'q')) && (turn == 0))
+            quit(NULL);
+    }
+}
+
+/* Runs the terminal-native naming prompt for one shared working draft. */
+static bool ui_term_birth_name_prompt(char* name, size_t size)
+{
+    bool name_selected = FALSE;
+
+    if (!name || !size)
+        return FALSE;
+
+    display_player(0);
+
+    Term_putstr(UI_TERM_BIRTH_PROMPT_COL, UI_TERM_BIRTH_INSTRUCT_ROW + 1, -1,
+        TERM_SLATE, "Enter accept name");
+    Term_putstr(UI_TERM_BIRTH_PROMPT_COL, UI_TERM_BIRTH_INSTRUCT_ROW + 2, -1,
+        TERM_SLATE, "  Tab random name");
+
+    Term_putstr(UI_TERM_BIRTH_PROMPT_COL, UI_TERM_BIRTH_INSTRUCT_ROW + 1, -1,
+        TERM_L_WHITE, "Enter");
+    Term_putstr(UI_TERM_BIRTH_PROMPT_COL + 2, UI_TERM_BIRTH_INSTRUCT_ROW + 2, -1,
+        TERM_L_WHITE, "Tab");
+
+    if (character_dungeon)
+    {
+        Term_putstr(UI_TERM_BIRTH_PROMPT_COL + 40, UI_TERM_BIRTH_INSTRUCT_ROW + 1,
+            -1, TERM_SLATE, "ESC abort name change                  ");
+        Term_putstr(UI_TERM_BIRTH_PROMPT_COL + 40, UI_TERM_BIRTH_INSTRUCT_ROW + 1,
+            -1, TERM_L_WHITE, "ESC");
+    }
+
+    Term_gotoxy(8, 2);
+
+    while (!name_selected)
+    {
+        if (askfor_name(name, size))
+        {
+            p_ptr->redraw |= PR_MISC;
+            if (name[0] != '\0')
+                name_selected = TRUE;
+            else
+                bell("You must choose a name.");
+        }
+        else
+        {
+            return FALSE;
+        }
+    }
+
+    return TRUE;
+}
+
+/* Runs the terminal-native editor for one shared birth prompt kind. */
+static enum ui_birth_prompt_result ui_term_birth_prompt(
+    enum ui_birth_screen_kind kind, char* text, size_t text_size, int* age,
+    int* height, int* weight, int age_min, int age_max, int height_min,
+    int height_max, int weight_min, int weight_max)
+{
+    switch (kind)
+    {
+    case UI_BIRTH_SCREEN_NONE:
+    case UI_BIRTH_SCREEN_STATS:
+        return UI_BIRTH_PROMPT_CANCEL;
+
+    case UI_BIRTH_SCREEN_HISTORY:
+        return (enum ui_birth_prompt_result)ui_term_birth_history_prompt(
+            text, text_size);
+
+    case UI_BIRTH_SCREEN_AHW:
+        return (enum ui_birth_prompt_result)ui_term_birth_ahw_prompt(age,
+            height, weight, age_min, age_max, height_min, height_max,
+            weight_min, weight_max);
+
+    case UI_BIRTH_SCREEN_NAME:
+        return ui_term_birth_name_prompt(text, text_size)
+            ? UI_BIRTH_PROMPT_ACCEPT
+            : UI_BIRTH_PROMPT_CANCEL;
+
+    default:
+        return UI_BIRTH_PROMPT_CANCEL;
+    }
+}
+
+/* Draws one label/value field on the semantic character sheet. */
+static void ui_term_draw_character_field(int row, int label_col, int value_col,
+    const ui_character_field* field, byte value_attr)
+{
+    if (!field || !field->visible)
+        return;
+
+    c_put_str(TERM_WHITE, field->label, row, label_col);
+    c_put_str(value_attr, field->value, row, value_col);
+}
+
+/* Draws the semantic character-sheet footer actions. */
+static void ui_term_draw_character_actions(
+    const ui_character_sheet_state* state)
+{
+    int row = 23;
+    int col = 1;
+    int i;
+
+    if (!state)
+        return;
+
+    Term_erase(0, row, 255);
+
+    for (i = 0; i < state->action_count; i++)
+    {
+        cptr label;
+        int key;
+        int highlight_width;
+
+        if (i > 0)
+        {
+            Term_putstr(col, row, -1, TERM_SLATE, "   ");
+            col += 3;
+        }
+
+        key = state->actions[i].key;
+        if (key == ESCAPE)
+            label = "ESC";
+        else
+            label = state->actions[i].label;
+
+        Term_putstr(col, row, -1, TERM_SLATE, label);
+        highlight_width = (key == ESCAPE) ? 3 : 1;
+        Term_putstr(col, row, highlight_width, TERM_L_WHITE, label);
+        col += (int)strlen(label);
+    }
+}
+
+/* Draws the shared skill-allocation overlay on top of the character sheet. */
+static void ui_term_draw_skill_editor(const ui_character_sheet_state* state)
+{
+    int i;
+    char buf[32];
+
+    if (!state || !state->skill_editor_active)
+        return;
+
+    Term_erase(UI_TERM_SKILL_EDITOR_POINTS_COL, UI_TERM_SKILL_EDITOR_POINTS_ROW, 20);
+    c_put_str(TERM_WHITE, "Exp Left:", UI_TERM_SKILL_EDITOR_POINTS_ROW,
+        UI_TERM_SKILL_EDITOR_POINTS_COL);
+    strnfmt(buf, sizeof(buf), "%6d", state->skill_points_left);
+    c_put_str(TERM_L_GREEN, buf, UI_TERM_SKILL_EDITOR_POINTS_ROW,
+        UI_TERM_SKILL_EDITOR_POINTS_COL + 10);
+
+    for (i = 0; i < S_MAX; i++)
+    {
+        byte attr = state->skills[i].selected ? TERM_L_BLUE : TERM_L_WHITE;
+
+        Term_erase(UI_TERM_SKILL_EDITOR_SELECT_COL,
+            UI_TERM_SKILL_EDITOR_ROW + i, 1);
+        if (state->skills[i].selected)
+            c_put_str(attr, ">", UI_TERM_SKILL_EDITOR_ROW + i,
+                UI_TERM_SKILL_EDITOR_SELECT_COL);
+
+        Term_erase(UI_TERM_SKILL_EDITOR_COST_COL,
+            UI_TERM_SKILL_EDITOR_ROW + i, 8);
+        strnfmt(buf, sizeof(buf), "%6d", state->skills[i].cost);
+        c_put_str(attr, buf, UI_TERM_SKILL_EDITOR_ROW + i,
+            UI_TERM_SKILL_EDITOR_COST_COL);
+    }
+
+    Term_erase(0, UI_TERM_SKILL_EDITOR_HELP_ROW, 255);
+    Term_erase(0, UI_TERM_SKILL_EDITOR_HELP_ROW + 1, 255);
+    c_put_str(TERM_SLATE, "Arrow keys move, left/right spend experience",
+        UI_TERM_SKILL_EDITOR_HELP_ROW, UI_TERM_SKILL_EDITOR_HELP_COL);
+    c_put_str(TERM_SLATE, "Enter accepts current values, Escape goes back",
+        UI_TERM_SKILL_EDITOR_HELP_ROW + 1, UI_TERM_SKILL_EDITOR_HELP_COL);
+    c_put_str(TERM_L_WHITE, "Arrow keys", UI_TERM_SKILL_EDITOR_HELP_ROW,
+        UI_TERM_SKILL_EDITOR_HELP_COL);
+    c_put_str(TERM_L_WHITE, "left/right", UI_TERM_SKILL_EDITOR_HELP_ROW,
+        UI_TERM_SKILL_EDITOR_HELP_COL + 17);
+    c_put_str(TERM_L_WHITE, "Enter", UI_TERM_SKILL_EDITOR_HELP_ROW + 1,
+        UI_TERM_SKILL_EDITOR_HELP_COL);
+    c_put_str(TERM_L_WHITE, "Escape", UI_TERM_SKILL_EDITOR_HELP_ROW + 1,
+        UI_TERM_SKILL_EDITOR_HELP_COL + 29);
+}
+
+/* Draws the semantic character sheet on the terminal frontend. */
+static void ui_term_character_sheet_render(void)
+{
+    const ui_character_sheet_state* state = ui_character_get_sheet();
+    int i;
+    int combat_row = 7;
+
+    if (!state)
+        return;
+
+    clear_from(0);
+
+    ui_term_draw_character_field(2, 1, 8, &state->identity[0], TERM_L_BLUE);
+    ui_term_draw_character_field(3, 1, 8, &state->identity[1], TERM_L_BLUE);
+    ui_term_draw_character_field(4, 1, 8, &state->identity[2], TERM_L_BLUE);
+
+    ui_term_draw_character_field(2, 22, 29, &state->physical[0], TERM_L_BLUE);
+    ui_term_draw_character_field(3, 22, 30, &state->physical[1], TERM_L_BLUE);
+    ui_term_draw_character_field(4, 22, 30, &state->physical[2], TERM_L_BLUE);
+
+    ui_term_draw_character_field(7, 1, 11, &state->progress[0], TERM_L_GREEN);
+    ui_term_draw_character_field(8, 1, 11, &state->progress[1], TERM_L_GREEN);
+    ui_term_draw_character_field(9, 1, 11, &state->progress[2], TERM_L_GREEN);
+    ui_term_draw_character_field(10, 1, 14, &state->progress[3], TERM_L_GREEN);
+    ui_term_draw_character_field(11, 1, 14, &state->progress[4], TERM_L_GREEN);
+    ui_term_draw_character_field(12, 1, 14, &state->progress[5], TERM_L_GREEN);
+    ui_term_draw_character_field(13, 1, 14, &state->progress[6], TERM_L_GREEN);
+    ui_term_draw_character_field(14, 1, 16, &state->progress[7], TERM_L_GREEN);
+
+    for (i = 0; i < A_MAX; i++)
+    {
+        byte current_attr = state->stats[i].reduced ? TERM_YELLOW : TERM_L_GREEN;
+
+        c_put_str(TERM_WHITE, state->stats[i].label, 2 + i, 41);
+        c_put_str(current_attr, state->stats[i].current, 2 + i, 46);
+        if (!state->stats[i].show_base)
+            continue;
+
+        c_put_str(TERM_SLATE, "=", 2 + i, 49);
+        c_put_str(TERM_GREEN, state->stats[i].base, 2 + i, 51);
+        if (state->stats[i].show_equip)
+            c_put_str(TERM_SLATE, format("%+3d", state->stats[i].equip_mod),
+                2 + i, 54);
+        if (state->stats[i].show_drain)
+            c_put_str(TERM_SLATE, format("%+3d", state->stats[i].drain_mod),
+                2 + i, 58);
+        if (state->stats[i].show_misc)
+            c_put_str(TERM_SLATE, format("%+3d", state->stats[i].misc_mod),
+                2 + i, 62);
+    }
+
+    for (i = 0; i < UI_CHARACTER_COMBAT_COUNT; i++)
+    {
+        if (!state->combat[i].visible)
+            continue;
+
+        ui_term_draw_character_field(
+            combat_row++, 22, 30, &state->combat[i], TERM_L_BLUE);
+    }
+
+    for (i = 0; i < S_MAX; i++)
+    {
+        c_put_str(TERM_WHITE, state->skills[i].label, 7 + i, 41);
+        c_put_str(TERM_L_GREEN, format("%3d", state->skills[i].value), 7 + i, 52);
+        c_put_str(TERM_SLATE, "=", 7 + i, 56);
+        c_put_str(TERM_GREEN, format("%2d", state->skills[i].base), 7 + i, 58);
+        if (state->skills[i].stat_mod != 0)
+            c_put_str(TERM_SLATE, format("%+3d", state->skills[i].stat_mod),
+                7 + i, 61);
+        if (state->skills[i].equip_mod != 0)
+            c_put_str(TERM_SLATE, format("%+3d", state->skills[i].equip_mod),
+                7 + i, 65);
+        if (state->skills[i].misc_mod != 0)
+            c_put_str(TERM_SLATE, format("%+3d", state->skills[i].misc_mod),
+                7 + i, 69);
+    }
+
+    ui_term_draw_wrapped_text_block(1, 16, state->history, NULL, 0, 72);
+    ui_term_draw_character_actions(state);
+    ui_term_draw_skill_editor(state);
+}
+
 /* Registers the terminal frontend's prompt and semantic-menu render hooks. */
 void ui_term_init(void)
 {
     ui_front_set_hooks(
         ui_term_prompt_render, ui_term_prompt_clear, ui_term_menu_render);
+    ui_birth_set_stats_render_hook(ui_term_birth_stats_render);
+    ui_birth_set_prompt_hook(ui_term_birth_prompt);
+    ui_character_set_render_hook(ui_term_character_sheet_render);
 }

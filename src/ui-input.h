@@ -25,6 +25,7 @@ typedef enum ui_input_nested_menu_action ui_input_nested_menu_action;
 typedef enum ui_input_browser_action ui_input_browser_action;
 typedef enum ui_input_message_recall_action ui_input_message_recall_action;
 typedef enum ui_input_pager_action ui_input_pager_action;
+typedef enum ui_input_character_sheet_action ui_input_character_sheet_action;
 typedef struct ui_input_target ui_input_target;
 typedef struct ui_input_browser ui_input_browser;
 
@@ -136,6 +137,17 @@ enum ui_input_pager_action
     UI_INPUT_PAGER_ACTION_BOTTOM
 };
 
+enum ui_input_character_sheet_action
+{
+    UI_INPUT_CHARACTER_SHEET_ACTION_NONE = 0,
+    UI_INPUT_CHARACTER_SHEET_ACTION_CLOSE,
+    UI_INPUT_CHARACTER_SHEET_ACTION_NOTES,
+    UI_INPUT_CHARACTER_SHEET_ACTION_CHANGE_NAME,
+    UI_INPUT_CHARACTER_SHEET_ACTION_SAVE,
+    UI_INPUT_CHARACTER_SHEET_ACTION_ABILITIES,
+    UI_INPUT_CHARACTER_SHEET_ACTION_SKILLS
+};
+
 struct ui_input_browser
 {
     ui_input_browser_action action;
@@ -168,6 +180,8 @@ ui_input_browser ui_input_parse_browser_key(int key);
 ui_input_message_recall_action ui_input_parse_message_recall_key(int key);
 /* Classifies one keypress for the generic file/help pager. */
 ui_input_pager_action ui_input_parse_pager_key(int key);
+/* Classifies one keypress for the semantic character-sheet screen. */
+ui_input_character_sheet_action ui_input_parse_character_sheet_key(int key);
 /* Classifies one keypress for the interesting-grid targeting prompt. */
 ui_input_target ui_input_parse_target_interesting_key(int key, int mode);
 /* Classifies one keypress for the arbitrary-grid targeting prompt. */

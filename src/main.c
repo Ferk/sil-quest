@@ -592,6 +592,13 @@ int main(int argc, char* argv[])
                     new_game = FALSE;
                     break;
                 case 2:
+                    /*
+                     * A fresh character should not probe any previously
+                     * prepared default save namespace such as "nameless".
+                     * Leave savefile empty so play_game() goes straight to
+                     * birth and only names the save after character creation.
+                     */
+                    savefile[0] = '\0';
                     game_in_progress = TRUE;
                     new_game = TRUE;
                     break;

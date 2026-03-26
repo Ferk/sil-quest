@@ -17,6 +17,8 @@
 #ifdef USE_WEB
 
 #include "main.h"
+#include "ui-birth.h"
+#include "ui-character.h"
 #include "ui-marks.h"
 #include "ui-model.h"
 
@@ -90,12 +92,29 @@ static term_data data;
 #define WEB_LOG_TEXT_MAX 4096
 #define WEB_LOG_MESSAGES_MAX 20
 #define WEB_OVERLAY_TEXT_MAX 16384
+#define WEB_BIRTH_STATE_MAX 4096
+#define WEB_CHARACTER_SHEET_STATE_MAX 8192
 #define WEB_PLAYER_STATE_MAX 8192
+
+struct web_birth_submission
+{
+    bool pending;
+    enum ui_birth_screen_kind kind;
+    char text[UI_BIRTH_HISTORY_TEXT_MAX];
+    int age;
+    int height;
+    int weight;
+};
 
 static char web_log_text[WEB_LOG_TEXT_MAX];
 static byte web_log_attrs[WEB_LOG_TEXT_MAX];
 static int web_log_attrs_len = 0;
 static uint32_t web_log_text_frame = UINT32_MAX;
+static char web_birth_state[WEB_BIRTH_STATE_MAX];
+static uint32_t web_birth_state_revision = UINT32_MAX;
+static struct web_birth_submission web_birth_submission = { 0 };
+static char web_character_sheet_state[WEB_CHARACTER_SHEET_STATE_MAX];
+static uint32_t web_character_sheet_state_revision = UINT32_MAX;
 static char web_player_state[WEB_PLAYER_STATE_MAX];
 static uint32_t web_player_state_frame = UINT32_MAX;
 static char web_overlay_text[WEB_OVERLAY_TEXT_MAX];
@@ -183,7 +202,12 @@ EMSCRIPTEN_KEEPALIVE uintptr_t web_get_menu_details_ptr(void);
 EMSCRIPTEN_KEEPALIVE int web_get_menu_details_len(void);
 EMSCRIPTEN_KEEPALIVE uintptr_t web_get_menu_details_attrs_ptr(void);
 EMSCRIPTEN_KEEPALIVE int web_get_menu_details_attrs_len(void);
+EMSCRIPTEN_KEEPALIVE uintptr_t web_get_menu_summary_ptr(void);
+EMSCRIPTEN_KEEPALIVE int web_get_menu_summary_len(void);
+EMSCRIPTEN_KEEPALIVE uintptr_t web_get_menu_summary_attrs_ptr(void);
+EMSCRIPTEN_KEEPALIVE int web_get_menu_summary_attrs_len(void);
 EMSCRIPTEN_KEEPALIVE int web_get_menu_details_width(void);
+EMSCRIPTEN_KEEPALIVE int web_get_menu_summary_rows(void);
 EMSCRIPTEN_KEEPALIVE int web_get_menu_details_visual_kind(void);
 EMSCRIPTEN_KEEPALIVE int web_get_menu_details_visual_attr(void);
 EMSCRIPTEN_KEEPALIVE int web_get_menu_details_visual_char(void);
@@ -218,6 +242,15 @@ EMSCRIPTEN_KEEPALIVE uintptr_t web_get_log_text_ptr(void);
 EMSCRIPTEN_KEEPALIVE int web_get_log_text_len(void);
 EMSCRIPTEN_KEEPALIVE uintptr_t web_get_log_attrs_ptr(void);
 EMSCRIPTEN_KEEPALIVE int web_get_log_attrs_len(void);
+EMSCRIPTEN_KEEPALIVE uintptr_t web_get_birth_state_ptr(void);
+EMSCRIPTEN_KEEPALIVE int web_get_birth_state_len(void);
+EMSCRIPTEN_KEEPALIVE unsigned int web_get_birth_state_revision(void);
+EMSCRIPTEN_KEEPALIVE uintptr_t web_get_birth_submit_text_ptr(void);
+EMSCRIPTEN_KEEPALIVE int web_submit_birth_form(
+    int kind, int age, int height, int weight);
+EMSCRIPTEN_KEEPALIVE uintptr_t web_get_character_sheet_state_ptr(void);
+EMSCRIPTEN_KEEPALIVE int web_get_character_sheet_state_len(void);
+EMSCRIPTEN_KEEPALIVE unsigned int web_get_character_sheet_state_revision(void);
 EMSCRIPTEN_KEEPALIVE uintptr_t web_get_player_state_ptr(void);
 EMSCRIPTEN_KEEPALIVE int web_get_player_state_len(void);
 EMSCRIPTEN_KEEPALIVE int web_get_sound_count(void);
@@ -323,6 +356,39 @@ static void web_sync_map_marks_revision(void)
 static bool web_get_target_mark(int y, int x, byte* attr, byte* chr)
 {
     return ui_marks_lookup(y, x, attr, chr);
+}
+
+/* Clears any staged web birth-form submission. */
+static void web_clear_birth_submission(void)
+{
+    WIPE(&web_birth_submission, struct web_birth_submission);
+}
+
+/* Consumes one accepted birth submission for the active web birth screen. */
+static bool web_consume_birth_submission(
+    enum ui_birth_screen_kind kind, char* text, size_t text_size, int* age,
+    int* height, int* weight)
+{
+    if (!web_birth_submission.pending || (web_birth_submission.kind != kind))
+        return FALSE;
+
+    if ((kind == UI_BIRTH_SCREEN_AHW) && age && height && weight)
+    {
+        *age = web_birth_submission.age;
+        *height = web_birth_submission.height;
+        *weight = web_birth_submission.weight;
+    }
+    else if (text && text_size)
+    {
+        my_strcpy(text, web_birth_submission.text, text_size);
+    }
+    else
+    {
+        return FALSE;
+    }
+
+    web_clear_birth_submission();
+    return TRUE;
 }
 
 /* ------------------------------------------------------------------------ */
@@ -888,6 +954,168 @@ static void web_json_append_field_int(char* buf, size_t buf_size, size_t* off,
     strnfcat(buf, buf_size, off, "\"%s\":%d", key, value);
 }
 
+/* Appends one semantic character-sheet field object into a JSON array. */
+static void web_json_append_character_field_object(char* buf, size_t buf_size,
+    size_t* off, const ui_character_field* field)
+{
+    bool field_first = TRUE;
+
+    strnfcat(buf, buf_size, off, "{");
+    web_json_append_field_string(
+        buf, buf_size, off, &field_first, "label", field->label);
+    web_json_append_field_string(
+        buf, buf_size, off, &field_first, "value", field->value);
+    web_json_append_field_int(buf, buf_size, off, &field_first, "visible",
+        field->visible ? 1 : 0);
+    strnfcat(buf, buf_size, off, "}");
+}
+
+/* Appends one named array of semantic character-sheet fields. */
+static void web_json_append_character_field_array(char* buf, size_t buf_size,
+    size_t* off, bool* first, cptr key, const ui_character_field* fields,
+    int count)
+{
+    int i;
+
+    web_json_append_field_sep(buf, buf_size, off, first);
+    strnfcat(buf, buf_size, off, "\"%s\":[", key);
+
+    for (i = 0; i < count; i++)
+    {
+        if (i > 0)
+            strnfcat(buf, buf_size, off, ",");
+
+        web_json_append_character_field_object(buf, buf_size, off, &fields[i]);
+    }
+
+    strnfcat(buf, buf_size, off, "]");
+}
+
+/* Appends one semantic character stat object into a JSON array. */
+static void web_json_append_character_stat_object(char* buf, size_t buf_size,
+    size_t* off, const ui_character_stat* stat)
+{
+    bool stat_first = TRUE;
+
+    strnfcat(buf, buf_size, off, "{");
+    web_json_append_field_string(
+        buf, buf_size, off, &stat_first, "label", stat->label);
+    web_json_append_field_string(
+        buf, buf_size, off, &stat_first, "current", stat->current);
+    web_json_append_field_string(
+        buf, buf_size, off, &stat_first, "base", stat->base);
+    web_json_append_field_int(buf, buf_size, off, &stat_first, "reduced",
+        stat->reduced ? 1 : 0);
+    web_json_append_field_int(buf, buf_size, off, &stat_first, "showBase",
+        stat->show_base ? 1 : 0);
+    web_json_append_field_int(
+        buf, buf_size, off, &stat_first, "equipMod", stat->equip_mod);
+    web_json_append_field_int(
+        buf, buf_size, off, &stat_first, "drainMod", stat->drain_mod);
+    web_json_append_field_int(
+        buf, buf_size, off, &stat_first, "miscMod", stat->misc_mod);
+    strnfcat(buf, buf_size, off, "}");
+}
+
+/* Appends the semantic character stats array. */
+static void web_json_append_character_stats_array(char* buf, size_t buf_size,
+    size_t* off, bool* first, const ui_character_stat* stats, int count)
+{
+    int i;
+
+    web_json_append_field_sep(buf, buf_size, off, first);
+    strnfcat(buf, buf_size, off, "\"stats\":[");
+
+    for (i = 0; i < count; i++)
+    {
+        if (i > 0)
+            strnfcat(buf, buf_size, off, ",");
+
+        web_json_append_character_stat_object(buf, buf_size, off, &stats[i]);
+    }
+
+    strnfcat(buf, buf_size, off, "]");
+}
+
+/* Appends one semantic character skill object into a JSON array. */
+static void web_json_append_character_skill_object(char* buf, size_t buf_size,
+    size_t* off, const ui_character_skill* skill)
+{
+    bool skill_first = TRUE;
+
+    strnfcat(buf, buf_size, off, "{");
+    web_json_append_field_string(
+        buf, buf_size, off, &skill_first, "label", skill->label);
+    web_json_append_field_int(
+        buf, buf_size, off, &skill_first, "value", skill->value);
+    web_json_append_field_int(
+        buf, buf_size, off, &skill_first, "base", skill->base);
+    web_json_append_field_int(
+        buf, buf_size, off, &skill_first, "statMod", skill->stat_mod);
+    web_json_append_field_int(
+        buf, buf_size, off, &skill_first, "equipMod", skill->equip_mod);
+    web_json_append_field_int(
+        buf, buf_size, off, &skill_first, "miscMod", skill->misc_mod);
+    web_json_append_field_int(
+        buf, buf_size, off, &skill_first, "cost", skill->cost);
+    web_json_append_field_int(buf, buf_size, off, &skill_first, "editable",
+        skill->editable ? 1 : 0);
+    web_json_append_field_int(buf, buf_size, off, &skill_first, "selected",
+        skill->selected ? 1 : 0);
+    web_json_append_field_int(buf, buf_size, off, &skill_first, "canDecrease",
+        skill->can_decrease ? 1 : 0);
+    web_json_append_field_int(buf, buf_size, off, &skill_first, "canIncrease",
+        skill->can_increase ? 1 : 0);
+    strnfcat(buf, buf_size, off, "}");
+}
+
+/* Appends the semantic character skills array. */
+static void web_json_append_character_skills_array(char* buf, size_t buf_size,
+    size_t* off, bool* first, const ui_character_skill* skills, int count)
+{
+    int i;
+
+    web_json_append_field_sep(buf, buf_size, off, first);
+    strnfcat(buf, buf_size, off, "\"skills\":[");
+
+    for (i = 0; i < count; i++)
+    {
+        if (i > 0)
+            strnfcat(buf, buf_size, off, ",");
+
+        web_json_append_character_skill_object(buf, buf_size, off, &skills[i]);
+    }
+
+    strnfcat(buf, buf_size, off, "]");
+}
+
+/* Appends the semantic character action list. */
+static void web_json_append_character_actions_array(char* buf, size_t buf_size,
+    size_t* off, bool* first, const ui_character_action* actions, int count)
+{
+    int i;
+
+    web_json_append_field_sep(buf, buf_size, off, first);
+    strnfcat(buf, buf_size, off, "\"actions\":[");
+
+    for (i = 0; i < count; i++)
+    {
+        bool action_first = TRUE;
+
+        if (i > 0)
+            strnfcat(buf, buf_size, off, ",");
+
+        strnfcat(buf, buf_size, off, "{");
+        web_json_append_field_int(
+            buf, buf_size, off, &action_first, "key", actions[i].key);
+        web_json_append_field_string(
+            buf, buf_size, off, &action_first, "label", actions[i].label);
+        strnfcat(buf, buf_size, off, "}");
+    }
+
+    strnfcat(buf, buf_size, off, "]");
+}
+
 /* Chooses the default quiver for one synthetic ranged action. */
 static int web_choose_ranged_quiver(bool* ready)
 {
@@ -1256,6 +1484,176 @@ static void web_build_player_state(void)
     strnfcat(web_player_state, sizeof(web_player_state), &off, "}");
 }
 
+/* Builds semantic birth-screen payload for frontend-side rendering. */
+static void web_build_birth_state(void)
+{
+    struct ui_birth_state_snapshot snapshot;
+    size_t off = 0;
+    bool first = TRUE;
+    int i;
+
+    web_birth_state[0] = '\0';
+    ui_birth_get_state_snapshot(&snapshot);
+
+    if (!snapshot.active)
+    {
+        my_strcpy(web_birth_state, "{\"active\":0}", sizeof(web_birth_state));
+        return;
+    }
+
+    strnfcat(web_birth_state, sizeof(web_birth_state), &off, "{");
+    web_json_append_field_int(
+        web_birth_state, sizeof(web_birth_state), &off, &first, "active", 1);
+    web_json_append_field_string(web_birth_state, sizeof(web_birth_state), &off,
+        &first, "kind",
+        (snapshot.kind == UI_BIRTH_SCREEN_NAME)
+            ? "name"
+            : (snapshot.kind == UI_BIRTH_SCREEN_AHW)
+                ? "ahw"
+                : (snapshot.kind == UI_BIRTH_SCREEN_HISTORY)
+                    ? "history"
+                    : "stats");
+    web_json_append_field_string(web_birth_state, sizeof(web_birth_state), &off,
+        &first, "title", snapshot.title ? snapshot.title : "");
+    web_json_append_field_string(web_birth_state, sizeof(web_birth_state), &off,
+        &first, "help", snapshot.help ? snapshot.help : "");
+
+    if (snapshot.kind == UI_BIRTH_SCREEN_NAME)
+    {
+        web_json_append_field_string(web_birth_state, sizeof(web_birth_state),
+            &off, &first, "text", snapshot.text ? snapshot.text : "");
+        web_json_append_field_int(web_birth_state, sizeof(web_birth_state), &off,
+            &first, "maxLength", snapshot.max_length);
+        strnfcat(web_birth_state, sizeof(web_birth_state), &off, "}");
+        return;
+    }
+
+    if (snapshot.kind == UI_BIRTH_SCREEN_AHW)
+    {
+        web_json_append_field_int(web_birth_state, sizeof(web_birth_state), &off,
+            &first, "age", snapshot.age);
+        web_json_append_field_int(web_birth_state, sizeof(web_birth_state), &off,
+            &first, "height", snapshot.height);
+        web_json_append_field_int(web_birth_state, sizeof(web_birth_state), &off,
+            &first, "weight", snapshot.weight);
+        web_json_append_field_int(web_birth_state, sizeof(web_birth_state), &off,
+            &first, "ageMin", snapshot.age_min);
+        web_json_append_field_int(web_birth_state, sizeof(web_birth_state), &off,
+            &first, "ageMax", snapshot.age_max);
+        web_json_append_field_int(web_birth_state, sizeof(web_birth_state), &off,
+            &first, "heightMin", snapshot.height_min);
+        web_json_append_field_int(web_birth_state, sizeof(web_birth_state), &off,
+            &first, "heightMax", snapshot.height_max);
+        web_json_append_field_int(web_birth_state, sizeof(web_birth_state), &off,
+            &first, "weightMin", snapshot.weight_min);
+        web_json_append_field_int(web_birth_state, sizeof(web_birth_state), &off,
+            &first, "weightMax", snapshot.weight_max);
+        strnfcat(web_birth_state, sizeof(web_birth_state), &off, "}");
+        return;
+    }
+
+    if (snapshot.kind == UI_BIRTH_SCREEN_HISTORY)
+    {
+        web_json_append_field_string(web_birth_state, sizeof(web_birth_state),
+            &off, &first, "text", snapshot.text ? snapshot.text : "");
+        strnfcat(web_birth_state, sizeof(web_birth_state), &off, "}");
+        return;
+    }
+
+    web_json_append_field_int(web_birth_state, sizeof(web_birth_state), &off,
+        &first, "pointsLeft", snapshot.points_left);
+    web_json_append_field_sep(
+        web_birth_state, sizeof(web_birth_state), &off, &first);
+    strnfcat(web_birth_state, sizeof(web_birth_state), &off, "\"stats\":[");
+
+    for (i = 0; i < snapshot.stats_count; i++)
+    {
+        bool stat_first = TRUE;
+        const struct ui_birth_stat_snapshot* stat = &snapshot.stats[i];
+
+        if (i > 0)
+            strnfcat(web_birth_state, sizeof(web_birth_state), &off, ",");
+
+        strnfcat(web_birth_state, sizeof(web_birth_state), &off, "{");
+        web_json_append_field_int(web_birth_state, sizeof(web_birth_state), &off,
+            &stat_first, "index", i);
+        web_json_append_field_string(web_birth_state, sizeof(web_birth_state),
+            &off, &stat_first, "name", stat->name ? stat->name : "");
+        web_json_append_field_string(web_birth_state, sizeof(web_birth_state),
+            &off, &stat_first, "value", stat->value ? stat->value : "");
+        web_json_append_field_int(web_birth_state, sizeof(web_birth_state), &off,
+            &stat_first, "cost", stat->cost);
+        web_json_append_field_int(web_birth_state, sizeof(web_birth_state), &off,
+            &stat_first, "selected", stat->selected ? 1 : 0);
+        web_json_append_field_int(web_birth_state, sizeof(web_birth_state), &off,
+            &stat_first, "canDecrease", stat->can_decrease ? 1 : 0);
+        web_json_append_field_int(web_birth_state, sizeof(web_birth_state), &off,
+            &stat_first, "canIncrease", stat->can_increase ? 1 : 0);
+        strnfcat(web_birth_state, sizeof(web_birth_state), &off, "}");
+    }
+
+    strnfcat(web_birth_state, sizeof(web_birth_state), &off, "]}");
+}
+
+/* Builds semantic character-sheet payload for frontend-side rendering. */
+static void web_build_character_sheet_state(void)
+{
+    const ui_character_sheet_state* sheet = ui_character_get_sheet();
+    size_t off = 0;
+    bool first = TRUE;
+
+    web_character_sheet_state[0] = '\0';
+
+    if (!sheet)
+    {
+        my_strcpy(web_character_sheet_state, "{\"active\":0}",
+            sizeof(web_character_sheet_state));
+        return;
+    }
+
+    strnfcat(web_character_sheet_state, sizeof(web_character_sheet_state), &off,
+        "{");
+    web_json_append_field_int(web_character_sheet_state,
+        sizeof(web_character_sheet_state), &off, &first, "active", 1);
+    web_json_append_field_string(web_character_sheet_state,
+        sizeof(web_character_sheet_state), &off, &first, "title", sheet->title);
+    web_json_append_field_int(web_character_sheet_state,
+        sizeof(web_character_sheet_state), &off, &first, "skillEditorActive",
+        sheet->skill_editor_active ? 1 : 0);
+    web_json_append_field_string(web_character_sheet_state,
+        sizeof(web_character_sheet_state), &off, &first, "skillEditorTitle",
+        sheet->skill_editor_title);
+    web_json_append_field_string(web_character_sheet_state,
+        sizeof(web_character_sheet_state), &off, &first, "skillEditorHelp",
+        sheet->skill_editor_help);
+    web_json_append_field_int(web_character_sheet_state,
+        sizeof(web_character_sheet_state), &off, &first, "skillPointsLeft",
+        sheet->skill_points_left);
+    web_json_append_character_field_array(web_character_sheet_state,
+        sizeof(web_character_sheet_state), &off, &first, "identity",
+        sheet->identity, (int)N_ELEMENTS(sheet->identity));
+    web_json_append_character_field_array(web_character_sheet_state,
+        sizeof(web_character_sheet_state), &off, &first, "physical",
+        sheet->physical, (int)N_ELEMENTS(sheet->physical));
+    web_json_append_character_field_array(web_character_sheet_state,
+        sizeof(web_character_sheet_state), &off, &first, "progress",
+        sheet->progress, UI_CHARACTER_FIELD_COUNT);
+    web_json_append_character_stats_array(web_character_sheet_state,
+        sizeof(web_character_sheet_state), &off, &first, sheet->stats, A_MAX);
+    web_json_append_character_field_array(web_character_sheet_state,
+        sizeof(web_character_sheet_state), &off, &first, "combat",
+        sheet->combat, UI_CHARACTER_COMBAT_COUNT);
+    web_json_append_character_skills_array(web_character_sheet_state,
+        sizeof(web_character_sheet_state), &off, &first, sheet->skills, S_MAX);
+    web_json_append_field_string(web_character_sheet_state,
+        sizeof(web_character_sheet_state), &off, &first, "history", sheet->history);
+    web_json_append_character_actions_array(web_character_sheet_state,
+        sizeof(web_character_sheet_state), &off, &first, sheet->actions,
+        sheet->action_count);
+    strnfcat(web_character_sheet_state, sizeof(web_character_sheet_state), &off,
+        "}");
+}
+
 static void web_build_log_text(void)
 {
     size_t off = 0;
@@ -1338,6 +1736,28 @@ static void web_refresh_player_state(void)
 
     web_build_player_state();
     web_player_state_frame = data.frame_id;
+}
+
+static void web_refresh_birth_state(void)
+{
+    unsigned int revision = ui_birth_revision();
+
+    if (web_birth_state_revision == revision)
+        return;
+
+    web_build_birth_state();
+    web_birth_state_revision = revision;
+}
+
+static void web_refresh_character_sheet_state(void)
+{
+    unsigned int revision = ui_character_sheet_revision();
+
+    if (web_character_sheet_state_revision == revision)
+        return;
+
+    web_build_character_sheet_state();
+    web_character_sheet_state_revision = revision;
 }
 
 /* ------------------------------------------------------------------------ */
@@ -2029,9 +2449,13 @@ errr init_web(int argc, char** argv)
     term_screen = &data.t;
 
     web_log_text_frame = UINT32_MAX;
+    web_birth_state_revision = UINT32_MAX;
+    web_character_sheet_state_revision = UINT32_MAX;
     web_player_state_frame = UINT32_MAX;
     web_overlay_text_frame = UINT32_MAX;
     web_log_text[0] = '\0';
+    web_birth_state[0] = '\0';
+    web_character_sheet_state[0] = '\0';
     web_player_state[0] = '\0';
     web_log_attrs_len = 0;
     web_overlay_text[0] = '\0';
@@ -2040,12 +2464,14 @@ errr init_web(int argc, char** argv)
     web_overlay_capture_clear();
     ui_menu_clear();
     ui_marks_clear();
+    web_clear_birth_submission();
     web_map_marks_revision = ui_marks_get_revision();
     web_fx_delay_seq = 0;
     web_fx_delay_msec = 0;
     web_fx_cols = 0;
     web_fx_rows = 0;
     web_map_cells_frame = UINT32_MAX;
+    ui_birth_set_submit_hook((ui_birth_submit_hook)web_consume_birth_submission);
 
     return (0);
 }
@@ -2283,9 +2709,34 @@ EMSCRIPTEN_KEEPALIVE int web_get_menu_details_attrs_len(void)
     return ui_menu_get_details_attrs_len();
 }
 
+EMSCRIPTEN_KEEPALIVE uintptr_t web_get_menu_summary_ptr(void)
+{
+    return (uintptr_t)(const void*)ui_menu_get_summary();
+}
+
+EMSCRIPTEN_KEEPALIVE int web_get_menu_summary_len(void)
+{
+    return ui_menu_get_summary_len();
+}
+
+EMSCRIPTEN_KEEPALIVE uintptr_t web_get_menu_summary_attrs_ptr(void)
+{
+    return (uintptr_t)(const void*)ui_menu_get_summary_attrs();
+}
+
+EMSCRIPTEN_KEEPALIVE int web_get_menu_summary_attrs_len(void)
+{
+    return ui_menu_get_summary_attrs_len();
+}
+
 EMSCRIPTEN_KEEPALIVE int web_get_menu_details_width(void)
 {
     return ui_menu_get_details_width();
+}
+
+EMSCRIPTEN_KEEPALIVE int web_get_menu_summary_rows(void)
+{
+    return ui_menu_get_summary_rows();
 }
 
 EMSCRIPTEN_KEEPALIVE int web_get_menu_details_visual_kind(void)
@@ -2662,6 +3113,61 @@ EMSCRIPTEN_KEEPALIVE int web_get_log_attrs_len(void)
 {
     web_refresh_log_text();
     return web_log_attrs_len;
+}
+
+EMSCRIPTEN_KEEPALIVE uintptr_t web_get_birth_state_ptr(void)
+{
+    web_refresh_birth_state();
+    return (uintptr_t)web_birth_state;
+}
+
+EMSCRIPTEN_KEEPALIVE int web_get_birth_state_len(void)
+{
+    web_refresh_birth_state();
+    return (int)strlen(web_birth_state);
+}
+
+EMSCRIPTEN_KEEPALIVE unsigned int web_get_birth_state_revision(void)
+{
+    return ui_birth_revision();
+}
+
+EMSCRIPTEN_KEEPALIVE uintptr_t web_get_birth_submit_text_ptr(void)
+{
+    return (uintptr_t)(const void*)web_birth_submission.text;
+}
+
+EMSCRIPTEN_KEEPALIVE int web_submit_birth_form(
+    int kind, int age, int height, int weight)
+{
+    if ((kind != UI_BIRTH_SCREEN_NAME) && (kind != UI_BIRTH_SCREEN_HISTORY)
+        && (kind != UI_BIRTH_SCREEN_AHW))
+        return 0;
+
+    web_birth_submission.pending = TRUE;
+    web_birth_submission.kind = (enum ui_birth_screen_kind)kind;
+    web_birth_submission.age = age;
+    web_birth_submission.height = height;
+    web_birth_submission.weight = weight;
+    web_birth_submission.text[UI_BIRTH_HISTORY_TEXT_MAX - 1] = '\0';
+    return 1;
+}
+
+EMSCRIPTEN_KEEPALIVE uintptr_t web_get_character_sheet_state_ptr(void)
+{
+    web_refresh_character_sheet_state();
+    return (uintptr_t)web_character_sheet_state;
+}
+
+EMSCRIPTEN_KEEPALIVE int web_get_character_sheet_state_len(void)
+{
+    web_refresh_character_sheet_state();
+    return (int)strlen(web_character_sheet_state);
+}
+
+EMSCRIPTEN_KEEPALIVE unsigned int web_get_character_sheet_state_revision(void)
+{
+    return ui_character_sheet_revision();
 }
 
 EMSCRIPTEN_KEEPALIVE uintptr_t web_get_player_state_ptr(void)

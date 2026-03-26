@@ -523,8 +523,473 @@
       touch-action: pan-x pan-y;
     }
 
+    #overlay-modal.overlay-birth-stats {
+      padding: 1rem;
+      width: min(72rem, calc(100% - 2rem));
+      max-width: calc(100% - 2rem);
+      max-height: calc(100% - 2rem);
+      box-sizing: border-box;
+      white-space: normal;
+      overflow: auto;
+      touch-action: pan-y;
+    }
+
+    #overlay-modal.overlay-birth-name,
+    #overlay-modal.overlay-birth-ahw,
+    #overlay-modal.overlay-birth-history,
+    #overlay-modal.overlay-character-sheet,
+    #overlay-modal.overlay-character-skills {
+      padding: 1rem;
+      width: min(74rem, calc(100% - 2rem));
+      height: min(44rem, calc(100% - 2rem));
+      max-width: calc(100% - 2rem);
+      max-height: calc(100% - 2rem);
+      box-sizing: border-box;
+      white-space: normal;
+      overflow: auto;
+      touch-action: pan-y;
+    }
+
     #overlay-modal.overlay-dismissable {
       cursor: pointer;
+    }
+
+    .character-sheet-shell {
+      display: grid;
+      gap: 1rem;
+      min-height: 100%;
+      max-width: 70rem;
+      margin: 0 auto;
+      color: #d7dde7;
+    }
+
+    .character-sheet-header {
+      display: grid;
+      gap: 0.9rem;
+    }
+
+    .character-sheet-editor-banner {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.6rem 1rem;
+      padding: 0.8rem 1rem;
+      border: 1px solid rgba(147, 197, 253, 0.18);
+      background: rgba(10, 14, 22, 0.48);
+      color: #cdd6e3;
+    }
+
+    .character-sheet-editor-points-label {
+      color: #cdd6e3;
+    }
+
+    .character-sheet-editor-points-value {
+      color: #fde047;
+      font-size: 1.25rem;
+    }
+
+    .character-sheet-editor-note {
+      margin: 0;
+      color: #9fb0c9;
+      line-height: 1.35;
+    }
+
+    .character-sheet-heading h2,
+    .character-sheet-card h3 {
+      margin: 0;
+    }
+
+    .character-sheet-heading h2 {
+      font-size: 1.4rem;
+      color: #fde047;
+    }
+
+    .character-sheet-meta {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 1rem;
+    }
+
+    .character-sheet-layout {
+      display: grid;
+      grid-template-columns: minmax(0, 1.15fr) minmax(18rem, 0.95fr);
+      grid-template-areas:
+        "overview skills"
+        "history history";
+      gap: 1rem;
+      align-items: start;
+    }
+
+    .character-sheet-overview-card {
+      grid-area: overview;
+    }
+
+    .character-sheet-skills-card {
+      grid-area: skills;
+    }
+
+    .character-sheet-history-card {
+      grid-area: history;
+    }
+
+    .character-sheet-card {
+      display: grid;
+      gap: 0.8rem;
+      padding: 1rem;
+      background: rgba(6, 8, 12, 0.32);
+      border: 1px solid rgba(156, 163, 175, 0.2);
+      box-sizing: border-box;
+    }
+
+    .character-sheet-card h3 {
+      font-size: 1rem;
+      color: #93c5fd;
+    }
+
+    .character-sheet-subsection {
+      display: grid;
+      gap: 0.55rem;
+    }
+
+    .character-sheet-field-list,
+    .character-sheet-stat-list,
+    .character-sheet-skill-list {
+      display: grid;
+      gap: 0.5rem;
+    }
+
+    .character-sheet-field {
+      display: flex;
+      justify-content: space-between;
+      gap: 1rem;
+      align-items: baseline;
+    }
+
+    .character-sheet-field-label {
+      color: #cdd6e3;
+    }
+
+    .character-sheet-field-value,
+    .character-sheet-progress-value,
+    .character-sheet-combat-value {
+      color: #d7dde7;
+      font-weight: 600;
+      text-align: right;
+    }
+
+    .character-sheet-identity-value {
+      color: #93c5fd;
+      font-weight: 700;
+      text-align: right;
+    }
+
+    .character-sheet-stat-row,
+    .character-sheet-skill-row {
+      display: grid;
+      gap: 0.35rem;
+      padding: 0.45rem 0.55rem;
+      border: 1px solid rgba(156, 163, 175, 0.12);
+      background: rgba(12, 16, 24, 0.28);
+    }
+
+    .character-sheet-stat-main,
+    .character-sheet-skill-main {
+      display: flex;
+      justify-content: space-between;
+      gap: 0.75rem;
+      align-items: baseline;
+    }
+
+    .character-sheet-stat-label,
+    .character-sheet-skill-label {
+      color: #d7dde7;
+      font-weight: 600;
+    }
+
+    .character-sheet-stat-current,
+    .character-sheet-skill-expression {
+      color: #86efac;
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+    }
+
+    .character-sheet-skill-label {
+      flex: 1 1 auto;
+      min-width: 0;
+    }
+
+    .character-sheet-skill-main {
+      display: grid;
+      grid-template-columns: 11ch 3ch 1ch 2ch 3ch 3ch 3ch;
+      gap: 0.35rem;
+      align-items: baseline;
+      justify-content: start;
+    }
+
+    .character-sheet-skill-label {
+      flex: initial;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .character-sheet-skill-cell {
+      display: block;
+      white-space: nowrap;
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+      font-weight: 600;
+    }
+
+    .character-sheet-skill-equals {
+      text-align: center;
+    }
+
+    .character-sheet-stat-row-reduced .character-sheet-stat-current {
+      color: #fde047;
+    }
+
+    .character-sheet-stat-row-editable {
+      gap: 0.55rem;
+    }
+
+    .character-sheet-stat-row-selected {
+      border-color: rgba(147, 197, 253, 0.45);
+      background: rgba(37, 99, 235, 0.14);
+    }
+
+    .character-sheet-stat-select {
+      display: block;
+      width: 100%;
+      padding: 0;
+      border: 0;
+      background: transparent;
+      color: inherit;
+      font: inherit;
+      text-align: left;
+      cursor: pointer;
+    }
+
+    .character-sheet-stat-controls {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.45rem;
+    }
+
+    .character-sheet-stat-adjust {
+      min-width: 2.2rem;
+      min-height: 2.2rem;
+      border: 1px solid rgba(156, 163, 175, 0.2);
+      background: rgba(15, 23, 42, 0.78);
+      color: #d7dde7;
+      font: inherit;
+      font-size: 1.1rem;
+      cursor: pointer;
+    }
+
+    .character-sheet-stat-adjust:disabled {
+      opacity: 0.38;
+      cursor: default;
+    }
+
+    .character-sheet-stat-cost {
+      color: #cdd6e3;
+      font-size: 0.92rem;
+      white-space: nowrap;
+    }
+
+    .character-sheet-skill-row-editable {
+      gap: 0.55rem;
+    }
+
+    .character-sheet-skill-row-selected {
+      border-color: rgba(147, 197, 253, 0.45);
+      background: rgba(37, 99, 235, 0.14);
+    }
+
+    .character-sheet-skill-select {
+      display: block;
+      width: 100%;
+      padding: 0;
+      border: 0;
+      background: transparent;
+      color: inherit;
+      font: inherit;
+      text-align: left;
+      cursor: pointer;
+    }
+
+    .character-sheet-skill-controls {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.45rem;
+    }
+
+    .character-sheet-skill-cost {
+      color: #cdd6e3;
+      font-size: 0.92rem;
+      white-space: nowrap;
+    }
+
+    .character-sheet-stat-mods {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.35rem;
+    }
+
+    .character-sheet-stat-mod {
+      display: inline-flex;
+      align-items: center;
+      padding: 0.15rem 0.4rem;
+      border: 1px solid rgba(156, 163, 175, 0.16);
+      background: rgba(15, 23, 42, 0.68);
+      color: #cdd6e3;
+      font-size: 0.88rem;
+    }
+
+    .character-sheet-stat-base {
+      color: #93c5fd;
+    }
+
+    .character-sheet-history {
+      color: #d7dde7;
+      line-height: 1.4;
+      white-space: pre-wrap;
+    }
+
+    .character-sheet-card-head,
+    .character-sheet-history-editor-head {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.75rem;
+    }
+
+    .character-sheet-action-inline {
+      min-height: 0;
+      padding: 0.4rem 0.65rem;
+    }
+
+    .character-history-editor {
+      min-height: 18rem;
+    }
+
+    .character-history-textarea {
+      width: 100%;
+      min-height: 18rem;
+      padding: 0.9rem 1rem;
+      box-sizing: border-box;
+      resize: vertical;
+      border: 1px solid rgba(147, 197, 253, 0.22);
+      background: rgba(10, 14, 22, 0.72);
+      color: #d7dde7;
+      font: inherit;
+      line-height: 1.45;
+      white-space: pre-wrap;
+    }
+
+    .character-history-textarea:focus {
+      outline: 1px solid rgba(147, 197, 253, 0.55);
+      border-color: rgba(147, 197, 253, 0.42);
+    }
+
+    .character-birth-form {
+      display: grid;
+      gap: 0.85rem;
+    }
+
+    .character-birth-field {
+      display: grid;
+      gap: 0.45rem;
+      padding: 0.8rem 0.9rem;
+      border: 1px solid rgba(147, 197, 253, 0.18);
+      background: rgba(10, 14, 22, 0.48);
+    }
+
+    .character-birth-field-head {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 0.45rem 0.85rem;
+    }
+
+    .character-birth-field-label {
+      color: #d7dde7;
+      font-weight: 700;
+    }
+
+    .character-birth-field-preview {
+      color: #93c5fd;
+      font-weight: 600;
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+    }
+
+    .character-birth-input {
+      width: 100%;
+      padding: 0.65rem 0.8rem;
+      box-sizing: border-box;
+      border: 1px solid rgba(147, 197, 253, 0.22);
+      background: rgba(10, 14, 22, 0.72);
+      color: #d7dde7;
+      font: inherit;
+      font-size: 1.05rem;
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .character-birth-input:focus {
+      outline: 1px solid rgba(147, 197, 253, 0.55);
+      border-color: rgba(147, 197, 253, 0.42);
+    }
+
+    .character-birth-field-range {
+      color: #9fb0c9;
+      font-size: 0.92rem;
+    }
+
+    .character-sheet-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.6rem;
+      position: sticky;
+      bottom: 0;
+      padding-top: 0.35rem;
+      background: linear-gradient(180deg, rgba(7, 10, 16, 0) 0%, rgba(7, 10, 16, 0.96) 34%);
+    }
+
+    .character-sheet-action {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.55rem;
+      min-height: 2.5rem;
+      padding: 0.55rem 0.85rem;
+      border: 1px solid rgba(156, 163, 175, 0.2);
+      background: rgba(15, 23, 42, 0.78);
+      color: #d7dde7;
+      font: inherit;
+      cursor: pointer;
+    }
+
+    .character-sheet-action-key {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 2.35rem;
+      padding: 0.2rem 0.4rem;
+      border: 1px solid rgba(147, 197, 253, 0.28);
+      color: #fde047;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+
+    .character-sheet-action-label {
+      color: #d7dde7;
+      font-weight: 600;
     }
 
     .menu-shell {
@@ -678,6 +1143,26 @@
     }
 
     .menu-item-details-copy-empty {
+      display: none;
+    }
+
+    .menu-summary {
+      min-width: 0;
+      min-height: var(--menu-summary-min-height, 0);
+      overflow: auto;
+      overscroll-behavior: contain;
+      -webkit-overflow-scrolling: touch;
+      touch-action: pan-y;
+      white-space: pre-wrap;
+      line-height: 1.25;
+      padding: 0.75rem;
+      color: #d7dde7;
+      background: rgba(6, 8, 12, 0.22);
+      border: 1px solid rgba(156, 163, 175, 0.14);
+      box-sizing: border-box;
+    }
+
+    .menu-summary-empty {
       display: none;
     }
 
@@ -867,6 +1352,46 @@
         height: 2.15rem;
       }
 
+      #overlay-modal.overlay-birth-stats {
+        padding: 0.75rem;
+        width: calc(100% - 1.5rem);
+        max-height: calc(100% - 1.5rem);
+      }
+
+      #overlay-modal.overlay-birth-history,
+      #overlay-modal.overlay-character-sheet,
+      #overlay-modal.overlay-character-skills {
+        padding: 0.75rem;
+        width: calc(100% - 1.5rem);
+        height: auto;
+        max-height: calc(100% - 1.5rem);
+      }
+
+      .character-sheet-meta,
+      .character-sheet-layout {
+        grid-template-columns: 1fr;
+        grid-template-areas: none;
+      }
+
+      .character-sheet-overview-card,
+      .character-sheet-stats-card,
+      .character-sheet-skills-card,
+      .character-sheet-history-card {
+        grid-area: auto;
+      }
+
+      .character-sheet-stat-controls {
+        justify-content: stretch;
+      }
+
+      .character-sheet-stat-adjust {
+        flex: 1 1 0;
+      }
+
+      .character-history-textarea {
+        min-height: 15rem;
+      }
+
       .side-backdrop {
         display: block;
       }
@@ -932,6 +1457,51 @@
     }
 
     @media (max-width: 700px) {
+      #overlay-modal.overlay-birth-name,
+      #overlay-modal.overlay-birth-ahw,
+      #overlay-modal.overlay-birth-history,
+      #overlay-modal.overlay-character-sheet,
+      #overlay-modal.overlay-character-skills {
+        overflow-y: auto;
+        overflow-x: hidden;
+      }
+
+      .character-sheet-field {
+        display: grid;
+        gap: 0.2rem;
+      }
+
+      .character-sheet-field-value,
+      .character-sheet-progress-value,
+      .character-sheet-combat-value,
+      .character-sheet-identity-value {
+        text-align: left;
+      }
+
+      .character-sheet-action {
+        width: 100%;
+        justify-content: flex-start;
+      }
+
+      .character-sheet-card-head,
+      .character-sheet-history-editor-head {
+        align-items: stretch;
+      }
+
+      .character-birth-field-head {
+        align-items: flex-start;
+      }
+
+      .character-sheet-skill-main {
+        grid-template-columns: 9ch 3ch 1ch 2ch 3ch 3ch 3ch;
+        gap: 0.25rem;
+      }
+
+      .character-sheet-editor-banner {
+        display: grid;
+        gap: 0.35rem;
+      }
+
       #overlay-modal.overlay-menu {
         overflow-y: auto;
         overflow-x: hidden;
@@ -975,7 +1545,8 @@
 
       .menu-copy,
       .menu-item-details,
-      .menu-item-details-copy {
+      .menu-item-details-copy,
+      .menu-summary {
         overflow: visible;
       }
 

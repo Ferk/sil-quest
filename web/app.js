@@ -105,6 +105,8 @@
     let lastMenuRevision = -1;
     let lastModalRevision = -1;
     let lastPromptRevision = -1;
+    let lastBirthStateRevision = -1;
+    let lastCharacterSheetRevision = -1;
     let cellStride = 8;
     let tileSrcW = 16;
     let tileSrcH = 16;
@@ -151,11 +153,23 @@
     let activeMenuTextAttrs = null;
     let activeMenuDetailsText = "";
     let activeMenuDetailsAttrs = null;
+    let activeMenuSummaryText = "";
+    let activeMenuSummaryAttrs = null;
     let activeMenuDetailsWidth = null;
+    let activeMenuSummaryRows = null;
     let activeMenuDetailsVisual = null;
+    let activeBirthState = null;
+    let activeCharacterSheetState = null;
     let semanticMenuSnapshot = null;
     let hoveredMenuIndex = -1;
     let compactSideOpen = false;
+    let birthTextDraft = "";
+    let birthTextSourceText = "";
+    let birthTextSourceKind = "";
+    let birthTextDirty = false;
+    let birthAhwDraft = createEmptyBirthAhwDraft();
+    let birthAhwSource = createEmptyBirthAhwDraft();
+    let birthAhwDirty = false;
     const iconMeta = {
       alertAttr: 0,
       alertChar: 0,
@@ -163,6 +177,7 @@
       glowChar: 0,
     };
     const utf8Decoder = new TextDecoder("utf-8");
+    const utf8Encoder = new TextEncoder();
     const MAX_PENDING_SOUND_EVENTS = 64;
     const FRONTEND_NOISE_EVENT_ID = 0;
     const FRONTEND_NOISE_SAMPLE_PATH = "./assets/bell.flac";
@@ -846,6 +861,61 @@
       }
     }
 
+    // Keeps one selected editor row visible within the overlay scroll area.
+    function scrollOverlayRowIntoView(itemEl) {
+      const container = overlayModalEl;
+      if (!itemEl || !container) return;
+
+      const itemRect = itemEl.getBoundingClientRect();
+      const containerRect = container.getBoundingClientRect();
+      const pad = 8;
+
+      if (itemRect.top < containerRect.top + pad) {
+        container.scrollTop -= (containerRect.top + pad) - itemRect.top;
+      } else if (itemRect.bottom > containerRect.bottom - pad) {
+        container.scrollTop += itemRect.bottom - (containerRect.bottom - pad);
+      }
+    }
+
+    // Keeps one overlay editor section visible by scrolling its containing card into view.
+    function syncOverlayEditorSectionIntoView(overlayClass, fieldSelector, sectionSelector) {
+      if (!overlayModalEl.classList.contains(overlayClass)) return;
+      const fieldEl = overlayModalEl.querySelector(fieldSelector);
+      if (!fieldEl) return;
+
+      const targetEl = sectionSelector
+        ? fieldEl.closest(sectionSelector) || fieldEl
+        : fieldEl;
+      scrollOverlayRowIntoView(targetEl);
+    }
+
+    // After re-rendering the birth A/H/W overlay, keeps the physical section visible.
+    function syncBirthAhwEditorIntoView() {
+      syncOverlayEditorSectionIntoView(
+        "overlay-birth-ahw",
+        '[data-birth-ahw-field="age"]',
+        ".character-sheet-meta-card"
+      );
+    }
+
+    // After re-rendering the birth-stat overlay, keeps the selected stat in view.
+    function syncSelectedBirthStatIntoView() {
+      if (!overlayModalEl.classList.contains("overlay-birth-stats")) return;
+      const selectedItem = overlayModalEl.querySelector(
+        ".character-sheet-stat-row-selected"
+      );
+      scrollOverlayRowIntoView(selectedItem);
+    }
+
+    // After re-rendering the skill editor overlay, keeps the selected skill in view.
+    function syncSelectedCharacterSkillIntoView() {
+      if (!overlayModalEl.classList.contains("overlay-character-skills")) return;
+      const selectedItem = overlayModalEl.querySelector(
+        ".character-sheet-skill-row-selected"
+      );
+      scrollOverlayRowIntoView(selectedItem);
+    }
+
     // Saves the last live semantic menu so transient prompts can reuse it without falling back to terminal capture.
     function snapshotSemanticMenu(
       items,
@@ -854,7 +924,10 @@
       textAttrs,
       detailsText,
       detailsAttrs,
+      summaryText,
+      summaryAttrs,
       detailsWidth,
+      summaryRows,
       detailsVisual
     ) {
       if (!items.length) return;
@@ -865,7 +938,10 @@
         textAttrs: cloneAttrBytes(textAttrs),
         detailsText,
         detailsAttrs: cloneAttrBytes(detailsAttrs),
+        summaryText,
+        summaryAttrs: cloneAttrBytes(summaryAttrs),
         detailsWidth,
+        summaryRows,
         detailsVisual: detailsVisual ? { ...detailsVisual } : null,
       };
     }
@@ -887,6 +963,44 @@
     // Returns whether the top prompt represents an active target-preview state.
     function isTargetPreviewTopPromptActive() {
       return topPromptActive && topPromptKind === UI_PROMPT_KIND_TARGET;
+    }
+
+    // Returns whether any shared semantic birth screen is active.
+    function isBirthScreenActive() {
+      return !!activeBirthState && Number(activeBirthState.active) === 1;
+    }
+
+    // Returns the active semantic birth-screen kind, if any.
+    function getBirthScreenKind() {
+      if (!isBirthScreenActive()) return "";
+      return String(activeBirthState.kind || "stats");
+    }
+
+    // Returns whether the shared semantic birth stat-allocation screen is active.
+    function isBirthStatsScreenActive() {
+      return getBirthScreenKind() === "stats";
+    }
+
+    // Returns whether the shared semantic birth age/height/weight editor is active.
+    function isBirthAhwScreenActive() {
+      return getBirthScreenKind() === "ahw";
+    }
+
+    // Returns whether one shared birth text-editing screen is active.
+    function isBirthTextScreenActive() {
+      return isBirthTextScreenKind(getBirthScreenKind());
+    }
+
+    // Returns whether the shared semantic character-sheet screen is active.
+    function isCharacterSheetActive() {
+      return !!activeCharacterSheetState && Number(activeCharacterSheetState.active) === 1;
+    }
+
+    // Returns whether the shared semantic character sheet is in skill-editor mode.
+    function isCharacterSkillEditorActive() {
+      return !!activeCharacterSheetState &&
+        Number(activeCharacterSheetState.active) === 1 &&
+        Number(activeCharacterSheetState.skillEditorActive ?? 0) === 1;
     }
 
     // Only interactive prompts should keep the last semantic menu visible as context.
@@ -916,7 +1030,10 @@
           activeMenuTextAttrs,
           activeMenuDetailsText,
           activeMenuDetailsAttrs,
+          activeMenuSummaryText,
+          activeMenuSummaryAttrs,
           activeMenuDetailsWidth,
+          activeMenuSummaryRows,
           activeMenuDetailsVisual
         );
         return {
@@ -926,7 +1043,10 @@
           textAttrs: activeMenuTextAttrs,
           detailsText: activeMenuDetailsText,
           detailsAttrs: activeMenuDetailsAttrs,
+          summaryText: activeMenuSummaryText,
+          summaryAttrs: activeMenuSummaryAttrs,
           detailsWidth: activeMenuDetailsWidth,
+          summaryRows: activeMenuSummaryRows,
           detailsVisual: activeMenuDetailsVisual,
         };
       }
@@ -952,7 +1072,10 @@
         activeMenuTextAttrs = null;
         activeMenuDetailsText = "";
         activeMenuDetailsAttrs = null;
+        activeMenuSummaryText = "";
+        activeMenuSummaryAttrs = null;
         activeMenuDetailsWidth = null;
+        activeMenuSummaryRows = null;
         activeMenuDetailsVisual = null;
         hoveredMenuIndex = -1;
         return;
@@ -980,8 +1103,18 @@
         typeof api.getMenuDetailsAttrsPtr === "function" ? api.getMenuDetailsAttrsPtr() : 0;
       const detailsAttrLen =
         typeof api.getMenuDetailsAttrsLen === "function" ? api.getMenuDetailsAttrsLen() : 0;
+      const summaryPtr =
+        typeof api.getMenuSummaryPtr === "function" ? api.getMenuSummaryPtr() : 0;
+      const summaryLen =
+        typeof api.getMenuSummaryLen === "function" ? api.getMenuSummaryLen() : 0;
+      const summaryAttrPtr =
+        typeof api.getMenuSummaryAttrsPtr === "function" ? api.getMenuSummaryAttrsPtr() : 0;
+      const summaryAttrLen =
+        typeof api.getMenuSummaryAttrsLen === "function" ? api.getMenuSummaryAttrsLen() : 0;
       const detailsWidth =
         typeof api.getMenuDetailsWidth === "function" ? api.getMenuDetailsWidth() : 0;
+      const summaryRows =
+        typeof api.getMenuSummaryRows === "function" ? api.getMenuSummaryRows() : 0;
       const detailsVisualKind =
         typeof api.getMenuDetailsVisualKind === "function"
           ? api.getMenuDetailsVisualKind()
@@ -1000,8 +1133,12 @@
       activeMenuColumnX = Number.isInteger(activeColumnX) ? activeColumnX : null;
       activeMenuDetailsText = readUtf8(heap, detailsPtr, detailsLen);
       activeMenuDetailsAttrs = readBytes(heap, detailsAttrPtr, detailsAttrLen);
+      activeMenuSummaryText = readUtf8(heap, summaryPtr, summaryLen);
+      activeMenuSummaryAttrs = readBytes(heap, summaryAttrPtr, summaryAttrLen);
       activeMenuDetailsWidth =
         Number.isInteger(detailsWidth) && detailsWidth > 0 ? detailsWidth : null;
+      activeMenuSummaryRows =
+        Number.isInteger(summaryRows) && summaryRows > 0 ? summaryRows : null;
       activeMenuDetailsVisual = normalizeMenuDetailsVisual(
         detailsVisualKind,
         detailsVisualAttr,
@@ -1013,7 +1150,10 @@
         activeMenuColumnX = null;
         activeMenuDetailsText = "";
         activeMenuDetailsAttrs = null;
+        activeMenuSummaryText = "";
+        activeMenuSummaryAttrs = null;
         activeMenuDetailsWidth = null;
+        activeMenuSummaryRows = null;
         activeMenuDetailsVisual = null;
         hoveredMenuIndex = -1;
         return;
@@ -1072,6 +1212,542 @@
         console.warn("Invalid player-state payload from wasm:", err);
         return null;
       }
+    }
+
+    // Reads and parses the active semantic birth-screen payload exported by wasm.
+    function readBirthState(heap) {
+      if (
+        !api ||
+        typeof api.getBirthStatePtr !== "function" ||
+        typeof api.getBirthStateLen !== "function"
+      ) {
+        activeBirthState = null;
+        return null;
+      }
+
+      const ptr = api.getBirthStatePtr();
+      const len = api.getBirthStateLen();
+      const payload = readUtf8(heap, ptr, len);
+      if (!payload) {
+        activeBirthState = null;
+        return null;
+      }
+
+      try {
+        const state = JSON.parse(payload);
+        activeBirthState =
+          state && Number(state.active) === 1 ? state : null;
+        if (!isBirthTextScreenKind(String(activeBirthState?.kind || ""))) {
+          resetBirthTextDraft();
+        }
+        if (!activeBirthState || String(activeBirthState.kind || "") !== "ahw") {
+          resetBirthAhwDraft();
+        }
+        return activeBirthState;
+      } catch (err) {
+        console.warn("Invalid birth-state payload from wasm:", err);
+        activeBirthState = null;
+        resetBirthTextDraft();
+        resetBirthAhwDraft();
+        return null;
+      }
+    }
+
+    // Returns whether one birth-screen kind uses the shared text editor.
+    function isBirthTextScreenKind(kind) {
+      return kind === "name" || kind === "history";
+    }
+
+    // Describes one shared birth text-editing screen for renderer and input reuse.
+    function getBirthTextScreenConfig(kind = getBirthScreenKind()) {
+      switch (String(kind || "")) {
+        case "name":
+          return {
+            kind: "name",
+            overlayClass: "overlay-birth-name",
+            inputSelector: '[data-birth-text-input="name"]',
+            sectionSelector: ".character-sheet-meta-card",
+            rerollKeyCode: 9,
+            acceptsSubmitShortcut: (ev) => ev.key === "Enter",
+            acceptFabTitle: "Accept name (Enter)",
+            acceptFabAria: "Accept name",
+          };
+        case "history":
+          return {
+            kind: "history",
+            overlayClass: "overlay-birth-history",
+            inputSelector: '[data-birth-text-input="history"]',
+            sectionSelector: ".character-sheet-history-card",
+            rerollKeyCode: " ".charCodeAt(0),
+            acceptsSubmitShortcut: (ev) =>
+              ev.key === "Enter" && (ev.ctrlKey || ev.metaKey),
+            acceptFabTitle: "Accept history (Enter)",
+            acceptFabAria: "Accept history",
+          };
+        default:
+          return null;
+      }
+    }
+
+    // Clears the local shared text editor draft state.
+    function resetBirthTextDraft() {
+      birthTextDraft = "";
+      birthTextSourceText = "";
+      birthTextSourceKind = "";
+      birthTextDirty = false;
+    }
+
+    // Returns a fresh empty birth age/height/weight draft object.
+    function createEmptyBirthAhwDraft() {
+      return { age: "", height: "", weight: "" };
+    }
+
+    // Clears the local age/height/weight editor draft state.
+    function resetBirthAhwDraft() {
+      birthAhwDraft = createEmptyBirthAhwDraft();
+      birthAhwSource = createEmptyBirthAhwDraft();
+      birthAhwDirty = false;
+    }
+
+    // Submits one accepted birth form through the shared wasm adapter interface.
+    function submitBirthForm(kind, payload = {}) {
+      const kindCode =
+        { stats: 1, history: 2, ahw: 3, name: 4 }[String(kind || "")] || 0;
+      if (!api || typeof api.submitBirthForm !== "function" || kindCode <= 0) {
+        return false;
+      }
+
+      if (typeof payload.text !== "undefined" && payload.text !== null) {
+        const maxLength = Number(activeBirthState?.maxLength ?? 0);
+        const heap = getHeapU8();
+        const ptr =
+          typeof api.getBirthSubmitTextPtr === "function"
+            ? Number(api.getBirthSubmitTextPtr() || 0)
+            : 0;
+        if (!heap || ptr <= 0 || maxLength <= 0) return false;
+
+        const encoded = utf8Encoder.encode(String(payload.text ?? ""));
+        const writeLen = Math.min(encoded.length, maxLength);
+        heap.set(encoded.subarray(0, writeLen), ptr);
+        heap[ptr + writeLen] = 0;
+      }
+
+      return (
+        api.submitBirthForm(
+          kindCode,
+          parseBirthNumberInput(payload.age),
+          parseBirthNumberInput(payload.height),
+          parseBirthNumberInput(payload.weight)
+        ) !== 0
+      );
+    }
+
+    // Keeps the local shared birth-text draft aligned with backend state.
+    function syncBirthTextDraft(state, force = false) {
+      const nextKind = String(state?.kind || "");
+      const nextText = String(state?.text || "");
+
+      if (
+        force ||
+        nextKind !== birthTextSourceKind ||
+        !birthTextDirty ||
+        nextText !== birthTextSourceText
+      ) {
+        birthTextDraft = nextText;
+        birthTextSourceText = nextText;
+        birthTextSourceKind = nextKind;
+        birthTextDirty = false;
+      }
+    }
+
+    // Commits one shared birth-text draft value to local state only.
+    function commitBirthTextDraft(text = birthTextDraft) {
+      birthTextDraft = String(text ?? "");
+      birthTextDirty =
+        (getBirthScreenKind() !== birthTextSourceKind) ||
+        (birthTextDraft !== birthTextSourceText);
+      return birthTextDraft;
+    }
+
+    // Reads the current shared birth-text draft directly from one overlay field.
+    function readBirthTextDraftFromDom(selector) {
+      return overlayModalEl.querySelector(selector)?.value ?? birthTextDraft;
+    }
+
+    // Commits the current shared birth-text draft from one overlay field.
+    function commitBirthTextDraftFromDom(selector) {
+      return commitBirthTextDraft(readBirthTextDraftFromDom(selector));
+    }
+
+    // Mirrors the shared birth-text draft into the active overlay field.
+    function syncBirthTextEditorValue(kind = getBirthScreenKind()) {
+      const config = getBirthTextScreenConfig(kind);
+      if (!config) return;
+
+      const inputEl = overlayModalEl.querySelector(config.inputSelector);
+      if (inputEl && inputEl.value !== birthTextDraft) {
+        inputEl.value = birthTextDraft;
+      }
+    }
+
+    // Keeps the active shared birth-text editor card visible in the overlay.
+    function syncBirthTextEditorIntoView(kind = getBirthScreenKind()) {
+      const config = getBirthTextScreenConfig(kind);
+      if (!config) return;
+
+      syncOverlayEditorSectionIntoView(
+        config.overlayClass,
+        config.inputSelector,
+        config.sectionSelector
+      );
+    }
+
+    // Commits and submits the active birth form on accept.
+    function submitActiveBirthDraft(
+      kind = getBirthScreenKind(),
+      textOverride = null
+    ) {
+      if (isBirthTextScreenKind(kind)) {
+        const config = getBirthTextScreenConfig(kind);
+        const text =
+          textOverride === null
+            ? (config ? commitBirthTextDraftFromDom(config.inputSelector) : "")
+            : commitBirthTextDraft(textOverride);
+        return !!config && submitBirthForm(kind, { text });
+      }
+
+      if (kind === "ahw") {
+        return submitBirthForm(kind, commitBirthAhwDraftFromDom());
+      }
+
+      return false;
+    }
+
+    // Dispatches one shared birth-text editor action through the engine input queue.
+    function dispatchBirthTextScreenAction(
+      action,
+      kind = getBirthScreenKind(),
+      textOverride = null
+    ) {
+      const config = getBirthTextScreenConfig(kind);
+      if (!config) return false;
+
+      if (action === "accept") {
+        let nextText = textOverride;
+
+        if (textOverride === null) {
+          nextText = commitBirthTextDraftFromDom(config.inputSelector);
+        } else {
+          nextText = commitBirthTextDraft(textOverride);
+        }
+        if (!submitActiveBirthDraft(kind, nextText)) return false;
+        pushAscii(13);
+        forceRedraw = true;
+        return true;
+      }
+
+      if (action === "reroll") {
+        birthTextDirty = false;
+        pushAscii(config.rerollKeyCode);
+        forceRedraw = true;
+        return true;
+      }
+
+      if (action === "cancel") {
+        pushAscii(27);
+        forceRedraw = true;
+        return true;
+      }
+
+      return false;
+    }
+
+    // Normalizes one numeric birth-input field for the wasm bridge.
+    function parseBirthNumberInput(value) {
+      const text = String(value ?? "").trim();
+      if (!text) return 0;
+
+      const number = Number.parseInt(text, 10);
+      return Number.isFinite(number) ? number : 0;
+    }
+
+    // Commits one age/height/weight draft value to local state only.
+    function commitBirthAhwDraft(draft = birthAhwDraft) {
+      birthAhwDraft = {
+        age: String(draft?.age ?? ""),
+        height: String(draft?.height ?? ""),
+        weight: String(draft?.weight ?? ""),
+      };
+      birthAhwDirty =
+        birthAhwDraft.age !== birthAhwSource.age ||
+        birthAhwDraft.height !== birthAhwSource.height ||
+        birthAhwDraft.weight !== birthAhwSource.weight;
+      return birthAhwDraft;
+    }
+
+    // Reads the current age/height/weight draft directly from the overlay DOM.
+    function readBirthAhwDraftFromDom() {
+      return {
+        age: overlayModalEl.querySelector('[data-birth-ahw-field="age"]')?.value ?? birthAhwDraft.age,
+        height: overlayModalEl.querySelector('[data-birth-ahw-field="height"]')?.value ?? birthAhwDraft.height,
+        weight: overlayModalEl.querySelector('[data-birth-ahw-field="weight"]')?.value ?? birthAhwDraft.weight,
+      };
+    }
+
+    // Commits the current age/height/weight draft from the overlay DOM into local state.
+    function commitBirthAhwDraftFromDom() {
+      return commitBirthAhwDraft(readBirthAhwDraftFromDom());
+    }
+
+    // Keeps the local age/height/weight draft aligned with backend state when it changes.
+    function syncBirthAhwDraft(state, force = false) {
+      const nextDraft = {
+        age: String(state?.age ?? ""),
+        height: String(state?.height ?? ""),
+        weight: String(state?.weight ?? ""),
+      };
+
+      if (
+        force ||
+        !birthAhwDirty ||
+        nextDraft.age !== birthAhwSource.age ||
+        nextDraft.height !== birthAhwSource.height ||
+        nextDraft.weight !== birthAhwSource.weight
+      ) {
+        birthAhwDraft = nextDraft;
+        birthAhwSource = { ...nextDraft };
+        birthAhwDirty = false;
+      }
+    }
+
+    // Reads and parses the semantic character-sheet payload exported by wasm.
+    function readCharacterSheetState(heap) {
+      if (
+        !api ||
+        typeof api.getCharacterSheetStatePtr !== "function" ||
+        typeof api.getCharacterSheetStateLen !== "function"
+      ) {
+        activeCharacterSheetState = null;
+        return null;
+      }
+
+      const ptr = api.getCharacterSheetStatePtr();
+      const len = api.getCharacterSheetStateLen();
+      const payload = readUtf8(heap, ptr, len);
+      if (!payload) {
+        activeCharacterSheetState = null;
+        return null;
+      }
+
+      try {
+        const state = JSON.parse(payload);
+        activeCharacterSheetState =
+          state && Number(state.active) === 1 ? state : null;
+        return activeCharacterSheetState;
+      } catch (err) {
+        console.warn("Invalid character-sheet payload from wasm:", err);
+        activeCharacterSheetState = null;
+        return null;
+      }
+    }
+
+    // Formats one action key label for the custom character-sheet footer.
+    function formatCharacterActionKey(key) {
+      const value = Number(key);
+
+      if (value === 27) return "Esc";
+      if (value === 9) return "Tab";
+      if (value === 13) return "Enter";
+      if (value === 32) return "Space";
+      if (!Number.isInteger(value) || value <= 0 || value > 255) return "";
+
+      return String.fromCharCode(value).toUpperCase();
+    }
+
+    // Builds HTML rows for visible label/value character fields.
+    function renderCharacterFields(fields, valueClass = "character-sheet-field-value") {
+      return (Array.isArray(fields) ? fields : [])
+        .filter((field) => Number(field?.visible ?? 0) === 1)
+        .map(
+          (field) =>
+            `<div class="character-sheet-field">` +
+              `<span class="character-sheet-field-label">${escapeHtml(String(field.label || ""))}</span>` +
+              `<strong class="${valueClass}">${escapeHtml(String(field.value || ""))}</strong>` +
+            `</div>`
+        )
+        .join("");
+    }
+
+    // Builds the standard stat rows used by the semantic character-sheet view.
+    function renderCharacterStaticStats(stats) {
+      return (Array.isArray(stats) ? stats : [])
+        .map((stat) => {
+          const showBase = Number(stat?.showBase ?? 0) === 1;
+          const reduced = Number(stat?.reduced ?? 0) === 1;
+          const modHtml = [];
+
+          if (showBase) {
+            modHtml.push(
+              `<span class="character-sheet-stat-mod character-sheet-stat-base">= ${escapeHtml(String(stat.base || ""))}</span>`
+            );
+          }
+          if (Number(stat?.equipMod ?? 0) !== 0) {
+            modHtml.push(
+              `<span class="character-sheet-stat-mod">Eq ${escapeHtml(String(stat.equipMod > 0 ? `+${stat.equipMod}` : stat.equipMod))}</span>`
+            );
+          }
+          if (Number(stat?.drainMod ?? 0) !== 0) {
+            modHtml.push(
+              `<span class="character-sheet-stat-mod">Drain ${escapeHtml(String(stat.drainMod > 0 ? `+${stat.drainMod}` : stat.drainMod))}</span>`
+            );
+          }
+          if (Number(stat?.miscMod ?? 0) !== 0) {
+            modHtml.push(
+              `<span class="character-sheet-stat-mod">Misc ${escapeHtml(String(stat.miscMod > 0 ? `+${stat.miscMod}` : stat.miscMod))}</span>`
+            );
+          }
+
+          return (
+            `<div class="character-sheet-stat-row${reduced ? " character-sheet-stat-row-reduced" : ""}">` +
+              `<div class="character-sheet-stat-main">` +
+                `<span class="character-sheet-stat-label">${escapeHtml(String(stat.label || ""))}</span>` +
+                `<strong class="character-sheet-stat-current">${escapeHtml(String(stat.current || ""))}</strong>` +
+              `</div>` +
+              `<div class="character-sheet-stat-mods">${modHtml.join("")}</div>` +
+            `</div>`
+          );
+        })
+        .join("");
+    }
+
+    // Builds the editable stat rows used during birth stat allocation.
+    function renderCharacterBirthStats(stats) {
+      return (Array.isArray(stats) ? stats : [])
+        .map((stat) => {
+          const index = Number(stat.index ?? -1);
+          const selected = Number(stat.selected ?? 0) === 1;
+          const canDecrease = Number(stat.canDecrease ?? 0) === 1;
+          const canIncrease = Number(stat.canIncrease ?? 0) === 1;
+
+          return (
+            `<div class="character-sheet-stat-row character-sheet-stat-row-editable${selected ? " character-sheet-stat-row-selected" : ""}" data-birth-stat-index="${index}">` +
+              `<button type="button" class="character-sheet-stat-select" data-birth-stat-index="${index}" aria-pressed="${selected ? "true" : "false"}">` +
+                `<div class="character-sheet-stat-main">` +
+                  `<span class="character-sheet-stat-label">${escapeHtml(String(stat.name || ""))}</span>` +
+                  `<strong class="character-sheet-stat-current">${escapeHtml(String(stat.value || ""))}</strong>` +
+                `</div>` +
+              `</button>` +
+              `<div class="character-sheet-stat-controls">` +
+                `<button type="button" class="character-sheet-stat-adjust" data-birth-stat-index="${index}" data-birth-adjust="-1"${canDecrease ? "" : " disabled"} aria-label="Decrease ${escapeHtml(String(stat.name || "stat"))}">-</button>` +
+                `<button type="button" class="character-sheet-stat-adjust" data-birth-stat-index="${index}" data-birth-adjust="1"${canIncrease ? "" : " disabled"} aria-label="Increase ${escapeHtml(String(stat.name || "stat"))}">+</button>` +
+                `<span class="character-sheet-stat-cost">Cost ${escapeHtml(String(stat.cost ?? 0))}</span>` +
+              `</div>` +
+            `</div>`
+          );
+        })
+        .join("");
+    }
+
+    // Formats one signed modifier the same way the terminal character sheet does.
+    function formatCharacterSkillModifier(value) {
+      const number = Number(value ?? 0);
+
+      if (!Number.isFinite(number) || number === 0) return "";
+      return number > 0 ? `+${number}` : String(number);
+    }
+
+    // Builds the skill equation HTML and hover breakdown for one skill row.
+    function buildCharacterSkillEquation(skill) {
+      const base = Number(skill?.base ?? 0);
+      const value = Number(skill?.value ?? 0);
+      const statMod = Number(skill?.statMod ?? 0);
+      const equipMod = Number(skill?.equipMod ?? 0);
+      const miscMod = Number(skill?.miscMod ?? 0);
+      const mods = [
+        { label: "Stat", value: statMod },
+        { label: "Eq", value: equipMod },
+        { label: "Misc", value: miscMod },
+      ];
+      const titleTerms = [`Base ${base}`];
+
+      for (const mod of mods) {
+        if (mod.value === 0) continue;
+        titleTerms.push(`${mod.label} ${mod.value > 0 ? "+" : ""}${mod.value}`);
+      }
+
+      return {
+        html:
+          `<span class="character-sheet-skill-cell character-sheet-skill-value term-c13">${escapeHtml(String(value))}</span>` +
+          `<span class="character-sheet-skill-cell character-sheet-skill-equals term-c2">=</span>` +
+          `<span class="character-sheet-skill-cell character-sheet-skill-base term-c5">${escapeHtml(String(base))}</span>` +
+          `<span class="character-sheet-skill-cell character-sheet-skill-mod term-c2">${escapeHtml(formatCharacterSkillModifier(statMod))}</span>` +
+          `<span class="character-sheet-skill-cell character-sheet-skill-mod term-c2">${escapeHtml(formatCharacterSkillModifier(equipMod))}</span>` +
+          `<span class="character-sheet-skill-cell character-sheet-skill-mod term-c2">${escapeHtml(formatCharacterSkillModifier(miscMod))}</span>`,
+        title: titleTerms.join(" | "),
+      };
+    }
+
+    // Builds the skill rows used by the semantic character-sheet view.
+    function renderCharacterSkills(skills) {
+      return (Array.isArray(skills) ? skills : [])
+        .map((skill) => {
+          const equation = buildCharacterSkillEquation(skill);
+
+          return (
+            `<div class="character-sheet-skill-row" title="${escapeHtml(equation.title)}">` +
+              `<div class="character-sheet-skill-main">` +
+                `<span class="character-sheet-skill-label">${escapeHtml(String(skill.label || ""))}</span>` +
+                `${equation.html}` +
+              `</div>` +
+            `</div>`
+          );
+        })
+        .join("");
+    }
+
+    // Builds the editable skill rows used during semantic skill allocation.
+    function renderCharacterEditableSkills(skills) {
+      return (Array.isArray(skills) ? skills : [])
+        .map((skill, index) => {
+          const selected = Number(skill?.selected ?? 0) === 1;
+          const canDecrease = Number(skill?.canDecrease ?? 0) === 1;
+          const canIncrease = Number(skill?.canIncrease ?? 0) === 1;
+          const equation = buildCharacterSkillEquation(skill);
+
+          return (
+            `<div class="character-sheet-skill-row character-sheet-skill-row-editable${selected ? " character-sheet-skill-row-selected" : ""}" data-skill-editor-index="${index}" title="${escapeHtml(equation.title)}">` +
+              `<button type="button" class="character-sheet-skill-select" data-skill-editor-index="${index}" aria-pressed="${selected ? "true" : "false"}">` +
+                `<div class="character-sheet-skill-main">` +
+                  `<span class="character-sheet-skill-label">${escapeHtml(String(skill.label || ""))}</span>` +
+                  `${equation.html}` +
+                `</div>` +
+              `</button>` +
+              `<div class="character-sheet-skill-controls">` +
+                `<button type="button" class="character-sheet-stat-adjust" data-skill-editor-index="${index}" data-skill-editor-adjust="-1"${canDecrease ? "" : " disabled"} aria-label="Decrease ${escapeHtml(String(skill.label || "skill"))}">-</button>` +
+                `<button type="button" class="character-sheet-stat-adjust" data-skill-editor-index="${index}" data-skill-editor-adjust="1"${canIncrease ? "" : " disabled"} aria-label="Increase ${escapeHtml(String(skill.label || "skill"))}">+</button>` +
+                `<span class="character-sheet-skill-cost">Cost ${escapeHtml(String(skill.cost ?? 0))}</span>` +
+              `</div>` +
+            `</div>`
+          );
+        })
+        .join("");
+    }
+
+    // Builds the footer action buttons used by the semantic character-sheet view.
+    function renderCharacterActions(actions) {
+      return (Array.isArray(actions) ? actions : [])
+        .map((action) => {
+          const key = Number(action?.key ?? 0);
+          const keyLabel = formatCharacterActionKey(key);
+
+          return (
+            `<button type="button" class="character-sheet-action" data-character-action-key="${key}">` +
+              `<span class="character-sheet-action-key">${escapeHtml(keyLabel)}</span>` +
+              `<span class="character-sheet-action-label">${escapeHtml(String(action?.label || ""))}</span>` +
+            `</button>`
+          );
+        })
+        .join("");
     }
 
     // Normalizes one song/theme name from the semantic player-state blob.
@@ -1877,6 +2553,210 @@
      * Renders overlays, side panel, and log from semantic text buffers.
      * ========================================================================== */
 
+    const semanticOverlayClasses = [
+      "overlay-birth-name",
+      "overlay-birth-ahw",
+      "overlay-birth-history",
+      "overlay-birth-stats",
+      "overlay-character-skills",
+      "overlay-character-sheet",
+      "overlay-menu",
+      "overlay-dismissable",
+    ];
+
+    // Clears any semantic overlay mode classes from the shared overlay element.
+    function resetSemanticOverlayModes() {
+      for (const className of semanticOverlayClasses) {
+        overlayModalEl.classList.remove(className);
+      }
+    }
+
+    // Shows one semantic overlay mode with consistent class and layout reset behavior.
+    function showSemanticOverlay(modeClass, html, { dismissable = false } = {}) {
+      overlayModalEl.style.display = "block";
+      resetSemanticOverlayModes();
+      if (modeClass) {
+        overlayModalEl.classList.add(modeClass);
+      }
+      if (dismissable) {
+        overlayModalEl.classList.add("overlay-dismissable");
+      }
+      overlayModalEl.style.removeProperty("--menu-details-width");
+      overlayModalEl.style.removeProperty("--menu-summary-min-height");
+      setHtmlIfChanged(overlayModalEl, html);
+    }
+
+    // Hides the shared semantic overlay and clears any mode-specific classes.
+    function hideSemanticOverlay() {
+      overlayModalEl.style.display = "none";
+      resetSemanticOverlayModes();
+      overlayModalEl.style.removeProperty("--menu-details-width");
+      overlayModalEl.style.removeProperty("--menu-summary-min-height");
+      setHtmlIfChanged(overlayModalEl, "");
+    }
+
+    // Returns whether the shared overlay is currently visible.
+    function isSemanticOverlayVisible() {
+      return overlayModalEl.style.display !== "none";
+    }
+
+    // Returns whether the active overlay is a dismissable semantic modal dialog.
+    function isDismissableModalOverlayActive() {
+      return (
+        isSemanticOverlayVisible() &&
+        overlayModalEl.classList.contains("overlay-dismissable")
+      );
+    }
+
+    // Returns whether the active overlay is plain captured text without its own UI mode.
+    function isGenericCapturedOverlayActive() {
+      if (
+        !api ||
+        typeof api.getOverlayMode !== "function" ||
+        !isSemanticOverlayVisible()
+      ) {
+        return false;
+      }
+
+      if (Number(api.getOverlayMode()) <= 0) {
+        return false;
+      }
+
+      return !semanticOverlayClasses.some((className) =>
+        overlayModalEl.classList.contains(className)
+      );
+    }
+
+    // Tries to dismiss the current overlay via its native activation path.
+    function tryDismissActiveOverlay() {
+      if (isDismissableModalOverlayActive()) {
+        if (!api || typeof api.modalActivate !== "function") return false;
+
+        if (!api.modalActivate()) {
+          return false;
+        }
+
+        hideSemanticOverlay();
+        forceRedraw = true;
+        return true;
+      }
+
+      if (isGenericCapturedOverlayActive()) {
+        if (!pushAscii(27)) {
+          return false;
+        }
+
+        forceRedraw = true;
+        return true;
+      }
+
+      return false;
+    }
+
+    // Builds the reusable identity/physical/progress/combat context shared by sheet-style overlays.
+    function buildCharacterSheetContext(sheet) {
+      return {
+        identityHtml: renderCharacterFields(
+          sheet.identity,
+          "character-sheet-identity-value"
+        ),
+        physicalHtml: renderCharacterFields(sheet.physical),
+        progressHtml: renderCharacterFields(
+          sheet.progress,
+          "character-sheet-progress-value"
+        ),
+        combatHtml: renderCharacterFields(
+          sheet.combat,
+          "character-sheet-combat-value"
+        ),
+      };
+    }
+
+    // Renders the shared character-sheet shell used by birth and character overlays.
+    function renderCharacterSheetShell({
+      shellClass = "",
+      title = "",
+      note = "",
+      bannerHtml = "",
+      layoutClass = "",
+      context,
+      identitySectionTitle = "Identity",
+      identitySectionHeadHtml = "",
+      identitySectionBodyHtml = "",
+      physicalSectionTitle = "Physical",
+      physicalSectionHeadHtml = "",
+      physicalSectionBodyHtml = "",
+      statsHtml = "",
+      skillsHtml = "",
+      detailSectionHtml = "",
+      footerHtml = "",
+    }) {
+      const shellClassAttr = shellClass ? ` ${shellClass}` : "";
+      const layoutClassAttr = layoutClass ? ` ${layoutClass}` : "";
+      const identityBodyHtml = identitySectionBodyHtml ||
+        `<div class="character-sheet-field-list">${context.identityHtml}</div>`;
+      const identityTitleHtml = escapeHtml(String(identitySectionTitle || "Identity"));
+      const identityHeaderHtml = identitySectionHeadHtml
+        ? `<div class="character-sheet-card-head"><h3>${identityTitleHtml}</h3>${identitySectionHeadHtml}</div>`
+        : `<h3>${identityTitleHtml}</h3>`;
+      const physicalBodyHtml = physicalSectionBodyHtml ||
+        `<div class="character-sheet-field-list">${context.physicalHtml}</div>`;
+      const physicalTitleHtml = escapeHtml(String(physicalSectionTitle || "Physical"));
+      const physicalHeaderHtml = physicalSectionHeadHtml
+        ? `<div class="character-sheet-card-head"><h3>${physicalTitleHtml}</h3>${physicalSectionHeadHtml}</div>`
+        : `<h3>${physicalTitleHtml}</h3>`;
+      const noteHtml = note
+        ? `<p class="character-sheet-editor-note">${escapeHtml(String(note))}</p>`
+        : "";
+      const footerWrapHtml = footerHtml
+        ? `<footer class="character-sheet-actions">${footerHtml}</footer>`
+        : "";
+
+      return (
+        `<div class="character-sheet-shell${shellClassAttr}">` +
+          `<header class="character-sheet-header">` +
+            `<div class="character-sheet-heading">` +
+              `<h2>${escapeHtml(String(title))}</h2>` +
+              `${noteHtml}` +
+            `</div>` +
+            `${bannerHtml}` +
+            `<div class="character-sheet-meta">` +
+              `<section class="character-sheet-card character-sheet-meta-card">` +
+                `${identityHeaderHtml}` +
+                `${identityBodyHtml}` +
+              `</section>` +
+              `<section class="character-sheet-card character-sheet-meta-card">` +
+                `${physicalHeaderHtml}` +
+                `${physicalBodyHtml}` +
+              `</section>` +
+              `<section class="character-sheet-card character-sheet-stats-card">` +
+                `<h3>Stats</h3>` +
+                `<div class="character-sheet-stat-list">${statsHtml}</div>` +
+              `</section>` +
+            `</div>` +
+          `</header>` +
+          `<div class="character-sheet-layout${layoutClassAttr}">` +
+            `<section class="character-sheet-card character-sheet-overview-card">` +
+              `<div class="character-sheet-subsection">` +
+                `<h3>Progress</h3>` +
+                `<div class="character-sheet-field-list">${context.progressHtml}</div>` +
+              `</div>` +
+              `<div class="character-sheet-subsection">` +
+                `<h3>Combat</h3>` +
+                `<div class="character-sheet-field-list">${context.combatHtml}</div>` +
+              `</div>` +
+            `</section>` +
+            `<section class="character-sheet-card character-sheet-skills-card">` +
+              `<h3>Skills</h3>` +
+              `<div class="character-sheet-skill-list">${skillsHtml}</div>` +
+            `</section>` +
+            `${detailSectionHtml}` +
+          `</div>` +
+          `${footerWrapHtml}` +
+        `</div>`
+      );
+    }
+
     // Reads the semantic prompt exported by wasm instead of scraping terminal text.
     function updatePromptState(heap) {
       topPromptKind = UI_PROMPT_KIND_NONE;
@@ -1922,6 +2802,478 @@
       topPromptAttrs = promptAttrs;
     }
 
+    // Formats one inches value as feet and inches for the age/height/weight editor.
+    function formatBirthHeight(value) {
+      const inches = parseBirthNumberInput(value);
+      const feet = Math.floor(inches / 12);
+      const remainder = inches % 12;
+
+      if (inches <= 0 || feet <= 0) return "";
+      return remainder > 0 ? `${feet}'${remainder}"` : `${feet}'`;
+    }
+
+    // Renders the shared birth name editor as a responsive HTML overlay.
+    function updateBirthNameSemantic() {
+      const state = activeBirthState;
+      const sheet = activeCharacterSheetState;
+      if (getBirthScreenKind() !== "name" || !sheet) {
+        return false;
+      }
+
+      syncBirthTextDraft(state);
+      semanticMenuSnapshot = null;
+
+      const context = buildCharacterSheetContext(sheet);
+      const identityFields = Array.isArray(sheet.identity) ? sheet.identity : [];
+      const identityRemainderHtml = renderCharacterFields(
+        identityFields.filter((field) => String(field?.label || "") !== "Name"),
+        "character-sheet-identity-value"
+      );
+      const statsHtml = renderCharacterStaticStats(Array.isArray(sheet.stats) ? sheet.stats : []);
+      const skillsHtml = renderCharacterSkills(Array.isArray(sheet.skills) ? sheet.skills : []);
+      const maxLength = Math.max(1, Number(state.maxLength ?? 31));
+      const identitySectionHeadHtml =
+        `<button type="button" class="character-sheet-action character-sheet-action-inline" data-birth-text-action="reroll">` +
+          `<span class="character-sheet-action-key">Tab</span>` +
+          `<span class="character-sheet-action-label">Random</span>` +
+        `</button>`;
+      const identitySectionBodyHtml =
+        `<div class="character-birth-form">` +
+          `<label class="character-birth-field">` +
+            `<span class="character-birth-field-head">` +
+              `<span class="character-birth-field-label">Name</span>` +
+            `</span>` +
+            `<input class="character-birth-input" data-birth-text-input="name" type="text" spellcheck="false" autocomplete="off" maxlength="${maxLength}" value="${escapeHtml(birthTextDraft)}" />` +
+            `<span class="character-birth-field-range">${escapeHtml(`Up to ${maxLength} characters`)}</span>` +
+          `</label>` +
+        `</div>` +
+        `<div class="character-sheet-field-list">${identityRemainderHtml}</div>`;
+      const detailSectionHtml =
+        `<section class="character-sheet-card character-sheet-history-card">` +
+          `<h3>History</h3>` +
+          `<div class="character-sheet-history">${escapeHtml(String(sheet.history || ""))}</div>` +
+        `</section>`;
+      const footerHtml =
+        `<button type="button" class="character-sheet-action" data-birth-text-action="accept">` +
+          `<span class="character-sheet-action-key">Enter</span>` +
+          `<span class="character-sheet-action-label">Accept</span>` +
+        `</button>` +
+        `<button type="button" class="character-sheet-action" data-birth-text-action="cancel">` +
+          `<span class="character-sheet-action-key">Esc</span>` +
+          `<span class="character-sheet-action-label">Back</span>` +
+        `</button>`;
+      const html = renderCharacterSheetShell({
+        shellClass: "character-sheet-shell-birth-name",
+        title: String(state.title || "Choose your name"),
+        note: String(state.help || ""),
+        context,
+        identitySectionHeadHtml,
+        identitySectionBodyHtml,
+        statsHtml,
+        skillsHtml,
+        detailSectionHtml,
+        footerHtml,
+      });
+
+      showSemanticOverlay("overlay-birth-name", html);
+      syncBirthTextEditorValue("name");
+      syncBirthTextEditorIntoView("name");
+
+      return true;
+    }
+
+    // Renders the shared birth age/height/weight editor as a responsive HTML overlay.
+    function updateBirthAhwSemantic() {
+      const state = activeBirthState;
+      const sheet = activeCharacterSheetState;
+      if (!isBirthAhwScreenActive() || !sheet) {
+        return false;
+      }
+
+      syncBirthAhwDraft(state);
+      semanticMenuSnapshot = null;
+
+      const context = buildCharacterSheetContext(sheet);
+      const statsHtml = renderCharacterStaticStats(Array.isArray(sheet.stats) ? sheet.stats : []);
+      const skillsHtml = renderCharacterSkills(Array.isArray(sheet.skills) ? sheet.skills : []);
+      const fields = [
+        {
+          key: "age",
+          label: "Age",
+          value: birthAhwDraft.age,
+          min: Number(state.ageMin ?? 0),
+          max: Number(state.ageMax ?? 0),
+          suffix: "years",
+          preview: "",
+        },
+        {
+          key: "height",
+          label: "Height",
+          value: birthAhwDraft.height,
+          min: Number(state.heightMin ?? 0),
+          max: Number(state.heightMax ?? 0),
+          suffix: "inches",
+          preview: formatBirthHeight(birthAhwDraft.height),
+        },
+        {
+          key: "weight",
+          label: "Weight",
+          value: birthAhwDraft.weight,
+          min: Number(state.weightMin ?? 0),
+          max: Number(state.weightMax ?? 0),
+          suffix: "pounds",
+          preview: "",
+        },
+      ];
+      const fieldHtml = fields
+        .map((field) => {
+          const previewHtml = field.preview
+            ? `<span class="character-birth-field-preview">${escapeHtml(field.preview)}</span>`
+            : "";
+
+          return (
+            `<label class="character-birth-field">` +
+              `<span class="character-birth-field-head">` +
+                `<span class="character-birth-field-label">${escapeHtml(field.label)}</span>` +
+                `${previewHtml}` +
+              `</span>` +
+              `<input class="character-birth-input" data-birth-ahw-field="${escapeHtml(field.key)}" type="number" inputmode="numeric" step="1" min="${field.min}" max="${field.max}" value="${escapeHtml(field.value)}" />` +
+              `<span class="character-birth-field-range">${escapeHtml(`${field.min}-${field.max} ${field.suffix}`)}</span>` +
+            `</label>`
+          );
+        })
+        .join("");
+
+      const detailSectionHtml =
+        `<section class="character-sheet-card character-sheet-history-card">` +
+          `<h3>History</h3>` +
+          `<div class="character-sheet-history">${escapeHtml(String(sheet.history || ""))}</div>` +
+        `</section>`;
+      const physicalSectionHeadHtml =
+        `<button type="button" class="character-sheet-action character-sheet-action-inline" data-birth-ahw-action="reroll">` +
+          `<span class="character-sheet-action-key">Space</span>` +
+          `<span class="character-sheet-action-label">Reroll</span>` +
+        `</button>`;
+      const physicalSectionBodyHtml =
+        `<div class="character-birth-form">${fieldHtml}</div>`;
+      const footerHtml =
+        `<button type="button" class="character-sheet-action" data-birth-ahw-action="accept">` +
+          `<span class="character-sheet-action-key">Enter</span>` +
+          `<span class="character-sheet-action-label">Accept</span>` +
+        `</button>` +
+        `<button type="button" class="character-sheet-action" data-birth-ahw-action="cancel">` +
+          `<span class="character-sheet-action-key">Esc</span>` +
+          `<span class="character-sheet-action-label">Back</span>` +
+        `</button>`;
+      const html = renderCharacterSheetShell({
+        shellClass: "character-sheet-shell-birth-ahw",
+        title: String(state.title || "Set your age, height, and weight"),
+        note: String(state.help || ""),
+        context,
+        physicalSectionHeadHtml,
+        physicalSectionBodyHtml,
+        statsHtml,
+        skillsHtml,
+        detailSectionHtml,
+        footerHtml,
+      });
+
+      showSemanticOverlay("overlay-birth-ahw", html);
+
+      for (const field of fields) {
+        const inputEl = overlayModalEl.querySelector(
+          `[data-birth-ahw-field="${field.key}"]`
+        );
+        if (inputEl && inputEl.value !== field.value) {
+          inputEl.value = field.value;
+        }
+      }
+      syncBirthAhwEditorIntoView();
+
+      return true;
+    }
+
+    // Renders the shared birth-history editor as a responsive HTML overlay.
+    function updateBirthHistorySemantic() {
+      const state = activeBirthState;
+      const sheet = activeCharacterSheetState;
+      if (getBirthScreenKind() !== "history" || !sheet) {
+        return false;
+      }
+
+      syncBirthTextDraft(state);
+      semanticMenuSnapshot = null;
+
+      const context = buildCharacterSheetContext(sheet);
+      const statsHtml = renderCharacterStaticStats(Array.isArray(sheet.stats) ? sheet.stats : []);
+      const skillsHtml = renderCharacterSkills(Array.isArray(sheet.skills) ? sheet.skills : []);
+      const helpText = String(
+        state.help ||
+        "Edit the text directly, use Reroll for a random history, Accept when you are happy, or Escape to go back."
+      );
+
+      const detailSectionHtml =
+        `<section class="character-sheet-card character-sheet-history-card character-sheet-history-editor-card">` +
+          `<div class="character-sheet-history-editor-head">` +
+            `<h3>History</h3>` +
+            `<button type="button" class="character-sheet-action character-sheet-action-inline" data-birth-text-action="reroll">` +
+              `<span class="character-sheet-action-key">Space</span>` +
+              `<span class="character-sheet-action-label">Reroll</span>` +
+            `</button>` +
+          `</div>` +
+          `<div class="character-history-editor">` +
+            `<textarea class="character-history-textarea" data-birth-text-input="history" spellcheck="false" aria-label="Character history"></textarea>` +
+          `</div>` +
+        `</section>`;
+      const footerHtml =
+        `<button type="button" class="character-sheet-action" data-birth-text-action="accept">` +
+          `<span class="character-sheet-action-key">Enter</span>` +
+          `<span class="character-sheet-action-label">Accept</span>` +
+        `</button>` +
+        `<button type="button" class="character-sheet-action" data-birth-text-action="cancel">` +
+          `<span class="character-sheet-action-key">Esc</span>` +
+          `<span class="character-sheet-action-label">Back</span>` +
+        `</button>`;
+      const html = renderCharacterSheetShell({
+        shellClass: "character-sheet-shell-birth-history",
+        title: String(state.title || "Shape your history"),
+        note: helpText,
+        layoutClass: "character-sheet-layout-history-editor",
+        context,
+        statsHtml,
+        skillsHtml,
+        detailSectionHtml,
+        footerHtml,
+      });
+
+      showSemanticOverlay("overlay-birth-history", html);
+      syncBirthTextEditorValue("history");
+      syncBirthTextEditorIntoView("history");
+
+      return true;
+    }
+
+    // Renders the shared birth stat-allocation screen as a responsive HTML overlay.
+    function updateBirthStatsSemantic() {
+      const state = activeBirthState;
+      const sheet = activeCharacterSheetState;
+      const stats = Array.isArray(state?.stats) ? state.stats : [];
+      if (!isBirthStatsScreenActive() || !stats.length || !sheet) {
+        return false;
+      }
+
+      semanticMenuSnapshot = null;
+
+      const context = buildCharacterSheetContext(sheet);
+      const statRowsHtml = renderCharacterBirthStats(stats);
+      const skillsHtml = renderCharacterSkills(sheet.skills);
+      const bannerHtml =
+        `<div class="character-sheet-editor-banner">` +
+          `<span class="character-sheet-editor-points-label">Points left</span>` +
+          `<strong class="character-sheet-editor-points-value">${escapeHtml(String(state.pointsLeft ?? 0))}</strong>` +
+        `</div>`;
+      const detailSectionHtml =
+        `<section class="character-sheet-card character-sheet-history-card">` +
+          `<h3>History</h3>` +
+          `<div class="character-sheet-history">${escapeHtml(String(sheet.history || ""))}</div>` +
+        `</section>`;
+      const html = renderCharacterSheetShell({
+        shellClass: "character-sheet-shell-birth",
+        title: String(state.title || "Allocate your attributes"),
+        note: String(state.help || ""),
+        bannerHtml,
+        context,
+        statsHtml: statRowsHtml,
+        skillsHtml,
+        detailSectionHtml,
+      });
+
+      showSemanticOverlay("overlay-birth-stats", html);
+      syncSelectedBirthStatIntoView();
+      return true;
+    }
+
+    // Returns the currently selected birth stat row from the semantic overlay state.
+    function getSelectedBirthStatIndex() {
+      const stats = Array.isArray(activeBirthState?.stats)
+        ? activeBirthState.stats
+        : [];
+      const selectedStat = stats.find((stat) => Number(stat?.selected ?? 0) === 1);
+      const index = Number(selectedStat?.index ?? -1);
+
+      return Number.isInteger(index) ? index : -1;
+    }
+
+    // Queues the movement keys needed to move birth stat selection to one row.
+    function queueBirthStatSelection(index) {
+      let selected = getSelectedBirthStatIndex();
+      let step = 0;
+
+      if (!Array.isArray(activeBirthState?.stats)) return false;
+      if (!Number.isInteger(index)) return false;
+      if (index < 0 || index >= activeBirthState.stats.length) return false;
+
+      if (selected < 0) selected = 0;
+      if (selected === index) return true;
+
+      step = index > selected ? 1 : -1;
+      while (selected !== index) {
+        if (!pushAscii(step > 0 ? "2".charCodeAt(0) : "8".charCodeAt(0))) {
+          return false;
+        }
+        selected += step;
+      }
+
+      return true;
+    }
+
+    // Queues one birth stat adjustment after ensuring the intended row is selected.
+    function queueBirthStatAdjustment(index, delta) {
+      const stats = Array.isArray(activeBirthState?.stats)
+        ? activeBirthState.stats
+        : [];
+      const stat = stats.find((entry) => Number(entry?.index ?? -1) === index);
+
+      if (!Number.isInteger(index) || !Number.isInteger(delta) || delta === 0) {
+        return false;
+      }
+      if (!stat) return false;
+      if (delta < 0 && Number(stat.canDecrease ?? 0) !== 1) return false;
+      if (delta > 0 && Number(stat.canIncrease ?? 0) !== 1) return false;
+      if (!queueBirthStatSelection(index)) return false;
+
+      return pushAscii(delta < 0 ? "4".charCodeAt(0) : "6".charCodeAt(0));
+    }
+
+    // Returns the currently selected skill row from the semantic character-sheet editor state.
+    function getSelectedCharacterSkillIndex() {
+      const skills = Array.isArray(activeCharacterSheetState?.skills)
+        ? activeCharacterSheetState.skills
+        : [];
+      const selectedSkill = skills.find((skill) => Number(skill?.selected ?? 0) === 1);
+
+      return skills.indexOf(selectedSkill);
+    }
+
+    // Queues the movement keys needed to move skill-editor selection to one row.
+    function queueCharacterSkillSelection(index) {
+      const skills = Array.isArray(activeCharacterSheetState?.skills)
+        ? activeCharacterSheetState.skills
+        : [];
+      let selected = getSelectedCharacterSkillIndex();
+      let step = 0;
+
+      if (!isCharacterSkillEditorActive()) return false;
+      if (!Number.isInteger(index) || index < 0 || index >= skills.length) return false;
+
+      if (selected < 0) selected = 0;
+      if (selected === index) return true;
+
+      step = index > selected ? 1 : -1;
+      while (selected !== index) {
+        if (!pushAscii(step > 0 ? "2".charCodeAt(0) : "8".charCodeAt(0))) {
+          return false;
+        }
+        selected += step;
+      }
+
+      return true;
+    }
+
+    // Queues one skill-editor adjustment after ensuring the intended row is selected.
+    function queueCharacterSkillAdjustment(index, delta) {
+      const skills = Array.isArray(activeCharacterSheetState?.skills)
+        ? activeCharacterSheetState.skills
+        : [];
+      const skill = skills[index];
+
+      if (!isCharacterSkillEditorActive()) return false;
+      if (!Number.isInteger(index) || !Number.isInteger(delta) || delta === 0) {
+        return false;
+      }
+      if (!skill || Number(skill.editable ?? 0) !== 1) return false;
+      if (delta < 0 && Number(skill.canDecrease ?? 0) !== 1) return false;
+      if (delta > 0 && Number(skill.canIncrease ?? 0) !== 1) return false;
+      if (!queueCharacterSkillSelection(index)) return false;
+
+      return pushAscii(delta < 0 ? "4".charCodeAt(0) : "6".charCodeAt(0));
+    }
+
+    // Renders the semantic skill-allocation screen using the shared character-sheet layout.
+    function updateCharacterSkillEditorSemantic() {
+      const state = activeCharacterSheetState;
+      if (!state || Number(state.active) !== 1 || Number(state.skillEditorActive ?? 0) !== 1) {
+        return false;
+      }
+
+      const context = buildCharacterSheetContext(state);
+      const stats = Array.isArray(state.stats) ? state.stats : [];
+      const skills = Array.isArray(state.skills) ? state.skills : [];
+
+      const statsHtml = renderCharacterStaticStats(stats);
+      const skillsHtml = renderCharacterEditableSkills(skills);
+      const bannerHtml =
+        `<div class="character-sheet-editor-banner">` +
+          `<span class="character-sheet-editor-points-label">Exp left</span>` +
+          `<strong class="character-sheet-editor-points-value">${escapeHtml(String(state.skillPointsLeft ?? 0))}</strong>` +
+        `</div>`;
+      const detailSectionHtml =
+        `<section class="character-sheet-card character-sheet-history-card">` +
+          `<h3>History</h3>` +
+          `<div class="character-sheet-history">${escapeHtml(String(state.history || ""))}</div>` +
+        `</section>`;
+      const html = renderCharacterSheetShell({
+        title: String(state.skillEditorTitle || "Increase your skills"),
+        note: String(state.skillEditorHelp || ""),
+        bannerHtml,
+        context,
+        statsHtml,
+        skillsHtml,
+        detailSectionHtml,
+      });
+
+      semanticMenuSnapshot = null;
+
+      showSemanticOverlay("overlay-character-skills", html);
+      syncSelectedCharacterSkillIntoView();
+      return true;
+    }
+
+    // Renders the semantic character sheet as a responsive HTML overlay.
+    function updateCharacterSheetSemantic() {
+      const state = activeCharacterSheetState;
+      if (!state || Number(state.active) !== 1 || Number(state.skillEditorActive ?? 0) === 1) {
+        return false;
+      }
+
+      const context = buildCharacterSheetContext(state);
+      const stats = Array.isArray(state.stats) ? state.stats : [];
+      const skills = Array.isArray(state.skills) ? state.skills : [];
+      const actions = Array.isArray(state.actions) ? state.actions : [];
+
+      const statsHtml = renderCharacterStaticStats(stats);
+      const skillsHtml = renderCharacterSkills(skills);
+      const actionsHtml = renderCharacterActions(actions);
+      const detailSectionHtml =
+        `<section class="character-sheet-card character-sheet-history-card">` +
+          `<h3>History</h3>` +
+          `<div class="character-sheet-history">${escapeHtml(String(state.history || ""))}</div>` +
+        `</section>`;
+      const html = renderCharacterSheetShell({
+        title: String(state.title || "Character Sheet"),
+        context,
+        statsHtml,
+        skillsHtml,
+        detailSectionHtml,
+        footerHtml: actionsHtml,
+      });
+
+      semanticMenuSnapshot = null;
+
+      showSemanticOverlay("overlay-character-sheet", html);
+      return true;
+    }
+
     // Renders an active semantic menu as an HTML overlay instead of raw captured text.
     function updateMenuSemantic() {
       const menuState = getRenderableMenuState();
@@ -1934,6 +3286,7 @@
       );
       const hasCopy = !!menuState.text;
       const hasDetails = !!menuState.detailsText;
+      const hasSummary = !!menuState.summaryText;
       const hasDetailsVisual =
         !!menuState.detailsVisual && Number.isInteger(menuState.detailsVisual.kind);
       const hasDetailsPane = hasDetails || hasDetailsVisual;
@@ -1957,6 +3310,11 @@
           ? renderColoredText(menuState.detailsText, menuState.detailsAttrs, 1)
           : ""
       }</div></div>`;
+      const summaryHtml = `<div class="menu-summary${hasSummary ? "" : " menu-summary-empty"}">${
+        hasSummary
+          ? renderColoredText(menuState.summaryText, menuState.summaryAttrs, 1)
+          : ""
+      }</div>`;
       const menuColumnsHtml = columns
         .map((column, columnIndex) => {
           const columnX = column.length ? column[0].x : columnIndex;
@@ -1974,18 +3332,29 @@
         .join("");
       const shellClass = hasCopy ? "menu-shell-with-copy" : "menu-shell-no-copy";
       const bodyClass = hasDetailsPane ? "menu-body-with-details" : "menu-body-no-details";
-      const menuHtml = `<div class="menu-shell ${shellClass}">${introHtml}<div class="menu-body ${bodyClass}"><div class="menu-columns-wrap"><div class="menu-columns">${menuColumnsHtml}</div></div>${detailsHtml}</div></div>`;
+      const menuHtml = `<div class="menu-shell ${shellClass}">${introHtml}<div class="menu-body ${bodyClass}"><div class="menu-columns-wrap"><div class="menu-columns">${menuColumnsHtml}</div></div>${detailsHtml}</div>${summaryHtml}</div>`;
 
-      overlayModalEl.style.display = "block";
-      overlayModalEl.classList.remove("overlay-dismissable");
-      overlayModalEl.classList.add("overlay-menu");
+      showSemanticOverlay("overlay-menu", menuHtml);
       if (hasDetailsPane && Number.isInteger(menuState.detailsWidth) && menuState.detailsWidth > 0) {
         overlayModalEl.style.setProperty(
           "--menu-details-width",
           `${menuState.detailsWidth}ch`
         );
+      } else if (hasDetailsPane && Number.isInteger(menuState.detailsHeight) && menuState.detailsHeight > 0) {
+        overlayModalEl.style.setProperty(
+          "--menu-details-min-height",
+          `${menuState.detailsRows}ch`
+        );
       } else {
         overlayModalEl.style.removeProperty("--menu-details-width");
+      }
+      if (hasSummary && Number.isInteger(menuState.summaryRows) && menuState.summaryRows > 0) {
+        overlayModalEl.style.setProperty(
+          "--menu-summary-min-height",
+          `calc(${menuState.summaryRows} * 1.25em + 1.5rem)`
+        );
+      } else {
+        overlayModalEl.style.removeProperty("--menu-summary-min-height");
       }
       setHtmlIfChanged(overlayModalEl, menuHtml);
       renderMenuItemVisuals();
@@ -2016,20 +3385,43 @@
       const attrs = readBytes(heap, attrPtr, attrLen);
 
       if (!text) {
-        overlayModalEl.classList.remove("overlay-dismissable");
+        resetSemanticOverlayModes();
         return false;
       }
 
-      overlayModalEl.style.display = "block";
-      overlayModalEl.classList.remove("overlay-menu");
-      overlayModalEl.classList.toggle("overlay-dismissable", dismissKey > 0);
-      setHtmlIfChanged(overlayModalEl, renderColoredText(text, attrs, 1));
+      showSemanticOverlay(null, renderColoredText(text, attrs, 1), {
+        dismissable: dismissKey > 0,
+      });
       return true;
     }
 
     // Updates modal overlay text from semantic wasm buffers.
     function updateOverlaySemantic(heap) {
       if (updateModalSemantic(heap)) {
+        return true;
+      }
+
+      if (updateBirthNameSemantic()) {
+        return true;
+      }
+
+      if (updateBirthAhwSemantic()) {
+        return true;
+      }
+
+      if (updateBirthHistorySemantic()) {
+        return true;
+      }
+
+      if (updateBirthStatsSemantic()) {
+        return true;
+      }
+
+      if (updateCharacterSkillEditorSemantic()) {
+        return true;
+      }
+
+      if (updateCharacterSheetSemantic()) {
         return true;
       }
 
@@ -2045,10 +3437,7 @@
 
       const mode = api.getOverlayMode();
       if (!mode) {
-        overlayModalEl.style.display = "none";
-        overlayModalEl.classList.remove("overlay-dismissable");
-        overlayModalEl.classList.remove("overlay-menu");
-        setHtmlIfChanged(overlayModalEl, "");
+        hideSemanticOverlay();
         return false;
       }
 
@@ -2060,16 +3449,11 @@
       const attrs = readBytes(heap, attrPtr, attrLen);
 
       if (!text) {
-        overlayModalEl.style.display = "none";
-        overlayModalEl.classList.remove("overlay-dismissable");
-        setHtmlIfChanged(overlayModalEl, "");
+        hideSemanticOverlay();
         return false;
       }
 
-      overlayModalEl.style.display = "block";
-      overlayModalEl.classList.remove("overlay-dismissable");
-      overlayModalEl.classList.remove("overlay-menu");
-      setHtmlIfChanged(overlayModalEl, renderColoredText(text, attrs, 1));
+      showSemanticOverlay(null, renderColoredText(text, attrs, 1));
       return true;
     }
 
@@ -2184,12 +3568,20 @@
         typeof api.getModalRevision === "function" ? api.getModalRevision() : 0;
       const promptRevision =
         typeof api.getPromptRevision === "function" ? api.getPromptRevision() : 0;
+      const birthStateRevision =
+        typeof api.getBirthStateRevision === "function" ? api.getBirthStateRevision() : 0;
+      const characterSheetRevision =
+        typeof api.getCharacterSheetStateRevision === "function"
+          ? api.getCharacterSheetStateRevision()
+          : 0;
       if (
         !forceRedraw &&
         frameId === lastFrameId &&
         menuRevision === lastMenuRevision &&
         modalRevision === lastModalRevision &&
         promptRevision === lastPromptRevision &&
+        birthStateRevision === lastBirthStateRevision &&
+        characterSheetRevision === lastCharacterSheetRevision &&
         !mapFxStateChanged &&
         !mapFxActive
       ) {
@@ -2200,6 +3592,8 @@
       lastMenuRevision = menuRevision;
       lastModalRevision = modalRevision;
       lastPromptRevision = promptRevision;
+      lastBirthStateRevision = birthStateRevision;
+      lastCharacterSheetRevision = characterSheetRevision;
       lastMapFxActive = mapFxActive;
 
       const cols = api.getCols();
@@ -2212,6 +3606,8 @@
       refreshLayoutMetadata(cols, rows);
       refreshIconMetadata();
       refreshMenuItems(heap);
+      readBirthState(heap);
+      readCharacterSheetState(heap);
       updatePromptState(heap);
 
       const overlayActive = updateOverlaySemantic(heap);
@@ -2257,8 +3653,8 @@
 
     // Pushes one input key byte into the engine input queue.
     function pushAscii(code) {
-      if (!api) return;
-      api.pushKey(code & 0xff);
+      if (!api || typeof api.pushKey !== "function") return false;
+      return api.pushKey(code & 0xff) !== 0;
     }
 
     // Drains any queued engine sound events into the browser audio player.
@@ -2304,7 +3700,16 @@
     // Returns whether the gameplay view is idle enough for floating map actions.
     function isGameplayViewIdle() {
       return !activeMenuItems.length &&
+        !isBirthScreenActive() &&
+        !isCharacterSkillEditorActive() &&
+        !isCharacterSheetActive() &&
         !overlayModalEl.classList.contains("overlay-menu") &&
+        !overlayModalEl.classList.contains("overlay-birth-name") &&
+        !overlayModalEl.classList.contains("overlay-birth-ahw") &&
+        !overlayModalEl.classList.contains("overlay-birth-history") &&
+        !overlayModalEl.classList.contains("overlay-birth-stats") &&
+        !overlayModalEl.classList.contains("overlay-character-skills") &&
+        !overlayModalEl.classList.contains("overlay-character-sheet") &&
         !overlayModalEl.classList.contains("overlay-dismissable") &&
         !isInteractiveTopPromptActive() &&
         !morePromptActive;
@@ -2373,6 +3778,17 @@
         !morePromptActive &&
         (
           activeMenuItems.length > 0 ||
+          isBirthScreenActive() ||
+          isCharacterSkillEditorActive() ||
+          isCharacterSheetActive() ||
+          overlayModalEl.classList.contains("overlay-birth-name") ||
+          overlayModalEl.classList.contains("overlay-birth-ahw") ||
+          overlayModalEl.classList.contains("overlay-birth-history") ||
+          overlayModalEl.classList.contains("overlay-birth-stats") ||
+          overlayModalEl.classList.contains("overlay-character-skills") ||
+          overlayModalEl.classList.contains("overlay-character-sheet") ||
+          isDismissableModalOverlayActive() ||
+          isGenericCapturedOverlayActive() ||
           overlayModalEl.classList.contains("overlay-menu") ||
           isInteractiveTopPromptActive()
         );
@@ -2495,6 +3911,61 @@
       return anyVisible;
     }
 
+    // Returns the visible confirm-FAB label metadata for the current overlay state.
+    function getConfirmFabMeta({
+      yesNoPromptActive,
+      birthTextConfig,
+      birthAhwActive,
+      birthStatsActive,
+      skillEditorActive,
+    }) {
+      if (yesNoPromptActive) {
+        return { title: "Yes (y)", ariaLabel: "Yes" };
+      }
+      if (birthTextConfig) {
+        return {
+          title: birthTextConfig.acceptFabTitle,
+          ariaLabel: birthTextConfig.acceptFabAria,
+        };
+      }
+      if (birthAhwActive) {
+        return { title: "Accept details (Enter)", ariaLabel: "Accept details" };
+      }
+      if (birthStatsActive) {
+        return { title: "Accept attributes (Enter)", ariaLabel: "Accept attributes" };
+      }
+      if (skillEditorActive) {
+        return { title: "Accept skills (Enter)", ariaLabel: "Accept skills" };
+      }
+      return { title: "Confirm target (Enter)", ariaLabel: "Confirm target" };
+    }
+
+    // Returns the visible close-FAB label metadata for the current overlay state.
+    function getCloseFabMeta({
+      yesNoPromptActive,
+      birthTextActive,
+      birthAhwActive,
+      birthStatsActive,
+      skillEditorActive,
+      targetPreviewPromptActive,
+      dismissableModalActive,
+      genericOverlayActive,
+    }) {
+      if (yesNoPromptActive) {
+        return { title: "No (n)", ariaLabel: "No" };
+      }
+      if (birthTextActive || birthAhwActive || birthStatsActive || skillEditorActive) {
+        return { title: "Back (Esc)", ariaLabel: "Back" };
+      }
+      if (targetPreviewPromptActive) {
+        return { title: "Cancel target (Esc)", ariaLabel: "Cancel target" };
+      }
+      if (dismissableModalActive || genericOverlayActive) {
+        return { title: "Dismiss (Esc)", ariaLabel: "Dismiss" };
+      }
+      return { title: "Close (Esc)", ariaLabel: "Close" };
+    }
+
     // Keeps floating action buttons visually in sync with the current gameplay state.
     function syncFloatingActionButtons(state = null) {
       if (!actionFabsEl || !yesFabEl || !inventoryFabEl || !rangedFabEl || !rangedFabVisualEl || !songFabWrapEl || !songFabEl || !songFabLabelEl || !tileActionFabEl || !closeFabEl) {
@@ -2503,8 +3974,18 @@
 
       const yesNoPromptActive = isYesNoTopPromptActive();
       const targetPreviewPromptActive = isTargetPreviewTopPromptActive();
+      const birthTextActive = isBirthTextScreenActive();
+      const birthTextKind = birthTextActive ? getBirthScreenKind() : "";
+      const birthTextConfig = birthTextActive ? getBirthTextScreenConfig(birthTextKind) : null;
+      const birthAhwActive = isBirthAhwScreenActive();
+      const birthStatsActive = isBirthStatsScreenActive();
+      const skillEditorActive = isCharacterSkillEditorActive();
+      const dismissableModalActive = isDismissableModalOverlayActive();
+      const genericOverlayActive = isGenericCapturedOverlayActive();
       const showClose = !compactSideOpen && canUseCloseFab();
-      const showYes = showClose && (yesNoPromptActive || targetPreviewPromptActive);
+      const showYes =
+        showClose &&
+        (yesNoPromptActive || targetPreviewPromptActive || birthTextActive || birthAhwActive || birthStatsActive || skillEditorActive);
       const showInventory = !compactSideOpen && !showClose && canUseInventoryFab(state);
       const showRanged = !compactSideOpen && !showClose && canUseRangedFab(state);
       const showSong = !compactSideOpen && !showClose && canUseSongFab(state);
@@ -2520,15 +4001,29 @@
       renderTileActionFabVisual(state);
       renderActionFabVisual(rangedFabVisualEl, showRanged ? rangedFabState.visual : null);
       const anyAdjacentActions = syncAdjacentActionButtons(state, showAdjacentActions);
+      const yesFabMeta = getConfirmFabMeta({
+        yesNoPromptActive,
+        birthTextConfig,
+        birthAhwActive,
+        birthStatsActive,
+        skillEditorActive,
+      });
+      const closeFabMeta = getCloseFabMeta({
+        yesNoPromptActive,
+        birthTextActive,
+        birthAhwActive,
+        birthStatsActive,
+        skillEditorActive,
+        targetPreviewPromptActive,
+        dismissableModalActive,
+        genericOverlayActive,
+      });
 
       actionFabsEl.hidden =
         !showYes && !showClose && !showInventory && !showRanged && !showSong && !showTileAction && !anyAdjacentActions;
       yesFabEl.hidden = !showYes;
-      yesFabEl.title = yesNoPromptActive ? "Yes (y)" : "Confirm target (Enter)";
-      yesFabEl.setAttribute(
-        "aria-label",
-        yesNoPromptActive ? "Yes" : "Confirm target"
-      );
+      yesFabEl.title = yesFabMeta.title;
+      yesFabEl.setAttribute("aria-label", yesFabMeta.ariaLabel);
       inventoryFabEl.hidden = !showInventory;
       rangedFabEl.hidden = !showRanged;
       rangedFabEl.title = rangedFabState.title;
@@ -2543,15 +4038,8 @@
       tileActionFabEl.title = `${tileActionLabel} (,)`;
       tileActionFabEl.setAttribute("aria-label", tileActionLabel);
       closeFabEl.hidden = !showClose;
-      closeFabEl.title = yesNoPromptActive
-        ? "No (n)"
-        : targetPreviewPromptActive
-          ? "Cancel target (Esc)"
-          : "Close (Esc)";
-      closeFabEl.setAttribute(
-        "aria-label",
-        yesNoPromptActive ? "No" : targetPreviewPromptActive ? "Cancel target" : "Close"
-      );
+      closeFabEl.title = closeFabMeta.title;
+      closeFabEl.setAttribute("aria-label", closeFabMeta.ariaLabel);
     }
 
     // Starts automatic travel for one clicked map tile when the gameplay view is idle.
@@ -2737,19 +4225,256 @@
       });
     }
 
-    // Binds click-to-dismiss for semantic modal dialogs such as discovered notes.
+    // Binds shared text input and button handling for the birth name/history overlays.
+    function bindOverlayBirthTextInput() {
+      overlayModalEl.addEventListener("pointerdown", (ev) => {
+        const config = getBirthTextScreenConfig();
+        if (!config || !overlayModalEl.classList.contains(config.overlayClass)) return;
+        ev.stopPropagation();
+      });
+
+      overlayModalEl.addEventListener("input", (ev) => {
+        const config = getBirthTextScreenConfig();
+        if (!config || !overlayModalEl.classList.contains(config.overlayClass)) return;
+
+        const inputEl = ev.target.closest(config.inputSelector);
+        if (!inputEl) return;
+
+        commitBirthTextDraft(inputEl.value);
+        syncBirthTextEditorIntoView(config.kind);
+      });
+
+      overlayModalEl.addEventListener("focusin", (ev) => {
+        const config = getBirthTextScreenConfig();
+        if (!config || !overlayModalEl.classList.contains(config.overlayClass)) return;
+        if (!ev.target.closest(config.inputSelector)) return;
+
+        syncBirthTextEditorIntoView(config.kind);
+      });
+
+      overlayModalEl.addEventListener("keydown", (ev) => {
+        const config = getBirthTextScreenConfig();
+        if (!config || !overlayModalEl.classList.contains(config.overlayClass)) return;
+
+        const inputEl = ev.target.closest(config.inputSelector);
+        if (!inputEl) return;
+
+        if (ev.key === "Escape") {
+          dispatchBirthTextScreenAction("cancel", config.kind);
+          ev.preventDefault();
+          ev.stopPropagation();
+          return;
+        }
+
+        if (config.kind === "name" && ev.key === "Tab") {
+          dispatchBirthTextScreenAction("reroll", config.kind);
+          ev.preventDefault();
+          ev.stopPropagation();
+          return;
+        }
+
+        if (config.acceptsSubmitShortcut(ev)) {
+          dispatchBirthTextScreenAction("accept", config.kind, inputEl.value);
+          ev.preventDefault();
+          ev.stopPropagation();
+        }
+      });
+
+      overlayModalEl.addEventListener("click", (ev) => {
+        const config = getBirthTextScreenConfig();
+        if (!config || !overlayModalEl.classList.contains(config.overlayClass)) return;
+
+        const actionEl = ev.target.closest("[data-birth-text-action]");
+        if (!actionEl) return;
+
+        const action = String(actionEl.dataset.birthTextAction || "");
+        if (!dispatchBirthTextScreenAction(action, config.kind)) return;
+
+        ev.preventDefault();
+        ev.stopPropagation();
+      });
+    }
+
+    // Binds numeric input and button handling for the birth age/height/weight overlay.
+    function bindOverlayBirthAhwInput() {
+      overlayModalEl.addEventListener("pointerdown", (ev) => {
+        if (!overlayModalEl.classList.contains("overlay-birth-ahw")) return;
+        ev.stopPropagation();
+      });
+
+      overlayModalEl.addEventListener("input", (ev) => {
+        if (!overlayModalEl.classList.contains("overlay-birth-ahw")) return;
+
+        const inputEl = ev.target.closest("[data-birth-ahw-field]");
+        if (!inputEl) return;
+
+        const key = String(inputEl.dataset.birthAhwField || "");
+        if (!key) return;
+
+        commitBirthAhwDraft({
+          ...birthAhwDraft,
+          [key]: inputEl.value,
+        });
+        syncBirthAhwEditorIntoView();
+      });
+
+      overlayModalEl.addEventListener("focusin", (ev) => {
+        if (!overlayModalEl.classList.contains("overlay-birth-ahw")) return;
+        if (!ev.target.closest("[data-birth-ahw-field]")) return;
+
+        syncBirthAhwEditorIntoView();
+      });
+
+      overlayModalEl.addEventListener("keydown", (ev) => {
+        if (!overlayModalEl.classList.contains("overlay-birth-ahw")) return;
+
+        const inputEl = ev.target.closest("[data-birth-ahw-field]");
+        if (!inputEl) return;
+
+        if (ev.key === "Escape") {
+          pushAscii(27);
+          forceRedraw = true;
+          ev.preventDefault();
+          ev.stopPropagation();
+          return;
+        }
+
+        if (ev.key === "Enter") {
+          if (!submitActiveBirthDraft("ahw")) return;
+          pushAscii(13);
+          forceRedraw = true;
+          ev.preventDefault();
+          ev.stopPropagation();
+        }
+      });
+
+      overlayModalEl.addEventListener("click", (ev) => {
+        if (!overlayModalEl.classList.contains("overlay-birth-ahw")) return;
+        if (!api) return;
+
+        const actionEl = ev.target.closest("[data-birth-ahw-action]");
+        if (!actionEl) return;
+
+        const action = String(actionEl.dataset.birthAhwAction || "");
+
+        if (action === "accept") {
+          if (!submitActiveBirthDraft("ahw")) return;
+          pushAscii(13);
+          forceRedraw = true;
+        } else if (action === "reroll") {
+          birthAhwDirty = false;
+          pushAscii(" ".charCodeAt(0));
+          forceRedraw = true;
+        } else if (action === "cancel") {
+          pushAscii(27);
+          forceRedraw = true;
+        } else {
+          return;
+        }
+
+        ev.preventDefault();
+        ev.stopPropagation();
+      });
+    }
+
+    // Binds click handling for the custom birth stat-allocation overlay.
+    function bindOverlayBirthStatsInput() {
+      overlayModalEl.addEventListener("pointerdown", (ev) => {
+        if (!overlayModalEl.classList.contains("overlay-birth-stats")) return;
+        ev.stopPropagation();
+      });
+
+      overlayModalEl.addEventListener("click", (ev) => {
+        if (!overlayModalEl.classList.contains("overlay-birth-stats")) return;
+        if (!api) return;
+
+        const adjustEl = ev.target.closest("[data-birth-adjust]");
+        if (adjustEl) {
+          const index = Number(adjustEl.dataset.birthStatIndex);
+          const delta = Number(adjustEl.dataset.birthAdjust);
+          if (queueBirthStatAdjustment(index, delta)) {
+            forceRedraw = true;
+          }
+          ev.preventDefault();
+          ev.stopPropagation();
+          return;
+        }
+
+        const selectEl = ev.target.closest("[data-birth-stat-index]");
+        if (selectEl) {
+          const index = Number(selectEl.dataset.birthStatIndex);
+          if (queueBirthStatSelection(index)) {
+            forceRedraw = true;
+          }
+          ev.preventDefault();
+          ev.stopPropagation();
+        }
+      });
+    }
+
+    // Binds click handling for the editable skill-allocation overlay.
+    function bindOverlayCharacterSkillInput() {
+      overlayModalEl.addEventListener("pointerdown", (ev) => {
+        if (!overlayModalEl.classList.contains("overlay-character-skills")) return;
+        ev.stopPropagation();
+      });
+
+      overlayModalEl.addEventListener("click", (ev) => {
+        if (!overlayModalEl.classList.contains("overlay-character-skills")) return;
+        if (!api) return;
+
+        const adjustEl = ev.target.closest("[data-skill-editor-adjust]");
+        if (adjustEl) {
+          const index = Number(adjustEl.dataset.skillEditorIndex);
+          const delta = Number(adjustEl.dataset.skillEditorAdjust);
+          if (queueCharacterSkillAdjustment(index, delta)) {
+            forceRedraw = true;
+          }
+          ev.preventDefault();
+          ev.stopPropagation();
+          return;
+        }
+
+        const selectEl = ev.target.closest("[data-skill-editor-index]");
+        if (selectEl) {
+          const index = Number(selectEl.dataset.skillEditorIndex);
+          if (queueCharacterSkillSelection(index)) {
+            forceRedraw = true;
+          }
+          ev.preventDefault();
+          ev.stopPropagation();
+        }
+      });
+    }
+
+    // Binds click handling for the custom semantic character-sheet overlay.
+    function bindOverlayCharacterSheetInput() {
+      overlayModalEl.addEventListener("pointerdown", (ev) => {
+        if (!overlayModalEl.classList.contains("overlay-character-sheet")) return;
+        ev.stopPropagation();
+      });
+
+      overlayModalEl.addEventListener("click", (ev) => {
+        if (!overlayModalEl.classList.contains("overlay-character-sheet")) return;
+
+        const actionEl = ev.target.closest("[data-character-action-key]");
+        if (!actionEl) return;
+
+        const key = Number(actionEl.dataset.characterActionKey);
+        if (!Number.isInteger(key) || key <= 0) return;
+
+        pushAscii(key);
+        forceRedraw = true;
+        ev.preventDefault();
+        ev.stopPropagation();
+      });
+    }
+
+    // Binds tap-to-dismiss for both semantic modals and plain captured overlays.
     function bindOverlayModalInput() {
       overlayModalEl.addEventListener("click", (ev) => {
         if (overlayModalEl.classList.contains("overlay-menu")) return;
-        if (!overlayModalEl.classList.contains("overlay-dismissable")) return;
-        if (!api || typeof api.modalActivate !== "function") return;
-
-        if (api.modalActivate()) {
-          overlayModalEl.style.display = "none";
-          overlayModalEl.classList.remove("overlay-dismissable");
-          overlayModalEl.classList.remove("overlay-menu");
-          setHtmlIfChanged(overlayModalEl, "");
-          forceRedraw = true;
+        if (tryDismissActiveOverlay()) {
           ev.preventDefault();
           ev.stopPropagation();
         }
@@ -2923,11 +4648,22 @@
         ev.stopPropagation();
         const yesNoPromptActive = isYesNoTopPromptActive();
         const targetPreviewPromptActive = isTargetPreviewTopPromptActive();
-        if (!yesNoPromptActive && !targetPreviewPromptActive) return;
+        const birthTextActive = isBirthTextScreenActive();
+        const birthAhwActive = isBirthAhwScreenActive();
+        const birthStatsActive = isBirthStatsScreenActive();
+        const skillEditorActive = isCharacterSkillEditorActive();
+        if (!yesNoPromptActive && !targetPreviewPromptActive && !birthTextActive && !birthAhwActive && !birthStatsActive && !skillEditorActive) return;
 
         setCompactSideOpen(false);
+        if (birthTextActive || birthAhwActive) {
+          if (!submitActiveBirthDraft()) return;
+        }
         pushAscii(
-          yesNoPromptActive ? "y".charCodeAt(0) : "t".charCodeAt(0)
+          yesNoPromptActive
+            ? "y".charCodeAt(0)
+            : (birthTextActive || birthAhwActive || birthStatsActive || skillEditorActive)
+              ? 13
+              : "t".charCodeAt(0)
         );
         forceRedraw = true;
       });
@@ -3004,6 +4740,10 @@
         ev.preventDefault();
         ev.stopPropagation();
         if (!canUseCloseFab()) return;
+
+        if (tryDismissActiveOverlay()) {
+          return;
+        }
 
         setCompactSideOpen(false);
         pushAscii(isYesNoTopPromptActive() ? "n".charCodeAt(0) : 27);
@@ -3326,6 +5066,8 @@
           typeof Module._web_get_icon_glow_char === "function" &&
           typeof Module._web_get_frame_id === "function" &&
           typeof Module._web_push_key === "function" &&
+          typeof Module._web_get_birth_state_ptr === "function" &&
+          typeof Module._web_get_birth_state_len === "function" &&
           typeof Module._web_get_player_state_ptr === "function" &&
           typeof Module._web_get_player_state_len === "function" &&
           typeof Module._web_get_log_text_ptr === "function" &&
@@ -3430,6 +5172,32 @@
           getGlowChar: Module._web_get_icon_glow_char,
           getFrameId: Module._web_get_frame_id,
           pushKey: Module._web_push_key,
+          getBirthStatePtr: Module._web_get_birth_state_ptr,
+          getBirthStateLen: Module._web_get_birth_state_len,
+          getBirthStateRevision:
+            typeof Module._web_get_birth_state_revision === "function"
+              ? Module._web_get_birth_state_revision
+              : null,
+          getBirthSubmitTextPtr:
+            typeof Module._web_get_birth_submit_text_ptr === "function"
+              ? Module._web_get_birth_submit_text_ptr
+              : null,
+          submitBirthForm:
+            typeof Module._web_submit_birth_form === "function"
+              ? Module._web_submit_birth_form
+              : null,
+          getCharacterSheetStatePtr:
+            typeof Module._web_get_character_sheet_state_ptr === "function"
+              ? Module._web_get_character_sheet_state_ptr
+              : null,
+          getCharacterSheetStateLen:
+            typeof Module._web_get_character_sheet_state_len === "function"
+              ? Module._web_get_character_sheet_state_len
+              : null,
+          getCharacterSheetStateRevision:
+            typeof Module._web_get_character_sheet_state_revision === "function"
+              ? Module._web_get_character_sheet_state_revision
+              : null,
           getPlayerStatePtr: Module._web_get_player_state_ptr,
           getPlayerStateLen: Module._web_get_player_state_len,
           getLogTextPtr: Module._web_get_log_text_ptr,
@@ -3460,6 +5228,14 @@
           getMenuDetailsLen: Module._web_get_menu_details_len,
           getMenuDetailsAttrsPtr: Module._web_get_menu_details_attrs_ptr,
           getMenuDetailsAttrsLen: Module._web_get_menu_details_attrs_len,
+          getMenuSummaryPtr: Module._web_get_menu_summary_ptr,
+          getMenuSummaryLen: Module._web_get_menu_summary_len,
+          getMenuSummaryAttrsPtr: Module._web_get_menu_summary_attrs_ptr,
+          getMenuSummaryAttrsLen: Module._web_get_menu_summary_attrs_len,
+          getMenuSummaryRows:
+            typeof Module._web_get_menu_summary_rows === "function"
+              ? Module._web_get_menu_summary_rows
+              : null,
           getMenuDetailsWidth:
             typeof Module._web_get_menu_details_width === "function"
               ? Module._web_get_menu_details_width
@@ -3537,6 +5313,11 @@
         bindFloatingActionInput();
         bindMenuPointerInput();
         bindOverlayMenuInput();
+        bindOverlayBirthTextInput();
+        bindOverlayBirthAhwInput();
+        bindOverlayBirthStatsInput();
+        bindOverlayCharacterSkillInput();
+        bindOverlayCharacterSheetInput();
         bindOverlayModalInput();
         bindMapZoomInput();
         startPersistSyncLoop();
@@ -3561,7 +5342,11 @@
       if (api) {
         const heap = getHeapU8();
         let overlayActive = false;
-        if (heap) overlayActive = updateOverlaySemantic(heap);
+        if (heap) {
+          readBirthState(heap);
+          readCharacterSheetState(heap);
+          overlayActive = updateOverlaySemantic(heap);
+        }
         followPlayerInViewport(overlayActive, true);
       }
     });

@@ -10,7 +10,7 @@
 
 #include "angband.h"
 #include "ui-abilities.h"
-#include "ui-command-menus.h"
+#include "ui-character.h"
 #include "ui-input.h"
 #include "ui-knowledge.h"
 #include "ui-model.h"
@@ -257,63 +257,54 @@ void do_cmd_character_sheet(void)
 {
     char ch;
 
-    int mode = 0;
-
     /* Save screen */
     screen_save();
 
     /* Forever */
     while (1)
     {
-        /* Display the player */
-        display_player(mode);
+        ui_input_character_sheet_action action;
 
-        /* Prompt */
-        Term_putstr(1, 23, -1, TERM_SLATE,
-            "notes   change name   save to a file   abilities   increase "
-            "skills   ESC");
-        Term_putstr(1, 23, -1, TERM_L_WHITE, "n");
-        Term_putstr(9, 23, -1, TERM_L_WHITE, "c");
-        Term_putstr(23, 23, -1, TERM_L_WHITE, "s");
-        Term_putstr(40, 23, -1, TERM_L_WHITE, "a");
-        Term_putstr(52, 23, -1, TERM_L_WHITE, "i");
-        Term_putstr(70, 23, -1, TERM_L_WHITE, "ESC");
+        /* Display the player */
+        ui_character_publish_sheet();
+        ui_character_render_sheet();
 
         /* Query */
         ch = inkey();
+        action = ui_input_parse_character_sheet_key(ch);
 
         /* Exit */
-        if (ch == ESCAPE)
-            break;
-        if ((ch == '\r') || (ch == '\n') || (ch == 'q') || (ch == 'Q'))
+        if (action == UI_INPUT_CHARACTER_SHEET_ACTION_CLOSE)
             break;
 
+        ui_character_clear_sheet();
+
         /* Increase skills */
-        if (ch == 'i')
+        if (action == UI_INPUT_CHARACTER_SHEET_ACTION_SKILLS)
         {
             gain_skills();
         }
 
         /* Show notes */
-        else if ((ch == 'n') || (ch == ' '))
+        else if (action == UI_INPUT_CHARACTER_SHEET_ACTION_NOTES)
         {
             do_cmd_knowledge_notes();
         }
 
         /* Change name */
-        else if (ch == 'c')
+        else if (action == UI_INPUT_CHARACTER_SHEET_ACTION_CHANGE_NAME)
         {
             (void)get_name();
         }
 
         /* Abilities */
-        else if ((ch == 'a') || (ch == '\t'))
+        else if (action == UI_INPUT_CHARACTER_SHEET_ACTION_ABILITIES)
         {
             (void)do_cmd_ability_screen();
         }
 
         /* File dump */
-        else if (ch == 's')
+        else if (action == UI_INPUT_CHARACTER_SHEET_ACTION_SAVE)
         {
             char ftmp[80];
 
@@ -344,6 +335,8 @@ void do_cmd_character_sheet(void)
         /* Flush messages */
         message_flush();
     }
+
+    ui_character_clear_sheet();
 
     /* Load screen */
     screen_load();
