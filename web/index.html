@@ -40,15 +40,32 @@
         </div>
       </div>
       <div class="hud-strip">
-        <button
-          id="side-toggle"
-          class="side-toggle"
-          type="button"
-          aria-controls="side-wrap"
-          aria-expanded="false"
-        >
-          Stats
-        </button>
+        <div class="hud-toolbar">
+          <button
+            id="side-toggle"
+            class="shell-toolbar-button shell-toolbar-button-collapse shell-toolbar-button-symbol"
+            type="button"
+            aria-controls="side-wrap"
+            aria-expanded="false"
+            aria-label="Show sidebar"
+            title="Show sidebar"
+          >
+            ☰
+          </button>
+          <button
+            id="hud-character-button"
+            class="shell-toolbar-button shell-toolbar-button-character"
+            type="button"
+            aria-label="Open character sheet"
+            title="Open character sheet (@)"
+          >
+            <span
+              id="hud-character-button-visual"
+              class="action-fab-visual shell-toolbar-button-visual"
+              aria-hidden="true"
+            ></span>
+          </button>
+        </div>
         <div id="hud-bars" class="hud-bars">(mobile hud)</div>
       </div>
       <div id="action-fabs" class="action-fabs" hidden>
@@ -235,6 +252,51 @@
       </div>
       <div id="side-backdrop" class="side-backdrop" hidden></div>
       <div id="side-wrap" class="side-wrap">
+        <div id="side-toolbar" class="side-toolbar">
+          <button
+            id="side-collapse-button"
+            class="shell-toolbar-button shell-toolbar-button-collapse"
+            type="button"
+            aria-controls="side-wrap"
+            aria-expanded="true"
+            aria-label="Hide sidebar"
+            title="Hide sidebar"
+          >
+            &lt;
+          </button>
+          <button
+            id="side-log-button"
+            class="shell-toolbar-button shell-toolbar-button-symbol"
+            type="button"
+            aria-label="Open message history"
+            title="Open message history (Ctrl-P)"
+          >
+            <span class="shell-toolbar-symbol" aria-hidden="true">🗎</span>
+          </button>
+          <button
+            id="side-knowledge-button"
+            class="shell-toolbar-button shell-toolbar-button-symbol"
+            type="button"
+            aria-label="Open knowledge browser"
+            title="Open knowledge browser (~)"
+          >
+            <span class="shell-toolbar-symbol" aria-hidden="true">🕮</span>
+          </button>
+          <div class="side-toolbar-spacer" aria-hidden="true"></div>
+          <button
+            id="side-character-button"
+            class="shell-toolbar-button shell-toolbar-button-character"
+            type="button"
+            aria-label="Open character sheet"
+            title="Open character sheet (@)"
+          >
+            <span
+              id="side-character-button-visual"
+              class="action-fab-visual shell-toolbar-button-visual"
+              aria-hidden="true"
+            ></span>
+          </button>
+        </div>
         <div id="side" class="panel">(side panel)</div>
       </div>
       <div id="overlay-modal" class="overlay"></div>

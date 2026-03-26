@@ -5,6 +5,7 @@
       --text: #e6edf3;
       --muted: #96a3b8;
       --panel-strong: rgba(7, 11, 18, 0.94);
+      --side-panel-width: clamp(220px, 28vw, 360px);
       --health-fill: linear-gradient(90deg, #7f1d1d 0%, #dc2626 52%, #f97316 100%);
       --voice-fill: linear-gradient(90deg, #0f2a52 0%, #2563eb 55%, #7dd3fc 100%);
       --font-game: "Unscii Fantasy", monospace;
@@ -97,18 +98,24 @@
 
     .layout {
       display: grid;
-      grid-template-columns: minmax(0, 1fr) clamp(220px, 28vw, 360px);
+      grid-template-columns: 0 minmax(0, 1fr);
       gap: 0;
       min-height: 0;
       position: relative;
       height: 100%;
       overflow: hidden;
+      transition: grid-template-columns 180ms ease;
+    }
+
+    .app.shell-visible:not(.side-collapsed) .layout {
+      grid-template-columns: var(--side-panel-width) minmax(0, 1fr);
     }
 
     .map-wrap {
+      grid-column: 2;
       position: relative;
       padding: 8px;
-      border-right: 1px solid var(--border);
+      border-left: 1px solid var(--border);
       overflow: auto;
       min-width: 0;
       min-height: 0;
@@ -195,13 +202,24 @@
       pointer-events: none;
     }
 
-    .side-toggle {
+    .hud-toolbar {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      pointer-events: auto;
+    }
+
+    .shell-toolbar-button {
       pointer-events: auto;
       flex: 0 0 auto;
+      min-width: 2.8rem;
+      min-height: 2.8rem;
+      display: grid;
+      place-items: center;
       appearance: none;
       border: 1px solid rgba(147, 197, 253, 0.34);
-      border-radius: 999px;
-      padding: 0.7rem 0.95rem;
+      border-radius: 0.95rem;
+      padding: 0.55rem;
       font: inherit;
       letter-spacing: 0.04em;
       color: var(--text);
@@ -213,9 +231,58 @@
       cursor: pointer;
     }
 
-    .side-toggle:focus-visible {
+    .shell-toolbar-button:hover {
+      border-color: rgba(147, 197, 253, 0.52);
+      background:
+        linear-gradient(180deg, rgba(25, 38, 57, 0.98) 0%, rgba(11, 17, 27, 0.99) 100%);
+    }
+
+    .shell-toolbar-button:focus-visible {
       outline: 2px solid rgba(147, 197, 253, 0.8);
       outline-offset: 2px;
+    }
+
+    .shell-toolbar-button-disabled {
+      opacity: 0.45;
+      cursor: default;
+    }
+
+    .shell-toolbar-button-collapse {
+      font-size: 1.2rem;
+      line-height: 1;
+    }
+
+    .shell-toolbar-button-character {
+      padding: 0.35rem;
+    }
+
+    .shell-toolbar-button-symbol {
+      padding: 0.35rem;
+    }
+
+    .shell-toolbar-button-visual {
+      width: 1.7rem;
+      height: 1.7rem;
+    }
+
+    .shell-toolbar-button .action-fab-canvas {
+      width: 1.7rem;
+      height: 1.7rem;
+    }
+
+    .shell-toolbar-button .action-fab-glyph {
+      font-size: 1.45rem;
+    }
+
+    .shell-toolbar-symbol {
+      font-family:
+        "Apple Color Emoji",
+        "Segoe UI Emoji",
+        "Noto Color Emoji",
+        "Segoe UI Symbol",
+        sans-serif;
+      font-size: 1.2rem;
+      line-height: 1;
     }
 
     .action-fabs {
@@ -486,7 +553,7 @@
       font-family: var(--font-game);
       color: #f0f4ff;
       text-shadow: 0 0 2px rgba(0, 0, 0, 0.85);
-      z-index: 2;
+      z-index: 7;
       display: none;
       max-width: min(80em, calc(100% - 2rem));
       max-height: calc(100% - 2rem);
@@ -495,7 +562,7 @@
     }
 
     #overlay-modal {
-      z-index: 3;
+      z-index: 8;
       background: rgba(7, 10, 16, 0.88);
       box-shadow: 0 1em 2.5em rgba(0, 0, 0, 0.5);
       overflow-y: auto;
@@ -512,6 +579,7 @@
 
     #overlay-modal.overlay-menu {
       --menu-details-width: 30ch;
+      --menu-column-min-width: 16rem;
       padding: 1rem;
       width: min(72rem, calc(100% - 2rem));
       height: min(42rem, calc(100% - 2rem));
@@ -998,8 +1066,9 @@
       height: 100%;
       min-height: 0;
       min-width: 0;
-      width: fit-content;
-      margin: auto;
+      width: 100%;
+      max-width: 100%;
+      margin: 0;
     }
 
     .menu-shell-with-copy {
@@ -1015,6 +1084,7 @@
       gap: 1rem;
       min-height: 0;
       min-width: 0;
+      width: 100%;
     }
 
     .menu-body-with-details {
@@ -1028,7 +1098,6 @@
     .menu-columns-wrap {
       min-height: 20vh;
       min-width: 0;
-      overflow: hidden;
     }
 
     .menu-columns {
@@ -1036,7 +1105,8 @@
       gap: 0.75rem;
       height: 100%;
       min-height: 0;
-      min-width: 0;
+      min-width: 100%;
+      width: 100%;
       overflow: auto;
       overscroll-behavior: contain;
       -webkit-overflow-scrolling: touch;
@@ -1048,8 +1118,8 @@
       display: grid;
       gap: 0.05rem;
       align-content: start;
-      flex: 0 0 auto;
-      min-width: 12rem;
+      flex: 1 0 var(--menu-column-min-width);
+      min-width: var(--menu-column-min-width);
       transition: opacity 120ms ease;
     }
 
@@ -1208,7 +1278,6 @@
       flex: 1 1 auto;
       min-width: 0;
       overflow: hidden;
-      text-overflow: ellipsis;
     }
 
     .menu-item-direct {
@@ -1224,11 +1293,42 @@
     }
 
     .side-wrap {
+      grid-column: 1;
+      grid-row: 1;
       display: grid;
-      grid-template-rows: 1fr;
+      grid-template-rows: auto minmax(0, 1fr);
       min-height: 0;
       min-width: 0;
       overflow: hidden;
+      background: linear-gradient(180deg, rgba(18, 24, 36, 0.98) 0%, var(--panel-strong) 100%);
+      border-right: 1px solid var(--border);
+      transform: translateX(calc(-1 * var(--side-panel-width) - 1rem));
+      opacity: 0;
+      pointer-events: none;
+      transition:
+        transform 180ms ease,
+        opacity 140ms ease;
+    }
+
+    .app.shell-visible:not(.side-collapsed) .side-wrap {
+      transform: translateX(0);
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .side-toolbar {
+      display: flex;
+      align-items: center;
+      gap: 0.55rem;
+      padding: 0.6rem 0.7rem;
+      border-bottom: 1px solid var(--border);
+      background:
+        linear-gradient(180deg, rgba(17, 24, 36, 0.92) 0%, rgba(10, 15, 23, 0.88) 100%);
+    }
+
+    .side-toolbar-spacer {
+      flex: 1 1 auto;
+      min-width: 0;
     }
 
     .side-backdrop {
@@ -1245,6 +1345,7 @@
     .panel {
       margin: 0;
       padding: 0.75em;
+      min-height: 0;
       overflow: auto;
       white-space: pre-wrap;
       font-size: 1em;
@@ -1257,6 +1358,15 @@
 
     .panel:last-child {
       border-bottom: 0;
+    }
+
+    .app.side-collapsed .map-wrap,
+    .app:not(.shell-visible) .map-wrap {
+      border-left: 0;
+    }
+
+    .app.shell-visible.side-collapsed .hud-strip {
+      display: flex;
     }
 
     .term-c0 { color: #000000; }
@@ -1292,8 +1402,14 @@
         grid-template-columns: 1fr;
       }
 
+      .app.shell-visible:not(.side-collapsed) .layout {
+        grid-template-columns: 1fr;
+      }
+
       .map-wrap {
+        grid-column: 1 / -1;
         border-right: 0;
+        border-left: 0;
         padding-top: 4.2rem;
       }
 
@@ -1312,7 +1428,7 @@
         max-height: 2.7em;
       }
 
-      .hud-strip {
+      .app.shell-visible .hud-strip {
         display: flex;
       }
 
@@ -1399,7 +1515,7 @@
       .side-wrap {
         position: absolute;
         top: 0.55rem;
-        right: 0.55rem;
+        left: 0.55rem;
         bottom: 0.55rem;
         width: min(22rem, calc(100% - 1.1rem));
         z-index: 4;
@@ -1408,7 +1524,7 @@
         border-radius: 0.75rem;
         background: linear-gradient(180deg, rgba(18, 24, 36, 0.98) 0%, var(--panel-strong) 100%);
         box-shadow: 0 1.1rem 2.4rem rgba(0, 0, 0, 0.42);
-        transform: translateX(calc(100% + 1rem));
+        transform: translateX(calc(-100% - 1rem));
         opacity: 0;
         pointer-events: none;
         transition:
@@ -1416,13 +1532,19 @@
           opacity 140ms ease;
       }
 
-      .app.side-open .side-wrap {
+      .app.shell-visible:not(.side-open) .side-wrap {
+        transform: translateX(calc(-100% - 1rem));
+        opacity: 0;
+        pointer-events: none;
+      }
+
+      .app.shell-visible.side-open .side-wrap {
         transform: translateX(0);
         opacity: 1;
         pointer-events: auto;
       }
 
-      .app.side-open .side-backdrop {
+      .app.shell-visible.side-open .side-backdrop {
         opacity: 1;
         pointer-events: auto;
       }
@@ -1536,11 +1658,21 @@
         overflow: visible;
       }
 
+      .menu-body-with-details .menu-columns-wrap {
+        max-height: 40vh;
+        overflow: hidden;
+      }
+
       .menu-columns {
         height: auto;
         min-height: 20vh;
         overflow-x: auto;
         overflow-y: visible;
+      }
+
+      .menu-body-with-details .menu-columns {
+        max-height: 40vh;
+        overflow-y: auto;
       }
 
       .menu-copy,
@@ -1557,7 +1689,6 @@
     }
 
     @media (min-width: 961px) {
-      .hud-strip,
       .side-backdrop {
         display: none;
       }

@@ -463,10 +463,6 @@ void ui_knowledge_publish_artefacts(cptr group_text[], int grp_idx[],
 
     ui_text_builder_append_line(&menu_builder, "Knowledge - Artefacts", TERM_WHITE);
     ui_text_builder_newline(&menu_builder, TERM_WHITE);
-    ui_text_builder_append_line(&menu_builder,
-        "Browse groups on the left and artefacts on the right.", TERM_SLATE);
-    ui_text_builder_append_line(
-        &menu_builder, "Press r for full recall. Press Esc to exit.", TERM_SLATE);
 
     if ((artefact_cnt > 0) && (artefact_cur >= 0) && (artefact_cur < artefact_cnt))
         ui_knowledge_artefact_append_details(
@@ -754,10 +750,6 @@ void ui_knowledge_publish_objects(cptr group_text[], int grp_idx[], int grp_cnt,
 
     ui_text_builder_append_line(&menu_builder, "Knowledge - Objects", TERM_WHITE);
     ui_text_builder_newline(&menu_builder, TERM_WHITE);
-    ui_text_builder_append_line(&menu_builder,
-        "Browse groups on the left and objects on the right.", TERM_SLATE);
-    ui_text_builder_append_line(
-        &menu_builder, "Press r for full recall. Press Esc to exit.", TERM_SLATE);
 
     if ((object_cnt > 0) && (object_cur >= 0) && (object_cur < object_cnt))
         ui_knowledge_object_append_details(&details_builder, &object_idx[object_cur]);

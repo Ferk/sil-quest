@@ -29,6 +29,8 @@
     const songFabLabelEl = document.getElementById("song-fab-label");
     const tileActionFabEl = document.getElementById("tile-action-fab");
     const tileActionFabVisualEl = document.getElementById("tile-action-fab-visual");
+    const hudCharacterButtonEl = document.getElementById("hud-character-button");
+    const hudCharacterVisualEl = document.getElementById("hud-character-button-visual");
     const adjacentActionFabEls = Array.from(
       document.querySelectorAll(".adjacent-action-fab")
     );
@@ -36,6 +38,11 @@
     const hudBarsEl = document.getElementById("hud-bars");
     const sideEl = document.getElementById("side");
     const sideWrapEl = document.getElementById("side-wrap");
+    const sideCollapseButtonEl = document.getElementById("side-collapse-button");
+    const sideLogButtonEl = document.getElementById("side-log-button");
+    const sideKnowledgeButtonEl = document.getElementById("side-knowledge-button");
+    const sideCharacterButtonEl = document.getElementById("side-character-button");
+    const sideCharacterVisualEl = document.getElementById("side-character-button-visual");
     const sideBackdropEl = document.getElementById("side-backdrop");
     const sideToggleEl = document.getElementById("side-toggle");
     const logEl = document.getElementById("log");
@@ -160,9 +167,12 @@
     let activeMenuDetailsVisual = null;
     let activeBirthState = null;
     let activeCharacterSheetState = null;
+    let activePlayerState = null;
     let semanticMenuSnapshot = null;
     let hoveredMenuIndex = -1;
     let compactSideOpen = false;
+    let sideCollapsed = false;
+    let wasCompactLayout = false;
     let birthTextDraft = "";
     let birthTextSourceText = "";
     let birthTextSourceKind = "";
@@ -299,6 +309,8 @@
       mapCanvas.hidden = !mapDisplayReady;
       mapWrapEl.classList.toggle("map-ready", mapDisplayReady);
       if (mapLoadingEl) mapLoadingEl.hidden = mapDisplayReady;
+      if (!mapDisplayReady) compactSideOpen = false;
+      syncResponsiveShellChrome();
     }
 
     // Returns the active Emscripten heap view used to read wasm-exported buffers.
@@ -734,6 +746,26 @@
       return normalizeMenuDetailsVisual(kind, attr, chr);
     }
 
+    // Projects one map cell into the shared glyph/tile visual payload used by toolbar buttons.
+    function normalizeCellVisual(cell) {
+      if (!cell) return null;
+
+      if (cell.kind === WEB_CELL_PICT) {
+        if ((cell.flags & WEB_FLAG_FG_PICT) !== 0) {
+          return normalizeMenuItemVisual(WEB_CELL_PICT, cell.fgAttr, cell.fgChar);
+        }
+        if ((cell.flags & WEB_FLAG_BG_PICT) !== 0) {
+          return normalizeMenuItemVisual(WEB_CELL_PICT, cell.bgAttr, cell.bgChar);
+        }
+      }
+
+      if (cell.kind === WEB_CELL_TEXT) {
+        return normalizeMenuItemVisual(WEB_CELL_TEXT, cell.textAttr, cell.textChar);
+      }
+
+      return null;
+    }
+
     // Items with a non-Enter activation key are treated as direct actions rather than hover-driven selections.
     function isDirectMenuItem(item) {
       return !!item && item.key > 0 && item.key !== 13;
@@ -754,7 +786,7 @@
         .map((entry) => entry[1].sort((a, b) => a.y - b.y || a.x - b.x));
     }
 
-    // The rightmost menu column is treated as the active submenu for passive hover.
+    // Returns the backend-selected active menu column for styling and scroll-follow.
     function getActiveMenuColumnX(items = activeMenuItems, activeColumnX = activeMenuColumnX) {
       if (!items.length) return null;
 
@@ -773,7 +805,7 @@
       return maxX;
     }
 
-    // Only the active/rightmost submenu should react to passive hover; older columns remain clickable.
+    // Only the rightmost submenu column should react to passive hover; older columns remain click-only.
     function isPassiveHoverMenuItem(index) {
       if (
         index < 0 ||
@@ -783,10 +815,12 @@
         return false;
       }
 
-      const activeColumnX = getActiveMenuColumnX();
-      if (activeColumnX === null) return true;
+      let rightmostColumnX = activeMenuItems[0].x;
+      for (const item of activeMenuItems) {
+        if (item.x > rightmostColumnX) rightmostColumnX = item.x;
+      }
 
-      return activeMenuItems[index].x === activeColumnX;
+      return activeMenuItems[index].x === rightmostColumnX;
     }
 
     // After a semantic menu redraw, keep the active column within the horizontal scroll viewport.
@@ -2128,21 +2162,50 @@
       };
     }
 
+    // Mirrors the current shell state into sidebar, compact HUD, and accessibility attributes.
+    function syncResponsiveShellChrome() {
+      const visible = mapDisplayReady;
+      const compact = isCompactLayout();
+      const open = visible && compact && !!compactSideOpen;
+      const collapsed = visible && !compact && !!sideCollapsed;
+
+      appEl.classList.toggle("shell-visible", visible);
+      appEl.classList.toggle("side-open", open);
+      appEl.classList.toggle("side-collapsed", collapsed);
+      sideBackdropEl.hidden = !open;
+      sideWrapEl.setAttribute(
+        "aria-hidden",
+        (!visible || (compact ? !open : collapsed)) ? "true" : "false"
+      );
+
+      sideToggleEl.setAttribute("aria-expanded", compact ? (open ? "true" : "false") : (collapsed ? "false" : "true"));
+      sideToggleEl.textContent = "☰";
+      sideToggleEl.setAttribute("aria-label", compact && open ? "Hide sidebar" : "Show sidebar");
+      sideToggleEl.title = compact && open ? "Hide sidebar" : "Show sidebar";
+
+      sideCollapseButtonEl.setAttribute("aria-expanded", compact ? (open ? "true" : "false") : (collapsed ? "false" : "true"));
+      sideCollapseButtonEl.textContent = "<";
+      sideCollapseButtonEl.setAttribute("aria-label", compact ? "Hide sidebar" : "Hide sidebar");
+      sideCollapseButtonEl.title = compact ? "Hide sidebar" : "Hide sidebar";
+    }
+
     // Applies the current compact side-panel state to the DOM and accessibility labels.
     function setCompactSideOpen(nextOpen) {
       const compact = isCompactLayout();
-      const open = compact && !!nextOpen;
+      compactSideOpen = compact && !!nextOpen;
+      syncResponsiveShellChrome();
+    }
 
-      compactSideOpen = open;
-      appEl.classList.toggle("side-open", open);
-      sideBackdropEl.hidden = !open;
-      sideToggleEl.setAttribute("aria-expanded", open ? "true" : "false");
-      sideToggleEl.textContent = open ? "Close" : "Stats";
+    // Toggles the persistent desktop sidebar collapse mode.
+    function setSideCollapsed(nextCollapsed) {
+      sideCollapsed = !!nextCollapsed;
+      syncResponsiveShellChrome();
     }
 
     // Recomputes responsive zoom presets and mobile chrome state after viewport changes.
     function syncResponsiveShell(forceZoomReset = false) {
       const compact = isCompactLayout();
+      const layoutChanged = compact !== wasCompactLayout;
       const prevSettings = mapZoomSettings;
       mapZoomSettings = computeMapZoomSettings();
 
@@ -2159,7 +2222,10 @@
       }
 
       if (!compact) compactSideOpen = false;
-      setCompactSideOpen(compactSideOpen);
+      if (layoutChanged && compact) compactSideOpen = false;
+      wasCompactLayout = compact;
+      syncResponsiveShellChrome();
+      syncSidebarToolbar(activePlayerState, getHeapU8());
       fitMapToViewport();
     }
 
@@ -3476,6 +3542,58 @@
       );
     }
 
+    // Reads the current player map cell so shell toolbar buttons can reuse the live avatar visual.
+    function getPlayerToolbarVisual(heap, state = null) {
+      const fallback = normalizeMenuItemVisual(WEB_CELL_TEXT, 14, "@".charCodeAt(0));
+
+      if (!state || Number(state.ready) !== 1 || !api || !heap) return fallback;
+
+      const mapPtr = typeof api.getMapCellsPtr === "function" ? api.getMapCellsPtr() : 0;
+      const playerX = typeof api.getPlayerMapX === "function" ? api.getPlayerMapX() : -1;
+      const playerY = typeof api.getPlayerMapY === "function" ? api.getPlayerMapY() : -1;
+
+      if (!mapPtr || playerX < 0 || playerY < 0 || playerX >= mapCols || playerY >= mapRows) {
+        return fallback;
+      }
+
+      return normalizeCellVisual(readCell(heap, mapPtr, mapCols, playerX, playerY)) || fallback;
+    }
+
+    // Updates the sidebar and compact HUD toolbar buttons from the current gameplay state.
+    function syncSidebarToolbar(state = null, heap = null) {
+      const ready = !!state && Number(state.ready) === 1;
+      const enabled = canUseShellToolbarScreenButton(state);
+      const visual = getPlayerToolbarVisual(heap, state);
+      const characterButtons = [hudCharacterButtonEl, sideCharacterButtonEl];
+      const characterVisuals = [hudCharacterVisualEl, sideCharacterVisualEl];
+
+      for (let i = 0; i < characterButtons.length; i += 1) {
+        const buttonEl = characterButtons[i];
+        const visualEl = characterVisuals[i];
+        if (!buttonEl || !visualEl) continue;
+
+        renderActionFabVisual(visualEl, ready ? visual : null);
+        buttonEl.disabled = !enabled;
+        buttonEl.classList.toggle("shell-toolbar-button-disabled", !enabled);
+        buttonEl.setAttribute("aria-disabled", enabled ? "false" : "true");
+        buttonEl.title = enabled ? "Open character sheet (@)" : "Character sheet unavailable";
+      }
+
+      for (const buttonEl of [sideLogButtonEl, sideKnowledgeButtonEl]) {
+        if (!buttonEl) continue;
+        buttonEl.disabled = !enabled;
+        buttonEl.classList.toggle("shell-toolbar-button-disabled", !enabled);
+        buttonEl.setAttribute("aria-disabled", enabled ? "false" : "true");
+      }
+
+      if (sideLogButtonEl) {
+        sideLogButtonEl.title = enabled ? "Open message history (Ctrl-P)" : "Message history unavailable";
+      }
+      if (sideKnowledgeButtonEl) {
+        sideKnowledgeButtonEl.title = enabled ? "Open knowledge browser (~)" : "Knowledge browser unavailable";
+      }
+    }
+
     // Updates the compact top HUD shown when the side panel collapses on narrow screens.
     function updateMobileHud(state) {
       if (!hudBarsEl) return;
@@ -3485,7 +3603,7 @@
           renderMobileHudBar("Health", "HP", 0, 0, "hud-bar-empty") +
           renderMobileHudBar("Voice", "Voice", 0, 0, "hud-bar-empty");
         setHtmlIfChanged(hudBarsEl, placeholderHtml);
-        sideToggleEl.title = "Character panel";
+        hudBarsEl.title = "Character panel";
         return;
       }
 
@@ -3499,13 +3617,14 @@
       const titleBits = [state.name, state.depthText].filter(Boolean);
 
       setHtmlIfChanged(hudBarsEl, hudHtml);
-      sideToggleEl.title = titleBits.length ? titleBits.join(" - ") : "Character panel";
+      hudBarsEl.title = titleBits.length ? titleBits.join(" - ") : "Character panel";
     }
 
     // Updates side and log panels using semantic text and color attributes.
     function updateSemanticPanels(heap, state = null) {
       if (!api) return;
       if (!state) state = readPlayerState(heap);
+      activePlayerState = state;
       const logPtr = api.getLogTextPtr();
       const logLen = api.getLogTextLen();
       const logAttrPtr = api.getLogAttrsPtr();
@@ -3542,6 +3661,7 @@
       }
 
       updateMobileHud(state);
+      syncSidebarToolbar(state, heap);
       syncFloatingActionButtons(state);
       setHtmlIfChanged(sideEl, sideHtml);
       setHtmlIfChanged(logEl, logHtml, true);
@@ -3719,6 +3839,14 @@
     function canUseMapTravel() {
       return !!api &&
         typeof api.travelTo === "function" &&
+        isGameplayViewIdle();
+    }
+
+    // Returns whether the shell toolbar can open a non-action gameplay screen right now.
+    function canUseShellToolbarScreenButton(state = null) {
+      return !!api &&
+        !!state &&
+        Number(state.ready) === 1 &&
         isGameplayViewIdle();
     }
 
@@ -4585,6 +4713,19 @@
 
     // Binds the compact mobile side drawer toggle and backdrop dismissal controls.
     function bindResponsiveShellInput() {
+      const triggerShellToolbarCommand = (ev, keyCode) => {
+        ev.preventDefault();
+        ev.stopPropagation();
+
+        const heap = getHeapU8();
+        const state = heap ? readPlayerState(heap) : activePlayerState;
+        if (!canUseShellToolbarScreenButton(state)) return;
+
+        setCompactSideOpen(false);
+        pushAscii(keyCode);
+        forceRedraw = true;
+      };
+
       sideToggleEl.addEventListener("pointerdown", (ev) => {
         ev.stopPropagation();
       });
@@ -4592,8 +4733,49 @@
       sideToggleEl.addEventListener("click", (ev) => {
         ev.preventDefault();
         ev.stopPropagation();
-        setCompactSideOpen(!compactSideOpen);
+        if (isCompactLayout()) {
+          setCompactSideOpen(!compactSideOpen);
+          return;
+        }
+        setSideCollapsed(!sideCollapsed);
       });
+
+      sideCollapseButtonEl.addEventListener("pointerdown", (ev) => {
+        ev.stopPropagation();
+      });
+
+      sideCollapseButtonEl.addEventListener("click", (ev) => {
+        ev.preventDefault();
+        ev.stopPropagation();
+        if (isCompactLayout()) {
+          setCompactSideOpen(false);
+          return;
+        }
+        setSideCollapsed(true);
+      });
+
+      for (const buttonEl of [hudCharacterButtonEl, sideCharacterButtonEl]) {
+        buttonEl.addEventListener("pointerdown", (ev) => {
+          ev.stopPropagation();
+        });
+
+        buttonEl.addEventListener("click", (ev) => {
+          triggerShellToolbarCommand(ev, "@".charCodeAt(0));
+        });
+      }
+
+      for (const [buttonEl, keyCode] of [
+        [sideLogButtonEl, "P".charCodeAt(0) & 0x1f],
+        [sideKnowledgeButtonEl, "~".charCodeAt(0)],
+      ]) {
+        buttonEl.addEventListener("pointerdown", (ev) => {
+          ev.stopPropagation();
+        });
+
+        buttonEl.addEventListener("click", (ev) => {
+          triggerShellToolbarCommand(ev, keyCode);
+        });
+      }
 
       sideBackdropEl.addEventListener("pointerdown", (ev) => {
         ev.preventDefault();

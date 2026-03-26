@@ -9576,6 +9576,7 @@ void do_cmd_knowledge_monsters(void)
     int i;
     int grp_cur, grp_top;
     int mon_cur, mon_top;
+    int mon_cur_by_group[100] = { 0 };
     int grp_cnt, grp_idx[100];
     ui_knowledge_monster_entry* mon_idx;
     int monster_count;
@@ -9616,6 +9617,7 @@ void do_cmd_knowledge_monsters(void)
             grp_cur, &grp_top, grp_cnt, UI_KNOWLEDGE_BROWSER_ROWS);
 
         /* Get a list of monsters in the current group */
+        mon_cur = mon_cur_by_group[grp_cur];
         monster_count = collect_monsters(grp_idx[grp_cur], mon_idx, 0x00);
         if (monster_count <= 0)
             mon_cur = 0;
@@ -9623,6 +9625,7 @@ void do_cmd_knowledge_monsters(void)
             mon_cur = monster_count - 1;
         else if (mon_cur < 0)
             mon_cur = 0;
+        mon_cur_by_group[grp_cur] = mon_cur;
         ui_menu_scroll_selection_into_view(
             mon_cur, &mon_top, monster_count, UI_KNOWLEDGE_BROWSER_ROWS);
         ui_knowledge_publish_monsters(monster_group_text, monster_group_char,
@@ -9662,9 +9665,13 @@ void do_cmd_knowledge_monsters(void)
 
             case UI_INPUT_BROWSER_ACTION_MOVE:
             {
+                int old_grp_cur = grp_cur;
+
                 ui_menu_move_two_column_selection(input.direction,
                     UI_KNOWLEDGE_BROWSER_ROWS, &column, &grp_cur, grp_top,
                     grp_cnt, &mon_cur, mon_top, monster_count);
+                if (grp_cur == old_grp_cur)
+                    mon_cur_by_group[grp_cur] = mon_cur;
 
                 /*Update to a new monster*/
                 p_ptr->window |= (PW_MONSTER);
@@ -9695,6 +9702,7 @@ void do_cmd_knowledge_objects(void)
     int i;
     int grp_cur, grp_top, grp_max;
     int object_old_id, object_cur, object_top;
+    int object_cur_by_group[100] = { 0 };
     int grp_cnt, grp_idx[100];
     int object_cnt;
     ui_knowledge_object_entry* object_idx;
@@ -9747,6 +9755,7 @@ void do_cmd_knowledge_objects(void)
             grp_cur, &grp_top, grp_cnt, UI_KNOWLEDGE_BROWSER_ROWS);
 
         /* Get a list of objects in the current group */
+        object_cur = object_cur_by_group[grp_cur];
         object_cnt = collect_objects(grp_idx[grp_cur], object_idx);
         if (object_cnt <= 0)
             object_cur = 0;
@@ -9754,6 +9763,7 @@ void do_cmd_knowledge_objects(void)
             object_cur = object_cnt - 1;
         else if (object_cur < 0)
             object_cur = 0;
+        object_cur_by_group[grp_cur] = object_cur;
         ui_menu_scroll_selection_into_view(
             object_cur, &object_top, object_cnt, UI_KNOWLEDGE_BROWSER_ROWS);
         ui_knowledge_publish_objects(object_group_text, grp_idx, grp_cnt, grp_cur,
@@ -9803,9 +9813,13 @@ void do_cmd_knowledge_objects(void)
 
             case UI_INPUT_BROWSER_ACTION_MOVE:
             {
+                int old_grp_cur = grp_cur;
+
                 ui_menu_move_two_column_selection(input.direction,
                     UI_KNOWLEDGE_BROWSER_ROWS, &column, &grp_cur, grp_top,
                     grp_cnt, &object_cur, object_top, object_cnt);
+                if (grp_cur == old_grp_cur)
+                    object_cur_by_group[grp_cur] = object_cur;
                 break;
             }
 

@@ -552,6 +552,18 @@ int ui_simple_menu_read_action(
     if (action == UI_INPUT_SIMPLE_MENU_ACTION_CHOOSE)
         return entries[*highlight - 1].key;
 
+    if (action == UI_INPUT_SIMPLE_MENU_ACTION_PREV)
+    {
+        *highlight = (*highlight + entry_count - 2) % entry_count + 1;
+        return 0;
+    }
+
+    if (action == UI_INPUT_SIMPLE_MENU_ACTION_NEXT)
+    {
+        *highlight = *highlight % entry_count + 1;
+        return 0;
+    }
+
     for (i = 0; i < entry_count; i++)
     {
         int entry_key = entries[i].key;
@@ -565,18 +577,6 @@ int ui_simple_menu_read_action(
             *highlight = i + 1;
             return entry_key;
         }
-    }
-
-    if (action == UI_INPUT_SIMPLE_MENU_ACTION_PREV)
-    {
-        *highlight = (*highlight + entry_count - 2) % entry_count + 1;
-        return 0;
-    }
-
-    if (action == UI_INPUT_SIMPLE_MENU_ACTION_NEXT)
-    {
-        *highlight = *highlight % entry_count + 1;
-        return 0;
     }
 
     return -1;
