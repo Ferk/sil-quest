@@ -2768,6 +2768,177 @@ static void look_mon_desc(char* buf, size_t max, int m_idx)
     }
 }
 
+/* Appends one non-empty line into one plain-text look-description buffer. */
+static void describe_grid_append_line(char* buf, size_t max, cptr line)
+{
+    if (!buf || (max == 0) || !line || !line[0])
+        return;
+
+    if (buf[0])
+        my_strcat(buf, "\n", max);
+
+    my_strcat(buf, line, max);
+}
+
+/* Builds the plain-text description lines the look command would show for a grid. */
+void describe_grid_for_look(char* buf, size_t max, int y, int x)
+{
+    s16b this_o_idx;
+    s16b next_o_idx = 0;
+    cptr s1;
+    cptr s2;
+    cptr s3;
+    bool boring;
+    bool floored;
+    int feat;
+    char out_val[256];
+
+    if (!buf || (max == 0))
+        return;
+
+    buf[0] = '\0';
+
+    if (!p_ptr || !character_dungeon || !in_bounds(y, x))
+    {
+        my_strcpy(buf, "You see nothing of interest.", max);
+        return;
+    }
+
+    boring = TRUE;
+    s1 = "You see ";
+    s2 = "";
+    s3 = "";
+
+    if (cave_m_idx[y][x] < 0)
+    {
+        s1 = "You are ";
+        s2 = "on ";
+    }
+
+    if (p_ptr->image)
+    {
+        my_strcpy(buf, "What you see is not to be believed.", max);
+        return;
+    }
+
+    if (cave_m_idx[y][x] > 0)
+    {
+        monster_type* m_ptr = &mon_list[cave_m_idx[y][x]];
+
+        if (m_ptr->ml)
+        {
+            char m_name[80];
+            char m_desc[80];
+
+            boring = FALSE;
+
+            if (p_ptr->rage)
+                my_strcpy(m_name, "an enemy", sizeof(m_name));
+            else
+                monster_desc(m_name, sizeof(m_name), m_ptr, 0x08);
+
+            look_mon_desc(m_desc, sizeof(m_desc), cave_m_idx[y][x]);
+            strnfmt(out_val, sizeof(out_val), "%s%s%s%s %s",
+                s1, s2, s3, m_name, m_desc);
+            describe_grid_append_line(buf, max, out_val);
+
+            s1 = "It is ";
+            if (r_info[m_ptr->r_idx].flags1 & RF1_FEMALE)
+                s1 = "She is ";
+            else if (r_info[m_ptr->r_idx].flags1 & RF1_MALE)
+                s1 = "He is ";
+
+            s2 = "carrying ";
+
+            for (this_o_idx = m_ptr->hold_o_idx; this_o_idx;
+                 this_o_idx = next_o_idx)
+            {
+                char o_name[80];
+                object_type* o_ptr = &o_list[this_o_idx];
+
+                next_o_idx = o_ptr->next_o_idx;
+
+                if ((o_ptr->ident & IDENT_HIDE_CARRY) && !p_ptr->wizard
+                    && !cheat_peek)
+                {
+                    continue;
+                }
+
+                object_desc(o_name, sizeof(o_name), o_ptr, TRUE, 3);
+                strnfmt(out_val, sizeof(out_val), "%s%s%s%s",
+                    s1, s2, s3, o_name);
+                describe_grid_append_line(buf, max, out_val);
+                s2 = "also carrying ";
+            }
+
+            s2 = "on ";
+        }
+    }
+
+    floored = FALSE;
+
+    for (this_o_idx = cave_o_idx[y][x]; this_o_idx; this_o_idx = next_o_idx)
+    {
+        object_type* o_ptr = &o_list[this_o_idx];
+
+        next_o_idx = o_ptr->next_o_idx;
+
+        if (floored)
+            continue;
+
+        if (cave_floorlike_bold(y, x) && o_ptr->marked)
+        {
+            char o_name[80];
+
+            boring = FALSE;
+            object_desc(o_name, sizeof(o_name), o_ptr, TRUE, 3);
+            strnfmt(out_val, sizeof(out_val), "%s%s%s%s", s1, s2, s3, o_name);
+            describe_grid_append_line(buf, max, out_val);
+
+            s1 = "It is ";
+            if (o_ptr->number != 1)
+                s1 = "They are ";
+            s2 = "on ";
+            floored = TRUE;
+        }
+    }
+
+    feat = f_info[cave_feat[y][x]].mimic;
+
+    if (!(cave_info[y][x] & CAVE_MARK) && !player_can_see_bold(y, x)
+        && (distance(p_ptr->py, p_ptr->px, y, x) > 0))
+    {
+        feat = FEAT_NONE;
+    }
+
+    if (boring || !cave_floorlike_bold(y, x))
+    {
+        cptr name = f_name + f_info[feat].name;
+
+        if (feat == FEAT_NONE)
+            name = "unknown square";
+
+        if (*s2 && (feat >= FEAT_DOOR_HEAD))
+            s2 = "in ";
+
+        if ((feat >= FEAT_FORGE_UNIQUE_HEAD)
+            && (feat <= FEAT_FORGE_UNIQUE_TAIL))
+        {
+            s3 = "the ";
+        }
+        else
+        {
+            s3 = is_a_vowel(name[0]) ? "an " : "a ";
+        }
+
+        strnfmt(out_val, sizeof(out_val), "%s%s%s%s", s1, s2, s3, name);
+        describe_grid_append_line(buf, max, out_val);
+    }
+
+    if (!buf[0])
+        my_strcpy(buf, "You see nothing of interest.", max);
+}
+
 /*
  * Angband sorting algorithm -- quick sort in place
  *

@@ -296,6 +296,10 @@
       pointer-events: none;
     }
 
+    .action-fabs.action-fabs-overlay-dialog {
+      z-index: 9;
+    }
+
     .action-row {
       display: flex;
       align-items: center;
@@ -432,7 +436,8 @@
       font-size: 1.85rem;
     }
 
-    .song-fab.song-fab-active {
+    .song-fab.song-fab-active,
+    .state-fab.state-fab-active {
       border-color: rgba(134, 239, 172, 0.6);
       border-width: 3px;
       background:
@@ -442,7 +447,8 @@
         inset 0 0 0 1px rgba(220, 252, 231, 0.08);
     }
 
-    .song-fab.song-fab-active:hover {
+    .song-fab.song-fab-active:hover,
+    .state-fab.state-fab-active:hover {
       box-shadow:
         0 0.95rem 1.7rem rgba(12, 68, 36, 0.44),
         inset 0 0 0 1px rgba(220, 252, 231, 0.1);
@@ -610,6 +616,17 @@
       padding: 1rem;
       width: min(74rem, calc(100% - 2rem));
       height: min(44rem, calc(100% - 2rem));
+      max-width: calc(100% - 2rem);
+      max-height: calc(100% - 2rem);
+      box-sizing: border-box;
+      white-space: normal;
+      overflow: auto;
+      touch-action: pan-y;
+    }
+
+    #overlay-modal.overlay-tile-context {
+      padding: 1rem;
+      width: min(34rem, calc(100% - 2rem));
       max-width: calc(100% - 2rem);
       max-height: calc(100% - 2rem);
       box-sizing: border-box;
@@ -1058,6 +1075,117 @@
     .character-sheet-action-label {
       color: #d7dde7;
       font-weight: 600;
+    }
+
+    .tile-context-shell {
+      display: grid;
+      gap: 1rem;
+      max-width: 100%;
+      color: #d7dde7;
+    }
+
+    .tile-context-header {
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr);
+      gap: 1rem;
+      align-items: center;
+    }
+
+    .tile-context-visual-frame {
+      width: 4.5rem;
+      height: 4.5rem;
+      display: grid;
+      place-items: center;
+      border: 1px solid rgba(147, 197, 253, 0.22);
+      background: rgba(10, 14, 22, 0.68);
+      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.04);
+    }
+
+    .tile-context-visual {
+      width: 3rem;
+      height: 3rem;
+      display: grid;
+      place-items: center;
+    }
+
+    .tile-context-visual .action-fab-canvas {
+      width: 3rem;
+      height: 3rem;
+    }
+
+    .tile-context-visual .action-fab-glyph {
+      font-size: 2.5rem;
+    }
+
+    .tile-context-copy {
+      display: grid;
+      gap: 0.35rem;
+      min-width: 0;
+    }
+
+    .tile-context-copy h2,
+    .tile-context-copy p {
+      margin: 0;
+    }
+
+    .tile-context-copy h2 {
+      color: #fde047;
+      font-size: 1.2rem;
+    }
+
+    .tile-context-copy p {
+      color: #9fb0c9;
+      line-height: 1.35;
+    }
+
+    .tile-context-description {
+      padding: 0.9rem 1rem;
+      border: 1px solid rgba(156, 163, 175, 0.18);
+      background: rgba(10, 14, 22, 0.62);
+      color: #d7dde7;
+      white-space: pre-wrap;
+      line-height: 1.45;
+    }
+
+    .tile-context-actions {
+      display: grid;
+      gap: 0.65rem;
+    }
+
+    .tile-context-action {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      width: 100%;
+      min-height: 2.85rem;
+      padding: 0.7rem 0.95rem;
+      border: 1px solid rgba(156, 163, 175, 0.2);
+      background: rgba(15, 23, 42, 0.8);
+      color: #d7dde7;
+      font: inherit;
+      text-align: left;
+      cursor: pointer;
+    }
+
+    .tile-context-action-primary {
+      border-color: rgba(147, 197, 253, 0.34);
+      background: rgba(16, 27, 46, 0.88);
+    }
+
+    .tile-context-action-label {
+      font-weight: 600;
+    }
+
+    .tile-context-action-tag {
+      flex: 0 0 auto;
+      padding: 0.16rem 0.48rem;
+      border: 1px solid rgba(147, 197, 253, 0.22);
+      color: #93c5fd;
+      font-size: 0.85rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
     }
 
     .menu-shell {
@@ -1603,6 +1731,14 @@
       .character-sheet-action {
         width: 100%;
         justify-content: flex-start;
+      }
+
+      .tile-context-header {
+        grid-template-columns: minmax(0, 1fr);
+      }
+
+      .tile-context-visual-frame {
+        justify-self: start;
       }
 
       .character-sheet-card-head,

@@ -52,19 +52,6 @@
           >
             ☰
           </button>
-          <button
-            id="hud-character-button"
-            class="shell-toolbar-button shell-toolbar-button-character"
-            type="button"
-            aria-label="Open character sheet"
-            title="Open character sheet (@)"
-          >
-            <span
-              id="hud-character-button-visual"
-              class="action-fab-visual shell-toolbar-button-visual"
-              aria-hidden="true"
-            ></span>
-          </button>
         </div>
         <div id="hud-bars" class="hud-bars">(mobile hud)</div>
       </div>
@@ -174,13 +161,34 @@
             aria-label="Aim and fire"
             title="Aim and fire"
             hidden
-          >
-            <span
-              id="ranged-fab-visual"
-              class="action-fab-visual"
-              aria-hidden="true"
-            ></span>
+            >
+              <span
+                id="ranged-fab-visual"
+                class="action-fab-visual"
+                aria-hidden="true"
+              ></span>
           </button>
+          <div id="state-fab-wrap" class="action-fab-stack" hidden>
+            <button
+              id="state-fab"
+              class="action-fab state-fab"
+              type="button"
+              aria-label="Enter stealth mode"
+              title="Enter stealth mode (S)"
+            >
+              <span
+                id="state-fab-visual"
+                class="action-fab-visual"
+                aria-hidden="true"
+              ></span>
+            </button>
+            <span
+              id="state-fab-label"
+              class="action-fab-caption"
+              aria-hidden="true"
+              hidden
+            ></span>
+          </div>
           <div id="song-fab-wrap" class="action-fab-stack" hidden>
             <button
               id="song-fab"

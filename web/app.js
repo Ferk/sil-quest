@@ -24,6 +24,10 @@
     const inventoryFabEl = document.getElementById("inventory-fab");
     const rangedFabEl = document.getElementById("ranged-fab");
     const rangedFabVisualEl = document.getElementById("ranged-fab-visual");
+    const stateFabWrapEl = document.getElementById("state-fab-wrap");
+    const stateFabEl = document.getElementById("state-fab");
+    const stateFabVisualEl = document.getElementById("state-fab-visual");
+    const stateFabLabelEl = document.getElementById("state-fab-label");
     const songFabWrapEl = document.getElementById("song-fab-wrap");
     const songFabEl = document.getElementById("song-fab");
     const songFabLabelEl = document.getElementById("song-fab-label");
@@ -82,6 +86,7 @@
     const MAP_FOLLOW_EDGE_RATIO = 0.30;
     const MAP_CLICK_DRAG_THRESHOLD = 8;
     const TARGET_MARK_ALPHA = 0.5;
+    const TILE_CONTEXT_LONG_PRESS_MSEC = 450;
 
     const WEB_FLAG_ALERT = 0x01;
     const WEB_FLAG_GLOW = 0x02;
@@ -168,6 +173,7 @@
     let activeBirthState = null;
     let activeCharacterSheetState = null;
     let activePlayerState = null;
+    let activeTileContextState = null;
     let semanticMenuSnapshot = null;
     let hoveredMenuIndex = -1;
     let compactSideOpen = false;
@@ -180,6 +186,8 @@
     let birthAhwDraft = createEmptyBirthAhwDraft();
     let birthAhwSource = createEmptyBirthAhwDraft();
     let birthAhwDirty = false;
+    const alternateFabLongPressTimers = new WeakMap();
+    const alternateFabSuppressedClicks = new WeakSet();
     const iconMeta = {
       alertAttr: 0,
       alertChar: 0,
@@ -1585,6 +1593,46 @@
       }
     }
 
+    // Reads and parses the active tile-context popup payload exported by wasm.
+    function readTileContextState(heap, dir) {
+      if (
+        !api ||
+        typeof api.getTileContextStatePtr !== "function" ||
+        typeof api.getTileContextStateLen !== "function"
+      ) {
+        return null;
+      }
+
+      const ptr = api.getTileContextStatePtr(dir);
+      const len = api.getTileContextStateLen(dir);
+      const payload = readUtf8(heap, ptr, len);
+      if (!payload) return null;
+
+      try {
+        const state = JSON.parse(payload);
+        if (!state || Number(state.valid) !== 1) {
+          return null;
+        }
+
+        return {
+          valid: true,
+          dir: Number(state.dir ?? dir),
+          description: String(state.description || ""),
+          actions: Array.isArray(state.actions)
+            ? state.actions
+              .map((action) => ({
+                id: Number(action?.id ?? 0),
+                label: String(action?.label || ""),
+              }))
+              .filter((action) => Number.isInteger(action.id) && action.id > 0)
+            : [],
+        };
+      } catch (err) {
+        console.warn("Invalid tile-context payload from wasm:", err);
+        return null;
+      }
+    }
+
     // Formats one action key label for the custom character-sheet footer.
     function formatCharacterActionKey(key) {
       const value = Number(key);
@@ -1818,6 +1866,27 @@
       return {
         active: !!activeName,
         label: compactName,
+        title,
+        ariaLabel,
+      };
+    }
+
+    // Builds the active/inactive presentation state for the floating stealth/state button.
+    function getStateFabState(state = null) {
+      const rawState = String(state?.state || "").trim();
+      const label = rawState && rawState !== "Normal" ? rawState : "";
+      const active = Number(state?.stealthActive ?? 0) === 1 || rawState === "Stealth";
+      let title = active ? "Leave stealth mode (S)" : "Enter stealth mode (S)";
+      let ariaLabel = active ? "Leave stealth mode" : "Enter stealth mode";
+
+      if (!active && label) {
+        title = `${title} - current state: ${label}`;
+        ariaLabel = `${ariaLabel}, current state ${label}`;
+      }
+
+      return {
+        active,
+        label,
         title,
         ariaLabel,
       };
@@ -2626,6 +2695,7 @@
       "overlay-birth-stats",
       "overlay-character-skills",
       "overlay-character-sheet",
+      "overlay-tile-context",
       "overlay-menu",
       "overlay-dismissable",
     ];
@@ -2674,6 +2744,31 @@
       );
     }
 
+    // Returns whether the custom tile-context action popup is currently visible.
+    function isTileContextOverlayActive() {
+      return (
+        !!activeTileContextState &&
+        isSemanticOverlayVisible() &&
+        overlayModalEl.classList.contains("overlay-tile-context")
+      );
+    }
+
+    // Dismisses the custom tile-context popup without sending input to the backend.
+    function hideTileContextOverlay({ redraw = true } = {}) {
+      if (!activeTileContextState && !overlayModalEl.classList.contains("overlay-tile-context")) {
+        return false;
+      }
+
+      activeTileContextState = null;
+      if (overlayModalEl.classList.contains("overlay-tile-context")) {
+        hideSemanticOverlay();
+      }
+      if (redraw) {
+        forceRedraw = true;
+      }
+      return true;
+    }
+
     // Returns whether the active overlay is plain captured text without its own UI mode.
     function isGenericCapturedOverlayActive() {
       if (
@@ -2695,6 +2790,10 @@
 
     // Tries to dismiss the current overlay via its native activation path.
     function tryDismissActiveOverlay() {
+      if (isTileContextOverlayActive()) {
+        return hideTileContextOverlay();
+      }
+
       if (isDismissableModalOverlayActive()) {
         if (!api || typeof api.modalActivate !== "function") return false;
 
@@ -2717,6 +2816,99 @@
       }
 
       return false;
+    }
+
+    // Returns one human-readable heading for a current-tile or adjacent-tile popup.
+    function getTileContextHeading(dir) {
+      if (dir === 5) return "Current Tile";
+      return `${ADJACENT_DIRECTION_NAMES[dir] || "Adjacent"} Tile`;
+    }
+
+    // Reuses the existing action-button visuals for one tile-context popup target.
+    function getTileContextVisual(state, dir) {
+      if (!state) return null;
+
+      if (dir === 5 && Number(state.tileActionVisible ?? 0) === 1) {
+        return normalizeMenuItemVisual(
+          Number(state.tileActionVisualKind ?? 0),
+          Number(state.tileActionVisualAttr ?? 0),
+          Number(state.tileActionVisualChar ?? 0)
+        );
+      }
+
+      const adjacentState = getAdjacentActionState(state, dir);
+      return adjacentState.visible ? adjacentState.visual : null;
+    }
+
+    // Opens one semantic tile-context popup using the current gameplay state and wasm payload.
+    function openTileContextOverlay(dir) {
+      const heap = getHeapU8();
+      if (!heap) return false;
+
+      const playerState = readPlayerState(heap);
+      if (!playerState || Number(playerState.ready) !== 1) {
+        return false;
+      }
+
+      const tileContextState = readTileContextState(heap, dir);
+      if (!tileContextState || !tileContextState.actions.length) {
+        return false;
+      }
+
+      activeTileContextState = {
+        ...tileContextState,
+        visual: getTileContextVisual(playerState, Number(tileContextState.dir ?? dir)),
+      };
+      setCompactSideOpen(false);
+      forceRedraw = true;
+      return true;
+    }
+
+    // Renders the frontend-owned popup for contextual tile inspection and actions.
+    function updateTileContextSemantic() {
+      const state = activeTileContextState;
+      if (!state || !Array.isArray(state.actions) || !state.actions.length) {
+        if (overlayModalEl.classList.contains("overlay-tile-context")) {
+          hideSemanticOverlay();
+        }
+        activeTileContextState = null;
+        return false;
+      }
+
+      const dir = Number(state.dir ?? 5);
+      const description = String(state.description || "You see nothing of interest.");
+      const actionsHtml = state.actions
+        .map((action, index) => (
+          `<button type="button" class="tile-context-action${index === 0 ? " tile-context-action-primary" : ""}" ` +
+            `data-tile-context-action="${action.id}" data-tile-context-dir="${dir}">` +
+            `<span class="tile-context-action-label">${escapeHtml(action.label || "Act")}</span>` +
+            `${index === 0 ? '<span class="tile-context-action-tag">Default</span>' : ""}` +
+          "</button>"
+        ))
+        .join("");
+
+      const html =
+        `<div class="tile-context-shell">` +
+          `<div class="tile-context-header">` +
+            `<div class="tile-context-visual-frame">` +
+              `<div class="tile-context-visual" data-tile-context-visual></div>` +
+            `</div>` +
+            `<div class="tile-context-copy">` +
+              `<h2>${escapeHtml(getTileContextHeading(dir))}</h2>` +
+              `<p>Inspect the tile and choose an action.</p>` +
+            `</div>` +
+          `</div>` +
+          `<div class="tile-context-description">${escapeHtml(description)}</div>` +
+          `<div class="tile-context-actions">${actionsHtml}</div>` +
+        `</div>`;
+
+      showSemanticOverlay("overlay-tile-context", html);
+      overlayModalEl.scrollTop = 0;
+      renderActionFabVisual(
+        overlayModalEl.querySelector("[data-tile-context-visual]"),
+        state.visual
+      );
+      return true;
     }
 
     // Builds the reusable identity/physical/progress/combat context shared by sheet-style overlays.
@@ -3464,34 +3656,46 @@
     // Updates modal overlay text from semantic wasm buffers.
     function updateOverlaySemantic(heap) {
       if (updateModalSemantic(heap)) {
+        activeTileContextState = null;
         return true;
       }
 
       if (updateBirthNameSemantic()) {
+        activeTileContextState = null;
         return true;
       }
 
       if (updateBirthAhwSemantic()) {
+        activeTileContextState = null;
         return true;
       }
 
       if (updateBirthHistorySemantic()) {
+        activeTileContextState = null;
         return true;
       }
 
       if (updateBirthStatsSemantic()) {
+        activeTileContextState = null;
         return true;
       }
 
       if (updateCharacterSkillEditorSemantic()) {
+        activeTileContextState = null;
         return true;
       }
 
       if (updateCharacterSheetSemantic()) {
+        activeTileContextState = null;
+        return true;
+      }
+
+      if (updateTileContextSemantic()) {
         return true;
       }
 
       if (updateMenuSemantic()) {
+        activeTileContextState = null;
         return true;
       }
 
@@ -3506,6 +3710,8 @@
         hideSemanticOverlay();
         return false;
       }
+
+      activeTileContextState = null;
 
       const textPtr = api.getOverlayTextPtr();
       const textLen = api.getOverlayTextLen();
@@ -3662,7 +3868,7 @@
 
       updateMobileHud(state);
       syncSidebarToolbar(state, heap);
-      syncFloatingActionButtons(state);
+      syncFloatingActionButtons(state, heap);
       setHtmlIfChanged(sideEl, sideHtml);
       setHtmlIfChanged(logEl, logHtml, true);
     }
@@ -3820,9 +4026,11 @@
     // Returns whether the gameplay view is idle enough for floating map actions.
     function isGameplayViewIdle() {
       return !activeMenuItems.length &&
+        !activeTileContextState &&
         !isBirthScreenActive() &&
         !isCharacterSkillEditorActive() &&
         !isCharacterSheetActive() &&
+        !overlayModalEl.classList.contains("overlay-tile-context") &&
         !overlayModalEl.classList.contains("overlay-menu") &&
         !overlayModalEl.classList.contains("overlay-birth-name") &&
         !overlayModalEl.classList.contains("overlay-birth-ahw") &&
@@ -3869,6 +4077,15 @@
         isGameplayViewIdle();
     }
 
+    // Returns whether the floating stealth/state button should currently be enabled.
+    function canUseStateFab(state = null) {
+      return !!api &&
+        typeof api.toggleStealth === "function" &&
+        !!state &&
+        Number(state.ready) === 1 &&
+        isGameplayViewIdle();
+    }
+
     // Returns whether the floating song button should currently be enabled.
     function canUseSongFab(state = null) {
       return !!api &&
@@ -3905,10 +4122,12 @@
       return !!api &&
         !morePromptActive &&
         (
+          !!activeTileContextState ||
           activeMenuItems.length > 0 ||
           isBirthScreenActive() ||
           isCharacterSkillEditorActive() ||
           isCharacterSheetActive() ||
+          overlayModalEl.classList.contains("overlay-tile-context") ||
           overlayModalEl.classList.contains("overlay-birth-name") ||
           overlayModalEl.classList.contains("overlay-birth-ahw") ||
           overlayModalEl.classList.contains("overlay-birth-history") ||
@@ -4071,6 +4290,7 @@
     // Returns the visible close-FAB label metadata for the current overlay state.
     function getCloseFabMeta({
       yesNoPromptActive,
+      tileContextActive,
       birthTextActive,
       birthAhwActive,
       birthStatsActive,
@@ -4081,6 +4301,9 @@
     }) {
       if (yesNoPromptActive) {
         return { title: "No (n)", ariaLabel: "No" };
+      }
+      if (tileContextActive) {
+        return { title: "Dismiss (Esc)", ariaLabel: "Dismiss" };
       }
       if (birthTextActive || birthAhwActive || birthStatsActive || skillEditorActive) {
         return { title: "Back (Esc)", ariaLabel: "Back" };
@@ -4095,8 +4318,8 @@
     }
 
     // Keeps floating action buttons visually in sync with the current gameplay state.
-    function syncFloatingActionButtons(state = null) {
-      if (!actionFabsEl || !yesFabEl || !inventoryFabEl || !rangedFabEl || !rangedFabVisualEl || !songFabWrapEl || !songFabEl || !songFabLabelEl || !tileActionFabEl || !closeFabEl) {
+    function syncFloatingActionButtons(state = null, heap = null) {
+      if (!actionFabsEl || !yesFabEl || !inventoryFabEl || !rangedFabEl || !rangedFabVisualEl || !stateFabWrapEl || !stateFabEl || !stateFabVisualEl || !stateFabLabelEl || !songFabWrapEl || !songFabEl || !songFabLabelEl || !tileActionFabEl || !closeFabEl) {
         return;
       }
 
@@ -4108,6 +4331,7 @@
       const birthAhwActive = isBirthAhwScreenActive();
       const birthStatsActive = isBirthStatsScreenActive();
       const skillEditorActive = isCharacterSkillEditorActive();
+      const tileContextActive = isTileContextOverlayActive();
       const dismissableModalActive = isDismissableModalOverlayActive();
       const genericOverlayActive = isGenericCapturedOverlayActive();
       const showClose = !compactSideOpen && canUseCloseFab();
@@ -4116,6 +4340,7 @@
         (yesNoPromptActive || targetPreviewPromptActive || birthTextActive || birthAhwActive || birthStatsActive || skillEditorActive);
       const showInventory = !compactSideOpen && !showClose && canUseInventoryFab(state);
       const showRanged = !compactSideOpen && !showClose && canUseRangedFab(state);
+      const showState = !compactSideOpen && !showClose && canUseStateFab(state);
       const showSong = !compactSideOpen && !showClose && canUseSongFab(state);
       const showTileAction = !compactSideOpen && !showClose && canUseTileActionFab(state);
       const showAdjacentActions =
@@ -4123,11 +4348,14 @@
       const tileActionLabel = state && Number(state.tileActionVisible) === 1
         ? String(state.tileActionLabel || "Act here")
         : "Act here";
+      const playerVisual = getPlayerToolbarVisual(heap || getHeapU8(), state);
       const rangedFabState = getRangedFabState(state);
+      const stateFabState = getStateFabState(state);
       const songFabState = getSongFabState(state);
 
       renderTileActionFabVisual(state);
       renderActionFabVisual(rangedFabVisualEl, showRanged ? rangedFabState.visual : null);
+      renderActionFabVisual(stateFabVisualEl, showState ? playerVisual : null);
       const anyAdjacentActions = syncAdjacentActionButtons(state, showAdjacentActions);
       const yesFabMeta = getConfirmFabMeta({
         yesNoPromptActive,
@@ -4138,6 +4366,7 @@
       });
       const closeFabMeta = getCloseFabMeta({
         yesNoPromptActive,
+        tileContextActive,
         birthTextActive,
         birthAhwActive,
         birthStatsActive,
@@ -4148,7 +4377,8 @@
       });
 
       actionFabsEl.hidden =
-        !showYes && !showClose && !showInventory && !showRanged && !showSong && !showTileAction && !anyAdjacentActions;
+        !showYes && !showClose && !showInventory && !showRanged && !showState && !showSong && !showTileAction && !anyAdjacentActions;
+      actionFabsEl.classList.toggle("action-fabs-overlay-dialog", showClose);
       yesFabEl.hidden = !showYes;
       yesFabEl.title = yesFabMeta.title;
       yesFabEl.setAttribute("aria-label", yesFabMeta.ariaLabel);
@@ -4156,6 +4386,12 @@
       rangedFabEl.hidden = !showRanged;
       rangedFabEl.title = rangedFabState.title;
       rangedFabEl.setAttribute("aria-label", rangedFabState.ariaLabel);
+      stateFabWrapEl.hidden = !showState;
+      stateFabEl.title = stateFabState.title;
+      stateFabEl.setAttribute("aria-label", stateFabState.ariaLabel);
+      stateFabEl.classList.toggle("state-fab-active", showState && stateFabState.active);
+      stateFabLabelEl.hidden = !showState || !stateFabState.label;
+      stateFabLabelEl.textContent = showState ? stateFabState.label : "";
       songFabWrapEl.hidden = !showSong;
       songFabEl.title = songFabState.title;
       songFabEl.setAttribute("aria-label", songFabState.ariaLabel);
@@ -4598,10 +4834,48 @@
       });
     }
 
+    // Binds click handling for the custom tile-context action popup.
+    function bindOverlayTileContextInput() {
+      overlayModalEl.addEventListener("pointerdown", (ev) => {
+        if (!overlayModalEl.classList.contains("overlay-tile-context")) return;
+        ev.stopPropagation();
+      });
+
+      overlayModalEl.addEventListener("click", (ev) => {
+        if (!overlayModalEl.classList.contains("overlay-tile-context")) return;
+        if (!api || typeof api.executeTileContextAction !== "function") return;
+
+        const actionEl = ev.target.closest("[data-tile-context-action]");
+        if (!actionEl) return;
+
+        const dir = Number(actionEl.dataset.tileContextDir);
+        const actionId = Number(actionEl.dataset.tileContextAction);
+        if (!Number.isInteger(dir) || !Number.isInteger(actionId) || actionId <= 0) {
+          return;
+        }
+
+        if (!api.executeTileContextAction(dir, actionId)) {
+          return;
+        }
+
+        hideTileContextOverlay({ redraw: false });
+        setCompactSideOpen(false);
+        hoveredMenuIndex = -1;
+        forceRedraw = true;
+        ev.preventDefault();
+        ev.stopPropagation();
+      });
+    }
+
     // Binds tap-to-dismiss for both semantic modals and plain captured overlays.
     function bindOverlayModalInput() {
       overlayModalEl.addEventListener("click", (ev) => {
-        if (overlayModalEl.classList.contains("overlay-menu")) return;
+        if (
+          overlayModalEl.classList.contains("overlay-menu") ||
+          overlayModalEl.classList.contains("overlay-tile-context")
+        ) {
+          return;
+        }
         if (tryDismissActiveOverlay()) {
           ev.preventDefault();
           ev.stopPropagation();
@@ -4692,6 +4966,14 @@
           return;
         }
 
+        if (isTileContextOverlayActive()) {
+          if (ev.key === "Escape") {
+            hideTileContextOverlay();
+          }
+          ev.preventDefault();
+          return;
+        }
+
         const keyCode = mapKeyEventToAscii(ev);
 
         if (keyCode !== null) {
@@ -4755,6 +5037,8 @@
       });
 
       for (const buttonEl of [hudCharacterButtonEl, sideCharacterButtonEl]) {
+        if (!buttonEl) continue;
+
         buttonEl.addEventListener("pointerdown", (ev) => {
           ev.stopPropagation();
         });
@@ -4790,7 +5074,51 @@
 
     // Binds the floating action buttons to their current contextual actions.
     function bindFloatingActionInput() {
+      const clearAlternateFabLongPress = (buttonEl) => {
+        const timerId = alternateFabLongPressTimers.get(buttonEl);
+        if (timerId) {
+          globalThis.clearTimeout(timerId);
+        }
+        alternateFabLongPressTimers.delete(buttonEl);
+      };
+
+      const bindAlternateFabTrigger = (buttonEl, triggerAction) => {
+        buttonEl.addEventListener("contextmenu", (ev) => {
+          void triggerAction(ev);
+        });
+
+        buttonEl.addEventListener("pointerdown", (ev) => {
+          if (ev.pointerType === "mouse" || ev.button !== 0) return;
+          clearAlternateFabLongPress(buttonEl);
+          const timerId = globalThis.setTimeout(() => {
+            alternateFabLongPressTimers.delete(buttonEl);
+            if (triggerAction(ev)) {
+              alternateFabSuppressedClicks.add(buttonEl);
+            }
+          }, TILE_CONTEXT_LONG_PRESS_MSEC);
+          alternateFabLongPressTimers.set(buttonEl, timerId);
+        });
+
+        for (const eventName of ["pointerup", "pointercancel", "pointerleave"]) {
+          buttonEl.addEventListener(eventName, () => {
+            clearAlternateFabLongPress(buttonEl);
+          });
+        }
+      };
+
+      const bindTileContextTrigger = (buttonEl, getDir) => {
+        bindAlternateFabTrigger(buttonEl, (ev) => {
+          const dir = Number(getDir(buttonEl));
+          if (!Number.isInteger(dir) || dir < 1 || dir > 9) return false;
+          ev.preventDefault();
+          ev.stopPropagation();
+          return openTileContextOverlay(dir);
+        });
+      };
+
       for (const buttonEl of adjacentActionFabEls) {
+        bindTileContextTrigger(buttonEl, (el) => Number(el.dataset.adjDir));
+
         buttonEl.addEventListener("pointerdown", (ev) => {
           ev.stopPropagation();
         });
@@ -4798,6 +5126,11 @@
         buttonEl.addEventListener("click", (ev) => {
           ev.preventDefault();
           ev.stopPropagation();
+
+          if (alternateFabSuppressedClicks.has(buttonEl)) {
+            alternateFabSuppressedClicks.delete(buttonEl);
+            return;
+          }
 
           const dir = Number(buttonEl.dataset.adjDir);
           const heap = getHeapU8();
@@ -4819,6 +5152,24 @@
 
       rangedFabEl.addEventListener("pointerdown", (ev) => {
         ev.stopPropagation();
+      });
+
+      stateFabEl.addEventListener("pointerdown", (ev) => {
+        ev.stopPropagation();
+      });
+
+      bindAlternateFabTrigger(stateFabEl, (ev) => {
+        const heap = getHeapU8();
+        const state = heap ? readPlayerState(heap) : activePlayerState;
+        if (!canUseShellToolbarScreenButton(state)) return false;
+
+        ev.preventDefault();
+        ev.stopPropagation();
+        setCompactSideOpen(false);
+        pushAscii("@".charCodeAt(0));
+        hoveredMenuIndex = -1;
+        forceRedraw = true;
+        return true;
       });
 
       yesFabEl.addEventListener("pointerdown", (ev) => {
@@ -4878,6 +5229,26 @@
         }
       });
 
+      stateFabEl.addEventListener("click", (ev) => {
+        ev.preventDefault();
+        ev.stopPropagation();
+
+        if (alternateFabSuppressedClicks.has(stateFabEl)) {
+          alternateFabSuppressedClicks.delete(stateFabEl);
+          return;
+        }
+
+        const heap = getHeapU8();
+        const state = heap ? readPlayerState(heap) : null;
+        if (!canUseStateFab(state)) return;
+
+        setCompactSideOpen(false);
+        if (api.toggleStealth()) {
+          hoveredMenuIndex = -1;
+          forceRedraw = true;
+        }
+      });
+
       songFabEl.addEventListener("pointerdown", (ev) => {
         ev.stopPropagation();
       });
@@ -4900,9 +5271,17 @@
         ev.stopPropagation();
       });
 
+      bindTileContextTrigger(tileActionFabEl, () => 5);
+
       tileActionFabEl.addEventListener("click", (ev) => {
         ev.preventDefault();
         ev.stopPropagation();
+
+        if (alternateFabSuppressedClicks.has(tileActionFabEl)) {
+          alternateFabSuppressedClicks.delete(tileActionFabEl);
+          return;
+        }
+
         const heap = getHeapU8();
         const state = heap ? readPlayerState(heap) : null;
         if (!canUseTileActionFab(state)) return;
@@ -5252,6 +5631,8 @@
           typeof Module._web_get_birth_state_len === "function" &&
           typeof Module._web_get_player_state_ptr === "function" &&
           typeof Module._web_get_player_state_len === "function" &&
+          typeof Module._web_get_tile_context_state_ptr === "function" &&
+          typeof Module._web_get_tile_context_state_len === "function" &&
           typeof Module._web_get_log_text_ptr === "function" &&
           typeof Module._web_get_log_text_len === "function" &&
           typeof Module._web_get_log_attrs_ptr === "function" &&
@@ -5329,12 +5710,16 @@
               ? Module._web_act_adjacent
               : null,
           openInventory:
-            typeof Module._web_open_inventory === "function"
+          typeof Module._web_open_inventory === "function"
               ? Module._web_open_inventory
               : null,
           openRangedTarget:
             typeof Module._web_open_ranged_target === "function"
               ? Module._web_open_ranged_target
+              : null,
+          toggleStealth:
+            typeof Module._web_toggle_stealth === "function"
+              ? Module._web_toggle_stealth
               : null,
           openSongMenu:
             typeof Module._web_open_song_menu === "function"
@@ -5382,6 +5767,12 @@
               : null,
           getPlayerStatePtr: Module._web_get_player_state_ptr,
           getPlayerStateLen: Module._web_get_player_state_len,
+          getTileContextStatePtr: Module._web_get_tile_context_state_ptr,
+          getTileContextStateLen: Module._web_get_tile_context_state_len,
+          executeTileContextAction:
+            typeof Module._web_execute_tile_context_action === "function"
+              ? Module._web_execute_tile_context_action
+              : null,
           getLogTextPtr: Module._web_get_log_text_ptr,
           getLogTextLen: Module._web_get_log_text_len,
           getLogAttrsPtr: Module._web_get_log_attrs_ptr,
@@ -5500,6 +5891,7 @@
         bindOverlayBirthStatsInput();
         bindOverlayCharacterSkillInput();
         bindOverlayCharacterSheetInput();
+        bindOverlayTileContextInput();
         bindOverlayModalInput();
         bindMapZoomInput();
         startPersistSyncLoop();

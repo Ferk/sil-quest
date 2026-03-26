@@ -37,6 +37,28 @@ struct adjacent_action_info
     monster_type* m_ptr;
 };
 
+/* Appends one unique context action id into the caller-provided array. */
+static void adjacent_append_context_action(
+    int action_id, int action_ids[], int* count, int max)
+{
+    int i;
+
+    if (!action_ids || !count || (max <= 0) || (action_id <= 0))
+        return;
+
+    for (i = 0; i < *count; i++)
+    {
+        if (action_ids[i] == action_id)
+            return;
+    }
+
+    if (*count >= max)
+        return;
+
+    action_ids[*count] = action_id;
+    (*count)++;
+}
+
 /* Returns the digging score the player could use for a tunnel action. */
 static int adjacent_tunnel_score(void)
 {
@@ -292,4 +314,48 @@ void adjacent_action_visual(int dir, byte* attr, byte* chr)
     default:
         break;
     }
+}
+
+/* Collects the context-menu action ids available for one adjacent tile. */
+int adjacent_collect_context_actions(int dir, int action_ids[], int max)
+{
+    adjacent_action_info info = adjacent_action_info_in_dir(dir);
+    int count = 0;
+    int y;
+    int x;
+
+    if (!p_ptr || !character_dungeon || (dir < 1) || (dir > 9) || (dir == 5))
+        return 0;
+
+    y = p_ptr->py + ddy[dir];
+    x = p_ptr->px + ddx[dir];
+    if (!in_bounds(y, x))
+        return 0;
+
+    switch (info.type)
+    {
+    case ADJACENT_ACTION_ATTACK:
+    case ADJACENT_ACTION_TUNNEL:
+    case ADJACENT_ACTION_BASH_DOOR:
+    case ADJACENT_ACTION_CLOSE_DOOR:
+    case ADJACENT_ACTION_DISARM_TRAP:
+    case ADJACENT_ACTION_DISARM_CHEST:
+    case ADJACENT_ACTION_OPEN_CHEST:
+    case ADJACENT_ACTION_SEARCH_SKELETON:
+        adjacent_append_context_action(
+            GRID_CONTEXT_ACTION_DEFAULT, action_ids, &count, max);
+        break;
+
+    case ADJACENT_ACTION_NONE:
+    default:
+        break;
+    }
+
+    if (cave_known_closed_door_bold(y, x))
+    {
+        adjacent_append_context_action(
+            GRID_CONTEXT_ACTION_OPEN, action_ids, &count, max);
+    }
+
+    return count;
 }

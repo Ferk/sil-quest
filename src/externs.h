@@ -391,6 +391,13 @@ extern void do_cmd_run(void);
 extern void do_cmd_hold(void);
 extern void do_cmd_pickup(void);
 extern void do_cmd_rest(void);
+/* Shared tile-context action ids exported to frontends. */
+#define GRID_CONTEXT_ACTION_DEFAULT 1
+#define GRID_CONTEXT_ACTION_PICKUP 2
+#define GRID_CONTEXT_ACTION_ASCEND 3
+#define GRID_CONTEXT_ACTION_DESCEND 4
+#define GRID_CONTEXT_ACTION_USE_FORGE 5
+#define GRID_CONTEXT_ACTION_OPEN 6
 /* Reports whether one adjacent direction has a meaningful alter action. */
 extern bool adjacent_action_available(int dir);
 /* Reports whether one adjacent alter action should be presented as an attack. */
@@ -399,9 +406,16 @@ extern bool adjacent_action_is_attack(int dir);
 extern cptr adjacent_action_label(int dir);
 /* Exports one visual for one adjacent alter action target, if any exists. */
 extern void adjacent_action_visual(int dir, byte* attr, byte* chr);
+/* Collects the context-menu action ids available for one adjacent tile. */
+extern int adjacent_collect_context_actions(int dir, int action_ids[], int max);
 extern bool current_square_action_available(void);
 extern cptr current_square_action_label(void);
 extern void current_square_action_visual(byte* attr, byte* chr);
+/* Collects the context-menu action ids available for the current tile. */
+extern int current_square_collect_context_actions(int action_ids[], int max);
+/* Builds plain-text tile description lines using the shared look semantics. */
+extern void describe_grid_for_look(
+    char* buf, size_t max, int y, int x);
 extern int archery_range(const object_type* j_ptr);
 extern int throwing_range(const object_type* i_ptr);
 extern void attacks_of_opportunity(int neutralized_y, int neutralized_x);

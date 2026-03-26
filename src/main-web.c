@@ -95,6 +95,7 @@ static term_data data;
 #define WEB_BIRTH_STATE_MAX 4096
 #define WEB_CHARACTER_SHEET_STATE_MAX 8192
 #define WEB_PLAYER_STATE_MAX 8192
+#define WEB_TILE_CONTEXT_STATE_MAX 4096
 
 struct web_birth_submission
 {
@@ -116,7 +117,7 @@ static struct web_birth_submission web_birth_submission = { 0 };
 static char web_character_sheet_state[WEB_CHARACTER_SHEET_STATE_MAX];
 static uint32_t web_character_sheet_state_revision = UINT32_MAX;
 static char web_player_state[WEB_PLAYER_STATE_MAX];
-static uint32_t web_player_state_frame = UINT32_MAX;
+static char web_tile_context_state[WEB_TILE_CONTEXT_STATE_MAX];
 static char web_overlay_text[WEB_OVERLAY_TEXT_MAX];
 static byte web_overlay_attrs[WEB_OVERLAY_TEXT_MAX];
 static int web_overlay_attrs_len = 0;
@@ -234,6 +235,7 @@ EMSCRIPTEN_KEEPALIVE int web_act_here(void);
 EMSCRIPTEN_KEEPALIVE int web_act_adjacent(int dir);
 EMSCRIPTEN_KEEPALIVE int web_open_inventory(void);
 EMSCRIPTEN_KEEPALIVE int web_open_ranged_target(void);
+EMSCRIPTEN_KEEPALIVE int web_toggle_stealth(void);
 EMSCRIPTEN_KEEPALIVE int web_open_song_menu(void);
 EMSCRIPTEN_KEEPALIVE int web_target_map(int y, int x);
 EMSCRIPTEN_KEEPALIVE int web_travel_to(int y, int x);
@@ -253,6 +255,9 @@ EMSCRIPTEN_KEEPALIVE int web_get_character_sheet_state_len(void);
 EMSCRIPTEN_KEEPALIVE unsigned int web_get_character_sheet_state_revision(void);
 EMSCRIPTEN_KEEPALIVE uintptr_t web_get_player_state_ptr(void);
 EMSCRIPTEN_KEEPALIVE int web_get_player_state_len(void);
+EMSCRIPTEN_KEEPALIVE uintptr_t web_get_tile_context_state_ptr(int dir);
+EMSCRIPTEN_KEEPALIVE int web_get_tile_context_state_len(int dir);
+EMSCRIPTEN_KEEPALIVE int web_execute_tile_context_action(int dir, int action_id);
 EMSCRIPTEN_KEEPALIVE int web_get_sound_count(void);
 EMSCRIPTEN_KEEPALIVE uintptr_t web_get_sound_name_ptr(int index);
 EMSCRIPTEN_KEEPALIVE int web_get_sound_name_len(int index);
@@ -1116,6 +1121,62 @@ static void web_json_append_character_actions_array(char* buf, size_t buf_size,
     strnfcat(buf, buf_size, off, "]");
 }
 
+/* Returns the short frontend label for one exported tile-context action id. */
+static cptr web_get_tile_context_action_label(int dir, int action_id)
+{
+    switch (action_id)
+    {
+    case GRID_CONTEXT_ACTION_DEFAULT:
+        return (dir == 5) ? current_square_action_label() : adjacent_action_label(dir);
+
+    case GRID_CONTEXT_ACTION_PICKUP:
+        return "Pick up";
+
+    case GRID_CONTEXT_ACTION_ASCEND:
+        return "Ascend";
+
+    case GRID_CONTEXT_ACTION_DESCEND:
+        return "Descend";
+
+    case GRID_CONTEXT_ACTION_USE_FORGE:
+        return "Use forge";
+
+    case GRID_CONTEXT_ACTION_OPEN:
+        return "Open door";
+
+    default:
+        return NULL;
+    }
+}
+
+/* Appends the exported tile-context action list into one JSON array. */
+static void web_json_append_tile_context_actions_array(char* buf, size_t buf_size,
+    size_t* off, bool* first, int dir, const int action_ids[], int count)
+{
+    int i;
+
+    web_json_append_field_sep(buf, buf_size, off, first);
+    strnfcat(buf, buf_size, off, "\"actions\":[");
+
+    for (i = 0; i < count; i++)
+    {
+        bool action_first = TRUE;
+        cptr label = web_get_tile_context_action_label(dir, action_ids[i]);
+
+        if (i > 0)
+            strnfcat(buf, buf_size, off, ",");
+
+        strnfcat(buf, buf_size, off, "{");
+        web_json_append_field_int(
+            buf, buf_size, off, &action_first, "id", action_ids[i]);
+        web_json_append_field_string(
+            buf, buf_size, off, &action_first, "label", label ? label : "");
+        strnfcat(buf, buf_size, off, "}");
+    }
+
+    strnfcat(buf, buf_size, off, "]");
+}
+
 /* Chooses the default quiver for one synthetic ranged action. */
 static int web_choose_ranged_quiver(bool* ready)
 {
@@ -1399,6 +1460,9 @@ static void web_build_player_state(void)
     web_json_append_field_string(
         web_player_state, sizeof(web_player_state), &off, &first,
         "state", state_buf);
+    web_json_append_field_int(
+        web_player_state, sizeof(web_player_state), &off, &first,
+        "stealthActive", p_ptr->stealth_mode ? 1 : 0);
     web_json_append_field_string(
         web_player_state, sizeof(web_player_state), &off, &first,
         "speed", speed_text);
@@ -1731,11 +1795,108 @@ static void web_refresh_log_text(void)
 
 static void web_refresh_player_state(void)
 {
-    if (web_player_state_frame == data.frame_id)
-        return;
-
     web_build_player_state();
-    web_player_state_frame = data.frame_id;
+}
+
+/* Resolves one player-relative direction into absolute grid coordinates. */
+static bool web_get_tile_context_target(int dir, int* y, int* x)
+{
+    int ty;
+    int tx;
+
+    if (!p_ptr || !character_dungeon)
+        return FALSE;
+
+    if ((dir < 1) || (dir > 9))
+        return FALSE;
+
+    ty = p_ptr->py + ddy[dir];
+    tx = p_ptr->px + ddx[dir];
+
+    if (!in_bounds(ty, tx))
+        return FALSE;
+
+    if (y)
+        *y = ty;
+    if (x)
+        *x = tx;
+
+    return TRUE;
+}
+
+/* Builds the semantic tile-context popup payload for one current/adjacent grid. */
+static void web_build_tile_context_state(int dir)
+{
+    char description[2048];
+    int action_ids[8];
+    int action_count = 0;
+    int y;
+    int x;
+    size_t off = 0;
+    bool first = TRUE;
+
+    web_tile_context_state[0] = '\0';
+
+    if (!web_get_tile_context_target(dir, &y, &x))
+    {
+        my_strcpy(web_tile_context_state, "{\"valid\":0}",
+            sizeof(web_tile_context_state));
+        return;
+    }
+
+    if (dir == 5)
+        action_count = current_square_collect_context_actions(
+            action_ids, N_ELEMENTS(action_ids));
+    else
+        action_count = adjacent_collect_context_actions(
+            dir, action_ids, N_ELEMENTS(action_ids));
+
+    if (action_count <= 0)
+    {
+        my_strcpy(web_tile_context_state, "{\"valid\":0}",
+            sizeof(web_tile_context_state));
+        return;
+    }
+
+    describe_grid_for_look(description, sizeof(description), y, x);
+
+    strnfcat(web_tile_context_state, sizeof(web_tile_context_state), &off, "{");
+    web_json_append_field_int(
+        web_tile_context_state, sizeof(web_tile_context_state), &off, &first,
+        "valid", 1);
+    web_json_append_field_int(
+        web_tile_context_state, sizeof(web_tile_context_state), &off, &first,
+        "dir", dir);
+    web_json_append_field_string(
+        web_tile_context_state, sizeof(web_tile_context_state), &off, &first,
+        "description", description);
+    web_json_append_tile_context_actions_array(
+        web_tile_context_state, sizeof(web_tile_context_state), &off, &first,
+        dir, action_ids, action_count);
+    strnfcat(web_tile_context_state, sizeof(web_tile_context_state), &off, "}");
+}
+
+/* Returns whether one action id is currently valid for one tile-context target. */
+static bool web_tile_context_has_action(int dir, int action_id)
+{
+    int action_ids[8];
+    int action_count;
+    int i;
+
+    if (dir == 5)
+        action_count = current_square_collect_context_actions(
+            action_ids, N_ELEMENTS(action_ids));
+    else
+        action_count = adjacent_collect_context_actions(
+            dir, action_ids, N_ELEMENTS(action_ids));
+
+    for (i = 0; i < action_count; i++)
+    {
+        if (action_ids[i] == action_id)
+            return TRUE;
+    }
+
+    return FALSE;
 }
 
 static void web_refresh_birth_state(void)
@@ -2451,12 +2612,12 @@ errr init_web(int argc, char** argv)
     web_log_text_frame = UINT32_MAX;
     web_birth_state_revision = UINT32_MAX;
     web_character_sheet_state_revision = UINT32_MAX;
-    web_player_state_frame = UINT32_MAX;
     web_overlay_text_frame = UINT32_MAX;
     web_log_text[0] = '\0';
     web_birth_state[0] = '\0';
     web_character_sheet_state[0] = '\0';
     web_player_state[0] = '\0';
+    web_tile_context_state[0] = '\0';
     web_log_attrs_len = 0;
     web_overlay_text[0] = '\0';
     web_overlay_attrs_len = 0;
@@ -3000,6 +3161,18 @@ EMSCRIPTEN_KEEPALIVE int web_target_map(int y, int x)
 }
 
 /* Queues the song-selection command for one floating web action button. */
+EMSCRIPTEN_KEEPALIVE int web_toggle_stealth(void)
+{
+    if (!p_ptr || !character_dungeon || !p_ptr->playing)
+        return 0;
+
+    if (travel_is_running())
+        travel_clear();
+
+    return web_key_enqueue('S') ? 1 : 0;
+}
+
+/* Queues the song-selection command for one floating web action button. */
 EMSCRIPTEN_KEEPALIVE int web_open_song_menu(void)
 {
     if (!p_ptr || !character_dungeon || !p_ptr->playing)
@@ -3180,6 +3353,65 @@ EMSCRIPTEN_KEEPALIVE int web_get_player_state_len(void)
 {
     web_refresh_player_state();
     return (int)strlen(web_player_state);
+}
+
+EMSCRIPTEN_KEEPALIVE uintptr_t web_get_tile_context_state_ptr(int dir)
+{
+    web_build_tile_context_state(dir);
+    return (uintptr_t)web_tile_context_state;
+}
+
+EMSCRIPTEN_KEEPALIVE int web_get_tile_context_state_len(int dir)
+{
+    web_build_tile_context_state(dir);
+    return (int)strlen(web_tile_context_state);
+}
+
+EMSCRIPTEN_KEEPALIVE int web_execute_tile_context_action(int dir, int action_id)
+{
+    if (!p_ptr || !character_dungeon || !p_ptr->playing)
+        return 0;
+
+    if (!web_tile_context_has_action(dir, action_id))
+        return 0;
+
+    if (travel_is_running())
+        travel_clear();
+
+    switch (action_id)
+    {
+    case GRID_CONTEXT_ACTION_DEFAULT:
+        if (dir == 5)
+            return web_key_enqueue(ACT_HERE_CMD) ? 1 : 0;
+
+        if (!web_key_enqueue('/'))
+            return 0;
+        return web_key_enqueue(I2D(dir)) ? 1 : 0;
+
+    case GRID_CONTEXT_ACTION_PICKUP:
+        return web_key_enqueue('g') ? 1 : 0;
+
+    case GRID_CONTEXT_ACTION_ASCEND:
+        return web_key_enqueue('<') ? 1 : 0;
+
+    case GRID_CONTEXT_ACTION_DESCEND:
+        return web_key_enqueue('>') ? 1 : 0;
+
+    case GRID_CONTEXT_ACTION_USE_FORGE:
+        return web_key_enqueue('0') ? 1 : 0;
+
+    case GRID_CONTEXT_ACTION_OPEN:
+        if (!web_key_enqueue('o'))
+            return 0;
+
+        if (dir == 5)
+            return 1;
+
+        return web_key_enqueue(I2D(dir)) ? 1 : 0;
+
+    default:
+        return 0;
+    }
 }
 
 EMSCRIPTEN_KEEPALIVE int web_get_overlay_mode(void)

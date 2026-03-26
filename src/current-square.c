@@ -37,6 +37,28 @@ struct current_square_action_info
     object_type* o_ptr;
 };
 
+/* Appends one unique context action id into the caller-provided array. */
+static void current_square_append_context_action(
+    int action_id, int action_ids[], int* count, int max)
+{
+    int i;
+
+    if (!action_ids || !count || (max <= 0) || (action_id <= 0))
+        return;
+
+    for (i = 0; i < *count; i++)
+    {
+        if (action_ids[i] == action_id)
+            return;
+    }
+
+    if (*count >= max)
+        return;
+
+    action_ids[*count] = action_id;
+    (*count)++;
+}
+
 /* Inspects the player's current square using the same branch order as alter. */
 static current_square_action_info current_square_action_info_at_player(void)
 {
@@ -202,6 +224,68 @@ void current_square_action_visual(byte* attr, byte* chr)
     default:
         break;
     }
+}
+
+/* Collects the context-menu action ids available for the current tile. */
+int current_square_collect_context_actions(int action_ids[], int max)
+{
+    current_square_action_info info = current_square_action_info_at_player();
+    int count = 0;
+    int y;
+    int x;
+
+    if (!p_ptr || !character_dungeon || !in_bounds(p_ptr->py, p_ptr->px))
+        return 0;
+
+    y = p_ptr->py;
+    x = p_ptr->px;
+
+    switch (info.type)
+    {
+    case CURRENT_SQUARE_ACTION_DISARM_TRAP:
+    case CURRENT_SQUARE_ACTION_DISARM_CHEST:
+    case CURRENT_SQUARE_ACTION_OPEN_CHEST:
+    case CURRENT_SQUARE_ACTION_SEARCH_SKELETON:
+    case CURRENT_SQUARE_ACTION_PICKUP:
+    case CURRENT_SQUARE_ACTION_ASCEND:
+    case CURRENT_SQUARE_ACTION_DESCEND:
+    case CURRENT_SQUARE_ACTION_USE_FORGE:
+        current_square_append_context_action(
+            GRID_CONTEXT_ACTION_DEFAULT, action_ids, &count, max);
+        break;
+
+    case CURRENT_SQUARE_ACTION_NONE:
+    default:
+        break;
+    }
+
+    if (cave_o_idx[y][x] && (info.type != CURRENT_SQUARE_ACTION_PICKUP))
+    {
+        current_square_append_context_action(
+            GRID_CONTEXT_ACTION_PICKUP, action_ids, &count, max);
+    }
+
+    if (((cave_feat[y][x] == FEAT_LESS) || (cave_feat[y][x] == FEAT_LESS_SHAFT))
+        && (info.type != CURRENT_SQUARE_ACTION_ASCEND))
+    {
+        current_square_append_context_action(
+            GRID_CONTEXT_ACTION_ASCEND, action_ids, &count, max);
+    }
+
+    if (((cave_feat[y][x] == FEAT_MORE) || (cave_feat[y][x] == FEAT_MORE_SHAFT))
+        && (info.type != CURRENT_SQUARE_ACTION_DESCEND))
+    {
+        current_square_append_context_action(
+            GRID_CONTEXT_ACTION_DESCEND, action_ids, &count, max);
+    }
+
+    if (cave_forge_bold(y, x) && (info.type != CURRENT_SQUARE_ACTION_USE_FORGE))
+    {
+        current_square_append_context_action(
+            GRID_CONTEXT_ACTION_USE_FORGE, action_ids, &count, max);
+    }
+
+    return count;
 }
 
 /* Executes the generic alter/interact flow targeting the player's own square. */
