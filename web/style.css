@@ -330,6 +330,7 @@
     }
 
     .action-fab {
+      position: relative;
       width: 4rem;
       height: 4rem;
       display: grid;
@@ -412,6 +413,31 @@
       pointer-events: none;
     }
 
+    .action-fab-health {
+      position: absolute;
+      left: 50%;
+      bottom: 0.36rem;
+      transform: translateX(-50%);
+      width: 1.9rem;
+      height: 0.28rem;
+      overflow: hidden;
+      border: 1px solid rgba(148, 163, 184, 0.24);
+      border-radius: 999px;
+      background: rgba(6, 9, 14, 0.92);
+      box-shadow:
+        0 0.2rem 0.45rem rgba(0, 0, 0, 0.28),
+        inset 0 0 0 1px rgba(255, 255, 255, 0.03);
+      pointer-events: none;
+    }
+
+    .action-fab-health-fill {
+      display: block;
+      width: var(--action-hp-fill, 0%);
+      height: 100%;
+      background: var(--health-fill);
+      opacity: 0.97;
+    }
+
     .action-fab-visual {
       width: 2.15rem;
       height: 2.15rem;
@@ -445,6 +471,12 @@
 
     .action-fab-compact .action-fab-glyph {
       font-size: 1.85rem;
+    }
+
+    .action-fab-compact .action-fab-health {
+      width: 1.65rem;
+      height: 0.24rem;
+      bottom: 0.34rem;
     }
 
     .song-fab.song-fab-active,
@@ -1156,6 +1188,72 @@
       color: #d7dde7;
       white-space: pre-wrap;
       line-height: 1.45;
+    }
+
+    .tile-context-monster {
+      display: grid;
+      gap: 0.7rem;
+      padding: 0.9rem 1rem;
+      border: 1px solid rgba(34, 197, 94, 0.18);
+      background:
+        linear-gradient(180deg, rgba(10, 18, 14, 0.9) 0%, rgba(8, 14, 22, 0.72) 100%);
+      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.03);
+    }
+
+    .tile-context-monster-heading {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.55rem;
+    }
+
+    .tile-context-monster-heading h3 {
+      margin: 0;
+      color: #f8fbff;
+      font-size: 1rem;
+      line-height: 1.25;
+    }
+
+    .tile-context-monster-state {
+      flex: 0 0 auto;
+      padding: 0.18rem 0.52rem;
+      border: 1px solid rgba(134, 239, 172, 0.24);
+      color: #bbf7d0;
+      background: rgba(20, 83, 45, 0.22);
+      font-size: 0.82rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .tile-context-monster-bar {
+      min-width: 0;
+    }
+
+    .tile-context-monster-bar .hud-bar-copy {
+      min-height: 1.75rem;
+      padding: 0 0.85rem;
+    }
+
+    .tile-context-monster-bar .hud-bar-value {
+      min-width: 1px;
+    }
+
+    .tile-context-monster-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.45rem;
+    }
+
+    .tile-context-monster-tag {
+      padding: 0.16rem 0.48rem;
+      border: 1px solid rgba(148, 163, 184, 0.2);
+      color: #d7dde7;
+      background: rgba(15, 23, 42, 0.5);
+      font-size: 0.8rem;
+      font-weight: 600;
+      line-height: 1.2;
     }
 
     .tile-context-actions {

@@ -720,14 +720,64 @@ static cptr web_get_song_name(byte song)
     return name;
 }
 
-static void web_get_tracked_monster_state(char* name, size_t name_size,
-    char* hp_bar, size_t hp_bar_size, char* alert, size_t alert_size)
+static bool web_get_visible_monster_state(monster_type* m_ptr, char* name,
+    size_t name_size, char* hp_bar, size_t hp_bar_size, int* hp_fill,
+    char* alert, size_t alert_size)
 {
-    monster_type* m_ptr;
     int len;
     int color = TERM_WHITE;
     int i;
     cptr pattern = "********";
+
+    if (name && name_size)
+        name[0] = '\0';
+    if (hp_bar && hp_bar_size)
+        hp_bar[0] = '\0';
+    if (alert && alert_size)
+        alert[0] = '\0';
+    if (hp_fill)
+        *hp_fill = 0;
+
+    if (!p_ptr || !m_ptr || !m_ptr->r_idx || !m_ptr->ml || p_ptr->image
+        || (m_ptr->hp <= 0) || (m_ptr->maxhp <= 0))
+        return FALSE;
+
+    if (name && name_size)
+        monster_desc(name, name_size, m_ptr, 0);
+    if (hp_bar && hp_bar_size)
+        my_strcpy(hp_bar, "--------", hp_bar_size);
+
+    len = (8 * m_ptr->hp + m_ptr->maxhp - 1) / m_ptr->maxhp;
+    if (len < 0)
+        len = 0;
+    if (len > 8)
+        len = 8;
+
+    if (m_ptr->confused && m_ptr->stunned)
+        pattern = "cscscscs";
+    else if (m_ptr->confused)
+        pattern = "cccccccc";
+    else if (m_ptr->stunned)
+        pattern = "ssssssss";
+
+    if (hp_bar && hp_bar_size)
+    {
+        for (i = 0; i < len; i++)
+            hp_bar[i] = pattern[i];
+    }
+
+    if (alert && alert_size)
+        (void)get_alertness_text(m_ptr, alert_size, alert, &color);
+    if (hp_fill)
+        *hp_fill = (len * 100) / 8;
+
+    return TRUE;
+}
+
+static void web_get_tracked_monster_state(char* name, size_t name_size,
+    char* hp_bar, size_t hp_bar_size, char* alert, size_t alert_size)
+{
+    monster_type* m_ptr;
 
     if (!name || !name_size || !hp_bar || !hp_bar_size || !alert || !alert_size)
         return;
@@ -743,33 +793,26 @@ static void web_get_tracked_monster_state(char* name, size_t name_size,
         return;
 
     m_ptr = &mon_list[p_ptr->health_who];
-    if (!m_ptr->r_idx || !m_ptr->ml || p_ptr->image || (m_ptr->hp <= 0)
-        || (m_ptr->maxhp <= 0))
+    if (!web_get_visible_monster_state(
+            m_ptr, name, name_size, hp_bar, hp_bar_size, NULL, alert, alert_size))
     {
         my_strcpy(name, "(not visible)", name_size);
-        return;
     }
+}
 
-    monster_desc(name, name_size, m_ptr, 0);
-    my_strcpy(hp_bar, "--------", hp_bar_size);
+static bool web_get_grid_monster_hp_fill(int y, int x, int* hp_fill)
+{
+    monster_type* m_ptr;
 
-    len = (8 * m_ptr->hp + m_ptr->maxhp - 1) / m_ptr->maxhp;
-    if (len < 0)
-        len = 0;
-    if (len > 8)
-        len = 8;
+    if (hp_fill)
+        *hp_fill = 0;
 
-    if (m_ptr->confused && m_ptr->stunned)
-        pattern = "cscscscs";
-    else if (m_ptr->confused)
-        pattern = "cccccccc";
-    else if (m_ptr->stunned)
-        pattern = "ssssssss";
+    if (!p_ptr || !in_bounds(y, x) || (cave_m_idx[y][x] <= 0))
+        return FALSE;
 
-    for (i = 0; i < len; i++)
-        hp_bar[i] = pattern[i];
-
-    (void)get_alertness_text(m_ptr, alert_size, alert, &color);
+    m_ptr = &mon_list[cave_m_idx[y][x]];
+    return web_get_visible_monster_state(
+        m_ptr, NULL, 0, NULL, 0, hp_fill, NULL, 0);
 }
 
 static void web_append_list_item(
@@ -1289,10 +1332,12 @@ static void web_build_player_state(void)
     int armor_min;
     int armor_max;
     int arc_dd;
+    int current_square_target_hp_fill = 0;
     int dir;
     int current_square_visual_kind = UI_MENU_VISUAL_NONE;
     int ranged_action_visual_kind = UI_MENU_VISUAL_NONE;
     int ranged_action_quiver = 0;
+    int adjacent_action_target_hp_fill_by_dir[10];
     int adjacent_action_visual_kind_by_dir[10];
     int depth_feet;
 
@@ -1322,6 +1367,7 @@ static void web_build_player_state(void)
         adjacent_action_attr_by_dir[dir] = TERM_WHITE;
         adjacent_action_char_by_dir[dir] = (byte)' ';
         adjacent_action_visual_kind_by_dir[dir] = UI_MENU_VISUAL_NONE;
+        adjacent_action_target_hp_fill_by_dir[dir] = 0;
     }
 
     depth_feet = p_ptr->depth * 50;
@@ -1402,6 +1448,8 @@ static void web_build_player_state(void)
     {
         current_square_visual_kind
             = graphics_are_ascii() ? UI_MENU_VISUAL_TEXT : UI_MENU_VISUAL_TILE;
+        (void)web_get_grid_monster_hp_fill(
+            p_ptr->py, p_ptr->px, &current_square_target_hp_fill);
     }
 
     for (dir = 1; dir <= 9; dir++)
@@ -1418,6 +1466,8 @@ static void web_build_player_state(void)
             adjacent_action_visual_kind_by_dir[dir]
                 = graphics_are_ascii() ? UI_MENU_VISUAL_TEXT
                                        : UI_MENU_VISUAL_TILE;
+            (void)web_get_grid_monster_hp_fill(p_ptr->py + ddy[dir],
+                p_ptr->px + ddx[dir], &adjacent_action_target_hp_fill_by_dir[dir]);
         }
     }
 
@@ -1539,6 +1589,12 @@ static void web_build_player_state(void)
     web_json_append_field_int(
         web_player_state, sizeof(web_player_state), &off, &first,
         "tileActionVisualChar", current_square_char);
+    web_json_append_field_int(
+        web_player_state, sizeof(web_player_state), &off, &first,
+        "tileActionMonsterVisible", current_square_target_hp_fill > 0 ? 1 : 0);
+    web_json_append_field_int(
+        web_player_state, sizeof(web_player_state), &off, &first,
+        "tileActionMonsterHpFill", current_square_target_hp_fill);
     for (dir = 1; dir <= 9; dir++)
     {
         if (dir == 5)
@@ -1581,6 +1637,19 @@ static void web_build_player_state(void)
         web_json_append_field_int(
             web_player_state, sizeof(web_player_state), &off, &first,
             adjacent_action_key, adjacent_action_is_attack(dir) ? 1 : 0);
+
+        strnfmt(adjacent_action_key, sizeof(adjacent_action_key),
+            "adjAction%dMonsterVisible", dir);
+        web_json_append_field_int(
+            web_player_state, sizeof(web_player_state), &off, &first,
+            adjacent_action_key,
+            adjacent_action_target_hp_fill_by_dir[dir] > 0 ? 1 : 0);
+
+        strnfmt(adjacent_action_key, sizeof(adjacent_action_key),
+            "adjAction%dMonsterHpFill", dir);
+        web_json_append_field_int(
+            web_player_state, sizeof(web_player_state), &off, &first,
+            adjacent_action_key, adjacent_action_target_hp_fill_by_dir[dir]);
     }
     web_json_append_field_string(
         web_player_state, sizeof(web_player_state), &off, &first,
@@ -1879,12 +1948,21 @@ static bool web_get_tile_context_target(int dir, int* y, int* x)
 static void web_build_tile_context_state(int dir)
 {
     char description[2048];
+    char monster_name[80];
+    char monster_hp_bar[9];
+    char monster_state[32];
     int action_ids[8];
     int action_count = 0;
+    int monster_hp_fill = 0;
     int y;
     int x;
     size_t off = 0;
     bool first = TRUE;
+    bool monster_visible = FALSE;
+    bool monster_confused = FALSE;
+    bool monster_hasted = FALSE;
+    bool monster_slowed = FALSE;
+    bool monster_stunned = FALSE;
 
     web_tile_context_state[0] = '\0';
 
@@ -1911,6 +1989,22 @@ static void web_build_tile_context_state(int dir)
 
     describe_grid_for_look(description, sizeof(description), y, x);
 
+    if (cave_m_idx[y][x] > 0)
+    {
+        monster_type* m_ptr = &mon_list[cave_m_idx[y][x]];
+
+        monster_visible = web_get_visible_monster_state(m_ptr, monster_name,
+            sizeof(monster_name), monster_hp_bar, sizeof(monster_hp_bar),
+            &monster_hp_fill, monster_state, sizeof(monster_state));
+        if (monster_visible)
+        {
+            monster_confused = m_ptr->confused ? TRUE : FALSE;
+            monster_stunned = m_ptr->stunned ? TRUE : FALSE;
+            monster_slowed = m_ptr->slowed && !m_ptr->hasted;
+            monster_hasted = !m_ptr->slowed && m_ptr->hasted;
+        }
+    }
+
     strnfcat(web_tile_context_state, sizeof(web_tile_context_state), &off, "{");
     web_json_append_field_int(
         web_tile_context_state, sizeof(web_tile_context_state), &off, &first,
@@ -1921,6 +2015,33 @@ static void web_build_tile_context_state(int dir)
     web_json_append_field_string(
         web_tile_context_state, sizeof(web_tile_context_state), &off, &first,
         "description", description);
+    web_json_append_field_int(
+        web_tile_context_state, sizeof(web_tile_context_state), &off, &first,
+        "monsterVisible", monster_visible ? 1 : 0);
+    web_json_append_field_string(
+        web_tile_context_state, sizeof(web_tile_context_state), &off, &first,
+        "monsterName", monster_visible ? monster_name : "");
+    web_json_append_field_int(
+        web_tile_context_state, sizeof(web_tile_context_state), &off, &first,
+        "monsterHpFill", monster_visible ? monster_hp_fill : 0);
+    web_json_append_field_string(
+        web_tile_context_state, sizeof(web_tile_context_state), &off, &first,
+        "monsterHpBar", monster_visible ? monster_hp_bar : "");
+    web_json_append_field_string(
+        web_tile_context_state, sizeof(web_tile_context_state), &off, &first,
+        "monsterState", monster_visible ? monster_state : "");
+    web_json_append_field_int(
+        web_tile_context_state, sizeof(web_tile_context_state), &off, &first,
+        "monsterConfused", monster_confused ? 1 : 0);
+    web_json_append_field_int(
+        web_tile_context_state, sizeof(web_tile_context_state), &off, &first,
+        "monsterStunned", monster_stunned ? 1 : 0);
+    web_json_append_field_int(
+        web_tile_context_state, sizeof(web_tile_context_state), &off, &first,
+        "monsterSlowed", monster_slowed ? 1 : 0);
+    web_json_append_field_int(
+        web_tile_context_state, sizeof(web_tile_context_state), &off, &first,
+        "monsterHasted", monster_hasted ? 1 : 0);
     web_json_append_tile_context_actions_array(
         web_tile_context_state, sizeof(web_tile_context_state), &off, &first,
         dir, action_ids, action_count);

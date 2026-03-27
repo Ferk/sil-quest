@@ -33,6 +33,7 @@
     const songFabLabelEl = document.getElementById("song-fab-label");
     const tileActionFabEl = document.getElementById("tile-action-fab");
     const tileActionFabVisualEl = document.getElementById("tile-action-fab-visual");
+    const tileActionFabHealthEl = document.getElementById("tile-action-fab-health");
     const hudCharacterButtonEl = document.getElementById("hud-character-button");
     const hudCharacterVisualEl = document.getElementById("hud-character-button-visual");
     const adjacentActionFabEls = Array.from(
@@ -1737,6 +1738,7 @@
 
       try {
         const state = JSON.parse(payload);
+        const monsterVisible = Number(state?.monsterVisible ?? 0) === 1;
         if (!state || Number(state.valid) !== 1) {
           return null;
         }
@@ -1745,6 +1747,18 @@
           valid: true,
           dir: Number(state.dir ?? dir),
           description: String(state.description || ""),
+          monster: monsterVisible
+            ? {
+                name: String(state.monsterName || ""),
+                hpFill: clamp(Number(state.monsterHpFill ?? 0), 0, 100),
+                hpBar: String(state.monsterHpBar || ""),
+                state: String(state.monsterState || ""),
+                confused: Number(state.monsterConfused ?? 0) === 1,
+                stunned: Number(state.monsterStunned ?? 0) === 1,
+                slowed: Number(state.monsterSlowed ?? 0) === 1,
+                hasted: Number(state.monsterHasted ?? 0) === 1,
+              }
+            : null,
           actions: Array.isArray(state.actions)
             ? state.actions
               .map((action) => ({
@@ -2967,6 +2981,58 @@
       return adjacentState.visible ? adjacentState.visual : null;
     }
 
+    function getTileContextMonsterConditions(monster) {
+      if (!monster) return [];
+
+      const tags = [];
+      if (monster.confused) tags.push("Confused");
+      if (monster.stunned) tags.push("Stunned");
+      if (monster.slowed) tags.push("Slowed");
+      if (monster.hasted) tags.push("Hasted");
+      return tags;
+    }
+
+    function renderTileContextMonsterBar(monster) {
+      const fillPercent = clamp(Number(monster?.hpFill ?? 0), 0, 100);
+      const titleBits = [
+        String(monster?.name || "").trim(),
+        String(monster?.state || "").trim(),
+        String(monster?.hpBar || "").trim(),
+      ].filter(Boolean);
+      const title = titleBits.length ? titleBits.join(" - ") : "Enemy HP";
+
+      return (
+        `<div class="hud-bar hud-bar-health tile-context-monster-bar" title="${escapeHtml(title)}">` +
+          `<span class="hud-bar-fill" style="--bar-fill:${fillPercent}%"></span>` +
+          "<span class=\"hud-bar-copy\">" +
+            '<span class="hud-bar-label">HP</span>' +
+            '<span class="hud-bar-value"></span>' +
+          "</span>" +
+        "</div>"
+      );
+    }
+
+    function renderTileContextMonsterSummary(monster) {
+      if (!monster) return "";
+
+      const name = String(monster.name || "").trim() || "Enemy";
+      const stateLabel = String(monster.state || "").trim();
+      const conditionTags = getTileContextMonsterConditions(monster)
+        .map((label) => `<span class="tile-context-monster-tag">${escapeHtml(label)}</span>`)
+        .join("");
+
+      return (
+        `<section class="tile-context-monster">` +
+          `<div class="tile-context-monster-heading">` +
+            `<h3>${escapeHtml(name)}</h3>` +
+            `${stateLabel ? `<span class="tile-context-monster-state">${escapeHtml(stateLabel)}</span>` : ""}` +
+          `</div>` +
+          `${renderTileContextMonsterBar(monster)}` +
+          `${conditionTags ? `<div class="tile-context-monster-tags">${conditionTags}</div>` : ""}` +
+        `</section>`
+      );
+    }
+
     // Opens one semantic tile-context popup using the current gameplay state and wasm payload.
     function openTileContextOverlay(dir) {
       const heap = getHeapU8();
@@ -3004,6 +3070,7 @@
 
       const dir = Number(state.dir ?? 5);
       const description = String(state.description || "You see nothing of interest.");
+      const monsterHtml = renderTileContextMonsterSummary(state.monster);
       const actionsHtml = state.actions
         .map((action, index) => (
           `<button type="button" class="tile-context-action${index === 0 ? " tile-context-action-primary" : ""}" ` +
@@ -3025,6 +3092,7 @@
               `<p>Inspect the tile and choose an action.</p>` +
             `</div>` +
           `</div>` +
+          `${monsterHtml}` +
           `<div class="tile-context-description">${escapeHtml(description)}</div>` +
           `<div class="tile-context-actions">${actionsHtml}</div>` +
         `</div>`;
@@ -4323,6 +4391,22 @@
       );
     }
 
+    function renderActionFabHealth(targetEl, visible = false, fillPercent = 0) {
+      if (!targetEl) return;
+
+      const show = !!visible;
+      targetEl.hidden = !show;
+      if (!show) {
+        targetEl.style.removeProperty("--action-hp-fill");
+        return;
+      }
+
+      targetEl.style.setProperty(
+        "--action-hp-fill",
+        `${clamp(Number(fillPercent) || 0, 0, 100)}%`
+      );
+    }
+
     // Reads one adjacent alter-action payload from the semantic player-state blob.
     function getAdjacentActionState(state, dir) {
       if (!state) {
@@ -4338,6 +4422,8 @@
         visible: Number(state[`adjAction${dir}Visible`] ?? 0) === 1,
         label: String(state[`adjAction${dir}Label`] || ""),
         attack: Number(state[`adjAction${dir}Attack`] ?? 0) === 1,
+        monsterVisible: Number(state[`adjAction${dir}MonsterVisible`] ?? 0) === 1,
+        monsterHpFill: Number(state[`adjAction${dir}MonsterHpFill`] ?? 0),
         visual: normalizeMenuItemVisual(
           Number(state[`adjAction${dir}VisualKind`] ?? 0),
           Number(state[`adjAction${dir}VisualAttr`] ?? 0),
@@ -4357,6 +4443,13 @@
         : null;
 
       renderActionFabVisual(tileActionFabVisualEl, visual);
+      renderActionFabHealth(
+        tileActionFabHealthEl,
+        !!state &&
+          Number(state.tileActionVisible) === 1 &&
+          Number(state.tileActionMonsterVisible ?? 0) === 1,
+        Number(state?.tileActionMonsterHpFill ?? 0)
+      );
     }
 
     // Keeps the adjacent directional action buttons aligned with current tile context.
@@ -4368,6 +4461,7 @@
       for (const dir of ADJACENT_ACTION_DIRECTIONS) {
         const buttonEl = adjacentActionFabByDir.get(dir);
         const visualEl = buttonEl?.querySelector(".action-fab-visual");
+        const healthEl = buttonEl?.querySelector(".action-fab-health");
         const action = getAdjacentActionState(state, dir);
         const visible = shouldShow && action.visible;
         const dirName = ADJACENT_DIRECTION_NAMES[dir] || `Dir ${dir}`;
@@ -4380,6 +4474,11 @@
         buttonEl.title = `${dirName}: ${label}`;
         buttonEl.setAttribute("aria-label", `${dirName}: ${label}`);
         renderActionFabVisual(visualEl, visible ? action.visual : null);
+        renderActionFabHealth(
+          healthEl,
+          visible && action.monsterVisible,
+          action.monsterHpFill
+        );
 
         if (visible) anyVisible = true;
       }
