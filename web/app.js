@@ -1886,7 +1886,7 @@
 
       return {
         html:
-          `<span class="character-sheet-skill-cell character-sheet-skill-value term-c13">${escapeHtml(String(value))}</span>` +
+          `<span class="character-sheet-skill-cell character-sheet-skill-total term-c13">${escapeHtml(String(value))}</span>` +
           `<span class="character-sheet-skill-cell character-sheet-skill-equals term-c2">=</span>` +
           `<span class="character-sheet-skill-cell character-sheet-skill-base term-c5">${escapeHtml(String(base))}</span>` +
           `<span class="character-sheet-skill-cell character-sheet-skill-mod term-c2">${escapeHtml(formatCharacterSkillModifier(statMod))}</span>` +
@@ -1906,7 +1906,7 @@
             `<div class="character-sheet-skill-row" title="${escapeHtml(equation.title)}">` +
               `<div class="character-sheet-skill-main">` +
                 `<span class="character-sheet-skill-label">${escapeHtml(String(skill.label || ""))}</span>` +
-                `${equation.html}` +
+                `<span class="character-sheet-skill-value">${equation.html}</span>` +
               `</div>` +
             `</div>`
           );
@@ -1928,7 +1928,7 @@
               `<button type="button" class="character-sheet-skill-select" data-skill-editor-index="${index}" aria-pressed="${selected ? "true" : "false"}">` +
                 `<div class="character-sheet-skill-main">` +
                   `<span class="character-sheet-skill-label">${escapeHtml(String(skill.label || ""))}</span>` +
-                  `${equation.html}` +
+                  `<span class="character-sheet-skill-value">${equation.html}</span>` +
                 `</div>` +
               `</button>` +
               `<div class="character-sheet-skill-controls">` +
@@ -3068,7 +3068,7 @@
       identitySectionTitle = "Identity",
       identitySectionHeadHtml = "",
       identitySectionBodyHtml = "",
-      physicalSectionTitle = "Physical",
+      physicalSectionTitle = "Appearance",
       physicalSectionHeadHtml = "",
       physicalSectionBodyHtml = "",
       statsHtml = "",
@@ -3103,8 +3103,8 @@
             `<div class="character-sheet-heading">` +
               `<h2>${escapeHtml(String(title))}</h2>` +
               `${noteHtml}` +
+              `${bannerHtml}` +
             `</div>` +
-            `${bannerHtml}` +
             `<div class="character-sheet-meta">` +
               `<section class="character-sheet-card character-sheet-meta-card">` +
                 `${identityHeaderHtml}` +
@@ -3131,6 +3131,7 @@
                 `<div class="character-sheet-field-list">${context.combatHtml}</div>` +
               `</div>` +
             `</section>` +
+            `${bannerHtml}` +
             `<section class="character-sheet-card character-sheet-skills-card">` +
               `<h3>Skills</h3>` +
               `<div class="character-sheet-skill-list">${skillsHtml}</div>` +

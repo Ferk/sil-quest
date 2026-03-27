@@ -1,3 +1,7 @@
+    /* --------------------------------------------------------------------- */
+    /* Theme Tokens And Global Document Rules                                */
+    /* --------------------------------------------------------------------- */
+
     :root {
       --bg: #0c0f14;
       --panel: #141b24;
@@ -45,6 +49,10 @@
       background: radial-gradient(circle at top, #182131 0%, var(--bg) 55%);
       color: var(--text);
     }
+
+    /* --------------------------------------------------------------------- */
+    /* App Shell, Status Bar, And Main Layout                                */
+    /* --------------------------------------------------------------------- */
 
     .app {
       width: 100%;
@@ -103,7 +111,6 @@
       min-height: 0;
       position: relative;
       height: 100%;
-      overflow: hidden;
       transition: grid-template-columns 180ms ease;
     }
 
@@ -189,6 +196,10 @@
         0 0.8rem 1.8rem rgba(0, 0, 0, 0.28),
         inset 0 0 0 1px rgba(255, 255, 255, 0.03);
     }
+
+    /* --------------------------------------------------------------------- */
+    /* Shell Toolbar, HUD, And Floating Action Buttons                       */
+    /* --------------------------------------------------------------------- */
 
     .hud-strip {
       position: absolute;
@@ -534,6 +545,10 @@
       background: rgba(6, 9, 14, 0.7);
     }
 
+    /* --------------------------------------------------------------------- */
+    /* Map Canvas And Overlay Surfaces                                       */
+    /* --------------------------------------------------------------------- */
+
     #map {
       display: block;
       background: #000;
@@ -571,8 +586,7 @@
       z-index: 8;
       background: rgba(7, 10, 16, 0.88);
       box-shadow: 0 1em 2.5em rgba(0, 0, 0, 0.5);
-      overflow-y: auto;
-      overflow-x: hidden;
+      overflow: auto;
       overscroll-behavior: contain;
       -webkit-overflow-scrolling: touch;
       white-space: pre-wrap;
@@ -581,6 +595,8 @@
       border: 1.5em solid transparent;
       border-image: url("assets/modal-border.png") 16 round;
       image-rendering: pixelated;
+      margin: auto;
+      height: fit-content;
     }
 
     #overlay-modal.overlay-menu {
@@ -593,35 +609,7 @@
       max-height: calc(100% - 2rem);
       box-sizing: border-box;
       white-space: normal;
-      overflow: hidden;
       touch-action: pan-x pan-y;
-    }
-
-    #overlay-modal.overlay-birth-stats {
-      padding: 1rem;
-      width: min(72rem, calc(100% - 2rem));
-      max-width: calc(100% - 2rem);
-      max-height: calc(100% - 2rem);
-      box-sizing: border-box;
-      white-space: normal;
-      overflow: auto;
-      touch-action: pan-y;
-    }
-
-    #overlay-modal.overlay-birth-name,
-    #overlay-modal.overlay-birth-ahw,
-    #overlay-modal.overlay-birth-history,
-    #overlay-modal.overlay-character-sheet,
-    #overlay-modal.overlay-character-skills {
-      padding: 1rem;
-      width: min(74rem, calc(100% - 2rem));
-      height: min(44rem, calc(100% - 2rem));
-      max-width: calc(100% - 2rem);
-      max-height: calc(100% - 2rem);
-      box-sizing: border-box;
-      white-space: normal;
-      overflow: auto;
-      touch-action: pan-y;
     }
 
     #overlay-modal.overlay-tile-context {
@@ -638,6 +626,10 @@
     #overlay-modal.overlay-dismissable {
       cursor: pointer;
     }
+
+    /* --------------------------------------------------------------------- */
+    /* Character Sheet And Birth Editors                                     */
+    /* --------------------------------------------------------------------- */
 
     .character-sheet-shell {
       display: grid;
@@ -662,6 +654,7 @@
       border: 1px solid rgba(147, 197, 253, 0.18);
       background: rgba(10, 14, 22, 0.48);
       color: #cdd6e3;
+      grid-area: banner;
     }
 
     .character-sheet-editor-points-label {
@@ -700,7 +693,8 @@
       grid-template-columns: minmax(0, 1.15fr) minmax(18rem, 0.95fr);
       grid-template-areas:
         "overview skills"
-        "history history";
+        "history history"
+        "banner banner";
       gap: 1rem;
       align-items: start;
     }
@@ -724,6 +718,7 @@
       background: rgba(6, 8, 12, 0.32);
       border: 1px solid rgba(156, 163, 175, 0.2);
       box-sizing: border-box;
+      align-content: center;
     }
 
     .character-sheet-card h3 {
@@ -741,6 +736,7 @@
     .character-sheet-skill-list {
       display: grid;
       gap: 0.5rem;
+      min-width: 0;
     }
 
     .character-sheet-field {
@@ -748,6 +744,7 @@
       justify-content: space-between;
       gap: 1rem;
       align-items: baseline;
+      min-width: 0;
     }
 
     .character-sheet-field-label {
@@ -775,6 +772,7 @@
       padding: 0.45rem 0.55rem;
       border: 1px solid rgba(156, 163, 175, 0.12);
       background: rgba(12, 16, 24, 0.28);
+      min-width: 0;
     }
 
     .character-sheet-stat-main,
@@ -783,6 +781,7 @@
       justify-content: space-between;
       gap: 0.75rem;
       align-items: baseline;
+      min-width: 0;
     }
 
     .character-sheet-stat-label,
@@ -803,16 +802,22 @@
       min-width: 0;
     }
 
+    .character-sheet-skill-value {
+      display: flex;
+      gap: .3rem;
+    }
+
     .character-sheet-skill-main {
       display: grid;
-      grid-template-columns: 11ch 3ch 1ch 2ch 3ch 3ch 3ch;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
       gap: 0.35rem;
       align-items: baseline;
-      justify-content: start;
+      justify-content: stretch;
     }
 
     .character-sheet-skill-label {
       flex: initial;
+      min-width: 0;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
@@ -853,6 +858,7 @@
       font: inherit;
       text-align: left;
       cursor: pointer;
+      min-width: 0;
     }
 
     .character-sheet-stat-controls {
@@ -903,6 +909,7 @@
       font: inherit;
       text-align: left;
       cursor: pointer;
+      min-width: 0;
     }
 
     .character-sheet-skill-controls {
@@ -1077,6 +1084,10 @@
       font-weight: 600;
     }
 
+    /* --------------------------------------------------------------------- */
+    /* Tile Context Dialog                                                   */
+    /* --------------------------------------------------------------------- */
+
     .tile-context-shell {
       display: grid;
       gap: 1rem;
@@ -1188,6 +1199,10 @@
       letter-spacing: 0.04em;
     }
 
+    /* --------------------------------------------------------------------- */
+    /* Semantic Menus, Details, And Summary Panes                            */
+    /* --------------------------------------------------------------------- */
+
     .menu-shell {
       display: grid;
       gap: 1rem;
@@ -1285,7 +1300,6 @@
       min-height: 0;
       min-width: 0;
       height: 100%;
-      overflow: hidden;
       padding: 0.75rem;
       color: #d7dde7;
       background: rgba(6, 8, 12, 0.3);
@@ -1377,7 +1391,6 @@
       text-align: left;
       cursor: pointer;
       white-space: nowrap;
-      overflow: hidden;
       text-overflow: ellipsis;
     }
 
@@ -1420,6 +1433,10 @@
       outline: none;
     }
 
+    /* --------------------------------------------------------------------- */
+    /* Sidebar Panels And Terminal Color Helpers                             */
+    /* --------------------------------------------------------------------- */
+
     .side-wrap {
       grid-column: 1;
       grid-row: 1;
@@ -1427,7 +1444,6 @@
       grid-template-rows: auto minmax(0, 1fr);
       min-height: 0;
       min-width: 0;
-      overflow: hidden;
       background: linear-gradient(180deg, rgba(18, 24, 36, 0.98) 0%, var(--panel-strong) 100%);
       border-right: 1px solid var(--border);
       transform: translateX(calc(-1 * var(--side-panel-width) - 1rem));
@@ -1497,6 +1513,7 @@
       display: flex;
     }
 
+    /* Terminal text-palette helpers mirrored from the game color table. */
     .term-c0 { color: #000000; }
     .term-c1 { color: #ffffff; }
     .term-c2 { color: #9ca3af; }
@@ -1525,7 +1542,12 @@
       letter-spacing: 0.03em;
     }
 
-    @media (max-width: 960px) {
+    /* --------------------------------------------------------------------- */
+    /* Responsive: Tablet And Mobile Layouts (drawer sidebar, stacked cards) */
+    /* Targets screens at 800px wide or narrower.                            */
+    /* --------------------------------------------------------------------- */
+
+    @media (max-width: 800px) {
       .layout {
         grid-template-columns: 1fr;
       }
@@ -1538,7 +1560,7 @@
         grid-column: 1 / -1;
         border-right: 0;
         border-left: 0;
-        padding-top: 4.2rem;
+        padding-top: 4rem;
       }
 
       .topbar {
@@ -1554,6 +1576,7 @@
 
       .top-log {
         max-height: 2.7em;
+        text-wrap: auto;
       }
 
       .app.shell-visible .hud-strip {
@@ -1596,19 +1619,13 @@
         height: 2.15rem;
       }
 
-      #overlay-modal.overlay-birth-stats {
-        padding: 0.75rem;
-        width: calc(100% - 1.5rem);
-        max-height: calc(100% - 1.5rem);
-      }
-
+      #overlay-modal.overlay-menu,
       #overlay-modal.overlay-birth-history,
       #overlay-modal.overlay-character-sheet,
       #overlay-modal.overlay-character-skills {
-        padding: 0.75rem;
-        width: calc(100% - 1.5rem);
-        height: auto;
-        max-height: calc(100% - 1.5rem);
+        padding: 0;
+        max-width: calc(100% - .1rem);
+        max-height: calc(100% - .1rem);
       }
 
       .character-sheet-meta,
@@ -1642,12 +1659,11 @@
 
       .side-wrap {
         position: absolute;
-        top: 0.55rem;
-        left: 0.55rem;
-        bottom: 0.55rem;
-        width: min(22rem, calc(100% - 1.1rem));
+        top: 0.5rem;
+        left: 0.5rem;
+        bottom: 0.5rem;
+        width: min(22rem, calc(100% - 1.5rem));
         z-index: 4;
-        overflow: hidden;
         border: 1px solid rgba(148, 163, 184, 0.2);
         border-radius: 0.75rem;
         background: linear-gradient(180deg, rgba(18, 24, 36, 0.98) 0%, var(--panel-strong) 100%);
@@ -1689,10 +1705,10 @@
       }
 
       #overlay-modal {
-        top: 0.5rem;
-        right: 0.5rem;
-        bottom: calc(var(--safe-bottom) + 0.5rem);
-        left: 0.5rem;
+        top: 0.1rem;
+        right: 0.1rem;
+        bottom: calc(var(--safe-bottom) + 0.1rem);
+        left: 0.1rem;
         transform: none;
         margin: 0;
         width: auto;
@@ -1703,66 +1719,10 @@
 
       #overlay-modal.overlay-menu {
         padding: 0.75rem;
-      }
-    }
-
-    @media (max-width: 700px) {
-      #overlay-modal.overlay-birth-name,
-      #overlay-modal.overlay-birth-ahw,
-      #overlay-modal.overlay-birth-history,
-      #overlay-modal.overlay-character-sheet,
-      #overlay-modal.overlay-character-skills {
-        overflow-y: auto;
-        overflow-x: hidden;
-      }
-
-      .character-sheet-field {
-        display: grid;
-        gap: 0.2rem;
-      }
-
-      .character-sheet-field-value,
-      .character-sheet-progress-value,
-      .character-sheet-combat-value,
-      .character-sheet-identity-value {
-        text-align: left;
-      }
-
-      .character-sheet-action {
-        width: 100%;
-        justify-content: flex-start;
-      }
-
-      .tile-context-header {
-        grid-template-columns: minmax(0, 1fr);
-      }
-
-      .tile-context-visual-frame {
-        justify-self: start;
-      }
-
-      .character-sheet-card-head,
-      .character-sheet-history-editor-head {
-        align-items: stretch;
-      }
-
-      .character-birth-field-head {
-        align-items: flex-start;
-      }
-
-      .character-sheet-skill-main {
-        grid-template-columns: 9ch 3ch 1ch 2ch 3ch 3ch 3ch;
-        gap: 0.25rem;
-      }
-
-      .character-sheet-editor-banner {
-        display: grid;
-        gap: 0.35rem;
-      }
-
-      #overlay-modal.overlay-menu {
-        overflow-y: auto;
-        overflow-x: hidden;
+        width: auto;
+        height: auto;
+        max-width: none;
+        max-height: none;
       }
 
       .menu-shell {
@@ -1791,17 +1751,16 @@
       }
 
       .menu-columns-wrap {
+        min-height: 0;
         overflow: visible;
       }
 
       .menu-body-with-details .menu-columns-wrap {
         max-height: 40vh;
-        overflow: hidden;
       }
 
       .menu-columns {
         height: auto;
-        min-height: 20vh;
         overflow-x: auto;
         overflow-y: visible;
       }
@@ -1824,7 +1783,12 @@
       }
     }
 
-    @media (min-width: 961px) {
+    /* --------------------------------------------------------------------- */
+    /* Responsive: Desktop And Wide Screens                                  */
+    /* Targets screens wider than 800px.                                     */
+    /* --------------------------------------------------------------------- */
+
+    @media (min-width: 801px) {
       .side-backdrop {
         display: none;
       }
