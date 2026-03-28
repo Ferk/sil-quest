@@ -1910,7 +1910,7 @@ static void process_player(void)
             p_ptr->previous_action[0] = ACTION_MISC;
 
             // Pause to show enemies moving.
-            Term_xtra(TERM_XTRA_DELAY, 500);
+            notify_delay(500);
         }
 
         /* Automatic travel */
@@ -1921,7 +1921,7 @@ static void process_player(void)
 
             if (!instant_run)
             {
-                Term_xtra(TERM_XTRA_DELAY, 60);
+                notify_delay(60);
             }
         }
 
@@ -1935,7 +1935,7 @@ static void process_player(void)
             // Pause for 17 miliseconds (minimum needed for mac OS X to pause)
             if (!instant_run)
             {
-                Term_xtra(TERM_XTRA_DELAY, 17);
+                notify_delay(17);
             }
         }
 

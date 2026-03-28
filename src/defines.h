@@ -3033,9 +3033,9 @@
 #define MSG_FLEE 3
 #define MSG_DROP 4
 #define MSG_KILL 5
-#define MSG_LEVEL 6
+#define MSG_PICKUP 6
 #define MSG_DEATH 7
-/* xxx old study message */
+#define MSG_DISCOVER 8
 #define MSG_TELEPORT 9
 #define MSG_SHOOT 10
 #define MSG_QUAFF 11
@@ -3045,9 +3045,9 @@
 #define MSG_HITWALL 15
 #define MSG_EAT 16
 /* xxx old store message */
-/* xxx old store message */
-/* xxx old store message */
-/* xxx old store message */
+#define MSG_AWARE 18
+#define MSG_IDENTIFY 19
+#define MSG_DISARM 20
 #define MSG_DIG 21
 #define MSG_OPENDOOR 22
 #define MSG_SHUTDOOR 23
@@ -3071,9 +3071,9 @@
 #define SOUND_FLEE 3
 #define SOUND_DROP 4
 #define SOUND_KILL 5
-#define SOUND_LEVEL 6
+#define SOUND_PICKUP 6
 #define SOUND_DEATH 7
-/* xxx old study sound  */
+#define SOUND_DISCOVER 8
 #define SOUND_TELEPORT 9
 #define SOUND_SHOOT 10
 #define SOUND_QUAFF 11
@@ -3083,9 +3083,9 @@
 #define SOUND_HITWALL 15
 #define SOUND_EAT 16
 /* xxx old store sound  */
-/* xxx old store sound  */
-/* xxx old store sound  */
-/* xxx old store sound  */
+#define SOUND_AWARE 18
+#define SOUND_IDENTIFY 19
+#define SOUND_DISARM 20
 #define SOUND_DIG 21
 #define SOUND_OPENDOOR 22
 #define SOUND_SHUTDOOR 23

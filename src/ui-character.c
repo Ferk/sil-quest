@@ -14,6 +14,7 @@
 #include "angband.h"
 
 #include "ui-character.h"
+#include "ui-model.h"
 
 static const char ui_character_skill_editor_title_text[] = "Increase your skills";
 static const char ui_character_skill_editor_help_text[]
@@ -29,6 +30,7 @@ static void ui_character_touch(void)
     ui_character_sheet_state_revision++;
     if (ui_character_sheet_state_revision == 0)
         ui_character_sheet_state_revision = 1;
+    ui_front_invalidate();
 }
 
 /* Stores one semantic label/value field. */

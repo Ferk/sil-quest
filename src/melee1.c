@@ -848,7 +848,8 @@ bool make_attack_normal(monster_type* m_ptr)
 
                 /* Message */
                 if (act)
-                    msg_format("%^s %s%s", m_name, act, punctuation);
+                    message_format(MSG_HIT, m_ptr->r_idx, "%^s %s%s", m_name,
+                        act, punctuation);
             }
 
             /* Hack -- assume all attacks are obvious */
@@ -1860,7 +1861,8 @@ bool make_attack_normal(monster_type* m_ptr)
                         && ((hit_result > -3) || quake_anyway))
                     {
                         /* Message */
-                        msg_format("%^s just misses you.", m_name);
+                        message_format(
+                            MSG_MISS, m_ptr->r_idx, "%^s just misses you.", m_name);
 
                         /* Gender based message */
                         // No female earthquake causers
@@ -1902,7 +1904,8 @@ bool make_attack_normal(monster_type* m_ptr)
                     else
                     {
                         /* Message */
-                        msg_format("%^s misses you.", m_name);
+                        message_format(
+                            MSG_MISS, m_ptr->r_idx, "%^s misses you.", m_name);
 
                         // allow for ripostes
                         if (p_ptr->active_ability[S_EVN][EVN_RIPOSTE]

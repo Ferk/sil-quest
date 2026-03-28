@@ -247,21 +247,21 @@ const cptr angband_sound_name[SOUND_MAX] = {
     "flee",           /*  3: monster fear/cower messages (spells1.c) */
     "drop",           /*  4: dropping an item (object2.c) */
     "kill",           /*  5: kill/slay/destroy messages (xtra2.c) */
-    "level",          /*  6: currently unused; reserved for level-up */
+    "pickup",         /*  6: picking up or obtaining an item */
     "death",          /*  7: player death message (spells1.c) */
-    "study",          /*  8: obsolete study slot; unused */
+    "discover",       /*  8: revealing traps, secret doors, or chest traps */
     "teleport",       /*  9: player/self teleport effects (spells1.c) */
     "shoot",          /* 10: firing/shooting actions (cmd2.c) */
     "quaff",          /* 11: quaffing a potion (cmd6.c) */
     "zap",            /* 12: zapping/activating items (cmd6.c, use-obj.c) */
-    "walk",           /* 13: currently unused; walk sound call is commented out */
+    "walk",           /* 13: successful player movement / footstep event */
     "tpother",        /* 14: teleport-other effects (spells1.c) */
     "hitwall",        /* 15: bumping into walls or blocked terrain (cmd1.c) */
     "eat",            /* 16: eating food/herbs (cmd6.c) */
     "store1",         /* 17: old store sound slot; unused */
-    "store2",         /* 18: old store sound slot; unused */
-    "store3",         /* 19: old store sound slot; unused */
-    "store4",         /* 20: old store sound slot; unused */
+    "aware",          /* 18: item kind becomes aware without full identify */
+    "identify",       /* 19: item fully recognized/identified */
+    "disarm",         /* 20: successfully disarming a floor trap */
     "dig",            /* 21: digging through terrain (cmd2.c) */
     "opendoor",       /* 22: opening/unlocking/crashing doors open (cmd2.c) */
     "shutdoor",       /* 23: shutting a door (cmd2.c) */

@@ -5303,7 +5303,7 @@ static void handle_signal_simple(int sig)
     else if (signal_count >= 4)
     {
         /* Make a noise */
-        Term_xtra(TERM_XTRA_NOISE, 0);
+        notify_beep();
 
         /* Clear the top line */
         Term_erase(0, 0, 255);
@@ -5319,7 +5319,7 @@ static void handle_signal_simple(int sig)
     else if (signal_count >= 2)
     {
         /* Make a noise */
-        Term_xtra(TERM_XTRA_NOISE, 0);
+        notify_beep();
     }
 
     /* Restore handler */

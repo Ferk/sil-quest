@@ -141,10 +141,11 @@
     let prevActorPositions = new Set();
     let prevPlayerWorldX = null;
     let playerFacingRight = 0;
-    let fxDelaySeq = -1;
     let fxOverlayUntil = 0;
     let lastMapFxActive = false;
     let forceRedraw = true;
+    let renderScheduled = false;
+    let frontendReady = false;
     let mapZoomSettings = computeMapZoomSettings();
     let mapZoom = mapZoomSettings.defaultZoom;
     let mapDisplayReady = false;
@@ -206,9 +207,47 @@
     };
     const utf8Decoder = new TextDecoder("utf-8");
     const utf8Encoder = new TextEncoder();
+    const pendingFrontendNotifications = [];
     const MAX_PENDING_SOUND_EVENTS = 64;
-    const FRONTEND_NOISE_EVENT_ID = 0;
-    const FRONTEND_NOISE_SAMPLE_PATH = "./assets/bell.flac";
+    const WEB_NOTIFICATION_KIND_NONE = 0;
+    const WEB_NOTIFICATION_KIND_SOUND = 1;
+    const WEB_NOTIFICATION_KIND_MESSAGE = 2;
+    const WEB_NOTIFICATION_KIND_FX_DELAY = 3;
+    const SOUND_ASSET_BASE_PATH = "./assets/sound/";
+    const SOUND_MANIFEST_PATH = `${SOUND_ASSET_BASE_PATH}sound.json`;
+    // Mirrors angband_sound_name in src/variable.c so playback stays frontend-owned.
+    const NOTIFICATION_EVENT_NAMES = Object.freeze([
+      "",
+      "hit",
+      "miss",
+      "flee",
+      "drop",
+      "kill",
+      "pickup",
+      "death",
+      "discover",
+      "teleport",
+      "shoot",
+      "quaff",
+      "zap",
+      "walk",
+      "tpother",
+      "hitwall",
+      "eat",
+      "store1",
+      "aware",
+      "identify",
+      "disarm",
+      "dig",
+      "opendoor",
+      "shutdoor",
+      "tplevel",
+      "bell",
+      "nothing_to_open",
+      "lockpick_fail",
+      "stairs",
+      "hitpoint_warn",
+    ]);
     let soundPlayer = null;
 
     // Disables IndexedDB-backed persistence and clears any related timers.
@@ -484,34 +523,120 @@
       return utf8Decoder.decode(heap.subarray(ptr, end));
     }
 
-    // Parses sound.cfg into a map from event name to one or more sample files.
-    function parseSoundConfig(text) {
-      const samplesByName = new Map();
-      let inSoundSection = false;
+    // Returns one stable semantic name for one shared notification/event id.
+    function notificationEventName(eventId) {
+      if (!Number.isInteger(eventId) || eventId < 0) return "";
+      return NOTIFICATION_EVENT_NAMES[eventId] || "";
+    }
 
-      for (const rawLine of String(text || "").split(/\r?\n/)) {
-        const line = rawLine.trim();
-        if (!line || line.startsWith("#") || line.startsWith(";")) continue;
+    // Removes block and hash comments so sound.json can stay human-friendly.
+    function stripJsonComments(text) {
+      return String(text || "")
+        .replace(/\/\*[\s\S]*?\*\//g, "")
+        .split(/\r?\n/)
+        .map((line) => {
+          const commentIndex = line.indexOf("#");
+          return commentIndex >= 0 ? line.slice(0, commentIndex) : line;
+        })
+        .join("\n");
+    }
 
-        if (line.startsWith("[") && line.endsWith("]")) {
-          inSoundSection = line.slice(1, -1).trim().toLowerCase() === "sound";
-          continue;
+    // Converts one manifest sample entry into a fetchable URL.
+    function normalizeSoundSamplePath(samplePath) {
+      const path = String(samplePath || "").trim();
+      if (!path) return "";
+      if (
+        path.startsWith("./") ||
+        path.startsWith("../") ||
+        path.startsWith("/") ||
+        /^[a-z][a-z0-9+.-]*:/i.test(path)
+      ) {
+        return path;
+      }
+
+      return `${SOUND_ASSET_BASE_PATH}${path}`;
+    }
+
+    function normalizeSoundSampleList(rawSamples) {
+      const sampleList = Array.isArray(rawSamples)
+        ? rawSamples
+        : (typeof rawSamples === "string" ? [rawSamples] : []);
+      return sampleList
+        .map((sample) => normalizeSoundSamplePath(sample))
+        .filter(Boolean);
+    }
+
+    function normalizeSoundManifestEntry(rawEntry) {
+      if (Array.isArray(rawEntry) || typeof rawEntry === "string") {
+        return {
+          defaultPaths: normalizeSoundSampleList(rawEntry),
+          pathsByExtra: null,
+        };
+      }
+
+      if (!rawEntry || typeof rawEntry !== "object") {
+        return {
+          defaultPaths: [],
+          pathsByExtra: null,
+        };
+      }
+
+      const pathsByExtra = new Map();
+      let defaultPaths = [];
+      for (const [rawKey, rawValue] of Object.entries(rawEntry)) {
+        const key = String(rawKey || "").trim();
+        if (!key) continue;
+
+        const samplePaths = normalizeSoundSampleList(rawValue);
+        if (key === "default") {
+          defaultPaths = samplePaths;
+        } else {
+          pathsByExtra.set(key, samplePaths);
         }
+      }
 
-        if (!inSoundSection) continue;
+      return {
+        defaultPaths,
+        pathsByExtra,
+      };
+    }
 
-        const eq = line.indexOf("=");
-        if (eq < 0) continue;
+    function resolveSoundSamplePaths(entry, extra) {
+      if (!entry) return null;
 
-        const name = line.slice(0, eq).trim().toLowerCase();
-        const sampleNames = line
-          .slice(eq + 1)
-          .trim()
-          .split(/\s+/)
-          .filter(Boolean);
+      if (entry.pathsByExtra && entry.pathsByExtra.size) {
+        const exactPaths = entry.pathsByExtra.get(String(extra));
+        if (exactPaths && exactPaths.length) return exactPaths;
+      }
 
-        if (!name || !sampleNames.length) continue;
-        samplesByName.set(name, sampleNames);
+      return entry.defaultPaths && entry.defaultPaths.length
+        ? entry.defaultPaths
+        : null;
+    }
+
+    // Parses sound.json into a map from event name to one manifest entry.
+    function parseSoundManifest(text) {
+      const cleanedText = stripJsonComments(text);
+      if (!cleanedText.trim()) return new Map();
+
+      let parsed;
+      try {
+        parsed = JSON.parse(cleanedText);
+      } catch (error) {
+        console.warn("Failed to parse sound manifest:", error);
+        return new Map();
+      }
+
+      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+        return new Map();
+      }
+
+      const samplesByName = new Map();
+      for (const [rawName, rawSamples] of Object.entries(parsed)) {
+        const eventName = String(rawName || "").trim().toLowerCase();
+        if (!eventName) continue;
+
+        samplesByName.set(eventName, normalizeSoundManifestEntry(rawSamples));
       }
 
       return samplesByName;
@@ -528,15 +653,11 @@
     }
 
     class WebSoundPlayer {
-      constructor(module, options) {
-        this.module = module;
-        this.getSoundCount = options.getSoundCount;
-        this.getSoundNamePtr = options.getSoundNamePtr;
-        this.getSoundNameLen = options.getSoundNameLen;
-        this.noiseSamplePath = options.noiseSamplePath || FRONTEND_NOISE_SAMPLE_PATH;
+      constructor(options) {
+        this.manifestPath = options.manifestPath || SOUND_MANIFEST_PATH;
         this.pendingEvents = [];
-        this.samplePathsByEvent = null;
-        this.samplePathsPromise = null;
+        this.sampleEntriesByEvent = null;
+        this.sampleEntriesPromise = null;
         this.audioContext = null;
         this.masterGain = null;
         this.bufferCache = new Map();
@@ -599,77 +720,64 @@
         return context.state === "running";
       }
 
-      enqueueEvent(eventId) {
-        if (!Number.isInteger(eventId) || eventId < FRONTEND_NOISE_EVENT_ID) return;
+      enqueueEvent(eventId, extra = 0) {
+        if (!Number.isInteger(eventId) || eventId <= 0) return;
 
         if (this.pendingEvents.length >= MAX_PENDING_SOUND_EVENTS) {
           this.pendingEvents.shift();
         }
 
-        this.pendingEvents.push(eventId);
+        this.pendingEvents.push({
+          eventId,
+          extra: Number.isInteger(extra) ? extra : 0,
+        });
         void this.flushPendingEvents();
       }
 
-      async ensureSamplePathsByEvent() {
-        if (this.samplePathsByEvent) return this.samplePathsByEvent;
-        if (this.samplePathsPromise) return this.samplePathsPromise;
+      async ensureSampleEntriesByEvent() {
+        if (this.sampleEntriesByEvent) return this.sampleEntriesByEvent;
+        if (this.sampleEntriesPromise) return this.sampleEntriesPromise;
 
-        this.samplePathsPromise = this.loadSamplePathsByEvent()
-          .then((pathsByEvent) => {
-            this.samplePathsByEvent = pathsByEvent;
-            return pathsByEvent;
+        this.sampleEntriesPromise = this.loadSampleEntriesByEvent()
+          .then((entriesByEvent) => {
+            this.sampleEntriesByEvent = entriesByEvent;
+            return entriesByEvent;
           })
           .finally(() => {
-            this.samplePathsPromise = null;
+            this.sampleEntriesPromise = null;
           });
 
-        return this.samplePathsPromise;
+        return this.sampleEntriesPromise;
       }
 
-      async loadSamplePathsByEvent() {
-        const FS = this.module?.FS || globalThis.FS;
-        const heap = this.module?.HEAPU8 || globalThis.HEAPU8;
-        if (
-          !FS ||
-          !heap ||
-          typeof this.getSoundCount !== "function" ||
-          typeof this.getSoundNamePtr !== "function" ||
-          typeof this.getSoundNameLen !== "function"
-        ) {
-          return new Map();
-        }
-
-        let cfgText = "";
+      async loadSampleEntriesByEvent() {
+        let response;
         try {
-          const cfgBytes = FS.readFile("/lib/xtra/sound/sound.cfg");
-          cfgText = typeof cfgBytes === "string"
-            ? cfgBytes
-            : utf8Decoder.decode(cfgBytes);
+          response = await globalThis.fetch(this.manifestPath);
         } catch (error) {
-          console.warn("Failed to load /lib/xtra/sound/sound.cfg:", error);
+          console.warn(`Failed to fetch sound manifest ${this.manifestPath}:`, error);
           return new Map();
         }
 
-        const samplesByName = parseSoundConfig(cfgText);
-        const pathsByEvent = new Map();
-        const soundCount = Number(this.getSoundCount()) || 0;
+        if (!response.ok) {
+          console.warn(
+            `Failed to fetch sound manifest ${this.manifestPath}: HTTP ${response.status}`
+          );
+          return new Map();
+        }
 
-        for (let i = 0; i < soundCount; i++) {
-          const namePtr = Number(this.getSoundNamePtr(i)) || 0;
-          const nameLen = Number(this.getSoundNameLen(i)) || 0;
-          const eventName = readUtf8(heap, namePtr, nameLen).trim().toLowerCase();
+        const samplesByName = parseSoundManifest(await response.text());
+        const entriesByEvent = new Map();
+        for (let i = 0; i < NOTIFICATION_EVENT_NAMES.length; i++) {
+          const eventName = NOTIFICATION_EVENT_NAMES[i];
           if (!eventName) continue;
 
-          const sampleNames = samplesByName.get(eventName);
-          if (!sampleNames || !sampleNames.length) continue;
-
-          pathsByEvent.set(
-            i,
-            sampleNames.map((sampleName) => `/lib/xtra/sound/${sampleName}`)
-          );
+          const entry = samplesByName.get(eventName);
+          if (!entry) continue;
+          entriesByEvent.set(i, entry);
         }
 
-        return pathsByEvent;
+        return entriesByEvent;
       }
 
       async flushPendingEvents() {
@@ -689,15 +797,15 @@
           return;
         }
 
-        const samplePathsByEvent = await this.ensureSamplePathsByEvent();
+        const sampleEntriesByEvent = await this.ensureSampleEntriesByEvent();
         while (this.pendingEvents.length && context.state === "running") {
-          const eventId = this.pendingEvents.shift();
-          if (eventId === FRONTEND_NOISE_EVENT_ID) {
-            await this.playFrontendNoise();
-            continue;
-          }
+          const event = this.pendingEvents.shift();
+          if (!event) continue;
 
-          const samplePaths = samplePathsByEvent.get(eventId);
+          const samplePaths = resolveSoundSamplePaths(
+            sampleEntriesByEvent.get(event.eventId),
+            event.extra
+          );
           if (!samplePaths || !samplePaths.length) continue;
 
           const samplePath =
@@ -730,60 +838,9 @@
         return bufferPromise;
       }
 
-      async playFrontendNoise() {
-        if (this.noiseSamplePath) {
-          const buffer = await this.loadBuffer(this.noiseSamplePath);
-          if (buffer) {
-            this.playBuffer(buffer);
-            return;
-          }
-        }
-
-        this.playFallbackBeep();
-      }
-
       async readAndDecodeBuffer(path) {
-        if (typeof path !== "string" || !path) return null;
-
-        if (!path.startsWith("/")) {
-          return this.fetchAndDecodeBuffer(path);
-        }
-
         const context = this.ensureAudioContext();
-        const FS = this.module?.FS || globalThis.FS;
-        if (!context || !FS) return null;
-
-        let bytes;
-        try {
-          bytes = FS.readFile(path);
-        } catch (error) {
-          if (!this.warnedPaths.has(path)) {
-            this.warnedPaths.add(path);
-            console.warn(`Failed to read sound asset ${path}:`, error);
-          }
-          return null;
-        }
-
-        const audioBytes = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
-        const audioData = audioBytes.buffer.slice(
-          audioBytes.byteOffset,
-          audioBytes.byteOffset + audioBytes.byteLength
-        );
-
-        try {
-          return await decodeAudioDataCompat(context, audioData);
-        } catch (error) {
-          if (!this.warnedPaths.has(path)) {
-            this.warnedPaths.add(path);
-            console.warn(`Failed to decode sound asset ${path}:`, error);
-          }
-          return null;
-        }
-      }
-
-      async fetchAndDecodeBuffer(path) {
-        const context = this.ensureAudioContext();
-        if (!context) return null;
+        if (!context || typeof path !== "string" || !path) return null;
 
         let response;
         try {
@@ -823,31 +880,140 @@
         source.connect(this.masterGain);
         source.start();
       }
-
-      playFallbackBeep() {
-        const context = this.ensureAudioContext();
-        if (!context || !this.masterGain) return;
-
-        const oscillator = context.createOscillator();
-        const gain = context.createGain();
-        const startedAt = context.currentTime;
-
-        oscillator.type = "triangle";
-        oscillator.frequency.setValueAtTime(880, startedAt);
-        gain.gain.setValueAtTime(0.0001, startedAt);
-        gain.gain.exponentialRampToValueAtTime(0.12, startedAt + 0.01);
-        gain.gain.exponentialRampToValueAtTime(0.0001, startedAt + 0.18);
-
-        oscillator.connect(gain);
-        gain.connect(this.masterGain);
-        oscillator.start(startedAt);
-        oscillator.stop(startedAt + 0.2);
-      }
     }
 
     function createWebSoundPlayer(options) {
-      return new WebSoundPlayer(options.module, options);
+      return new WebSoundPlayer(options);
     }
+
+    // Converts one low-level wasm notification into a frontend-friendly payload.
+    function createFrontendNotification(kind, arg0, arg1, arg2, text) {
+      switch (kind) {
+        case WEB_NOTIFICATION_KIND_SOUND:
+          return {
+            kind: "sound",
+            soundId: arg0,
+            soundName: notificationEventName(arg0),
+            extra: arg1,
+          };
+        case WEB_NOTIFICATION_KIND_MESSAGE:
+          return {
+            kind: "message",
+            messageType: arg0,
+            messageName: notificationEventName(arg0),
+            extra: arg1,
+            attr: arg2,
+            text,
+          };
+        case WEB_NOTIFICATION_KIND_FX_DELAY:
+          return {
+            kind: "fx_delay",
+            durationMsec: arg0,
+          };
+        default:
+          return null;
+      }
+    }
+
+    // Emits one generic notification event so frontend features can opt into it.
+    function dispatchFrontendNotification(notification) {
+      if (
+        !notification ||
+        typeof globalThis.dispatchEvent !== "function" ||
+        typeof globalThis.CustomEvent !== "function"
+      ) {
+        return;
+      }
+
+      globalThis.dispatchEvent(new globalThis.CustomEvent("silq:notification", {
+        detail: notification,
+      }));
+    }
+
+    // Applies one backend notification immediately once the frontend runtime is ready.
+    function processFrontendNotification(notification) {
+      if (!notification) return;
+
+      dispatchFrontendNotification(notification);
+
+      switch (notification.kind) {
+        case "sound":
+          if (soundPlayer) {
+            soundPlayer.enqueueEvent(notification.soundId, notification.extra);
+          }
+          break;
+        case "message":
+          requestRender(true);
+          break;
+        case "fx_delay": {
+          const delayMsec = Math.max(0, Number(notification.durationMsec) || 0);
+          const holdMsec = Math.max(40, Math.min(600, delayMsec + 24));
+          fxOverlayUntil = Math.max(fxOverlayUntil, performance.now() + holdMsec);
+          requestRender(true);
+          break;
+        }
+        default:
+          break;
+      }
+    }
+
+    // Flushes notifications that arrived before the frontend runtime finished booting.
+    function flushPendingFrontendNotifications() {
+      if (!pendingFrontendNotifications.length) return;
+
+      const notifications = pendingFrontendNotifications.splice(
+        0,
+        pendingFrontendNotifications.length
+      );
+      for (const notification of notifications) {
+        processFrontendNotification(notification);
+      }
+    }
+
+    // Queues or applies one backend-driven notification without polling wasm memory.
+    function enqueueBackendNotification(kind, arg0, arg1, arg2, text) {
+      const notification = createFrontendNotification(kind, arg0, arg1, arg2, text);
+      if (!notification) return;
+
+      if (!frontendReady) {
+        pendingFrontendNotifications.push(notification);
+        return;
+      }
+
+      processFrontendNotification(notification);
+    }
+
+    // Schedules one render pass and keeps repainting while transient FX are active.
+    function requestRender(force = false) {
+      if (force) forceRedraw = true;
+
+      if (!api) return;
+
+      if (renderScheduled) return;
+      renderScheduled = true;
+
+      requestAnimationFrame(() => {
+        renderScheduled = false;
+        render();
+        if (performance.now() < fxOverlayUntil) {
+          requestRender(false);
+        }
+      });
+    }
+
+    globalThis.__silqOnBackendNotification = (kind, arg0, arg1, arg2, text) => {
+      enqueueBackendNotification(
+        Number(kind) || 0,
+        Number(arg0) || 0,
+        Number(arg1) || 0,
+        Number(arg2) || 0,
+        typeof text === "string" ? text : ""
+      );
+    };
+
+    globalThis.__silqRequestRender = () => {
+      requestRender(false);
+    };
 
     // Escapes plain text for safe HTML rendering inside semantic overlays.
     function escapeHtml(text) {
@@ -1620,20 +1786,20 @@
         }
         if (!submitActiveBirthDraft(kind, nextText)) return false;
         pushAscii(13);
-        forceRedraw = true;
+        requestRender(true);
         return true;
       }
 
       if (action === "reroll") {
         birthTextDirty = false;
         pushAscii(config.rerollKeyCode);
-        forceRedraw = true;
+        requestRender(true);
         return true;
       }
 
       if (action === "cancel") {
         pushAscii(27);
-        forceRedraw = true;
+        requestRender(true);
         return true;
       }
 
@@ -2553,18 +2719,8 @@
       mapWrapEl.scrollTop = Math.round(clamp(nextScrollY, 0, maxScrollY));
     }
 
-    // Tracks temporary FX overlay timing based on engine delay notifications.
+    // Tracks temporary FX overlay timing based on queued frontend notifications.
     function updateMapFxWindow(now) {
-      if (!api) return false;
-
-      const seq = api.getFxDelaySeq();
-      if (seq !== fxDelaySeq) {
-        fxDelaySeq = seq;
-        const delayMsec = Math.max(0, api.getFxDelayMsec());
-        const holdMsec = Math.max(40, Math.min(600, delayMsec + 24));
-        fxOverlayUntil = now + holdMsec;
-      }
-
       return now <= fxOverlayUntil;
     }
 
@@ -2914,7 +3070,7 @@
         hideSemanticOverlay();
       }
       if (redraw) {
-        forceRedraw = true;
+        requestRender(true);
       }
       return true;
     }
@@ -2952,7 +3108,7 @@
         }
 
         hideSemanticOverlay();
-        forceRedraw = true;
+        requestRender(true);
         return true;
       }
 
@@ -2961,7 +3117,7 @@
           return false;
         }
 
-        forceRedraw = true;
+        requestRender(true);
         return true;
       }
 
@@ -3062,7 +3218,7 @@
         visual: getTileContextVisual(playerState, Number(tileContextState.dir ?? dir)),
       };
       setCompactSideOpen(false);
-      forceRedraw = true;
+      requestRender(true);
       return true;
     }
 
@@ -4130,8 +4286,9 @@
     // Executes one render tick by syncing metadata and redrawing visible layers.
     function render() {
       if (!api) return;
-
-      syncSoundPlayback();
+      if (typeof api.consumeRenderRequest === "function") {
+        api.consumeRenderRequest();
+      }
 
       const now = performance.now();
       const mapFxActive = updateMapFxWindow(now);
@@ -4232,17 +4389,6 @@
     function pushAscii(code) {
       if (!api || typeof api.pushKey !== "function") return false;
       return api.pushKey(code & 0xff) !== 0;
-    }
-
-    // Drains any queued engine sound events into the browser audio player.
-    function syncSoundPlayback() {
-      if (!api || !soundPlayer || typeof api.popSoundEvent !== "function") return;
-
-      for (;;) {
-        const eventId = Number(api.popSoundEvent());
-        if (!Number.isInteger(eventId) || eventId < 0) break;
-        soundPlayer.enqueueEvent(eventId);
-      }
     }
 
     // Converts a client-space pointer position into one map cell and world-grid location.
@@ -4704,7 +4850,7 @@
       if (!api.travelTo(hit.worldY, hit.worldX)) return false;
 
       hoveredMenuIndex = -1;
-      forceRedraw = true;
+      requestRender(true);
       return true;
     }
 
@@ -4717,7 +4863,7 @@
       if (!api.targetMap(hit.worldY, hit.worldX)) return false;
 
       hoveredMenuIndex = -1;
-      forceRedraw = true;
+      requestRender(true);
       return true;
     }
 
@@ -4778,7 +4924,7 @@
         hoveredMenuIndex = index;
 
         if (api.menuHover(index)) {
-          forceRedraw = true;
+          requestRender(true);
         }
 
         return index;
@@ -4805,7 +4951,7 @@
           activeMenuItems = [];
           activeMenuColumnX = null;
           hoveredMenuIndex = -1;
-          forceRedraw = true;
+          requestRender(true);
         }
 
         ev.preventDefault();
@@ -4839,7 +4985,7 @@
 
         hoveredMenuIndex = index;
         if (api.menuHover(index)) {
-          forceRedraw = true;
+          requestRender(true);
         }
       };
 
@@ -4870,7 +5016,7 @@
           activeMenuItems = [];
           activeMenuColumnX = null;
           hoveredMenuIndex = -1;
-          forceRedraw = true;
+          requestRender(true);
         }
 
         ev.preventDefault();
@@ -4986,7 +5132,7 @@
 
         if (ev.key === "Escape") {
           pushAscii(27);
-          forceRedraw = true;
+          requestRender(true);
           ev.preventDefault();
           ev.stopPropagation();
           return;
@@ -4995,7 +5141,7 @@
         if (ev.key === "Enter") {
           if (!submitActiveBirthDraft("ahw")) return;
           pushAscii(13);
-          forceRedraw = true;
+          requestRender(true);
           ev.preventDefault();
           ev.stopPropagation();
         }
@@ -5013,14 +5159,14 @@
         if (action === "accept") {
           if (!submitActiveBirthDraft("ahw")) return;
           pushAscii(13);
-          forceRedraw = true;
+          requestRender(true);
         } else if (action === "reroll") {
           birthAhwDirty = false;
           pushAscii(" ".charCodeAt(0));
-          forceRedraw = true;
+          requestRender(true);
         } else if (action === "cancel") {
           pushAscii(27);
-          forceRedraw = true;
+          requestRender(true);
         } else {
           return;
         }
@@ -5046,7 +5192,7 @@
           const index = Number(adjustEl.dataset.birthStatIndex);
           const delta = Number(adjustEl.dataset.birthAdjust);
           if (queueBirthStatAdjustment(index, delta)) {
-            forceRedraw = true;
+            requestRender(true);
           }
           ev.preventDefault();
           ev.stopPropagation();
@@ -5057,7 +5203,7 @@
         if (selectEl) {
           const index = Number(selectEl.dataset.birthStatIndex);
           if (queueBirthStatSelection(index)) {
-            forceRedraw = true;
+            requestRender(true);
           }
           ev.preventDefault();
           ev.stopPropagation();
@@ -5081,7 +5227,7 @@
           const index = Number(adjustEl.dataset.skillEditorIndex);
           const delta = Number(adjustEl.dataset.skillEditorAdjust);
           if (queueCharacterSkillAdjustment(index, delta)) {
-            forceRedraw = true;
+            requestRender(true);
           }
           ev.preventDefault();
           ev.stopPropagation();
@@ -5092,7 +5238,7 @@
         if (selectEl) {
           const index = Number(selectEl.dataset.skillEditorIndex);
           if (queueCharacterSkillSelection(index)) {
-            forceRedraw = true;
+            requestRender(true);
           }
           ev.preventDefault();
           ev.stopPropagation();
@@ -5117,7 +5263,7 @@
         if (!Number.isInteger(key) || key <= 0) return;
 
         pushAscii(key);
-        forceRedraw = true;
+        requestRender(true);
         ev.preventDefault();
         ev.stopPropagation();
       });
@@ -5150,7 +5296,7 @@
         hideTileContextOverlay({ redraw: false });
         setCompactSideOpen(false);
         hoveredMenuIndex = -1;
-        forceRedraw = true;
+        requestRender(true);
         ev.preventDefault();
         ev.stopPropagation();
       });
@@ -5212,7 +5358,7 @@
 
       // Advances an active -more- prompt using one supplied or default key.
       const advanceMorePrompt = (keyCode) => {
-        forceRedraw = true;
+        requestRender(true);
         pushAscii(keyCode !== null ? keyCode : " ".charCodeAt(0));
       };
 
@@ -5251,7 +5397,7 @@
 
         if (ev.key === "Enter" && isTargetPreviewTopPromptActive()) {
           pushAscii("t".charCodeAt(0));
-          forceRedraw = true;
+          requestRender(true);
           ev.preventDefault();
           return;
         }
@@ -5295,7 +5441,7 @@
 
         setCompactSideOpen(false);
         pushAscii(keyCode);
-        forceRedraw = true;
+        requestRender(true);
       };
 
       sideToggleEl.addEventListener("pointerdown", (ev) => {
@@ -5431,7 +5577,7 @@
           setCompactSideOpen(false);
           if (api.actAdjacent(dir)) {
             hoveredMenuIndex = -1;
-            forceRedraw = true;
+            requestRender(true);
           }
         });
       }
@@ -5458,7 +5604,7 @@
         setCompactSideOpen(false);
         pushAscii("@".charCodeAt(0));
         hoveredMenuIndex = -1;
-        forceRedraw = true;
+        requestRender(true);
         return true;
       });
 
@@ -5494,7 +5640,7 @@
               ? 13
               : "t".charCodeAt(0)
         );
-        forceRedraw = true;
+        requestRender(true);
       });
 
       inventoryFabEl.addEventListener("click", (ev) => {
@@ -5507,7 +5653,7 @@
         setCompactSideOpen(false);
         if (api.openInventory()) {
           hoveredMenuIndex = -1;
-          forceRedraw = true;
+          requestRender(true);
         }
       });
 
@@ -5521,7 +5667,7 @@
         setCompactSideOpen(false);
         if (api.openRangedTarget()) {
           hoveredMenuIndex = -1;
-          forceRedraw = true;
+          requestRender(true);
         }
       });
 
@@ -5541,7 +5687,7 @@
         setCompactSideOpen(false);
         if (api.toggleStealth()) {
           hoveredMenuIndex = -1;
-          forceRedraw = true;
+          requestRender(true);
         }
       });
 
@@ -5559,7 +5705,7 @@
         setCompactSideOpen(false);
         if (api.openSongMenu()) {
           hoveredMenuIndex = -1;
-          forceRedraw = true;
+          requestRender(true);
         }
       });
 
@@ -5585,7 +5731,7 @@
         setCompactSideOpen(false);
         if (api.actHere()) {
           hoveredMenuIndex = -1;
-          forceRedraw = true;
+          requestRender(true);
         }
       });
 
@@ -5604,7 +5750,7 @@
 
         setCompactSideOpen(false);
         pushAscii(isYesNoTopPromptActive() ? "n".charCodeAt(0) : 27);
-        forceRedraw = true;
+        requestRender(true);
       });
     }
 
@@ -5824,13 +5970,13 @@
     const tileImage = new Image();
     tileImage.onload = () => {
       tileImageReady = true;
-      forceRedraw = true;
+      requestRender(true);
       lastFrameId = -1;
     };
     tileImage.onerror = () => {
       console.warn("Tiles PNG not found in web bundle, using ASCII fallback");
       tileImageReady = false;
-      forceRedraw = true;
+      requestRender(true);
       lastFrameId = -1;
     };
     tileImage.src = "./lib/16x16_microchasm.png";
@@ -5954,8 +6100,6 @@
           typeof Module._web_get_fx_cells_ptr === "function" &&
           typeof Module._web_get_fx_cells_cols === "function" &&
           typeof Module._web_get_fx_cells_rows === "function" &&
-          typeof Module._web_get_fx_delay_seq === "function" &&
-          typeof Module._web_get_fx_delay_msec === "function" &&
           typeof Module._web_get_menu_items_ptr === "function" &&
           typeof Module._web_get_menu_item_count === "function" &&
           typeof Module._web_get_menu_item_stride === "function" &&
@@ -5981,6 +6125,7 @@
           typeof Module._web_get_prompt_attrs_ptr === "function" &&
           typeof Module._web_get_prompt_attrs_len === "function" &&
           typeof Module._web_get_prompt_revision === "function" &&
+          typeof Module._web_consume_render_request === "function" &&
           typeof Module._web_menu_hover === "function" &&
           typeof Module._web_menu_activate === "function" &&
           typeof Module._web_modal_activate === "function";
@@ -6100,8 +6245,6 @@
           getFxCellsPtr: Module._web_get_fx_cells_ptr,
           getFxCellsCols: Module._web_get_fx_cells_cols,
           getFxCellsRows: Module._web_get_fx_cells_rows,
-          getFxDelaySeq: Module._web_get_fx_delay_seq,
-          getFxDelayMsec: Module._web_get_fx_delay_msec,
           getMenuItemsPtr: Module._web_get_menu_items_ptr,
           getMenuItemCount: Module._web_get_menu_item_count,
           getMenuItemStride: Module._web_get_menu_item_stride,
@@ -6157,22 +6300,7 @@
           getPromptAttrsPtr: Module._web_get_prompt_attrs_ptr,
           getPromptAttrsLen: Module._web_get_prompt_attrs_len,
           getPromptRevision: Module._web_get_prompt_revision,
-          getSoundCount:
-            typeof Module._web_get_sound_count === "function"
-              ? Module._web_get_sound_count
-              : null,
-          getSoundNamePtr:
-            typeof Module._web_get_sound_name_ptr === "function"
-              ? Module._web_get_sound_name_ptr
-              : null,
-          getSoundNameLen:
-            typeof Module._web_get_sound_name_len === "function"
-              ? Module._web_get_sound_name_len
-              : null,
-          popSoundEvent:
-            typeof Module._web_pop_sound_event === "function"
-              ? Module._web_pop_sound_event
-              : null,
+          consumeRenderRequest: Module._web_consume_render_request,
           menuHover: Module._web_menu_hover,
           menuActivate: Module._web_menu_activate,
           modalActivate: Module._web_modal_activate,
@@ -6184,20 +6312,11 @@
         tileW = tileSrcW * MAP_TILE_SCALE;
         tileH = tileSrcH * MAP_TILE_SCALE;
         refreshLayoutMetadata(api.getCols(), api.getRows());
-        if (
-          typeof api.getSoundCount === "function" &&
-          typeof api.getSoundNamePtr === "function" &&
-          typeof api.getSoundNameLen === "function"
-        ) {
-          soundPlayer = createWebSoundPlayer({
-            module: Module,
-            getSoundCount: api.getSoundCount,
-            getSoundNamePtr: api.getSoundNamePtr,
-            getSoundNameLen: api.getSoundNameLen,
-            noiseSamplePath: FRONTEND_NOISE_SAMPLE_PATH,
-          });
-          soundPlayer.bindUnlockGestures(document);
-        }
+        soundPlayer = createWebSoundPlayer({
+          manifestPath: SOUND_MANIFEST_PATH,
+        });
+        soundPlayer.bindUnlockGestures(document);
+        void soundPlayer.ensureSampleEntriesByEvent();
 
         setStatusText("Running (-mweb). Tap or click the map to travel. Pinch or wheel to zoom. The backpack button opens inventory.");
         bindInput();
@@ -6215,13 +6334,9 @@
         bindMapZoomInput();
         startPersistSyncLoop();
         syncResponsiveShell(true);
-
-        // Schedules continuous rendering with requestAnimationFrame.
-        function tick() {
-          render();
-          requestAnimationFrame(tick);
-        }
-        tick();
+        frontendReady = true;
+        flushPendingFrontendNotifications();
+        requestRender(true);
       },
     };
 

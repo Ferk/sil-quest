@@ -5530,7 +5530,7 @@ void pause_with_text(const char desc[][100], int row, int col)
     while (strlen(desc[i]) != 0)
     {
         c_put_str(TERM_WHITE, desc[i], row + i, col);
-        Term_xtra(TERM_XTRA_DELAY, msec);
+        notify_delay(msec);
         Term_fresh();
         i++;
     }
@@ -5556,7 +5556,7 @@ void pause_with_text(const char desc[][100], int row, int col)
         c_put_str(TERM_WHITE,
             "                                                                 ",
             j, 1);
-        Term_xtra(TERM_XTRA_DELAY, msec);
+        notify_delay(msec);
         Term_fresh();
     }
 

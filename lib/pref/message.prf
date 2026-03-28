@@ -46,13 +46,13 @@ M:4:w
 # MSG_KILL
 M:5:w
 
-# MSG_LEVEL
+# MSG_PICKUP
 M:6:w
 
 # MSG_DEATH
 M:7:w
 
-# MSG_STUDY
+# MSG_DISCOVER
 M:8:w
 
 # MSG_TELEPORT
@@ -82,13 +82,13 @@ M:16:w
 # MSG_STORE1
 M:17:w
 
-# MSG_STORE2
+# MSG_AWARE
 M:18:w
 
-# MSG_STORE3
+# MSG_IDENTIFY
 M:19:w
 
-# MSG_STORE4
+# MSG_DISARM
 M:20:w
 
 # MSG_DIG
@@ -119,4 +119,3 @@ M:28:w
 M:29:o
 
 ?:1
-

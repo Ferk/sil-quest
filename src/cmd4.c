@@ -6581,7 +6581,8 @@ void create_smithing_item(void)
 
     // Message
     if (slot >= 0)
-        msg_format("You have %s (%c).", o_name, index_to_label(slot));
+        message_format(MSG_PICKUP, o_ptr->tval, "You have %s (%c).", o_name,
+            index_to_label(slot));
 
     // Wipe the smithing object
     object_wipe(smith_o_ptr);

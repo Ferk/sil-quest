@@ -26,6 +26,7 @@ typedef enum ui_prompt_kind ui_prompt_kind;
 typedef bool (*ui_prompt_render_hook)(int row, int col);
 typedef void (*ui_prompt_clear_hook)(void);
 typedef void (*ui_menu_render_hook)(void);
+typedef void (*ui_front_invalidate_hook)(void);
 
 enum
 {
@@ -136,6 +137,10 @@ int ui_command_menu_choose(cptr title, int col,
 /* Registers frontend-specific rendering hooks for prompts and menus. */
 void ui_front_set_hooks(ui_prompt_render_hook prompt_render,
     ui_prompt_clear_hook prompt_clear, ui_menu_render_hook menu_render);
+/* Registers one frontend-specific invalidation hook for semantic UI updates. */
+void ui_front_set_invalidate_hook(ui_front_invalidate_hook invalidate_hook);
+/* Requests one frontend refresh after shared semantic state changes. */
+void ui_front_invalidate(void);
 
 /* Keeps one paged menu selection visible inside its current viewport. */
 void ui_menu_scroll_selection_into_view(

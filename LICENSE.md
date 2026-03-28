@@ -12,7 +12,7 @@ shown below, with some exceptions:
 - The EUPL is compatible with the GPLv2 and the Angband license for 
   the purposes of creating the combined Sil-Quest binary.
 
-- The sounds are freeware.
+- The sounds are CC0, from various sources (see metadata of each file).
 
 - Graphics (Microchasm tileset) are provided for non-commercial use 
   within the Sil-Quest project.

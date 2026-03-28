@@ -120,6 +120,7 @@ static void ui_birth_touch(void)
     ui_birth_state_value_revision++;
     if (ui_birth_state_value_revision == 0)
         ui_birth_state_value_revision = 1;
+    ui_front_invalidate();
 }
 
 /* Redraws the shared character-sheet context before one birth editor prompt. */

@@ -994,7 +994,9 @@ static void do_cmd_search_skeleton(s16b o_idx)
 
             /* Message */
             if (slot >= 0)
-                msg_format("You have %s (%c).", o_name, index_to_label(slot));
+                message_format(MSG_PICKUP, i_ptr->tval, "You have %s (%c).",
+                    o_name,
+                    index_to_label(slot));
 
             // Break the truce if creatures see
             break_truce(FALSE);
@@ -2464,6 +2466,7 @@ static bool do_cmd_disarm_aux(int y, int x)
 {
     int score, difficulty, result;
     int power = 0; // default to soothe compiler warnings
+    int feat;
 
     cptr name;
 
@@ -2475,6 +2478,7 @@ static bool do_cmd_disarm_aux(int y, int x)
 
     /* Get the trap name */
     name = (f_name + f_info[cave_feat[y][x]].name);
+    feat = cave_feat[y][x];
 
     /* Get the score in favour (=perception) */
     score = p_ptr->skill_use[S_PER];
@@ -2576,12 +2580,12 @@ static bool do_cmd_disarm_aux(int y, int x)
     if (result > 0)
     {
         /* Special message for glyphs. */
-        if (cave_feat[y][x] == FEAT_GLYPH)
-            msg_format("You have scuffed the %s.", name);
+        if (feat == FEAT_GLYPH)
+            message_format(MSG_DISARM, feat, "You have scuffed the %s.", name);
 
         /* Normal message otherwise */
         else
-            msg_format("You have disarmed the %s.", name);
+            message_format(MSG_DISARM, feat, "You have disarmed the %s.", name);
 
         /* Forget the trap */
         cave_info[y][x] &= ~(CAVE_MARK);
@@ -3921,7 +3925,7 @@ void do_cmd_fire(int quiver)
 
                         move_cursor_relative(ny, nx);
                         Term_fresh();
-                        Term_xtra(TERM_XTRA_DELAY, 25 * op_ptr->delay_factor);
+                        notify_delay(25 * op_ptr->delay_factor);
                         lite_spot(ny, nx);
                         Term_fresh();
                     }
@@ -3930,7 +3934,7 @@ void do_cmd_fire(int quiver)
                     else
                     {
                         /* Pause anyway, for consistancy */
-                        Term_xtra(TERM_XTRA_DELAY, 25 * op_ptr->delay_factor);
+                        notify_delay(25 * op_ptr->delay_factor);
                     }
                 }
 
@@ -3976,7 +3980,7 @@ void do_cmd_fire(int quiver)
 
                 move_cursor_relative(y, x);
                 Term_fresh();
-                Term_xtra(TERM_XTRA_DELAY, msec);
+                notify_delay(msec);
                 lite_spot(y, x);
                 Term_fresh();
             }
@@ -3985,7 +3989,7 @@ void do_cmd_fire(int quiver)
             else
             {
                 /* Pause anyway, for consistancy */
-                Term_xtra(TERM_XTRA_DELAY, msec);
+                notify_delay(msec);
             }
 
             /* Handle monster */
@@ -4882,7 +4886,7 @@ void do_cmd_throw(bool automatic)
                 print_rel(c, a, ny, nx);
                 move_cursor_relative(ny, nx);
                 Term_fresh();
-                Term_xtra(TERM_XTRA_DELAY, 25 * op_ptr->delay_factor);
+                notify_delay(25 * op_ptr->delay_factor);
                 lite_spot(ny, nx);
                 Term_fresh();
             }
@@ -4891,7 +4895,7 @@ void do_cmd_throw(bool automatic)
             else
             {
                 /* Pause anyway, for consistancy */
-                Term_xtra(TERM_XTRA_DELAY, 25 * op_ptr->delay_factor);
+                notify_delay(25 * op_ptr->delay_factor);
             }
             break;
         }
@@ -4907,7 +4911,7 @@ void do_cmd_throw(bool automatic)
             print_rel(missile_char, missile_attr, y, x);
             move_cursor_relative(y, x);
             Term_fresh();
-            Term_xtra(TERM_XTRA_DELAY, msec);
+            notify_delay(msec);
             lite_spot(y, x);
             Term_fresh();
         }
@@ -4916,7 +4920,7 @@ void do_cmd_throw(bool automatic)
         else
         {
             /* Pause anyway, for consistancy */
-            Term_xtra(TERM_XTRA_DELAY, msec);
+            notify_delay(msec);
         }
 
         /* Handle monster */

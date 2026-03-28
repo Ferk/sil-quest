@@ -52,7 +52,8 @@ void give_player_item(object_type * o_ptr)
     object_desc(o_name, sizeof(o_name), o_ptr, TRUE, 3);
 
     if (slot >= 0)
-        msg_format("You have %s (%c).", o_name, index_to_label(slot));
+        message_format(MSG_PICKUP, o_ptr->tval, "You have %s (%c).", o_name,
+            index_to_label(slot));
 }
 
 /*
@@ -1602,7 +1603,7 @@ extern void ident_on_wield(object_type* o_ptr)
         object_desc(o_full_name, sizeof(o_full_name), o_ptr, TRUE, 3);
 
         /* Print the messages */
-        msg_format("You recognize it as %s.", o_full_name);
+        message_format(MSG_IDENTIFY, 0, "You recognize it as %s.", o_full_name);
     }
 
     return;
@@ -1769,7 +1770,8 @@ extern void ident_resist(u32b flag)
 
             /* Print the messages */
             msg_format("%s", effect_string);
-            msg_format("You realize that it is %s.", o_full_name);
+            message_format(
+                MSG_IDENTIFY, 0, "You realize that it is %s.", o_full_name);
 
             return;
         }
@@ -1843,7 +1845,7 @@ extern void ident_passive(void)
 
             /* Print the messages */
             msg_format("%s", effect_string);
-            msg_format(
+            message_format(MSG_IDENTIFY, 0,
                 "You realize that your %s is %s.", o_short_name, o_full_name);
 
             return;
@@ -1903,7 +1905,7 @@ extern void ident_see_invisible(const monster_type* m_ptr)
 
             /* Print the messages */
             msg_format("You notice that you can see %s very clearly.", m_name);
-            msg_format(
+            message_format(MSG_IDENTIFY, 0,
                 "You realize that your %s is %s.", o_short_name, o_full_name);
 
             return;
@@ -1959,7 +1961,7 @@ extern void ident_haunted(void)
 
             /* Print the messages */
             msg_print("You notice that wraiths are being drawn to you.");
-            msg_format(
+            message_format(MSG_IDENTIFY, 0,
                 "You realize that your %s is %s.", o_short_name, o_full_name);
 
             return;
@@ -2025,7 +2027,7 @@ void ident_hunger(void)
                 msg_print("You notice that you are growing hungry slower than "
                           "before.");
 
-            msg_format(
+            message_format(MSG_IDENTIFY, 0,
                 "You realize that your %s is %s.", o_short_name, o_full_name);
 
             return;
@@ -2089,7 +2091,7 @@ extern void ident_f2(u32b flag, object_type* supplied_object)
         /* Full object description */
         object_desc(o_full_name, sizeof(o_full_name), o_ptr, TRUE, 3);
 
-        msg_format(
+        message_format(MSG_IDENTIFY, 0,
             "You realize that your %s is %s.", o_short_name, o_full_name);
     }
 }
@@ -2148,7 +2150,7 @@ extern void ident_f3(u32b flag, object_type* supplied_object)
         /* Full object description */
         object_desc(o_full_name, sizeof(o_full_name), o_ptr, TRUE, 3);
 
-        msg_format(
+        message_format(MSG_IDENTIFY, 0,
             "You realize that your %s is %s.", o_short_name, o_full_name);
     }
 }
@@ -2177,7 +2179,7 @@ void ident_weapon_by_use(
 
     /* Print the messages */
     msg_format("Your %s %s.", o_short_name, slay_description);
-    msg_format("You recognize it as %s.", o_full_name);
+    message_format(MSG_IDENTIFY, 0, "You recognize it as %s.", o_full_name);
 
     return;
 }
@@ -2223,7 +2225,8 @@ void ident_bow_arrow_by_use(object_type* j_ptr, object_type* i_ptr,
         slay_desc(slay_description, arrow_flag, m_ptr);
 
         msg_format("Your %s %s.", i_short_name, slay_description);
-        msg_format("You recognize it as %s.", i_full_name);
+        message_format(
+            MSG_IDENTIFY, 0, "You recognize it as %s.", i_full_name);
 
         // don't carry on to identify the bow on the same shot
         return;
@@ -2691,7 +2694,7 @@ static void search_square(int y, int x, int dist, int searching)
                 reveal_trap(y, x);
 
                 /* Message */
-                msg_print("You have found a trap.");
+                message(MSG_DISCOVER, 0, "You have found a trap.");
 
                 /* Disturb */
                 disturb(0, 0);
@@ -2701,7 +2704,7 @@ static void search_square(int y, int x, int dist, int searching)
             if (cave_feat[y][x] == FEAT_SECRET)
             {
                 /* Message */
-                msg_print("You have found a secret door.");
+                message(MSG_DISCOVER, 0, "You have found a secret door.");
 
                 /* Pick a door */
                 place_closed_door(y, x);
@@ -2713,7 +2716,8 @@ static void search_square(int y, int x, int dist, int searching)
             if (chest_trap_present)
             {
                 /* Message */
-                msg_print("You have discovered a trap on the chest!");
+                message(MSG_DISCOVER, 0,
+                    "You have discovered a trap on the chest!");
 
                 /* Know the trap */
                 object_known(o_ptr);
@@ -3567,7 +3571,7 @@ void display_hit(int y, int x, int net_dam, int dam_type, bool fatal_blow)
     Term_fresh();
 
     /* Delay */
-    Term_xtra(TERM_XTRA_DELAY, 25 * op_ptr->delay_factor);
+    notify_delay(25 * op_ptr->delay_factor);
 
     /* Erase the visual effects */
     lite_spot(y, x);
@@ -4253,7 +4257,7 @@ void py_attack_aux(int y, int x, int attack_type)
             /* Special message for visible unalert creatures */
             if (stealth_bonus)
             {
-                message_format(MSG_HIT, m_ptr->r_idx,
+                message_format(MSG_HIT, 0,
                     "You stealthily attack %s%s", m_name, punctuation);
             }
             else
@@ -4261,22 +4265,22 @@ void py_attack_aux(int y, int x, int attack_type)
                 /* Message */
                 if (charge)
                 {
-                    message_format(MSG_HIT, m_ptr->r_idx, "You charge %s%s",
+                    message_format(MSG_HIT, 0, "You charge %s%s",
                         m_name, punctuation);
                 }
                 else if (smite)
                 {
-                    message_format(MSG_HIT, m_ptr->r_idx, "You smite %s%s",
+                    message_format(MSG_HIT, 0, "You smite %s%s",
                         m_name, punctuation);
                 }
                 else if (attack_type == ATT_IMPALE)
                 {
-                    message_format(MSG_HIT, m_ptr->r_idx, "You impale %s%s",
+                    message_format(MSG_HIT, 0, "You impale %s%s",
                         m_name, punctuation);
                 }
                 else
                 {
-                    message_format(MSG_HIT, m_ptr->r_idx, "You hit %s%s",
+                    message_format(MSG_HIT, 0, "You hit %s%s",
                         m_name, punctuation);
                 }
             }
@@ -4465,7 +4469,7 @@ void py_attack_aux(int y, int x, int attack_type)
         else
         {
             /* Message */
-            message_format(MSG_MISS, m_ptr->r_idx, "You miss %s.", m_name);
+            message_format(MSG_MISS, 0, "You miss %s.", m_name);
 
             // Occasional warning about fighting from within a pit
             if (cave_pit_bold(p_ptr->py, p_ptr->px) && one_in_(3))
@@ -5075,14 +5079,14 @@ void move_player(int dir)
                 return;
         }
 
-        /* Sound XXX XXX XXX */
-        /* sound(MSG_WALK); */
-
         // do flanking or controlled retreat attack if any
         flanking_or_retreat(y, x);
 
         /* Move player */
         monster_swap(py, px, y, x);
+
+        /* Footstep event for a successful move. */
+        sound_with_extra(MSG_WALK, cave_feat[y][x]);
 
         if (cave_feat[y][x] == FEAT_SUNLIGHT
             && cave_feat[py][px] != FEAT_SUNLIGHT)

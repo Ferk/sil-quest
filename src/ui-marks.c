@@ -16,6 +16,7 @@
 #include "angband.h"
 
 #include "ui-marks.h"
+#include "ui-model.h"
 
 #define UI_MARKS_MAX 256
 #define UI_MARKS_IMPACT_SPECIAL_NONE (-1)
@@ -66,6 +67,7 @@ static void ui_marks_touch(void)
     ui_marks_revision++;
     if (ui_marks_revision == 0)
         ui_marks_revision = 1;
+    ui_front_invalidate();
 }
 
 static int ui_marks_find(int y, int x)

@@ -60,10 +60,17 @@ static bool ui_prompt_pending_more_hint = FALSE;
 static ui_prompt_render_hook ui_front_prompt_render = NULL;
 static ui_prompt_clear_hook ui_front_prompt_clear = NULL;
 static ui_menu_render_hook ui_front_menu_render = NULL;
+static ui_front_invalidate_hook ui_front_invalidate_render = NULL;
 static int ui_saved_screen_depth = 0;
 static bool ui_saved_screen_restored = FALSE;
 static unsigned int ui_saved_screen_revision = 1;
 static bool ui_message_recall_semantic = FALSE;
+
+void ui_front_invalidate(void)
+{
+    if (ui_front_invalidate_render)
+        ui_front_invalidate_render();
+}
 
 /* Bumps the menu revision so frontends can detect updates. */
 static void ui_menu_touch(void)
@@ -71,6 +78,7 @@ static void ui_menu_touch(void)
     ui_menu_revision++;
     if (ui_menu_revision == 0)
         ui_menu_revision = 1;
+    ui_front_invalidate();
 }
 
 /* Bumps the modal revision so frontends can detect updates. */
@@ -79,6 +87,7 @@ static void ui_modal_touch(void)
     ui_modal_revision++;
     if (ui_modal_revision == 0)
         ui_modal_revision = 1;
+    ui_front_invalidate();
 }
 
 /* Bumps the prompt revision so frontends can detect updates. */
@@ -87,6 +96,7 @@ static void ui_prompt_touch(void)
     ui_prompt_revision++;
     if (ui_prompt_revision == 0)
         ui_prompt_revision = 1;
+    ui_front_invalidate();
 }
 
 /* Bumps the saved-screen revision so frontends can detect lifecycle changes. */
@@ -95,6 +105,7 @@ static void ui_saved_screen_touch(void)
     ui_saved_screen_revision++;
     if (ui_saved_screen_revision == 0)
         ui_saved_screen_revision = 1;
+    ui_front_invalidate();
 }
 
 /* Clamps one exported visual type to the supported menu range. */
@@ -338,6 +349,11 @@ void ui_front_set_hooks(ui_prompt_render_hook prompt_render,
     ui_front_prompt_render = prompt_render;
     ui_front_prompt_clear = prompt_clear;
     ui_front_menu_render = menu_render;
+}
+
+void ui_front_set_invalidate_hook(ui_front_invalidate_hook invalidate_hook)
+{
+    ui_front_invalidate_render = invalidate_hook;
 }
 
 /* Keeps one paged menu selection visible inside its current viewport. */

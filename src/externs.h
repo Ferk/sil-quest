@@ -902,7 +902,25 @@ extern errr macro_trigger_free(void);
 extern void flush(void);
 extern void flush_fail(void);
 extern char inkey(void);
+
+/* Platform-neutral frontend notification sink. */
+typedef struct notify_hooks notify_hooks;
+struct notify_hooks
+{
+    void (*message)(u16b type, s16b extra, cptr msg, byte attr);
+    void (*beep)(void);
+    void (*sound)(int sound_event, s16b extra);
+    void (*delay)(int msec);
+};
+
+extern void notify_set_hooks(const notify_hooks* hooks);
+extern void notify_message(u16b type, s16b extra, cptr str);
+extern void notify_beep(void);
+extern void notify_sound(int sound_event, s16b extra);
+extern void notify_delay(int msec);
+
 extern void bell(cptr reason);
+extern void sound_with_extra(int val, s16b extra);
 extern void sound(int val);
 extern s16b quark_add(cptr str);
 extern cptr quark_str(s16b i);
@@ -913,7 +931,7 @@ extern cptr message_str(s16b age);
 extern u16b message_type(s16b age);
 extern byte message_color(s16b age);
 extern errr message_color_define(u16b type, byte color);
-extern void message_add(cptr str, u16b type);
+extern void message_add(cptr str, u16b type, s16b extra);
 extern errr messages_init(void);
 extern void messages_free(void);
 extern void move_cursor(int row, int col);

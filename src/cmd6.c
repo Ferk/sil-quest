@@ -123,6 +123,7 @@ void do_cmd_eat_food(object_type* default_o_ptr, int default_item)
     if (ident && !object_aware_p(o_ptr))
     {
         object_aware(o_ptr);
+        sound(MSG_AWARE);
     }
 
     /* Window stuff */
@@ -236,6 +237,7 @@ void do_cmd_quaff_potion(object_type* default_o_ptr, int default_item)
     if (ident && !object_aware_p(o_ptr))
     {
         object_aware(o_ptr);
+        sound(MSG_AWARE);
     }
 
     /* Window stuff */
@@ -337,6 +339,7 @@ void do_cmd_play_instrument(object_type* default_o_ptr, int default_item)
     if (ident && !object_aware_p(o_ptr))
     {
         object_aware(o_ptr);
+        sound(MSG_AWARE);
     }
 
     /* Window stuff */
@@ -439,6 +442,7 @@ void do_cmd_activate_staff(object_type* default_o_ptr, int default_item)
     if (ident && !object_aware_p(o_ptr))
     {
         object_aware(o_ptr);
+        sound(MSG_AWARE);
     }
 
     /* Window stuff */

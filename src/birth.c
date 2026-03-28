@@ -1046,11 +1046,11 @@ void player_birth(void)
         notes_buffer, "\n   Turn     Depth   Note\n\n", sizeof(notes_buffer));
 
     /* Note player birth in the message recall */
-    message_add(" ", MSG_GENERIC);
-    message_add("  ", MSG_GENERIC);
-    message_add("====================", MSG_GENERIC);
-    message_add("  ", MSG_GENERIC);
-    message_add(" ", MSG_GENERIC);
+    message_add(" ", MSG_GENERIC, 0);
+    message_add("  ", MSG_GENERIC, 0);
+    message_add("====================", MSG_GENERIC, 0);
+    message_add("  ", MSG_GENERIC, 0);
+    message_add(" ", MSG_GENERIC, 0);
 
     /* Hack -- outfit the player */
     player_outfit();

@@ -1175,7 +1175,8 @@ static void prise_silmaril(void)
             object_desc(o_name, sizeof(o_name), o_ptr, TRUE, 3);
 
             /* Message */
-            msg_format("You have %s (%c).", o_name, index_to_label(slot));
+            message_format(MSG_PICKUP, o_ptr->tval, "You have %s (%c).",
+                o_name, index_to_label(slot));
 
             // Break the truce (always)
             break_truce(TRUE);

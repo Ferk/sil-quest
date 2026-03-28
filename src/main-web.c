@@ -27,11 +27,37 @@
 
 #ifdef __EMSCRIPTEN__
 #include <emscripten/emscripten.h>
+
+EM_JS(void, web_dispatch_notification_js,
+    (int kind, int arg0, int arg1, int arg2, const char* text), {
+        if (typeof globalThis.__silqOnBackendNotification === "function")
+        {
+            globalThis.__silqOnBackendNotification(
+                kind, arg0, arg1, arg2, text ? UTF8ToString(text) : "");
+        }
+    });
+
+EM_JS(void, web_request_render_js, (), {
+    if (typeof globalThis.__silqRequestRender === "function")
+        globalThis.__silqRequestRender();
+});
 #else
 #include <unistd.h>
 #ifndef EMSCRIPTEN_KEEPALIVE
 #define EMSCRIPTEN_KEEPALIVE
 #endif
+
+static void web_dispatch_notification_js(
+    int kind, int arg0, int arg1, int arg2, const char* text)
+{
+    (void)kind;
+    (void)arg0;
+    (void)arg1;
+    (void)arg2;
+    (void)text;
+}
+
+static void web_request_render_js(void) {}
 #endif
 
 typedef struct web_cell web_cell;
@@ -123,8 +149,6 @@ static char web_overlay_text[WEB_OVERLAY_TEXT_MAX];
 static byte web_overlay_attrs[WEB_OVERLAY_TEXT_MAX];
 static int web_overlay_attrs_len = 0;
 static uint32_t web_overlay_text_frame = UINT32_MAX;
-static uint32_t web_fx_delay_seq = 0;
-static int web_fx_delay_msec = 0;
 static web_cell* web_fx_cells = NULL;
 static int web_fx_cell_count = 0;
 static int web_fx_cols = 0;
@@ -138,11 +162,13 @@ static int web_map_cell_count = 0;
 static uint32_t web_map_cells_frame = UINT32_MAX;
 static unsigned int web_saved_screen_revision = 0;
 static unsigned int web_map_marks_revision = 0;
+static bool web_render_request_pending = FALSE;
 
 static void web_refresh_map_cells(void);
 static void web_capture_fx_cells(void);
 static void web_set_text_cell(web_cell* cell, byte attr, byte chr);
 static void web_mark_dirty(term_data* td, int x, int y, int w, int h);
+static void web_request_render(void);
 static void web_overlay_capture_clear(void);
 static void web_get_auto_resume_marker_path(char* buf, size_t max);
 
@@ -156,12 +182,13 @@ static int key_queue[WEB_KEY_QUEUE_SIZE];
 static int key_head = 0;
 static int key_tail = 0;
 
-#define WEB_SOUND_QUEUE_SIZE 64
-#define WEB_SOUND_EVENT_NOISE 0
-
-static int web_sound_queue[WEB_SOUND_QUEUE_SIZE];
-static int web_sound_head = 0;
-static int web_sound_tail = 0;
+enum web_notification_kind
+{
+    WEB_NOTIFICATION_KIND_NONE = 0,
+    WEB_NOTIFICATION_KIND_SOUND = 1,
+    WEB_NOTIFICATION_KIND_MESSAGE = 2,
+    WEB_NOTIFICATION_KIND_FX_DELAY = 3,
+};
 
 /* ------------------------------------------------------------------------ */
 /* WASM Export Declarations                                                 */
@@ -263,17 +290,12 @@ EMSCRIPTEN_KEEPALIVE int web_get_player_state_len(void);
 EMSCRIPTEN_KEEPALIVE uintptr_t web_get_tile_context_state_ptr(int dir);
 EMSCRIPTEN_KEEPALIVE int web_get_tile_context_state_len(int dir);
 EMSCRIPTEN_KEEPALIVE int web_execute_tile_context_action(int dir, int action_id);
-EMSCRIPTEN_KEEPALIVE int web_get_sound_count(void);
-EMSCRIPTEN_KEEPALIVE uintptr_t web_get_sound_name_ptr(int index);
-EMSCRIPTEN_KEEPALIVE int web_get_sound_name_len(int index);
-EMSCRIPTEN_KEEPALIVE int web_pop_sound_event(void);
+EMSCRIPTEN_KEEPALIVE void web_consume_render_request(void);
 EMSCRIPTEN_KEEPALIVE int web_get_overlay_mode(void);
 EMSCRIPTEN_KEEPALIVE uintptr_t web_get_overlay_text_ptr(void);
 EMSCRIPTEN_KEEPALIVE int web_get_overlay_text_len(void);
 EMSCRIPTEN_KEEPALIVE uintptr_t web_get_overlay_attrs_ptr(void);
 EMSCRIPTEN_KEEPALIVE int web_get_overlay_attrs_len(void);
-EMSCRIPTEN_KEEPALIVE uint32_t web_get_fx_delay_seq(void);
-EMSCRIPTEN_KEEPALIVE int web_get_fx_delay_msec(void);
 /* ------------------------------------------------------------------------ */
 /* Shared Helpers                                                           */
 /* ------------------------------------------------------------------------ */
@@ -459,6 +481,7 @@ static void web_mark_dirty(term_data* td, int x, int y, int w, int h)
     (void)y;
 
     td->frame_id++;
+    web_request_render();
 }
 
 static void web_mark_cursor_dirty(term_data* td)
@@ -563,39 +586,55 @@ static bool web_key_dequeue(int* key)
 }
 
 /* ------------------------------------------------------------------------ */
-/* Sound Queue                                                              */
+/* Frontend Notifications                                                   */
 /* ------------------------------------------------------------------------ */
 
-/* Pushes one sound event into the web-facing queue, dropping the oldest if full. */
-static void web_sound_queue_push(int sound_event)
+static void web_request_render(void)
 {
-    int next_head;
+    if (web_render_request_pending)
+        return;
 
-    next_head = (web_sound_head + 1) % WEB_SOUND_QUEUE_SIZE;
-    if (next_head == web_sound_tail)
-        web_sound_tail = (web_sound_tail + 1) % WEB_SOUND_QUEUE_SIZE;
-
-    web_sound_queue[web_sound_head] = sound_event;
-    web_sound_head = next_head;
+    web_render_request_pending = TRUE;
+    web_request_render_js();
 }
 
-static void web_queue_sound_event(int sound_event)
+static void web_queue_sound_notification(int sound_event, s16b extra)
 {
     if ((sound_event <= 0) || (sound_event >= SOUND_MAX))
         return;
 
-    web_sound_queue_push(sound_event);
+    web_dispatch_notification_js(
+        WEB_NOTIFICATION_KIND_SOUND, sound_event, (int)extra, 0, NULL);
 }
 
-static void web_queue_noise_event(void)
+static void web_notify_message(u16b type, s16b extra, cptr msg, byte attr)
 {
-    web_sound_queue_push(WEB_SOUND_EVENT_NOISE);
+    if (!msg || !msg[0])
+        return;
+
+    web_log_text_frame = UINT32_MAX;
+    web_dispatch_notification_js(
+        WEB_NOTIFICATION_KIND_MESSAGE, (int)type, (int)extra, (int)attr, msg);
+    web_request_render();
 }
 
-static void web_clear_sound_events(void)
+static void web_notify_beep(void)
 {
-    web_sound_head = 0;
-    web_sound_tail = 0;
+    web_queue_sound_notification(MSG_BELL, 0);
+}
+
+static void web_notify_sound(int sound_event, s16b extra)
+{
+    web_queue_sound_notification(sound_event, extra);
+}
+
+static void web_queue_fx_delay_notification(int msec)
+{
+    if (msec <= 0)
+        return;
+
+    web_dispatch_notification_js(
+        WEB_NOTIFICATION_KIND_FX_DELAY, msec, 0, 0, NULL);
 }
 
 /* ------------------------------------------------------------------------ */
@@ -664,6 +703,30 @@ static void web_sleep_msec(int msec)
     usleep((unsigned int)msec * 1000U);
 #endif
 }
+
+static void web_notify_delay(int msec)
+{
+    if (msec > 0)
+    {
+        web_capture_fx_cells();
+        web_queue_fx_delay_notification(msec);
+        web_request_render();
+    }
+
+    web_sleep_msec(msec);
+}
+
+static void web_front_invalidate(void)
+{
+    web_request_render();
+}
+
+static const notify_hooks web_notify_hooks = {
+    web_notify_message,
+    web_notify_beep,
+    web_notify_sound,
+    web_notify_delay,
+};
 
 /* ------------------------------------------------------------------------ */
 /* Semantic Side/Log UI Builders                                            */
@@ -2446,11 +2509,18 @@ static void Term_init_web(term* t)
     (void)t;
 
     use_sound = arg_sound;
+    notify_set_hooks(&web_notify_hooks);
+    ui_front_set_invalidate_hook(web_front_invalidate);
+    web_render_request_pending = FALSE;
 }
 
 static void Term_nuke_web(term* t)
 {
     term_data* td = (term_data*)(t->data);
+
+    notify_set_hooks(NULL);
+    ui_front_set_invalidate_hook(NULL);
+    web_render_request_pending = FALSE;
 
     if (!td)
         return;
@@ -2477,7 +2547,6 @@ static void Term_nuke_web(term* t)
     web_fx_cell_count = 0;
     web_fx_cols = 0;
     web_fx_rows = 0;
-    web_clear_sound_events();
 }
 
 /* Process pending input from JS and feed angband's key queue. */
@@ -2550,13 +2619,7 @@ static errr Term_xtra_web(int n, int v)
 
     case TERM_XTRA_DELAY:
     {
-        if (v > 0)
-        {
-            web_fx_delay_msec = v;
-            web_fx_delay_seq++;
-            web_capture_fx_cells();
-        }
-        web_sleep_msec(v);
+        web_notify_delay(v);
         return (0);
     }
 
@@ -2580,13 +2643,13 @@ static errr Term_xtra_web(int n, int v)
 
     case TERM_XTRA_NOISE:
     {
-        web_queue_noise_event();
+        web_notify_beep();
         return (0);
     }
 
     case TERM_XTRA_SOUND:
     {
-        web_queue_sound_event(v);
+        web_notify_sound(v, 0);
         return (0);
     }
 
@@ -2803,8 +2866,6 @@ errr init_web(int argc, char** argv)
     ui_marks_clear();
     web_clear_birth_submission();
     web_map_marks_revision = ui_marks_get_revision();
-    web_fx_delay_seq = 0;
-    web_fx_delay_msec = 0;
     web_fx_cols = 0;
     web_fx_rows = 0;
     web_map_cells_frame = UINT32_MAX;
@@ -3423,43 +3484,9 @@ EMSCRIPTEN_KEEPALIVE int web_push_key(int key)
     return web_key_enqueue(key) ? 1 : 0;
 }
 
-EMSCRIPTEN_KEEPALIVE int web_get_sound_count(void)
+EMSCRIPTEN_KEEPALIVE void web_consume_render_request(void)
 {
-    return SOUND_MAX;
-}
-
-EMSCRIPTEN_KEEPALIVE uintptr_t web_get_sound_name_ptr(int index)
-{
-    if ((index < 0) || (index >= SOUND_MAX))
-        return 0;
-
-    return (uintptr_t)(const void*)angband_sound_name[index];
-}
-
-EMSCRIPTEN_KEEPALIVE int web_get_sound_name_len(int index)
-{
-    cptr sound_name;
-
-    if ((index < 0) || (index >= SOUND_MAX))
-        return 0;
-
-    sound_name = angband_sound_name[index];
-    if (!sound_name)
-        return 0;
-
-    return (int)strlen(sound_name);
-}
-
-EMSCRIPTEN_KEEPALIVE int web_pop_sound_event(void)
-{
-    int sound_event;
-
-    if (web_sound_head == web_sound_tail)
-        return -1;
-
-    sound_event = web_sound_queue[web_sound_tail];
-    web_sound_tail = (web_sound_tail + 1) % WEB_SOUND_QUEUE_SIZE;
-    return sound_event;
+    web_render_request_pending = FALSE;
 }
 
 EMSCRIPTEN_KEEPALIVE uintptr_t web_get_log_text_ptr(void)
@@ -3640,16 +3667,6 @@ EMSCRIPTEN_KEEPALIVE int web_get_overlay_attrs_len(void)
 {
     web_refresh_overlay_text();
     return web_overlay_attrs_len;
-}
-
-EMSCRIPTEN_KEEPALIVE uint32_t web_get_fx_delay_seq(void)
-{
-    return web_fx_delay_seq;
-}
-
-EMSCRIPTEN_KEEPALIVE int web_get_fx_delay_msec(void)
-{
-    return web_fx_delay_msec;
 }
 
 #endif /* USE_WEB */

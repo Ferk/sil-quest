@@ -1260,7 +1260,7 @@ static void rd_messages(void)
         rd_u16b(&tmp16u);
 
         /* Save the message */
-        message_add(buf, tmp16u);
+        message_add(buf, tmp16u, 0);
     }
 }
 

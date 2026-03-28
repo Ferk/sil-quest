@@ -232,6 +232,7 @@ bool do_inc_stat(int stat)
 static void identify_unknown_pack(void)
 {
     int i;
+    bool identified_any = FALSE;
 
     /* Simply identify and know every item */
     for (i = 0; i < INVEN_TOTAL; i++)
@@ -245,7 +246,11 @@ static void identify_unknown_pack(void)
         /* Aware and Known */
         object_aware(o_ptr);
         object_known(o_ptr);
+        identified_any = TRUE;
     }
+
+    if (identified_any)
+        sound(MSG_IDENTIFY);
 
     /* Recalculate bonuses */
     p_ptr->update |= (PU_BONUS);
@@ -1485,7 +1490,8 @@ void self_knowledge(void)
                 object_desc(o_full_name, sizeof(o_full_name), o_ptr, TRUE, 3);
 
                 /* Print the message */
-                msg_format("You realize that your %s is %s.", o_short_name,
+                message_format(MSG_IDENTIFY, 0,
+                    "You realize that your %s is %s.", o_short_name,
                     o_full_name);
             }
         }
@@ -4021,16 +4027,17 @@ void do_ident_item(int item, object_type* o_ptr)
     /* Describe */
     if (item >= INVEN_WIELD)
     {
-        msg_format(
-            "%^s: %s (%c).", describe_use(item), o_name, index_to_label(item));
+        message_format(MSG_IDENTIFY, 0, "%^s: %s (%c).", describe_use(item),
+            o_name, index_to_label(item));
     }
     else if (item >= 0)
     {
-        msg_format("In your pack: %s (%c).", o_name, index_to_label(item));
+        message_format(
+            MSG_IDENTIFY, 0, "In your pack: %s (%c).", o_name, index_to_label(item));
     }
     else
     {
-        msg_format("On the ground: %s.", o_name);
+        message_format(MSG_IDENTIFY, 0, "On the ground: %s.", o_name);
     }
 
 }

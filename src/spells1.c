@@ -3907,7 +3907,7 @@ bool project(int who, int rad, int y0, int x0, int y1, int x1, int dd, int ds,
                         Term_fresh();
 
                     /* Delay */
-                    Term_xtra(TERM_XTRA_DELAY, msec);
+                    notify_delay(msec);
 
                     /* Erase the visual effects */
                     lite_spot(y, x);
@@ -3936,7 +3936,7 @@ bool project(int who, int rad, int y0, int x0, int y1, int x1, int dd, int ds,
                 else if (visual)
                 {
                     /* Delay for consistency */
-                    Term_xtra(TERM_XTRA_DELAY, msec);
+                    notify_delay(msec);
                 }
             }
         }
@@ -4260,7 +4260,7 @@ bool project(int who, int rad, int y0, int x0, int y1, int x1, int dd, int ds,
                 /* Delay (efficiently) */
                 if (visual || drawn)
                 {
-                    Term_xtra(TERM_XTRA_DELAY, msec);
+                    notify_delay(msec);
                 }
             }
         }
@@ -4270,7 +4270,7 @@ bool project(int who, int rad, int y0, int x0, int y1, int x1, int dd, int ds,
         {
             if (!op_ptr->delay_factor)
                 Term_fresh();
-            Term_xtra(TERM_XTRA_DELAY, 50 + msec);
+            notify_delay(50 + msec);
         }
 
         /* Flush the erasing -- except if we specify lingering graphics */
@@ -4438,9 +4438,12 @@ static void sing_song_of_freedom(int score)
     int y, x;
     int base_difficulty, difficulty;
     int result;
+    int disarm_feat;
+    int first_disarm_feat = 0;
     int new_feat;
     object_type* o_ptr;
     bool closed_chasm = FALSE;
+    bool disarmed_trap = FALSE;
 
     // set the base difficulty
     if (p_ptr->depth > 0)
@@ -4496,8 +4499,15 @@ static void sing_song_of_freedom(int score)
                     = base_difficulty + 5 + flow_dist(FLOW_PLAYER_NOISE, y, x);
                 if (skill_check(PLAYER, score, difficulty, NULL) > 0)
                 {
+                    disarm_feat = cave_feat[y][x];
+
                     /* Remove the trap */
                     cave_feat[y][x] = FEAT_FLOOR;
+                    if (!disarmed_trap)
+                    {
+                        disarmed_trap = TRUE;
+                        first_disarm_feat = disarm_feat;
+                    }
                 }
             }
 
@@ -4508,8 +4518,15 @@ static void sing_song_of_freedom(int score)
                     = base_difficulty + 5 + flow_dist(FLOW_PLAYER_NOISE, y, x);
                 if (skill_check(PLAYER, score, difficulty, NULL) > 0)
                 {
+                    disarm_feat = cave_feat[y][x];
+
                     /* Remove the trap */
                     cave_feat[y][x] = FEAT_FLOOR;
+                    if (!disarmed_trap)
+                    {
+                        disarmed_trap = TRUE;
+                        first_disarm_feat = disarm_feat;
+                    }
 
                     if (cave_info[y][x] & (CAVE_SEEN))
                     {
@@ -4531,7 +4548,8 @@ static void sing_song_of_freedom(int score)
                     if (cave_info[y][x] & (CAVE_SEEN))
                     {
                         /* Message */
-                        msg_print("You have found a secret door.");
+                        message(
+                            MSG_DISCOVER, 0, "You have found a secret door.");
 
                         /* Disturb */
                         disturb(0, 0);
@@ -4605,6 +4623,9 @@ static void sing_song_of_freedom(int score)
             }
         }
     }
+
+    if (disarmed_trap)
+        sound_with_extra(MSG_DISARM, first_disarm_feat);
 
     // then, if any chasms were marked to be closed, do the closing
     if (closed_chasm)

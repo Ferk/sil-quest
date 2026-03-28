@@ -13,6 +13,8 @@
 #include "ui-marks.h"
 #include "ui-model.h"
 
+static notify_hooks notify_frontend_hooks = { 0 };
+
 #ifdef SET_UID
 
 #ifndef HAVE_USLEEP
@@ -1728,7 +1730,7 @@ static char inkey_aux(void)
                 break;
 
             /* Delay */
-            Term_xtra(TERM_XTRA_DELAY, w);
+            notify_delay(w);
         }
     }
 
@@ -1991,7 +1993,7 @@ char inkey(void)
                         break;
 
                     /* Delay */
-                    Term_xtra(TERM_XTRA_DELAY, w);
+                    notify_delay(w);
                 }
             }
 
@@ -2065,6 +2067,59 @@ char inkey(void)
 }
 
 /*
+ * Installs or clears the active frontend notification sink.
+ */
+void notify_set_hooks(const notify_hooks* hooks)
+{
+    if (hooks)
+        notify_frontend_hooks = *hooks;
+    else
+        memset(&notify_frontend_hooks, 0, sizeof(notify_frontend_hooks));
+}
+
+/*
+ * Pushes one generic frontend beep/alert notification.
+ */
+void notify_beep(void)
+{
+    if (notify_frontend_hooks.beep)
+    {
+        (*notify_frontend_hooks.beep)();
+        return;
+    }
+
+    Term_xtra(TERM_XTRA_NOISE, 0);
+}
+
+/*
+ * Pushes one semantic sound-event notification.
+ */
+void notify_sound(int sound_event, s16b extra)
+{
+    if (notify_frontend_hooks.sound)
+    {
+        (*notify_frontend_hooks.sound)(sound_event, extra);
+        return;
+    }
+
+    Term_xtra(TERM_XTRA_SOUND, sound_event);
+}
+
+/*
+ * Pushes one delay/animation notification.
+ */
+void notify_delay(int msec)
+{
+    if (notify_frontend_hooks.delay)
+    {
+        (*notify_frontend_hooks.delay)(msec);
+        return;
+    }
+
+    Term_xtra(TERM_XTRA_DELAY, msec);
+}
+
+/*
  * Flush the screen, make a noise
  */
 void bell(cptr reason)
@@ -2074,7 +2129,7 @@ void bell(cptr reason)
 
     if (character_generated && reason)
     {
-        message_add(reason, MSG_BELL);
+        message_add(reason, MSG_BELL, 0);
 
         /* Window stuff */
         p_ptr->window |= (PW_MESSAGE);
@@ -2085,7 +2140,7 @@ void bell(cptr reason)
 
     /* Make a bell noise (if allowed) */
     if (system_beep)
-        Term_xtra(TERM_XTRA_NOISE, 0);
+        notify_beep();
 
     /* Flush the input (later!) */
     flush();
@@ -2094,15 +2149,17 @@ void bell(cptr reason)
 /*
  * Hack -- Make a (relevant?) sound
  */
-void sound(int val)
+void sound_with_extra(int val, s16b extra)
 {
     /* No sound */
     if (!use_sound)
         return;
 
     /* Make a sound (if allowed) */
-    Term_xtra(TERM_XTRA_SOUND, val);
+    notify_sound(val, extra);
 }
+
+void sound(int val) { sound_with_extra(val, 0); }
 
 /*
  * The "quark" package
@@ -2404,6 +2461,17 @@ errr message_color_define(u16b type, byte color)
 }
 
 /*
+ * Pushes one semantic message notification to the active frontend sink.
+ */
+void notify_message(u16b type, s16b extra, cptr str)
+{
+    if (!str || !notify_frontend_hooks.message)
+        return;
+
+    (*notify_frontend_hooks.message)(type, extra, str, message_type_color(type));
+}
+
+/*
  * Add a new message, with great efficiency
  *
  * We must ignore long messages to prevent internal overflow, since we
@@ -2414,7 +2482,7 @@ errr message_color_define(u16b type, byte color)
  * which is "far away" from the most recent entries, or we will lose a lot
  * of messages when we "expire" the old message index and/or buffer space.
  */
-void message_add(cptr str, u16b type)
+void message_add(cptr str, u16b type, s16b extra)
 {
     int k, i, x, o;
     size_t n;
@@ -2453,6 +2521,8 @@ void message_add(cptr str, u16b type)
     {
         /* Increase the message count */
         message__count[x]++;
+
+        notify_message(type, extra, str);
 
         /* Success */
         return;
@@ -2525,6 +2595,8 @@ void message_add(cptr str, u16b type)
 
         /* Store the message count */
         message__count[x] = 1;
+
+        notify_message(type, extra, str);
 
         /* Success */
         return;
@@ -2632,6 +2704,8 @@ void message_add(cptr str, u16b type)
 
     /* Store the message count */
     message__count[x] = 1;
+
+    notify_message(type, extra, str);
 }
 
 /*
@@ -2782,7 +2856,7 @@ static int message_column = 0;
  * Hack -- Note that "msg_print(NULL)" will clear the top line even if no
  * messages are pending.
  */
-static void msg_print_aux(u16b type, cptr msg)
+static void msg_print_aux(u16b type, s16b extra, cptr msg)
 {
     int n;
     char* t;
@@ -2832,7 +2906,7 @@ static void msg_print_aux(u16b type, cptr msg)
 
     /* Memorize the message (if legal) */
     if (character_generated && !p_ptr->is_dead)
-        message_add(msg, type);
+        message_add(msg, type, extra);
 
     /* Window stuff */
     p_ptr->window |= (PW_MESSAGE);
@@ -2904,7 +2978,7 @@ static void msg_print_aux(u16b type, cptr msg)
 /*
  * Print a message in the default color (white)
  */
-void msg_print(cptr msg) { msg_print_aux(MSG_GENERIC, msg); }
+void msg_print(cptr msg) { msg_print_aux(MSG_GENERIC, 0, msg); }
 
 /*
  * Display a formatted message, using "vstrnfmt()" and "msg_print()".
@@ -2925,7 +2999,7 @@ void msg_format(cptr fmt, ...)
     va_end(vp);
 
     /* Display */
-    msg_print_aux(MSG_GENERIC, buf);
+    msg_print_aux(MSG_GENERIC, 0, buf);
 }
 
 /*
@@ -2950,29 +3024,26 @@ void msg_debug(cptr fmt, ...)
     strnfmt(buf2, sizeof(buf2), "<< %s >>", buf);
 
     /* Display */
-    msg_print_aux(MSG_GENERIC, buf2);
+    msg_print_aux(MSG_GENERIC, 0, buf2);
     message_flush();
 }
 
 /*
  * Display a message and play the associated sound.
  *
- * The "extra" parameter is currently unused.
+ * The "extra" parameter is preserved for frontend metadata and sound routing.
  */
 void message(u16b message_type, s16b extra, cptr message)
 {
-    /* Unused parameter */
-    (void)extra;
+    sound_with_extra(message_type, extra);
 
-    sound(message_type);
-
-    msg_print_aux(message_type, message);
+    msg_print_aux(message_type, extra, message);
 }
 
 /*
  * Display a formatted message and play the associated sound.
  *
- * The "extra" parameter is currently unused.
+ * The "extra" parameter is preserved for frontend metadata and sound routing.
  */
 void message_format(u16b message_type, s16b extra, cptr fmt, ...)
 {
