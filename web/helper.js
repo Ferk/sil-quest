@@ -55,6 +55,7 @@ function initWebHelpers(root) {
 
   // Chooses CSS class for right-side panel values based on semantic label/value.
   function sideValueClass(label, valueRaw) {
+    if (label === "Exp:") return "term-c13";
     if (label === "Health:") {
       const m = valueRaw.match(/(-?\d+)\s*\/\s*(-?\d+)/);
       if (!m) return "term-c9";
@@ -101,6 +102,36 @@ function initWebHelpers(root) {
     return "term-c9";
   }
 
+  // Normalizes one optional side-panel value for consistent filtering.
+  function normalizeSideValue(value) {
+    return String(value ?? "").trim();
+  }
+
+  // Returns whether one semantic side-panel value should be hidden as placeholder text.
+  function isHiddenSideValue(value, skipValues = []) {
+    const normalized = normalizeSideValue(value);
+    return !normalized || skipValues.includes(normalized);
+  }
+
+  // Renders one compact item section for the side panel from a simple string list.
+  function renderSideItemSection(title, items) {
+    if (!Array.isArray(items) || !items.length) return [];
+
+    const rows = [
+      `<span class="term-c14">${escapeHtml(String(title || ""))}</span>`,
+    ];
+
+    for (const item of items) {
+      const text = normalizeSideValue(item);
+      if (!text) continue;
+      rows.push(
+        `<span class="term-c9">\u00a0${escapeHtml(text)}</span>`
+      );
+    }
+
+    return rows.length > 1 ? rows : [];
+  }
+
   // Renders side panel HTML from semantic player-state JSON.
   function renderSideState(state) {
     if (!state || Number(state.ready) !== 1) {
@@ -108,57 +139,79 @@ function initWebHelpers(root) {
     }
 
     const lines = [];
-    const emitBlank = () => { lines.push(""); };
-    const emitText = (text, klass = "term-c1") => {
-      lines.push(`<span class="${klass}">${escapeHtml(String(text ?? ""))}</span>`);
+    const hiddenNormalOrNone = ["Normal", "(none)"];
+    const appendSection = (rows) => {
+      const visibleRows = rows.filter(Boolean);
+      if (!visibleRows.length) return;
+      if (lines.length) lines.push("");
+      lines.push(...visibleRows);
     };
-    const emitPair = (label, value) => {
-      const valueRaw = String(value ?? "");
+    const renderText = (text, klass = "term-c1", skipValues = []) => {
+      const valueRaw = normalizeSideValue(text);
+      if (isHiddenSideValue(valueRaw, skipValues)) return "";
+      return `<span class="${klass}">${escapeHtml(valueRaw)}</span>`;
+    };
+    const renderPair = (label, value, skipValues = []) => {
+      const valueRaw = normalizeSideValue(value);
+      if (isHiddenSideValue(valueRaw, skipValues)) return "";
       const valueClass = sideValueClass(label, valueRaw);
-      lines.push(
+      return (
         `<span class="term-c11">${escapeHtml(label)}</span>` +
         `<span class="${valueClass}"> ${escapeHtml(valueRaw)}</span>`
       );
     };
 
-    emitPair("Name:", state.name || "(unnamed)");
-    emitPair("Race:", state.race || "Unknown");
-    emitPair("House:", state.house || "Unknown");
-    emitBlank();
+    appendSection([
+      renderPair("Name:", state.name || "(unnamed)"),
+      renderPair("Race:", state.race || "Unknown"),
+      renderPair("House:", state.house || "Unknown"),
+    ]);
 
-    emitPair("STR:", state.str || "?");
-    emitPair("DEX:", state.dex || "?");
-    emitPair("CON:", state.con || "?");
-    emitPair("GRA:", state.gra || "?");
-    emitBlank();
+    appendSection([
+      renderPair("STR:", state.str || "?"),
+      renderPair("DEX:", state.dex || "?"),
+      renderPair("CON:", state.con || "?"),
+      renderPair("GRA:", state.gra || "?"),
+      renderPair("Exp:", state.exp || ""),
+    ]);
 
-    emitPair("Health:", `${state.healthCur ?? 0}/${state.healthMax ?? 0}`);
-    emitPair("Voice:", `${state.voiceCur ?? 0}/${state.voiceMax ?? 0}`);
-    emitPair("Depth:", state.depthText || "Surface");
-    emitBlank();
+    appendSection([
+      renderPair("Health:", `${state.healthCur ?? 0}/${state.healthMax ?? 0}`),
+      renderPair("Voice:", `${state.voiceCur ?? 0}/${state.voiceMax ?? 0}`),
+      renderPair("Depth:", state.depthText || "Surface"),
+    ]);
 
-    emitPair("Melee:", state.melee || "(none)");
-    emitPair("Melee2:", state.melee2 || "(none)");
-    emitPair("Ranged:", state.ranged || "(none)");
-    emitPair("Armor:", state.armor || "(none)");
-    emitBlank();
+    appendSection([
+      renderPair("Melee:", state.melee || "(none)", ["(none)"]),
+      renderPair("Melee2:", state.melee2 || "(none)", ["(none)"]),
+      renderPair("Ranged:", state.ranged || "(none)", ["(none)"]),
+      renderPair("Armor:", state.armor || "(none)", ["(none)"]),
+    ]);
 
-    emitPair("Song:", state.song || "(none)");
-    emitPair("Theme:", state.theme || "(none)");
-    emitBlank();
+    appendSection([
+      renderPair("Song:", state.song || "(none)", hiddenNormalOrNone),
+      renderPair("Theme:", state.theme || "(none)", hiddenNormalOrNone),
+    ]);
 
-    emitPair("State:", state.state || "Normal");
-    emitPair("Speed:", state.speed || "Normal");
-    emitPair("Hunger:", state.hunger || "Normal");
-    emitPair("Terrain:", state.terrain || "(none)");
-    emitPair("Effects:", state.effects || "(none)");
+    appendSection([
+      renderPair("State:", state.state || "Normal", hiddenNormalOrNone),
+      renderPair("Speed:", state.speed || "Normal", hiddenNormalOrNone),
+      renderPair("Hunger:", state.hunger || "Normal", hiddenNormalOrNone),
+      renderPair("Terrain:", state.terrain || "(none)", hiddenNormalOrNone),
+      renderPair("Effects:", state.effects || "(none)", hiddenNormalOrNone),
+    ]);
 
-    if (state.targetName) {
-      emitBlank();
-      emitPair("Target:", state.targetName);
-      if (state.targetHpBar) emitPair("HP:", `[${state.targetHpBar}]`);
-      if (state.targetAlert) emitText(state.targetAlert, "term-c12");
-    }
+    appendSection([
+      renderPair("Target:", state.targetName || "(none)", hiddenNormalOrNone),
+      renderPair("HP:", `[${normalizeSideValue(state.targetHpBar)}]`, ["[]"]),
+      renderText(state.targetAlert, "term-c12", hiddenNormalOrNone),
+    ]);
+
+    const equipmentTitle = state.equipmentWeight
+      ? `Equipment (${normalizeSideValue(state.equipmentWeight)})`
+      : "Equipment";
+    appendSection(renderSideItemSection(equipmentTitle, state.equipment));
+    appendSection(renderSideItemSection("Inventory", state.inventory));
 
     return lines.join("<br>");
   }

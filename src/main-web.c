@@ -1141,6 +1141,53 @@ static void web_json_append_field_int(char* buf, size_t buf_size, size_t* off,
     strnfcat(buf, buf_size, off, "\"%s\":%d", key, value);
 }
 
+/* Appends one JSON string array containing compact player item labels. */
+static void web_json_append_player_item_array(char* buf, size_t buf_size,
+    size_t* off, bool* first, cptr key, int item_start, int item_end,
+    bool equipped)
+{
+    bool item_first = TRUE;
+    int item;
+
+    if (!key)
+        return;
+
+    web_json_append_field_sep(buf, buf_size, off, first);
+    strnfcat(buf, buf_size, off, "\"%s\":[", key);
+
+    for (item = item_start; item < item_end; item++)
+    {
+        char item_desc[96];
+        char item_label[128];
+        object_type* o_ptr = &inventory[item];
+
+        if (!o_ptr->k_idx)
+            continue;
+
+        object_desc(item_desc, sizeof(item_desc), o_ptr, TRUE, 3);
+        if (equipped)
+        {
+            strnfmt(item_label, sizeof(item_label), "%s: %s", mention_use(item),
+                item_desc);
+        }
+        else
+        {
+            strnfmt(item_label, sizeof(item_label), "%c) %s", index_to_label(item),
+                item_desc);
+        }
+
+        if (!item_first)
+            strnfcat(buf, buf_size, off, ",");
+
+        strnfcat(buf, buf_size, off, "\"");
+        web_json_append_escaped(buf, buf_size, off, item_label);
+        strnfcat(buf, buf_size, off, "\"");
+        item_first = FALSE;
+    }
+
+    strnfcat(buf, buf_size, off, "]");
+}
+
 /* Appends one semantic character-sheet field object into a JSON array. */
 static void web_json_append_character_field_object(char* buf, size_t buf_size,
     size_t* off, const ui_character_field* field)
@@ -1391,6 +1438,8 @@ static void web_build_player_state(void)
     cptr hunger_text;
     cptr terrain_text;
     char depth_buf[32];
+    char exp_buf[32];
+    char equip_weight_buf[32];
     char str_buf[8];
     char dex_buf[8];
     char con_buf[8];
@@ -1425,6 +1474,7 @@ static void web_build_player_state(void)
     int arc_dd;
     int current_square_target_hp_fill = 0;
     int dir;
+    int equip_weight = 0;
     int current_square_visual_kind = UI_MENU_VISUAL_NONE;
     int ranged_action_visual_kind = UI_MENU_VISUAL_NONE;
     int ranged_action_quiver = 0;
@@ -1472,6 +1522,19 @@ static void web_build_player_state(void)
     cnv_stat(p_ptr->stat_use[A_DEX], dex_buf, sizeof(dex_buf));
     cnv_stat(p_ptr->stat_use[A_CON], con_buf, sizeof(con_buf));
     cnv_stat(p_ptr->stat_use[A_GRA], gra_buf, sizeof(gra_buf));
+    comma_number(exp_buf, sizeof(exp_buf), p_ptr->new_exp);
+
+    for (dir = INVEN_WIELD; dir < INVEN_TOTAL; dir++)
+    {
+        object_type* o_ptr = &inventory[dir];
+
+        if (!o_ptr->k_idx)
+            continue;
+
+        equip_weight += o_ptr->weight * o_ptr->number;
+    }
+    strnfmt(equip_weight_buf, sizeof(equip_weight_buf), "%d.%d lb",
+        equip_weight / 10, equip_weight % 10);
 
     dual_wield = ((&inventory[INVEN_ARM])->k_idx)
         && ((&inventory[INVEN_ARM])->tval != TV_SHIELD);
@@ -1600,6 +1663,9 @@ static void web_build_player_state(void)
     web_json_append_field_string(
         web_player_state, sizeof(web_player_state), &off, &first, "gra",
         gra_buf);
+    web_json_append_field_string(
+        web_player_state, sizeof(web_player_state), &off, &first, "exp",
+        exp_buf);
     web_json_append_field_int(
         web_player_state, sizeof(web_player_state), &off, &first,
         "healthCur", p_ptr->chp);
@@ -1672,6 +1738,15 @@ static void web_build_player_state(void)
     web_json_append_field_string(
         web_player_state, sizeof(web_player_state), &off, &first,
         "effects", effects_buf[0] ? effects_buf : "(none)");
+    web_json_append_field_string(
+        web_player_state, sizeof(web_player_state), &off, &first,
+        "equipmentWeight", equip_weight_buf);
+    web_json_append_player_item_array(
+        web_player_state, sizeof(web_player_state), &off, &first,
+        "equipment", INVEN_WIELD, INVEN_TOTAL, TRUE);
+    web_json_append_player_item_array(
+        web_player_state, sizeof(web_player_state), &off, &first,
+        "inventory", 0, INVEN_PACK, FALSE);
     web_json_append_field_int(
         web_player_state, sizeof(web_player_state), &off, &first,
         "tileActionVisible", current_square_label ? 1 : 0);
