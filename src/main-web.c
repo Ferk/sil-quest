@@ -589,6 +589,7 @@ static bool web_key_dequeue(int* key)
 /* Frontend Notifications                                                   */
 /* ------------------------------------------------------------------------ */
 
+/* Schedules one coalesced frontend render wake-up. */
 static void web_request_render(void)
 {
     if (web_render_request_pending)
@@ -598,6 +599,7 @@ static void web_request_render(void)
     web_request_render_js();
 }
 
+/* Pushes one semantic sound notification across the wasm/JS boundary. */
 static void web_queue_sound_notification(int sound_event, s16b extra)
 {
     if ((sound_event <= 0) || (sound_event >= SOUND_MAX))
@@ -607,6 +609,7 @@ static void web_queue_sound_notification(int sound_event, s16b extra)
         WEB_NOTIFICATION_KIND_SOUND, sound_event, (int)extra, 0, NULL);
 }
 
+/* Forwards one typed message notification and invalidates the cached log view. */
 static void web_notify_message(u16b type, s16b extra, cptr msg, byte attr)
 {
     if (!msg || !msg[0])
@@ -618,16 +621,19 @@ static void web_notify_message(u16b type, s16b extra, cptr msg, byte attr)
     web_request_render();
 }
 
+/* Maps generic frontend beeps to the shared bell notification slot. */
 static void web_notify_beep(void)
 {
     web_queue_sound_notification(MSG_BELL, 0);
 }
 
+/* Forwards one semantic sound event through the web notification channel. */
 static void web_notify_sound(int sound_event, s16b extra)
 {
     web_queue_sound_notification(sound_event, extra);
 }
 
+/* Pushes one transient FX delay notification for frontend animation timing. */
 static void web_queue_fx_delay_notification(int msec)
 {
     if (msec <= 0)
@@ -704,6 +710,7 @@ static void web_sleep_msec(int msec)
 #endif
 }
 
+/* Captures current FX cells, notifies the frontend, then sleeps for the delay. */
 static void web_notify_delay(int msec)
 {
     if (msec > 0)
@@ -716,6 +723,7 @@ static void web_notify_delay(int msec)
     web_sleep_msec(msec);
 }
 
+/* Marks the web frontend as needing one fresh render pass. */
 static void web_front_invalidate(void)
 {
     web_request_render();
@@ -754,6 +762,7 @@ static cptr web_get_house_name(void)
     return c_name + c_info[p_ptr->phouse].name;
 }
 
+/* Returns the trimmed display name of one currently active player song/theme. */
 static cptr web_get_song_name(byte song)
 {
     int idx;
@@ -782,6 +791,23 @@ static cptr web_get_song_name(byte song)
         name += 4;
 
     return name;
+}
+
+/* Reports whether the player currently knows any singable song abilities. */
+static bool web_player_knows_any_songs(void)
+{
+    int i;
+
+    if (!p_ptr)
+        return FALSE;
+
+    for (i = 0; i < SNG_WOVEN_THEMES; i++)
+    {
+        if (p_ptr->active_ability[S_SNG][i])
+            return TRUE;
+    }
+
+    return FALSE;
 }
 
 static bool web_get_visible_monster_state(monster_type* m_ptr, char* name,
@@ -1384,6 +1410,7 @@ static void web_build_player_state(void)
     cptr adjacent_action_label_by_dir[10];
     bool dual_wield;
     bool has_bow;
+    bool knows_songs = FALSE;
     bool ranged_action_ready = FALSE;
     bool rapid_attack;
     bool blocking;
@@ -1419,6 +1446,7 @@ static void web_build_player_state(void)
     house_name = web_get_house_name();
     song1_name = web_get_song_name(p_ptr->song1);
     song2_name = web_get_song_name(p_ptr->song2);
+    knows_songs = web_player_knows_any_songs();
 
     if (!race_name || !race_name[0])
         race_name = "Unknown";
@@ -1617,6 +1645,9 @@ static void web_build_player_state(void)
     web_json_append_field_string(
         web_player_state, sizeof(web_player_state), &off, &first,
         "armor", armor_buf);
+    web_json_append_field_int(
+        web_player_state, sizeof(web_player_state), &off, &first,
+        "knowsSongs", knows_songs ? 1 : 0);
     web_json_append_field_string(
         web_player_state, sizeof(web_player_state), &off, &first, "song",
         song1_name ? song1_name : "(none)");

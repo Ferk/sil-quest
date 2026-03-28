@@ -1558,6 +1558,16 @@
       }
     }
 
+    // Returns whether the current semantic player state represents a named character.
+    function hasNamedCharacter(state = activePlayerState) {
+      if (!state || Number(state.ready) !== 1) return false;
+
+      const rawName = String(state.name || "").trim();
+      const normalizedName = rawName.replace(/[()]/g, "").trim().toLowerCase();
+
+      return !!normalizedName && normalizedName !== "unnamed";
+    }
+
     // Reads and parses the active semantic birth-screen payload exported by wasm.
     function readBirthState(heap) {
       if (
@@ -2548,7 +2558,7 @@
 
     // Mirrors the current shell state into sidebar, compact HUD, and accessibility attributes.
     function syncResponsiveShellChrome() {
-      const visible = mapDisplayReady;
+      const visible = mapDisplayReady && hasNamedCharacter();
       const compact = isCompactLayout();
       const open = visible && compact && !!compactSideOpen;
       const collapsed = visible && !compact && !!sideCollapsed;
@@ -4209,11 +4219,8 @@
     function updateMobileHud(state) {
       if (!hudBarsEl) return;
 
-      if (!state || Number(state.ready) !== 1) {
-        const placeholderHtml =
-          renderMobileHudBar("Health", "HP", 0, 0, "hud-bar-empty") +
-          renderMobileHudBar("Voice", "Voice", 0, 0, "hud-bar-empty");
-        setHtmlIfChanged(hudBarsEl, placeholderHtml);
+      if (!state || Number(state.ready) !== 1 || !hasNamedCharacter(state)) {
+        setHtmlIfChanged(hudBarsEl, "");
         hudBarsEl.title = "Character panel";
         return;
       }
@@ -4236,6 +4243,7 @@
       if (!api) return;
       if (!state) state = readPlayerState(heap);
       activePlayerState = state;
+      syncResponsiveShellChrome();
       const logPtr = api.getLogTextPtr();
       const logLen = api.getLogTextLen();
       const logAttrPtr = api.getLogAttrsPtr();
@@ -4244,9 +4252,9 @@
       const logText = readUtf8(heap, logPtr, logLen).trimEnd();
       const logAttrs = readBytes(heap, logAttrPtr, logAttrLen);
 
-      const sideHtml = state
+      const sideHtml = hasNamedCharacter(state)
         ? renderSideState(state)
-        : "<span class=\"term-c2\">(side panel empty)</span>";
+        : "";
       const hasLogText = Boolean(logText);
       let logHtml = hasLogText
         ? renderColoredText(logText, logAttrs, 1)
@@ -4489,6 +4497,7 @@
         typeof api.openSongMenu === "function" &&
         !!state &&
         Number(state.ready) === 1 &&
+        Number(state.knowsSongs ?? 0) === 1 &&
         isGameplayViewIdle();
     }
 
@@ -4762,6 +4771,7 @@
       const tileContextActive = isTileContextOverlayActive();
       const dismissableModalActive = isDismissableModalOverlayActive();
       const genericOverlayActive = isGenericCapturedOverlayActive();
+      const hasNamed = hasNamedCharacter(state);
       const showClose = !compactSideOpen && canUseCloseFab();
       const showYes =
         showClose &&
@@ -4773,13 +4783,13 @@
           birthStatsActive ||
           skillEditorActive
         );
-      const showInventory = !compactSideOpen && !showClose && canUseInventoryFab(state);
-      const showRanged = !compactSideOpen && !showClose && canUseRangedFab(state);
-      const showState = !compactSideOpen && !showClose && canUseStateFab(state);
-      const showSong = !compactSideOpen && !showClose && canUseSongFab(state);
-      const showTileAction = !compactSideOpen && !showClose && canUseTileActionFab(state);
+      const showInventory = hasNamed && !compactSideOpen && !showClose && canUseInventoryFab(state);
+      const showRanged = hasNamed && !compactSideOpen && !showClose && canUseRangedFab(state);
+      const showState = hasNamed && !compactSideOpen && !showClose && canUseStateFab(state);
+      const showSong = hasNamed && !compactSideOpen && !showClose && canUseSongFab(state);
+      const showTileAction = hasNamed && !compactSideOpen && !showClose && canUseTileActionFab(state);
       const showAdjacentActions =
-        !compactSideOpen && !showClose && canUseAdjacentActionRow(state);
+        hasNamed && !compactSideOpen && !showClose && canUseAdjacentActionRow(state);
       const tileActionLabel = state && Number(state.tileActionVisible) === 1
         ? String(state.tileActionLabel || "Act here")
         : "Act here";

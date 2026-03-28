@@ -66,6 +66,7 @@ static bool ui_saved_screen_restored = FALSE;
 static unsigned int ui_saved_screen_revision = 1;
 static bool ui_message_recall_semantic = FALSE;
 
+/* Requests one frontend refresh after shared semantic state changes. */
 void ui_front_invalidate(void)
 {
     if (ui_front_invalidate_render)
@@ -351,6 +352,7 @@ void ui_front_set_hooks(ui_prompt_render_hook prompt_render,
     ui_front_menu_render = menu_render;
 }
 
+/* Registers one frontend-specific invalidation hook for semantic UI updates. */
 void ui_front_set_invalidate_hook(ui_front_invalidate_hook invalidate_hook)
 {
     ui_front_invalidate_render = invalidate_hook;
