@@ -21,6 +21,7 @@ typedef struct ui_text_builder ui_text_builder;
 typedef struct ui_menu_item ui_menu_item;
 typedef struct ui_simple_menu_entry ui_simple_menu_entry;
 typedef struct ui_text_output_state ui_text_output_state;
+typedef enum ui_modal_kind ui_modal_kind;
 typedef enum ui_prompt_kind ui_prompt_kind;
 typedef bool (*ui_prompt_render_hook)(int row, int col);
 typedef void (*ui_prompt_clear_hook)(void);
@@ -84,6 +85,12 @@ enum ui_prompt_kind
     UI_PROMPT_KIND_YES_NO = 3,
     UI_PROMPT_KIND_TARGET = 4,
     UI_PROMPT_KIND_MORE = 5
+};
+
+enum ui_modal_kind
+{
+    UI_MODAL_KIND_GENERIC = 0,
+    UI_MODAL_KIND_MESSAGE_HISTORY = 1
 };
 
 /* Starts writing into one text-plus-attrs builder. */
@@ -228,8 +235,16 @@ int ui_menu_get_details_visual_char(void);
 /* Asks the active frontend to render the current semantic menu state. */
 void ui_menu_render_current(void);
 
+/* Enables one frontend-neutral semantic message-history viewer path. */
+void ui_message_recall_set_semantic_enabled(bool enabled);
+/* Returns whether message recall should use the semantic viewer path. */
+bool ui_message_recall_semantic_enabled(void);
+
 /* Publishes one modal text block plus its dismiss key. */
 void ui_modal_set(cptr text, const byte* attrs, int attrs_len, int dismiss_key);
+/* Publishes one modal text block plus its dismiss key and semantic kind. */
+void ui_modal_set_kind(cptr text, const byte* attrs, int attrs_len,
+    int dismiss_key, ui_modal_kind kind);
 /* Clears the exported modal state. */
 void ui_modal_clear(void);
 /* Returns the current modal text buffer. */
@@ -242,6 +257,8 @@ const byte* ui_modal_get_attrs(void);
 int ui_modal_get_attrs_len(void);
 /* Returns the modal's configured dismiss key. */
 int ui_modal_get_dismiss_key(void);
+/* Returns the semantic kind exported for the current modal. */
+ui_modal_kind ui_modal_get_kind(void);
 /* Returns the modal revision used by the frontend cache. */
 unsigned int ui_modal_get_revision(void);
 

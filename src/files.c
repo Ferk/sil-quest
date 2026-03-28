@@ -4923,7 +4923,9 @@ static void close_game_aux(void)
             handle_stuff();
 
             /* Allow the player to look around */
+            ui_menu_set_snapshot_retained(FALSE);
             do_cmd_look();
+            ui_menu_set_snapshot_retained(TRUE);
 
             /* Load screen */
             screen_load();

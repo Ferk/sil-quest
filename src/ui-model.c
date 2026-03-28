@@ -18,7 +18,7 @@
 #include "ui-model.h"
 
 #define UI_MENU_ITEMS_MAX 96
-#define UI_MENU_TEXT_MAX 16384
+#define UI_MENU_TEXT_MAX (MESSAGE_BUF * 2)
 
 static ui_menu_item ui_menu_items[UI_MENU_ITEMS_MAX];
 static int ui_menu_item_count = 0;
@@ -48,6 +48,7 @@ static char ui_modal_text[UI_MENU_TEXT_MAX];
 static byte ui_modal_attrs[UI_MENU_TEXT_MAX];
 static int ui_modal_attrs_len = 0;
 static int ui_modal_dismiss_key = 0;
+static ui_modal_kind ui_modal_kind_value = UI_MODAL_KIND_GENERIC;
 static unsigned int ui_prompt_revision = 1;
 static char ui_prompt_text[UI_MENU_TEXT_MAX];
 static byte ui_prompt_attrs[UI_MENU_TEXT_MAX];
@@ -62,6 +63,7 @@ static ui_menu_render_hook ui_front_menu_render = NULL;
 static int ui_saved_screen_depth = 0;
 static bool ui_saved_screen_restored = FALSE;
 static unsigned int ui_saved_screen_revision = 1;
+static bool ui_message_recall_semantic = FALSE;
 
 /* Bumps the menu revision so frontends can detect updates. */
 static void ui_menu_touch(void)
@@ -624,6 +626,18 @@ void ui_menu_render_current(void)
         ui_front_menu_render();
 }
 
+/* Enables one frontend-neutral semantic message-history viewer path. */
+void ui_message_recall_set_semantic_enabled(bool enabled)
+{
+    ui_message_recall_semantic = enabled ? TRUE : FALSE;
+}
+
+/* Returns whether message recall should use the semantic viewer path. */
+bool ui_message_recall_semantic_enabled(void)
+{
+    return ui_message_recall_semantic;
+}
+
 /* Begins publishing a fresh semantic menu frame. */
 void ui_menu_begin(void)
 {
@@ -1013,9 +1027,18 @@ int ui_menu_get_details_visual_char(void)
 /* Publishes one modal text block plus its dismiss key. */
 void ui_modal_set(cptr text, const byte* attrs, int attrs_len, int dismiss_key)
 {
+    ui_modal_set_kind(
+        text, attrs, attrs_len, dismiss_key, UI_MODAL_KIND_GENERIC);
+}
+
+/* Publishes one modal text block plus its dismiss key and semantic kind. */
+void ui_modal_set_kind(cptr text, const byte* attrs, int attrs_len,
+    int dismiss_key, ui_modal_kind kind)
+{
     ui_model_set_buffer_text(ui_modal_text, ui_modal_attrs, &ui_modal_attrs_len,
         sizeof(ui_modal_text), text, attrs, attrs_len);
     ui_modal_dismiss_key = dismiss_key;
+    ui_modal_kind_value = kind;
     ui_modal_touch();
 }
 
@@ -1025,6 +1048,7 @@ void ui_modal_clear(void)
     ui_modal_text[0] = '\0';
     ui_modal_attrs_len = 0;
     ui_modal_dismiss_key = 0;
+    ui_modal_kind_value = UI_MODAL_KIND_GENERIC;
     ui_modal_touch();
 }
 
@@ -1056,6 +1080,12 @@ int ui_modal_get_attrs_len(void)
 int ui_modal_get_dismiss_key(void)
 {
     return ui_modal_dismiss_key;
+}
+
+/* Returns the semantic kind exported for the current modal. */
+ui_modal_kind ui_modal_get_kind(void)
+{
+    return ui_modal_kind_value;
 }
 
 /* Returns the modal revision used by the frontend cache. */

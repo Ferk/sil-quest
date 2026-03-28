@@ -103,6 +103,8 @@
     const UI_PROMPT_KIND_YES_NO = 3;
     const UI_PROMPT_KIND_TARGET = 4;
     const UI_PROMPT_KIND_MORE = 5;
+    const UI_MODAL_KIND_GENERIC = 0;
+    const UI_MODAL_KIND_MESSAGE_HISTORY = 1;
 
     const colors = [
       "#000000", "#ffffff", "#9ca3af", "#f59e0b",
@@ -121,6 +123,7 @@
     let lastMenuRevision = -1;
     let lastModalRevision = -1;
     let lastPromptRevision = -1;
+    let lastMessageHistoryModalRevision = -1;
     let lastBirthStateRevision = -1;
     let lastCharacterSheetRevision = -1;
     let cellStride = 8;
@@ -1133,6 +1136,11 @@
     // Returns whether the top prompt represents an active target-preview state.
     function isTargetPreviewTopPromptActive() {
       return topPromptActive && topPromptKind === UI_PROMPT_KIND_TARGET;
+    }
+
+    function canUseTargetPreviewConfirm(state = activePlayerState) {
+      return isTargetPreviewTopPromptActive() &&
+        (!state || Number(state.dead ?? 0) !== 1);
     }
 
     // Returns whether any shared semantic birth screen is active.
@@ -2830,6 +2838,7 @@
      * ========================================================================== */
 
     const semanticOverlayClasses = [
+      "overlay-message-log",
       "overlay-birth-name",
       "overlay-birth-ahw",
       "overlay-birth-history",
@@ -3835,17 +3844,49 @@
       const attrLen = api.getModalAttrsLen();
       const dismissKey =
         typeof api.getModalDismissKey === "function" ? api.getModalDismissKey() : 0;
+      const modalKind =
+        typeof api.getModalKind === "function"
+          ? Number(api.getModalKind()) || UI_MODAL_KIND_GENERIC
+          : UI_MODAL_KIND_GENERIC;
+      const modalRevision =
+        typeof api.getModalRevision === "function" ? api.getModalRevision() : 0;
       const text = readUtf8(heap, textPtr, textLen);
       const attrs = readBytes(heap, attrPtr, attrLen);
 
       if (!text) {
+        lastMessageHistoryModalRevision = -1;
         resetSemanticOverlayModes();
         return false;
       }
 
-      showSemanticOverlay(null, renderColoredText(text, attrs, 1), {
+      const modeClass =
+        modalKind === UI_MODAL_KIND_MESSAGE_HISTORY ? "overlay-message-log" : null;
+      const modalHtml =
+        modalKind === UI_MODAL_KIND_MESSAGE_HISTORY
+          ? `<div class="message-log-modal">` +
+              `<header class="message-log-modal-head">` +
+                `<h2 class="message-log-modal-title">Message History</h2>` +
+                `<p class="message-log-modal-note">Scroll to review older messages. Press Escape to close.</p>` +
+              `</header>` +
+              `<div class="message-log-modal-body">` +
+                `<div class="message-log-modal-copy">${renderColoredText(text, attrs, 1)}</div>` +
+              `</div>` +
+            `</div>`
+          : renderColoredText(text, attrs, 1);
+
+      showSemanticOverlay(modeClass, modalHtml, {
         dismissable: dismissKey > 0,
       });
+      if (
+        modalKind === UI_MODAL_KIND_MESSAGE_HISTORY &&
+        modalRevision !== lastMessageHistoryModalRevision
+      ) {
+        const bodyEl = overlayModalEl.querySelector(".message-log-modal-body");
+        if (bodyEl) {
+          bodyEl.scrollTop = bodyEl.scrollHeight;
+        }
+        lastMessageHistoryModalRevision = modalRevision;
+      }
       return true;
     }
 
@@ -3908,6 +3949,18 @@
       }
 
       activeTileContextState = null;
+
+      // When the death menu hands off to look/inspect-the-dungeon, the backend
+      // still has a captured terminal screen available. In the web frontend we
+      // want the live map plus the semantic target prompt instead of painting
+      // that saved terminal frame on top of the map.
+      if (isTargetPreviewTopPromptActive()) {
+        const state = readPlayerState(heap);
+        if (state && Number(state.ready) === 1) {
+          hideSemanticOverlay();
+          return false;
+        }
+      }
 
       const textPtr = api.getOverlayTextPtr();
       const textLen = api.getOverlayTextLen();
@@ -4566,7 +4619,14 @@
       const showClose = !compactSideOpen && canUseCloseFab();
       const showYes =
         showClose &&
-        (yesNoPromptActive || targetPreviewPromptActive || birthTextActive || birthAhwActive || birthStatsActive || skillEditorActive);
+        (
+          yesNoPromptActive ||
+          canUseTargetPreviewConfirm(state) ||
+          birthTextActive ||
+          birthAhwActive ||
+          birthStatsActive ||
+          skillEditorActive
+        );
       const showInventory = !compactSideOpen && !showClose && canUseInventoryFab(state);
       const showRanged = !compactSideOpen && !showClose && canUseRangedFab(state);
       const showState = !compactSideOpen && !showClose && canUseStateFab(state);
@@ -5101,7 +5161,8 @@
       overlayModalEl.addEventListener("click", (ev) => {
         if (
           overlayModalEl.classList.contains("overlay-menu") ||
-          overlayModalEl.classList.contains("overlay-tile-context")
+          overlayModalEl.classList.contains("overlay-tile-context") ||
+          overlayModalEl.classList.contains("overlay-message-log")
         ) {
           return;
         }
@@ -5409,12 +5470,18 @@
         ev.preventDefault();
         ev.stopPropagation();
         const yesNoPromptActive = isYesNoTopPromptActive();
-        const targetPreviewPromptActive = isTargetPreviewTopPromptActive();
         const birthTextActive = isBirthTextScreenActive();
         const birthAhwActive = isBirthAhwScreenActive();
         const birthStatsActive = isBirthStatsScreenActive();
         const skillEditorActive = isCharacterSkillEditorActive();
-        if (!yesNoPromptActive && !targetPreviewPromptActive && !birthTextActive && !birthAhwActive && !birthStatsActive && !skillEditorActive) return;
+        if (
+          !yesNoPromptActive &&
+          !canUseTargetPreviewConfirm(activePlayerState) &&
+          !birthTextActive &&
+          !birthAhwActive &&
+          !birthStatsActive &&
+          !skillEditorActive
+        ) return;
 
         setCompactSideOpen(false);
         if (birthTextActive || birthAhwActive) {
@@ -6078,6 +6145,10 @@
           getModalAttrsPtr: Module._web_get_modal_attrs_ptr,
           getModalAttrsLen: Module._web_get_modal_attrs_len,
           getModalDismissKey: Module._web_get_modal_dismiss_key,
+          getModalKind:
+            typeof Module._web_get_modal_kind === "function"
+              ? Module._web_get_modal_kind
+              : null,
           getModalRevision: Module._web_get_modal_revision,
           getPromptKind: Module._web_get_prompt_kind,
           getPromptMoreHint: Module._web_get_prompt_more_hint,

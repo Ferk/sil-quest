@@ -644,6 +644,18 @@
       touch-action: pan-x pan-y;
     }
 
+    #overlay-modal.overlay-message-log {
+      padding: 1rem;
+      width: min(72rem, calc(100% - 2rem));
+      height: min(46rem, calc(100% - 2rem));
+      max-width: calc(100% - 2rem);
+      max-height: calc(100% - 2rem);
+      box-sizing: border-box;
+      white-space: normal;
+      touch-action: pan-y;
+      overflow: hidden;
+    }
+
     #overlay-modal.overlay-tile-context {
       padding: 1rem;
       width: min(34rem, calc(100% - 2rem));
@@ -657,6 +669,51 @@
 
     #overlay-modal.overlay-dismissable {
       cursor: pointer;
+    }
+
+    #overlay-modal.overlay-message-log.overlay-dismissable {
+      cursor: auto;
+    }
+
+    .message-log-modal {
+      display: grid;
+      grid-template-rows: auto minmax(0, 1fr);
+      gap: 1rem;
+      height: 100%;
+      min-height: 0;
+    }
+
+    .message-log-modal-head {
+      display: grid;
+      gap: 0.35rem;
+      align-content: start;
+    }
+
+    .message-log-modal-title {
+      margin: 0;
+      font-size: 1.35rem;
+      color: #fde047;
+    }
+
+    .message-log-modal-note {
+      margin: 0;
+      color: #9fb0c9;
+      line-height: 1.35;
+    }
+
+    .message-log-modal-body {
+      height: 100%;
+      min-height: 0;
+      overflow: auto;
+      overscroll-behavior: contain;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    .message-log-modal-copy {
+      display: grid;
+      align-content: start;
+      min-height: 100%;
+      line-height: 1.35;
     }
 
     /* --------------------------------------------------------------------- */
@@ -1718,6 +1775,7 @@
       }
 
       #overlay-modal.overlay-menu,
+      #overlay-modal.overlay-message-log,
       #overlay-modal.overlay-birth-history,
       #overlay-modal.overlay-character-sheet,
       #overlay-modal.overlay-character-skills {
@@ -1816,6 +1874,14 @@
       }
 
       #overlay-modal.overlay-menu {
+        padding: 0.75rem;
+        width: auto;
+        height: auto;
+        max-width: none;
+        max-height: none;
+      }
+
+      #overlay-modal.overlay-message-log {
         padding: 0.75rem;
         width: auto;
         height: auto;

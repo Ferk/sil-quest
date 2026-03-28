@@ -22,6 +22,11 @@
 
 /*max length of note output*/
 #define LINEWRAP 75
+#define UI_MESSAGE_HISTORY_TEXT_MAX (MESSAGE_BUF * 2)
+
+/* Reused buffers for the semantic full-message history modal. */
+static char ui_message_history_text[UI_MESSAGE_HISTORY_TEXT_MAX];
+static byte ui_message_history_attrs[UI_MESSAGE_HISTORY_TEXT_MAX];
 
 /*
  *  Header and footer marker string for pref file dumps
@@ -6836,6 +6841,44 @@ void do_cmd_message_one(void)
  *
  * Attempt to only hilite the matching portions of the string.
  */
+static void do_cmd_messages_semantic(void)
+{
+    ui_text_builder builder;
+    int count = (int)message_num();
+    int age;
+
+    ui_text_builder_init(
+        &builder, ui_message_history_text, ui_message_history_attrs,
+        sizeof(ui_message_history_text));
+
+    if (count <= 0)
+    {
+        ui_text_builder_append_line(&builder, "(no messages)", TERM_WHITE);
+    }
+    else
+    {
+        for (age = count - 1; age >= 0; age--)
+        {
+            cptr msg = message_str((s16b)age);
+            byte attr = message_color((s16b)age);
+
+            if (!msg || !msg[0])
+                continue;
+
+            ui_text_builder_append_line(&builder, msg, attr);
+        }
+    }
+
+    ui_modal_set_kind(ui_message_history_text, ui_message_history_attrs,
+        ui_text_builder_length(&builder), ESCAPE,
+        UI_MODAL_KIND_MESSAGE_HISTORY);
+
+    while (!ui_input_is_cancel_key(inkey()))
+        ;
+
+    ui_modal_clear();
+}
+
 void do_cmd_messages(void)
 {
     char ch;
@@ -6851,6 +6894,12 @@ void do_cmd_messages(void)
 
     /* Wipe shower */
     my_strcpy(shower, "", sizeof(shower));
+
+    if (ui_message_recall_semantic_enabled())
+    {
+        do_cmd_messages_semantic();
+        return;
+    }
 
     /* Total messages */
     n = message_num();

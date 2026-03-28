@@ -221,6 +221,7 @@ EMSCRIPTEN_KEEPALIVE int web_get_modal_text_len(void);
 EMSCRIPTEN_KEEPALIVE uintptr_t web_get_modal_attrs_ptr(void);
 EMSCRIPTEN_KEEPALIVE int web_get_modal_attrs_len(void);
 EMSCRIPTEN_KEEPALIVE int web_get_modal_dismiss_key(void);
+EMSCRIPTEN_KEEPALIVE int web_get_modal_kind(void);
 EMSCRIPTEN_KEEPALIVE unsigned int web_get_modal_revision(void);
 EMSCRIPTEN_KEEPALIVE int web_get_prompt_kind(void);
 EMSCRIPTEN_KEEPALIVE int web_get_prompt_more_hint(void);
@@ -1478,6 +1479,9 @@ static void web_build_player_state(void)
     web_json_append_field_int(
         web_player_state, sizeof(web_player_state), &off, &first,
         "ready", 1);
+    web_json_append_field_int(
+        web_player_state, sizeof(web_player_state), &off, &first,
+        "dead", p_ptr->is_dead ? 1 : 0);
     web_json_append_field_string(
         web_player_state, sizeof(web_player_state), &off, &first,
         "name", player_name);
@@ -2805,6 +2809,7 @@ errr init_web(int argc, char** argv)
     web_fx_rows = 0;
     web_map_cells_frame = UINT32_MAX;
     ui_birth_set_submit_hook((ui_birth_submit_hook)web_consume_birth_submission);
+    ui_message_recall_set_semantic_enabled(TRUE);
 
     return (0);
 }
@@ -3172,6 +3177,11 @@ EMSCRIPTEN_KEEPALIVE int web_get_modal_attrs_len(void)
 EMSCRIPTEN_KEEPALIVE int web_get_modal_dismiss_key(void)
 {
     return ui_modal_get_dismiss_key();
+}
+
+EMSCRIPTEN_KEEPALIVE int web_get_modal_kind(void)
+{
+    return ui_modal_get_kind();
 }
 
 EMSCRIPTEN_KEEPALIVE unsigned int web_get_modal_revision(void)
