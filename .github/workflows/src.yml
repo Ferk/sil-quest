@@ -78,22 +78,22 @@ jobs:
         if: inputs.version != ''
         run: |
           # Create a clean copy without .git
-          rsync -a --exclude='.git' . "../Sil-Q-${{ inputs.version }}-src"
-          tar czf "Sil-Q-${{ inputs.version }}-src.tar.gz" -C .. "Sil-Q-${{ inputs.version }}-src"
+          rsync -a --exclude='.git' . "../Sil-Quest-${{ inputs.version }}-src"
+          tar czf "Sil-Quest-${{ inputs.version }}-src.tar.gz" -C .. "Sil-Quest-${{ inputs.version }}-src"
 
       - name: Upload release archive
         if: inputs.version != ''
         uses: actions/upload-artifact@v6
         with:
           name: source-archive
-          path: Sil-Q-*-src.tar.gz
+          path: Sil-Quest-*-src.tar.gz
           if-no-files-found: error
 
       - name: Upload snapshot artifact
         if: inputs.version == ''
         uses: actions/upload-artifact@v6
         with:
-          name: Sil-Q-src
+          name: Sil-Quest-src
           path: .
           # Otherwise directories such as `lib/apex/` are excluded, which only
           # contain a stub `.keepalive` or `.gitignore` file.  Without these

@@ -507,7 +507,7 @@ int main(int argc, char* argv[])
             {
                 printf("     %s   %s\n", modules[i].name, modules[i].help);
             }
-            puts("  -v       Print Sil-Q version");
+            puts("  -v       Print Sil-Quest version");
 
             /* Actually abort the process */
             quit(NULL);

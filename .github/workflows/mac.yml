@@ -93,29 +93,28 @@ jobs:
       - name: Create release archive
         if: inputs.version != ''
         run: |
-          zip -r "Sil-Q-${{ inputs.version }}-macos-terminal.zip" \
-            sil lib LICENSE.md README.md "Sil-Q v1.5.0.pdf"
+          zip -r "Sil-Quest-${{ inputs.version }}-macos-terminal.zip" \
+            sil lib LICENSE.md README.md
 
       - name: Upload release archive
         if: inputs.version != ''
         uses: actions/upload-artifact@v6
         with:
           name: macos-terminal-archive
-          path: Sil-Q-*-macos-terminal.zip
+          path: Sil-Quest-*-macos-terminal.zip
           if-no-files-found: error
 
       - name: Upload snapshot artifact
         if: inputs.version == ''
         uses: actions/upload-artifact@v6
         with:
-          name: Sil-Q-macos-terminal
+          name: Sil-Quest-macos-terminal
           # IMPORTANT: Do NOT use quotes to escape spaces in filenames.
           path: |
             sil
             lib
             LICENSE.md
             README.md
-            Sil-Q v1.5.0.pdf
           # Otherwise directories such as `lib/apex/` are excluded, which only
           # contain a stub `.keepalive` or `.gitignore` file.  Without these
           # pre-generated directories, the game will have problems at run-time.

@@ -10,7 +10,7 @@
 # A: action
 # C: keyset : key
 #
-# There are 4 keysets (0, 1, 2, 3), representing the Sil-Q and Angband-style
+# There are 4 keysets (0, 1, 2, 3), representing the Sil-Quest and Angband-style
 # keysets without and with the hjkl movement.
 #
 # When you press the 'key', the underlying 'action' is triggered.
@@ -27,7 +27,7 @@
 
 
 ###############################################################################
-# Sil-Q keyset mappings
+# Sil-Quest keyset mappings
 ###############################################################################
 
 # Stay still (numerical)
@@ -61,7 +61,7 @@ C:0:9
 
 
 ###############################################################################
-# Sil-Q keyset mappings with hjkl movement
+# Sil-Quest keyset mappings with hjkl movement
 ###############################################################################
 
 # Stay still (numerical)

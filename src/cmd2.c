@@ -2980,7 +2980,7 @@ void do_cmd_alter(void)
      * unwanted side-effects, we opted for special-casing known chests and
      * skeletons instead.
      *
-     * Details at https://github.com/sil-quirk/sil-q/issues/107
+     * Details in the predecessor project's historical issue #107.
      */
     bool has_known_searchable = FALSE;
 

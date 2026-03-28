@@ -1,6 +1,6 @@
 # Compiling Instructions
 
-Sil-Q currently supports two frontend targets from this repository:
+Sil-Quest currently supports two frontend targets from this repository:
 
 - Terminal frontend via GCU (curses/ncurses) on Linux and macOS
 - Web frontend via Emscripten/WebAssembly
@@ -9,20 +9,20 @@ The native Windows, Cocoa, and X11 frontends are no longer built from this tree.
 
 ## Preparation
 
-The initial step is to download the Sil-Q source code. You have two options.
+The initial step is to download the Sil-Quest source code. You have two options.
 
-**Option 1: Clone the Sil-Q git repository.**
+**Option 1: Clone the Sil-Quest git repository.**
 
 ```shell
-# Clone the Sil-Q repository and change to its directory
-$ git clone git@github.com:sil-quirk/sil-q.git Sil-Q && cd Sil-Q
+# Clone the Sil-Quest repository and change to its directory
+$ git clone git@github.com:Ferk/sil-quest.git Sil-Quest && cd Sil-Quest
 ```
 
 **Option 2: Download the source release archive.**
 
 If you have downloaded a source archive:
 
-- Unpack it into a directory such as `Sil-Q/`
+- Unpack it into a directory such as `Sil-Quest/`
 - Keep the `lib/` directory next to the built executable or web bundle
 - Run the build steps below from the top-level project directory
 
@@ -39,7 +39,7 @@ Install the terminal build dependencies. You also need `cmake` and `ninja`.
 > Example for macOS systems:
 > `brew install cmake ninja ncurses`
 
-Build Sil-Q:
+Build Sil-Quest:
 
 ```shell
 $ cmake -G Ninja -S . -B build -DCMAKE_BUILD_TYPE=Release
@@ -70,7 +70,7 @@ $ cd emsdk
 $ ./emsdk install 4.0.20
 $ ./emsdk activate 4.0.20
 $ . ./emsdk_env.sh
-$ cd ../Sil-Q
+$ cd ../Sil-Quest
 ```
 
 Configure and build the web frontend:

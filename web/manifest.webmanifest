@@ -1,8 +1,8 @@
 {
   "id": "./",
-  "name": "Sil-Q",
-  "short_name": "Sil-Q",
-  "description": "Play Sil-Q in the browser.",
+  "name": "Sil-Quest",
+  "short_name": "Sil-Quest",
+  "description": "Play Sil-Quest in the browser.",
   "lang": "en",
   "start_url": "./",
   "scope": "./",

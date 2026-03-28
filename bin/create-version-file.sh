@@ -59,7 +59,7 @@ readonly VERSION_EXTRA="$(grep '#define VERSION_EXTRA' "$DEFINES_H" | awk '{prin
 readonly GIT_CURRENT_HASH="$(git rev-parse --short HEAD)"
 
 echo "Creating version file '$VERSION_FILE'"
-echo "Sil-Q version $VERSION_STRING ($VERSION_MAJOR.$VERSION_MINOR.$VERSION_PATCH.$VERSION_EXTRA)" >"$VERSION_FILE"
+echo "Sil-Quest version $VERSION_STRING ($VERSION_MAJOR.$VERSION_MINOR.$VERSION_PATCH.$VERSION_EXTRA)" >"$VERSION_FILE"
 echo "git commit: $GIT_CURRENT_HASH" >>"$VERSION_FILE"
 
 echo "OK"

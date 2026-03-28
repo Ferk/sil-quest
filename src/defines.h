@@ -42,7 +42,7 @@
 /*
  * Name of the version/variant
  */
-#define VERSION_NAME "Sil-Q"
+#define VERSION_NAME "Sil-Quest"
 
 /*
  * Current version string (defined by CMake, fallback for non-CMake builds)

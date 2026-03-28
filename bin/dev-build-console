@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Generates a debug build of the Sil-Q terminal frontend in a separate build
+# Generates a debug build of the Sil-Quest terminal frontend in a separate build
 # directory for Linux or macOS.
 #
 # Requires ASan and UBsan installed.

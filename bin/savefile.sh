@@ -2,7 +2,7 @@
 #
 # File: savefile.sh
 #
-# Reads or writes the game version in the file header of a Sil-Q savefile.
+# Reads or writes the game version in the file header of a Sil-Quest savefile.
 
 set -euo pipefail
 
@@ -13,7 +13,7 @@ set -euo pipefail
 usage() {
     echo "Usage: $(basename "$0") [-h|--help] <file> [<version>]"
     echo
-    echo "Reads or writes the game version of a Sil-Q savefile stored in its"
+    echo "Reads or writes the game version of a Sil-Quest savefile stored in its"
     echo "file header (first four bytes)."
     echo
     echo "  -h, --help  Print this usage help and quit"
@@ -26,7 +26,7 @@ usage() {
     echo
     echo "              WARNING: Modifying a savefile's version is a dangerous"
     echo "              operation. It is YOUR responsibility to ensure that the"
-    echo "              modified savefile can be read by that Sil-Q version."
+    echo "              modified savefile can be read by that Sil-Quest version."
     echo
     echo "Examples:"
     echo
@@ -113,4 +113,4 @@ echo
 echo "  *** WARNING WARNING WARNING *** "
 echo
 echo "It is YOUR responsibility to ensure that the modified savefile"
-echo "can actually be read by Sil-Q version $version !"
+echo "can actually be read by Sil-Quest version $version !"

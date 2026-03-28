@@ -96,7 +96,7 @@ fi
 readonly print_version_command="$SIL_BINARY -v"
 # shellcheck disable=SC2155
 readonly print_version_command_output=$(eval "$print_version_command")
-readonly exe_version_string=${print_version_command_output#"Sil-Q version "}
+readonly exe_version_string=${print_version_command_output#"Sil-Quest version "}
 
 if [[ "$exe_version_string" != "$cmake_version_string" ]]; then
     echo "[ERROR] Version mismatch between CMakeLists.txt and sil binary" >&2

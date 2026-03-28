@@ -1,6 +1,6 @@
 # File: CMakeLists.txt
 #
-# CMake build configuration for Sil-Q.
+# CMake build configuration for Sil-Quest.
 #
 # Supported frontends:
 #   - Terminal: GCU (curses/ncurses) on Unix-like systems
@@ -94,7 +94,7 @@ endif()
 project(Sil
     VERSION 1.5.1.0
     LANGUAGES C
-    DESCRIPTION "Sil-Q is a free, single-player dungeon infiltration game")
+    DESCRIPTION "Sil-Quest is a free, single-player dungeon infiltration game")
 set(PROJECT_VERSION_SUFFIX "-beta1")
 set(PROJECT_VERSION_STRING "${PROJECT_VERSION}${PROJECT_VERSION_SUFFIX}")
 
@@ -301,8 +301,72 @@ if (SUPPORT_WEB_FRONTEND)
         "Directory for generated web artifacts (sil.js/sil.wasm/sil.data)")
     set(WEB_TILESET_SOURCE "${CMAKE_SOURCE_DIR}/lib/xtra/graf/16x16_microchasm.png")
     set(WEB_TILESET_TARGET "${WEB_LIB_DIR}/16x16_microchasm.png")
+    set(WEB_VERSION_TEMPLATE "${WEB_ROOT_DIR}/version.js.in")
+    set(WEB_VERSION_OUTPUT "${WEB_LIB_DIR}/version.js")
 
     file(MAKE_DIRECTORY "${WEB_LIB_DIR}")
+
+    # Stamp the service worker cache name with the current version and commit.
+    set(WEB_BUILD_GIT_HASH "nogit")
+    find_package(Git QUIET)
+    if (Git_FOUND)
+        execute_process(
+            COMMAND "${GIT_EXECUTABLE}" rev-parse --git-dir
+            WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
+            OUTPUT_VARIABLE GIT_DIR_RAW
+            OUTPUT_STRIP_TRAILING_WHITESPACE
+            ERROR_QUIET
+            RESULT_VARIABLE GIT_DIR_RESULT
+        )
+        if (GIT_DIR_RESULT EQUAL 0 AND NOT GIT_DIR_RAW STREQUAL "")
+            if (IS_ABSOLUTE "${GIT_DIR_RAW}")
+                set(GIT_DIR_PATH "${GIT_DIR_RAW}")
+            else()
+                set(GIT_DIR_PATH "${CMAKE_SOURCE_DIR}/${GIT_DIR_RAW}")
+            endif()
+
+            if (EXISTS "${GIT_DIR_PATH}/HEAD")
+                set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
+                    "${GIT_DIR_PATH}/HEAD")
+            endif()
+            if (EXISTS "${GIT_DIR_PATH}/packed-refs")
+                set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
+                    "${GIT_DIR_PATH}/packed-refs")
+            endif()
+
+            execute_process(
+                COMMAND "${GIT_EXECUTABLE}" symbolic-ref -q HEAD
+                WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
+                OUTPUT_VARIABLE GIT_HEAD_REF
+                OUTPUT_STRIP_TRAILING_WHITESPACE
+                ERROR_QUIET
+                RESULT_VARIABLE GIT_HEAD_REF_RESULT
+            )
+            if (GIT_HEAD_REF_RESULT EQUAL 0 AND NOT GIT_HEAD_REF STREQUAL "")
+                if (EXISTS "${GIT_DIR_PATH}/${GIT_HEAD_REF}")
+                    set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
+                        "${GIT_DIR_PATH}/${GIT_HEAD_REF}")
+                endif()
+            endif()
+        endif()
+
+        execute_process(
+            COMMAND "${GIT_EXECUTABLE}" rev-parse --short HEAD
+            WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
+            OUTPUT_VARIABLE WEB_BUILD_GIT_HASH
+            OUTPUT_STRIP_TRAILING_WHITESPACE
+            ERROR_QUIET
+            RESULT_VARIABLE GIT_HASH_RESULT
+        )
+        if (NOT GIT_HASH_RESULT EQUAL 0 OR WEB_BUILD_GIT_HASH STREQUAL "")
+            set(WEB_BUILD_GIT_HASH "nogit")
+        endif()
+    endif()
+
+    set(WEB_APP_CACHE_NAME
+        "sil-quest-web-v${PROJECT_VERSION_STRING}-${WEB_BUILD_GIT_HASH}")
+    string(TOLOWER "${WEB_APP_CACHE_NAME}" WEB_APP_CACHE_NAME)
+    configure_file("${WEB_VERSION_TEMPLATE}" "${WEB_VERSION_OUTPUT}" @ONLY)
 
     set_target_properties(${SIL_TARGET} PROPERTIES
         RUNTIME_OUTPUT_DIRECTORY "${WEB_LIB_DIR}"

@@ -30,16 +30,16 @@
 
 EM_JS(void, web_dispatch_notification_js,
     (int kind, int arg0, int arg1, int arg2, const char* text), {
-        if (typeof globalThis.__silqOnBackendNotification === "function")
+        if (typeof globalThis.__silquestOnBackendNotification === "function")
         {
-            globalThis.__silqOnBackendNotification(
+            globalThis.__silquestOnBackendNotification(
                 kind, arg0, arg1, arg2, text ? UTF8ToString(text) : "");
         }
     });
 
 EM_JS(void, web_request_render_js, (), {
-    if (typeof globalThis.__silqRequestRender === "function")
-        globalThis.__silqRequestRender();
+    if (typeof globalThis.__silquestRequestRender === "function")
+        globalThis.__silquestRequestRender();
 });
 #else
 #include <unistd.h>

@@ -1,3 +1,10 @@
+// The build stamps shared version metadata into web/lib/version.js.
+try {
+  importScripts("./lib/version.js");
+} catch (error) {
+  console.warn("Failed to load build-stamped service worker metadata:", error);
+}
+
 const SOUND_ASSETS = [
   "./assets/sound/bell.flac",
   "./assets/sound/coin.flac",
@@ -38,7 +45,7 @@ const SOUND_ASSETS = [
   "./assets/sound/teleport.flac",
 ].map((path) => encodeURI(path));
 
-const APP_CACHE = "sil-q-web-v6";
+const APP_CACHE = globalThis.SIL_QUEST_APP_CACHE || "sil-quest-web-dev";
 const APP_ASSETS = [
   "./",
   "./index.html",
@@ -52,6 +59,7 @@ const APP_ASSETS = [
   ...SOUND_ASSETS,
   "./assets/icon-song.png",
   "./assets/unscii-fantasy.woff",
+  "./lib/version.js",
   "./lib/sil.js",
   "./lib/sil.wasm",
   "./lib/sil.data",

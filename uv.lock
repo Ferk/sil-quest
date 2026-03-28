@@ -63,7 +63,7 @@ wheels = [
 ]
 
 [[package]]
-name = "sil-q"
+name = "sil-quest"
 version = "1.5.1"
 source = { virtual = "." }
 

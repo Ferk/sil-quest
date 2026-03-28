@@ -925,7 +925,7 @@
         return;
       }
 
-      globalThis.dispatchEvent(new globalThis.CustomEvent("silq:notification", {
+      globalThis.dispatchEvent(new globalThis.CustomEvent("silquest:notification", {
         detail: notification,
       }));
     }
@@ -1001,7 +1001,7 @@
       });
     }
 
-    globalThis.__silqOnBackendNotification = (kind, arg0, arg1, arg2, text) => {
+    globalThis.__silquestOnBackendNotification = (kind, arg0, arg1, arg2, text) => {
       enqueueBackendNotification(
         Number(kind) || 0,
         Number(arg0) || 0,
@@ -1011,7 +1011,7 @@
       );
     };
 
-    globalThis.__silqRequestRender = () => {
+    globalThis.__silquestRequestRender = () => {
       requestRender(false);
     };
 

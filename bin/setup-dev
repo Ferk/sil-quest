@@ -2,7 +2,7 @@
 #
 # File: setup-dev.sh
 #
-# Creates a local dev environment for Sil-Q.
+# Creates a local dev environment for Sil-Quest.
 #
 # Supported platforms:
 # - macOS (with homebrew)
@@ -61,7 +61,7 @@ if [[ $OS = "Linux" ]]; then
 fi
 
 ###############################################################################
-# Install Sil-Q dev environment
+# Install Sil-Quest dev environment
 ###############################################################################
 
 # Prepare package managers where needed
@@ -73,9 +73,9 @@ if [[ $OS = "Darwin" ]]; then
     fi
 fi
 
-# Install the dev toolchain for Sil-Q. Fortunately, all these packages are
+# Install the dev toolchain for Sil-Quest. Fortunately, all these packages are
 # provided out-of-the-box by the respective package managers for each platform.
-echo "== Installing dev toolchain for Sil-Q =="
+echo "== Installing dev toolchain for Sil-Quest =="
 if [[ $OS = "Darwin" ]]; then
     # NOTE: Default clang (Xcode) on macOS ships with ASan and UBsan included
     brew install cmake ninja ncurses
