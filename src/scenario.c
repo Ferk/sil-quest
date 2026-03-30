@@ -213,6 +213,12 @@ struct scenario_monster_spec
     u32b mflag;
     bool mflag_set;
 
+    bool home_wander;
+    bool home_wander_set;
+
+    bool no_open_doors;
+    bool no_open_doors_set;
+
     byte previous_action[ACTION_MAX];
     bool previous_action_set[ACTION_MAX];
 
@@ -1148,6 +1154,18 @@ static bool scenario_parse_monster_modifier(
             spec->sleep_set = TRUE;
             return (TRUE);
         }
+        if (!my_stricmp(local, "home_wander"))
+        {
+            spec->home_wander = TRUE;
+            spec->home_wander_set = TRUE;
+            return (TRUE);
+        }
+        if (!my_stricmp(local, "no_open_doors"))
+        {
+            spec->no_open_doors = TRUE;
+            spec->no_open_doors_set = TRUE;
+            return (TRUE);
+        }
         return (scenario_fail(line, "Unknown monster modifier."));
     }
 
@@ -1161,6 +1179,24 @@ static bool scenario_parse_monster_modifier(
             return (scenario_fail(line, "Invalid sleep flag."));
         spec->sleep = flag;
         spec->sleep_set = TRUE;
+        return (TRUE);
+    }
+
+    if (!my_stricmp(key, "home_wander"))
+    {
+        if (!scenario_parse_bool(value, &flag))
+            return (scenario_fail(line, "Invalid home_wander flag."));
+        spec->home_wander = flag;
+        spec->home_wander_set = TRUE;
+        return (TRUE);
+    }
+
+    if (!my_stricmp(key, "no_open_doors"))
+    {
+        if (!scenario_parse_bool(value, &flag))
+            return (scenario_fail(line, "Invalid no_open_doors flag."));
+        spec->no_open_doors = flag;
+        spec->no_open_doors_set = TRUE;
         return (TRUE);
     }
 
@@ -1771,6 +1807,20 @@ static void scenario_apply_monster_spec(
         m_ptr->turns_stationary = spec->turns_stationary;
     if (spec->mflag_set)
         m_ptr->mflag = spec->mflag;
+    if (spec->home_wander_set)
+    {
+        if (spec->home_wander)
+            m_ptr->mflag |= (MFLAG_HOME_WANDER);
+        else
+            m_ptr->mflag &= ~(MFLAG_HOME_WANDER);
+    }
+    if (spec->no_open_doors_set)
+    {
+        if (spec->no_open_doors)
+            m_ptr->mflag |= (MFLAG_NO_OPEN_DOORS);
+        else
+            m_ptr->mflag &= ~(MFLAG_NO_OPEN_DOORS);
+    }
 
     for (i = 0; i < ACTION_MAX; i++)
     {
@@ -2903,6 +2953,8 @@ static void scenario_export_monster_modifiers(
     FILE* fff, const monster_type* m_ptr)
 {
     int i;
+    u32b exported_mflag
+        = m_ptr->mflag & ~(MFLAG_HOME_WANDER | MFLAG_NO_OPEN_DOORS);
 
     fprintf(fff, ":hp=%d:maxhp=%d:alertness=%d", m_ptr->hp, m_ptr->maxhp,
         m_ptr->alertness);
@@ -2944,8 +2996,12 @@ static void scenario_export_monster_modifiers(
         fprintf(fff, ":consecutive_attacks=%d", m_ptr->consecutive_attacks);
     if (m_ptr->turns_stationary)
         fprintf(fff, ":turns_stationary=%d", m_ptr->turns_stationary);
-    if (m_ptr->mflag)
-        fprintf(fff, ":mflag=0x%lx", (unsigned long)m_ptr->mflag);
+    if (m_ptr->mflag & MFLAG_HOME_WANDER)
+        fprintf(fff, ":home_wander=1");
+    if (m_ptr->mflag & MFLAG_NO_OPEN_DOORS)
+        fprintf(fff, ":no_open_doors=1");
+    if (exported_mflag)
+        fprintf(fff, ":mflag=0x%lx", (unsigned long)exported_mflag);
 
     for (i = 0; i < ACTION_MAX; i++)
     {

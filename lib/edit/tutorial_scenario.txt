@@ -197,14 +197,14 @@ N:7:13:Wolf:hp=13:maxhp=13:alertness=-12:mspeed=3:energy=8:stance=0:morale=0:tmp
 N:7:14:Wolf:hp=17:maxhp=17:alertness=-2:mspeed=3:energy=3:stance=0:morale=0:tmp_morale=0:image_r_idx=154:mana=15:song=100
 N:7:15:Wolf:hp=17:maxhp=17:alertness=-5:mspeed=3:energy=0:stance=0:morale=0:tmp_morale=0:image_r_idx=93:mana=15:song=100
 N:7:16:Wolf:hp=11:maxhp=11:alertness=-10:mspeed=3:energy=6:stance=0:morale=0:tmp_morale=0:image_r_idx=243:mana=15:song=100
-N:23:47:Orc soldier:hp=24:maxhp=24:alertness=-14:mspeed=2:energy=2:stance=0:morale=0:tmp_morale=0:image_r_idx=41:wandering_idx=308:wandering_dist=50:mana=15:song=100
-N:25:47:Orc soldier:hp=23:maxhp=23:alertness=-12:mspeed=2:energy=0:stance=0:morale=0:tmp_morale=0:image_r_idx=206:wandering_idx=307:wandering_dist=50:mana=15:song=100
-N:12:6:Orc soldier:hp=24:maxhp=24:alertness=-3:mspeed=2:energy=0:stance=0:morale=0:tmp_morale=0:image_r_idx=184:wandering_idx=304:wandering_dist=50:mana=15:song=100
-N:9:6:Orc soldier:hp=14:maxhp=14:alertness=-2:mspeed=2:energy=2:stance=0:morale=0:tmp_morale=0:image_r_idx=114:wandering_idx=303:wandering_dist=50:mana=15:song=100
-N:9:40:Orc archer:hp=21:maxhp=21:alertness=-8:mspeed=2:energy=8:stance=2:morale=100:tmp_morale=0:image_r_idx=104:wandering_idx=301:wandering_dist=1:song=100:prev2=8:prev4=2
-N:10:52:Young fire-drake:hp=81:maxhp=81:alertness=-14:mspeed=2:energy=37:stance=2:morale=230:tmp_morale=0:image_r_idx=92:wandering_idx=306:wandering_dist=50:mana=30:song=100
-N:20:40:Orc soldier:hp=27:maxhp=27:alertness=-7:mspeed=2:energy=0:stance=0:morale=0:tmp_morale=0:image_r_idx=101:wandering_idx=305:wandering_dist=50:mana=15:song=100
-N:6:40:Orc archer:hp=15:maxhp=15:alertness=-2:mspeed=2:energy=9:stance=2:morale=100:tmp_morale=0:image_r_idx=94:wandering_idx=300:wandering_dist=1:song=100:prev2=8:prev4=2
-N:10:6:Orc soldier:hp=24:maxhp=24:alertness=-2:mspeed=2:energy=5:stance=0:morale=0:tmp_morale=0:image_r_idx=204:wandering_idx=302:wandering_dist=50:mana=15:song=100
+N:23:47:Orc soldier:hp=24:maxhp=24:alertness=-14:mspeed=2:energy=2:stance=0:morale=0:tmp_morale=0:image_r_idx=41:wandering_idx=308:wandering_dist=50:mana=15:song=100:home_wander=1
+N:25:47:Orc soldier:hp=23:maxhp=23:alertness=-12:mspeed=2:energy=0:stance=0:morale=0:tmp_morale=0:image_r_idx=206:wandering_idx=307:wandering_dist=50:mana=15:song=100:home_wander=1
+N:12:6:Orc soldier:hp=24:maxhp=24:alertness=-3:mspeed=2:energy=0:stance=0:morale=0:tmp_morale=0:image_r_idx=184:wandering_idx=304:wandering_dist=50:mana=15:song=100:home_wander=1
+N:9:6:Orc soldier:hp=14:maxhp=14:alertness=-2:mspeed=2:energy=2:stance=0:morale=0:tmp_morale=0:image_r_idx=114:wandering_idx=303:wandering_dist=50:mana=15:song=100:home_wander=1
+N:9:40:Orc archer:hp=21:maxhp=21:alertness=-8:mspeed=2:energy=8:stance=2:morale=100:tmp_morale=0:image_r_idx=104:wandering_idx=301:wandering_dist=1:song=100:home_wander=1:prev2=8:prev4=2
+N:10:52:Young fire-drake:hp=81:maxhp=81:alertness=-14:mspeed=2:energy=37:stance=2:morale=230:tmp_morale=0:image_r_idx=92:wandering_idx=306:wandering_dist=50:mana=30:song=100:home_wander=1
+N:20:40:Orc soldier:hp=27:maxhp=27:alertness=-7:mspeed=2:energy=0:stance=0:morale=0:tmp_morale=0:image_r_idx=101:wandering_idx=305:wandering_dist=50:mana=15:song=100:home_wander=1
+N:6:40:Orc archer:hp=15:maxhp=15:alertness=-2:mspeed=2:energy=9:stance=2:morale=100:tmp_morale=0:image_r_idx=94:wandering_idx=300:wandering_dist=1:song=100:home_wander=1:prev2=8:prev4=2
+N:10:6:Orc soldier:hp=24:maxhp=24:alertness=-2:mspeed=2:energy=5:stance=0:morale=0:tmp_morale=0:image_r_idx=204:wandering_idx=302:wandering_dist=50:mana=15:song=100:home_wander=1
 N:7:51:Fire-drake hatchling:hp=26:maxhp=26:alertness=-8:mspeed=2:energy=40:stance=2:morale=170:tmp_morale=0:image_r_idx=132:mana=20:song=100
 N:25:29:Tanglethorn:hp=19:maxhp=19:alertness=0:mspeed=2:energy=4:stance=0:morale=0:tmp_morale=0:image_r_idx=194:mana=15:song=100
