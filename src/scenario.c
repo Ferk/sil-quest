@@ -24,6 +24,14 @@
 #define SCENARIO_MAX_TERRAIN_LEGENDS 96
 #define SCENARIO_MAX_FLOOR_OBJECTS 512
 #define SCENARIO_MAX_FLOOR_MONSTERS MAX_MONSTERS
+#define SCENARIO_MAX_GRID_TAGS 128
+#define SCENARIO_MAX_TEXTS 64
+#define SCENARIO_MAX_TEXT_LEN 4096
+#define SCENARIO_MAX_RULES 128
+#define SCENARIO_MAX_RULE_TERMS 8
+#define SCENARIO_MAX_RULE_ACTIONS 8
+#define SCENARIO_MAX_NAME_LEN 32
+#define SCENARIO_MAX_FLAGS 32
 
 #define SCN_FLAG_LIT 0x01
 
@@ -31,6 +39,14 @@
 
 #define SCN_ENTITY_MONSTER 1
 #define SCN_ENTITY_OBJECT 2
+
+#define SCN_EVENT_SEE_MONSTER 1
+#define SCN_EVENT_USE_EXIT 2
+#define SCN_EVENT_DEATH 3
+
+#define SCN_ACTION_SET_FLAG 1
+#define SCN_ACTION_DISPLAY_TEXT 2
+#define SCN_ACTION_END_GAME 3
 
 #define SCENARIO_CAVE_INFO_FLAGS                                              \
     (CAVE_MARK | CAVE_GLOW | CAVE_ICKY | CAVE_ROOM | CAVE_G_VAULT | CAVE_HIDDEN)
@@ -41,12 +57,20 @@ typedef struct scenario_entity_legend scenario_entity_legend;
 typedef struct scenario_terrain_legend scenario_terrain_legend;
 typedef struct scenario_floor_object scenario_floor_object;
 typedef struct scenario_floor_monster scenario_floor_monster;
+typedef struct scenario_grid_tag scenario_grid_tag;
+typedef struct scenario_text_block scenario_text_block;
+typedef struct scenario_rule_term scenario_rule_term;
+typedef struct scenario_rule_action scenario_rule_action;
+typedef struct scenario_rule scenario_rule;
+typedef struct scenario_event_result scenario_event_result;
 typedef struct scenario_state scenario_state;
 
 struct scenario_object_spec
 {
     byte slot;
     s16b k_idx;
+    char tag[SCENARIO_MAX_NAME_LEN];
+    bool tag_set;
 
     byte number;
     bool number_set;
@@ -134,6 +158,8 @@ struct scenario_object_spec
 struct scenario_monster_spec
 {
     s16b r_idx;
+    char tag[SCENARIO_MAX_NAME_LEN];
+    bool tag_set;
 
     s16b image_r_idx;
     bool image_r_idx_set;
@@ -255,6 +281,52 @@ struct scenario_floor_monster
     scenario_monster_spec monster;
 };
 
+struct scenario_grid_tag
+{
+    int y;
+    int x;
+    char tag[SCENARIO_MAX_NAME_LEN];
+};
+
+struct scenario_text_block
+{
+    char name[SCENARIO_MAX_NAME_LEN];
+    char text[SCENARIO_MAX_TEXT_LEN];
+};
+
+struct scenario_rule_term
+{
+    byte flag_idx;
+    bool expected;
+};
+
+struct scenario_rule_action
+{
+    byte kind;
+    byte flag_idx;
+    byte text_idx;
+};
+
+struct scenario_rule
+{
+    byte event;
+    bool tag_set;
+    char tag[SCENARIO_MAX_NAME_LEN];
+
+    int when_count;
+    scenario_rule_term when[SCENARIO_MAX_RULE_TERMS];
+
+    int action_count;
+    scenario_rule_action actions[SCENARIO_MAX_RULE_ACTIONS];
+};
+
+struct scenario_event_result
+{
+    bool end_game;
+    int text_count;
+    byte text_idx[SCENARIO_MAX_RULES];
+};
+
 struct scenario_state
 {
     bool loaded;
@@ -339,11 +411,24 @@ struct scenario_state
     int floor_monster_count;
     scenario_floor_monster floor_monsters[SCENARIO_MAX_FLOOR_MONSTERS];
 
+    int grid_tag_count;
+    scenario_grid_tag grid_tags[SCENARIO_MAX_GRID_TAGS];
+
+    int text_count;
+    scenario_text_block texts[SCENARIO_MAX_TEXTS];
+
+    int rule_count;
+    scenario_rule rules[SCENARIO_MAX_RULES];
+
+    int flag_count;
+    char flag_names[SCENARIO_MAX_FLAGS][SCENARIO_MAX_NAME_LEN];
+
     char terrain[SCENARIO_MAX_ROWS][SCENARIO_MAX_COLS + 1];
     char entities[SCENARIO_MAX_ROWS][SCENARIO_MAX_COLS + 1];
 };
 
 static scenario_state scenario;
+static char scenario_monster_tags[MAX_MONSTERS][SCENARIO_MAX_NAME_LEN];
 static int scenario_error_line = 0;
 static char scenario_error[160];
 static int scenario_warning_line = 0;
@@ -735,6 +820,308 @@ static int scenario_lookup_slot(cptr token)
     return (-1);
 }
 
+/* Look up or create one saved scenario flag bit by name. */
+static int scenario_intern_flag(cptr token, int line)
+{
+    int i;
+    char local[SCENARIO_MAX_NAME_LEN];
+    char trimmed[SCENARIO_MAX_NAME_LEN];
+
+    if (!token || !token[0])
+    {
+        scenario_fail(line, "Missing scenario flag name.");
+        return (-1);
+    }
+
+    my_strcpy(local, token, sizeof(local));
+    my_strcpy(trimmed, scenario_trim(local), sizeof(trimmed));
+    if (!trimmed[0])
+    {
+        scenario_fail(line, "Missing scenario flag name.");
+        return (-1);
+    }
+
+    for (i = 0; i < scenario.flag_count; i++)
+    {
+        if (!my_stricmp(trimmed, scenario.flag_names[i]))
+            return (i);
+    }
+
+    if (scenario.flag_count >= SCENARIO_MAX_FLAGS)
+    {
+        scenario_fail(line, "Too many scenario flags.");
+        return (-1);
+    }
+
+    my_strcpy(
+        scenario.flag_names[scenario.flag_count], trimmed, SCENARIO_MAX_NAME_LEN);
+    scenario.flag_count++;
+    return (scenario.flag_count - 1);
+}
+
+/* Read one scenario-owned quest flag from the saved player state bitset. */
+static bool scenario_get_flag(int idx)
+{
+    u32b bits;
+
+    if (!p_ptr || (idx < 0) || (idx >= SCENARIO_MAX_FLAGS))
+        return (FALSE);
+
+    bits = (u32b)p_ptr->unused3;
+    return ((bits & (1UL << idx)) != 0);
+}
+
+/* Write one scenario-owned quest flag into the saved player state bitset. */
+static void scenario_set_flag(int idx, bool value)
+{
+    u32b bits;
+
+    if (!p_ptr || (idx < 0) || (idx >= SCENARIO_MAX_FLAGS))
+        return;
+
+    bits = (u32b)p_ptr->unused3;
+    if (value)
+        bits |= (1UL << idx);
+    else
+        bits &= ~(1UL << idx);
+
+    p_ptr->unused3 = (s32b)bits;
+}
+
+/* Look up or create one named multiline scenario text block. */
+static int scenario_intern_text(cptr token, int line)
+{
+    int i;
+    char local[SCENARIO_MAX_NAME_LEN];
+    char trimmed[SCENARIO_MAX_NAME_LEN];
+
+    if (!token || !token[0])
+    {
+        scenario_fail(line, "Missing scenario text name.");
+        return (-1);
+    }
+
+    my_strcpy(local, token, sizeof(local));
+    my_strcpy(trimmed, scenario_trim(local), sizeof(trimmed));
+    if (!trimmed[0])
+    {
+        scenario_fail(line, "Missing scenario text name.");
+        return (-1);
+    }
+
+    for (i = 0; i < scenario.text_count; i++)
+    {
+        if (!my_stricmp(trimmed, scenario.texts[i].name))
+            return (i);
+    }
+
+    if (scenario.text_count >= SCENARIO_MAX_TEXTS)
+    {
+        scenario_fail(line, "Too many scenario text blocks.");
+        return (-1);
+    }
+
+    my_strcpy(scenario.texts[scenario.text_count].name, trimmed,
+        sizeof(scenario.texts[scenario.text_count].name));
+    scenario.texts[scenario.text_count].text[0] = '\0';
+    scenario.text_count++;
+    return (scenario.text_count - 1);
+}
+
+/* Append one authored line to a named scenario text block. */
+static bool scenario_append_text_line(cptr name_token, cptr text_line, int line)
+{
+    int idx = scenario_intern_text(name_token, line);
+    scenario_text_block* text;
+
+    if (idx < 0)
+        return (FALSE);
+
+    text = &scenario.texts[idx];
+    if (text->text[0])
+    {
+        if (strlen(text->text) + 1 >= sizeof(text->text))
+            return (scenario_fail(line, "Scenario text block is too long."));
+        my_strcat(text->text, "\n", sizeof(text->text));
+    }
+
+    my_strcat(text->text, text_line ? text_line : "", sizeof(text->text));
+    if (strlen(text->text) >= sizeof(text->text) - 1)
+        return (scenario_fail(line, "Scenario text block is too long."));
+
+    return (TRUE);
+}
+
+/* Resolve one scenario rule event token. */
+static int scenario_lookup_event(cptr token)
+{
+    if (!my_stricmp(token, "SEE_MONSTER"))
+        return (SCN_EVENT_SEE_MONSTER);
+    if (!my_stricmp(token, "USE_EXIT"))
+        return (SCN_EVENT_USE_EXIT);
+    if (!my_stricmp(token, "DEATH"))
+        return (SCN_EVENT_DEATH);
+
+    return (0);
+}
+
+/* Parse one comma-separated when= condition list into rule flag checks. */
+static bool scenario_parse_rule_when(
+    scenario_rule* rule, cptr token, int line)
+{
+    char local[256];
+    char* part = NULL;
+    char* next = NULL;
+
+    if (!token || !token[0])
+        return (scenario_fail(line, "Missing rule condition."));
+
+    my_strcpy(local, token, sizeof(local));
+    part = local;
+
+    while (part)
+    {
+        int flag_idx;
+        bool expected = TRUE;
+        char* name;
+
+        next = strchr(part, ',');
+        if (next)
+            *next++ = '\0';
+
+        name = scenario_trim(part);
+        if (name[0] == '!')
+        {
+            expected = FALSE;
+            name = scenario_trim(name + 1);
+        }
+
+        if (!name[0])
+            return (scenario_fail(line, "Invalid rule condition."));
+        if (rule->when_count >= SCENARIO_MAX_RULE_TERMS)
+            return (scenario_fail(line, "Too many rule conditions."));
+
+        flag_idx = scenario_intern_flag(name, line);
+        if (flag_idx < 0)
+            return (FALSE);
+
+        rule->when[rule->when_count].flag_idx = (byte)flag_idx;
+        rule->when[rule->when_count].expected = expected;
+        rule->when_count++;
+
+        part = next;
+    }
+
+    return (TRUE);
+}
+
+/* Parse one rule action token such as SET_FLAG or DISPLAY_TEXT. */
+static bool scenario_parse_rule_action(
+    scenario_rule* rule, cptr token, int line)
+{
+    char local[128];
+    char* eq;
+    int idx;
+
+    if (!token || !token[0])
+        return (TRUE);
+    if (rule->action_count >= SCENARIO_MAX_RULE_ACTIONS)
+        return (scenario_fail(line, "Too many rule actions."));
+
+    if (!my_stricmp(token, "END_GAME"))
+    {
+        rule->actions[rule->action_count].kind = SCN_ACTION_END_GAME;
+        rule->action_count++;
+        return (TRUE);
+    }
+
+    my_strcpy(local, token, sizeof(local));
+    eq = strchr(local, '=');
+    if (!eq)
+        return (scenario_fail(line, "Unknown rule action."));
+
+    *eq++ = '\0';
+    if (!my_stricmp(scenario_trim(local), "SET_FLAG"))
+    {
+        idx = scenario_intern_flag(scenario_trim(eq), line);
+        if (idx < 0)
+            return (FALSE);
+
+        rule->actions[rule->action_count].kind = SCN_ACTION_SET_FLAG;
+        rule->actions[rule->action_count].flag_idx = (byte)idx;
+        rule->action_count++;
+        return (TRUE);
+    }
+
+    if (!my_stricmp(scenario_trim(local), "DISPLAY_TEXT"))
+    {
+        idx = scenario_intern_text(scenario_trim(eq), line);
+        if (idx < 0)
+            return (FALSE);
+
+        rule->actions[rule->action_count].kind = SCN_ACTION_DISPLAY_TEXT;
+        rule->actions[rule->action_count].text_idx = (byte)idx;
+        rule->action_count++;
+        return (TRUE);
+    }
+
+    return (scenario_fail(line, "Unknown rule action."));
+}
+
+/* Parse one authored event rule line. */
+static bool scenario_parse_rule(cptr token, int line)
+{
+    char local[512];
+    char* parts[32];
+    int count;
+    int i;
+    int event;
+    scenario_rule* rule;
+
+    if (scenario.rule_count >= SCENARIO_MAX_RULES)
+        return (scenario_fail(line, "Too many scenario rules."));
+
+    my_strcpy(local, token, sizeof(local));
+    count = scenario_split(local, parts, N_ELEMENTS(parts));
+    if (count < 2)
+        return (scenario_fail(line, "Malformed rule directive."));
+
+    event = scenario_lookup_event(scenario_trim(parts[0]));
+    if (!event)
+        return (scenario_fail(line, "Unknown rule event."));
+
+    rule = &scenario.rules[scenario.rule_count++];
+    WIPE(rule, scenario_rule);
+    rule->event = (byte)event;
+
+    for (i = 1; i < count; i++)
+    {
+        char* part = scenario_trim(parts[i]);
+
+        if (!my_strnicmp(part, "tag=", 4))
+        {
+            my_strcpy(rule->tag, scenario_trim(part + 4), sizeof(rule->tag));
+            if (!rule->tag[0])
+                return (scenario_fail(line, "Rule tag cannot be empty."));
+            rule->tag_set = TRUE;
+        }
+        else if (!my_strnicmp(part, "when=", 5))
+        {
+            if (!scenario_parse_rule_when(rule, scenario_trim(part + 5), line))
+                return (FALSE);
+        }
+        else if (!scenario_parse_rule_action(rule, part, line))
+        {
+            return (FALSE);
+        }
+    }
+
+    if (rule->action_count <= 0)
+        return (scenario_fail(line, "Scenario rule needs at least one action."));
+
+    return (TRUE);
+}
+
 static scenario_entity_legend* scenario_find_entity_legend(char symbol)
 {
     int i;
@@ -965,6 +1352,14 @@ static bool scenario_parse_object_modifier(
         spec->everseen_set = TRUE;
         return (TRUE);
     }
+    if (!my_stricmp(key, "tag"))
+    {
+        my_strcpy(spec->tag, value, sizeof(spec->tag));
+        if (!spec->tag[0])
+            return (scenario_fail(line, "Object tag cannot be empty."));
+        spec->tag_set = TRUE;
+        return (TRUE);
+    }
 
     if (!scenario_parse_int(value, &parsed))
         return (scenario_fail(line, "Invalid object modifier value."));
@@ -1188,6 +1583,14 @@ static bool scenario_parse_monster_modifier(
             return (scenario_fail(line, "Invalid home_wander flag."));
         spec->home_wander = flag;
         spec->home_wander_set = TRUE;
+        return (TRUE);
+    }
+    if (!my_stricmp(key, "tag"))
+    {
+        my_strcpy(spec->tag, value, sizeof(spec->tag));
+        if (!spec->tag[0])
+            return (scenario_fail(line, "Monster tag cannot be empty."));
+        spec->tag_set = TRUE;
         return (TRUE);
     }
 
@@ -1596,6 +1999,16 @@ static bool scenario_validate(void)
         }
     }
 
+    for (y = 0; y < scenario.grid_tag_count; y++)
+    {
+        if ((scenario.grid_tags[y].y < 0) || (scenario.grid_tags[y].y >= scenario.height)
+            || (scenario.grid_tags[y].x < 0)
+            || (scenario.grid_tags[y].x >= scenario.width))
+        {
+            return (scenario_fail(0, "A tagged grid lies outside the terrain map."));
+        }
+    }
+
     return (TRUE);
 }
 
@@ -1982,6 +2395,9 @@ static bool scenario_place_monster(int y, int x, const scenario_monster_spec* sp
         return (FALSE);
 
     scenario_apply_monster_spec(&mon_list[m_idx], spec);
+    if (spec->tag_set)
+        my_strcpy(scenario_monster_tags[m_idx], spec->tag,
+            sizeof(scenario_monster_tags[m_idx]));
     update_mon(m_idx, TRUE);
     return (TRUE);
 }
@@ -2052,6 +2468,224 @@ static void scenario_init_wandering_flows(void)
     }
 }
 
+/* Test whether the current saved scenario flag state satisfies one rule. */
+static bool scenario_rule_when_matches(const scenario_rule* rule)
+{
+    int i;
+
+    for (i = 0; i < rule->when_count; i++)
+    {
+        if (scenario_get_flag(rule->when[i].flag_idx) != rule->when[i].expected)
+            return (FALSE);
+    }
+
+    return (TRUE);
+}
+
+/* Queue or apply the effects from one matching scenario rule. */
+static void scenario_apply_rule_actions(
+    const scenario_rule* rule, scenario_event_result* result)
+{
+    int i;
+
+    for (i = 0; i < rule->action_count; i++)
+    {
+        const scenario_rule_action* action = &rule->actions[i];
+
+        if (action->kind == SCN_ACTION_SET_FLAG)
+        {
+            scenario_set_flag(action->flag_idx, TRUE);
+        }
+        else if (action->kind == SCN_ACTION_DISPLAY_TEXT)
+        {
+            if (result->text_count < (int)N_ELEMENTS(result->text_idx))
+                result->text_idx[result->text_count++] = action->text_idx;
+        }
+        else if (action->kind == SCN_ACTION_END_GAME)
+        {
+            result->end_game = TRUE;
+        }
+    }
+}
+
+/* Show one named scenario text block using raw embedded line breaks. */
+static void scenario_show_text_block(int text_idx)
+{
+    char ch;
+    char line[160];
+    int row = 5;
+    int col = 10;
+    int i = 0;
+    cptr s;
+
+    if ((text_idx < 0) || (text_idx >= scenario.text_count))
+        return;
+
+    s = scenario.texts[text_idx].text;
+    if (!s[0])
+        return;
+
+    screen_save();
+    Term_clear();
+
+    while (*s)
+    {
+        int len = 0;
+
+        while (s[len] && (s[len] != '\n') && (len < (int)sizeof(line) - 1))
+            len++;
+
+        memcpy(line, s, len);
+        line[len] = '\0';
+        c_put_str(TERM_WHITE, line, row + i, col);
+
+        if (s[len] == '\n')
+            s += len + 1;
+        else
+            s += len;
+
+        i++;
+    }
+
+    Term_fresh();
+
+    while (1)
+    {
+        hide_cursor = TRUE;
+        ch = inkey();
+        hide_cursor = FALSE;
+
+        if (ch != EOF)
+            break;
+
+        message_flush();
+    }
+
+    screen_load();
+}
+
+/* Check whether one authored grid tag applies at the given map square. */
+static bool scenario_grid_has_tag(int y, int x, cptr tag)
+{
+    int i;
+
+    if (!tag || !tag[0])
+        return (FALSE);
+
+    for (i = 0; i < scenario.grid_tag_count; i++)
+    {
+        scenario_grid_tag* grid_tag = &scenario.grid_tags[i];
+
+        if ((grid_tag->y != y) || (grid_tag->x != x))
+            continue;
+        if (!my_stricmp(grid_tag->tag, tag))
+            return (TRUE);
+    }
+
+    return (FALSE);
+}
+
+/* Trigger all SEE_MONSTER rules for one authored monster instance. */
+void scenario_handle_monster_seen(monster_type* m_ptr)
+{
+    scenario_event_result result;
+    int i;
+    int m_idx;
+
+    if (!scenario.loaded || !m_ptr || !m_ptr->r_idx)
+        return;
+
+    WIPE(&result, scenario_event_result);
+    m_idx = (int)(m_ptr - mon_list);
+
+    for (i = 0; i < scenario.rule_count; i++)
+    {
+        scenario_rule* rule = &scenario.rules[i];
+
+        if (rule->event != SCN_EVENT_SEE_MONSTER)
+            continue;
+        if (rule->tag_set)
+        {
+            if ((m_idx <= 0) || (m_idx >= MAX_MONSTERS))
+                continue;
+            if (my_stricmp(rule->tag, scenario_monster_tags[m_idx]))
+                continue;
+        }
+        if (!scenario_rule_when_matches(rule))
+            continue;
+
+        scenario_apply_rule_actions(rule, &result);
+    }
+
+    for (i = 0; i < result.text_count; i++)
+        scenario_show_text_block(result.text_idx[i]);
+}
+
+/* Trigger USE_EXIT rules for the current grid and end the game if requested. */
+bool scenario_handle_use_exit(int y, int x)
+{
+    scenario_event_result result;
+    int i;
+
+    if (!scenario.loaded)
+        return (FALSE);
+
+    WIPE(&result, scenario_event_result);
+
+    for (i = 0; i < scenario.rule_count; i++)
+    {
+        scenario_rule* rule = &scenario.rules[i];
+
+        if (rule->event != SCN_EVENT_USE_EXIT)
+            continue;
+        if (rule->tag_set && !scenario_grid_has_tag(y, x, rule->tag))
+            continue;
+        if (!scenario_rule_when_matches(rule))
+            continue;
+
+        scenario_apply_rule_actions(rule, &result);
+    }
+
+    for (i = 0; i < result.text_count; i++)
+        scenario_show_text_block(result.text_idx[i]);
+
+    if (!result.end_game)
+        return (FALSE);
+
+    p_ptr->is_dead = TRUE;
+    p_ptr->energy_use = 100;
+    p_ptr->leaving = TRUE;
+    close_game();
+    return (TRUE);
+}
+
+/* Trigger DEATH rules for the current scenario without altering death flow. */
+void scenario_handle_death(void)
+{
+    scenario_event_result result;
+    int i;
+
+    if (!scenario.loaded)
+        return;
+
+    WIPE(&result, scenario_event_result);
+
+    for (i = 0; i < scenario.rule_count; i++)
+    {
+        scenario_rule* rule = &scenario.rules[i];
+
+        if (rule->event != SCN_EVENT_DEATH)
+            continue;
+        if (!scenario_rule_when_matches(rule))
+            continue;
+
+        scenario_apply_rule_actions(rule, &result);
+    }
+
+    for (i = 0; i < result.text_count; i++)
+        scenario_show_text_block(result.text_idx[i]);
+}
+
 /*
  * Clear any loaded scenario so a later start or load begins from a clean
  * pending state.
@@ -2059,6 +2693,7 @@ static void scenario_init_wandering_flows(void)
 void scenario_clear_pending(void)
 {
     WIPE(&scenario, scenario_state);
+    memset(scenario_monster_tags, 0, sizeof(scenario_monster_tags));
     scenario_error_line = 0;
     scenario_error[0] = '\0';
     scenario_warning_line = 0;
@@ -2113,6 +2748,52 @@ bool scenario_prepare_pending(cptr filename)
         {
             if (!scenario_parse_flag_line(scenario_trim(s + 2), line))
                 break;
+        }
+        else if (!my_strnicmp(s, "G:", 2))
+        {
+            char local[256];
+            char* parts[4];
+            int count;
+            long value;
+            scenario_grid_tag* entry;
+
+            if (scenario.grid_tag_count >= SCENARIO_MAX_GRID_TAGS)
+            {
+                scenario_fail(line, "Too many tagged grids.");
+                break;
+            }
+
+            my_strcpy(local, scenario_trim(s + 2), sizeof(local));
+            count = scenario_split(local, parts, 4);
+            if (count < 3)
+            {
+                scenario_fail(line, "Malformed tagged grid directive.");
+                break;
+            }
+
+            entry = &scenario.grid_tags[scenario.grid_tag_count++];
+            WIPE(entry, scenario_grid_tag);
+
+            if (!scenario_parse_int(parts[0], &value))
+            {
+                scenario_fail(line, "Invalid tagged grid y coordinate.");
+                break;
+            }
+            entry->y = (int)value;
+
+            if (!scenario_parse_int(parts[1], &value))
+            {
+                scenario_fail(line, "Invalid tagged grid x coordinate.");
+                break;
+            }
+            entry->x = (int)value;
+
+            my_strcpy(entry->tag, scenario_trim(parts[2]), sizeof(entry->tag));
+            if (!entry->tag[0])
+            {
+                scenario_fail(line, "Tagged grid name cannot be empty.");
+                break;
+            }
         }
         else if (!my_strnicmp(s, "T:", 2))
         {
@@ -2591,10 +3272,35 @@ bool scenario_prepare_pending(cptr filename)
                     scenario.terrain, &scenario.terrain_rows, s + 2, line))
                 break;
         }
+        else if (!my_strnicmp(s, "X:", 2))
+        {
+            char local[512];
+            char* split;
+
+            my_strcpy(local, scenario_trim(s + 2), sizeof(local));
+            split = strchr(local, ':');
+            if (!split)
+            {
+                scenario_fail(line, "Malformed text block directive.");
+                break;
+            }
+
+            *split++ = '\0';
+            if (!scenario_append_text_line(
+                    scenario_trim(local), split, line))
+            {
+                break;
+            }
+        }
         else if (!my_strnicmp(s, "E:", 2))
         {
             if (!scenario_append_row(
                     scenario.entities, &scenario.entity_rows, s + 2, line))
+                break;
+        }
+        else if (!my_strnicmp(s, "R:", 2))
+        {
+            if (!scenario_parse_rule(scenario_trim(s + 2), line))
                 break;
         }
         else
@@ -2656,6 +3362,7 @@ bool scenario_start_pending_new_game(void)
 
     p_ptr->game_type = game_type;
     p_ptr->unused2 = quest_id;
+    p_ptr->unused3 = 0;
     p_ptr->prace = scenario.prace;
     p_ptr->phouse = scenario.phouse;
 
@@ -2769,6 +3476,8 @@ bool scenario_generate_pending_level(void)
     if (!scenario_pending_level_generation())
         return (FALSE);
 
+    memset(scenario_monster_tags, 0, sizeof(scenario_monster_tags));
+
     p_ptr->cur_map_hgt = (byte)scenario.height;
     p_ptr->cur_map_wid = (byte)scenario.width;
 
@@ -2838,18 +3547,15 @@ static void scenario_export_header(FILE* fff, cptr filename)
     fprintf(fff, "# Quick legend:\n");
     fprintf(fff, "# V:<n> format version\n");
     fprintf(fff, "# P:<field>:<value> player state\n");
-    fprintf(fff,
-        "# P:ABILITY:<skill>:<ability>[:INNATE=0][:ACTIVE=0] player ability state\n");
+    fprintf(fff, "# P:ABILITY:<skill>:<ability>[:INNATE=0][:ACTIVE=0] player ability state\n");
     fprintf(fff, "# I:<slot>:<object>[:key=value...] starting inventory or equipment\n");
     fprintf(fff, "# T:<symbol>:FEATURE:<feature>[:flags...] terrain legend used by M: rows\n");
     fprintf(fff, "# M:<symbols...> one map row using the T: legend above\n");
     fprintf(fff, "# O:<y>:<x>:<object>[:key=value...] floor object\n");
     fprintf(fff, "# N:<y>:<x>:<monster>[:key=value...] monster\n");
-    fprintf(fff, "#\n");
-    fprintf(fff, "# Readable names are preferred. The exporter falls back to #<id> when a\n");
-    fprintf(fff, "# name would be ambiguous or unsafe to round-trip.\n");
-    fprintf(fff, "# The map also tries to use vault-like glyphs where possible, such as #\n");
-    fprintf(fff, "# for walls, . for floors, %% for quartz, + for doors, and </> for stairs.\n\n");
+    fprintf(fff, "# G:<y>:<x>:<tag> tag one grid for rule matching\n");
+    fprintf(fff, "# X:<text-id>:<line> named multiline text block (repeatable)\n");
+    fprintf(fff, "# R:<event>[:tag=<tag>][:when=<flag,!flag...>][:ACTION...] event rule\n");
 }
 
 static void scenario_export_wrapped_text(
@@ -2950,7 +3656,7 @@ static void scenario_export_object_modifiers(
 }
 
 static void scenario_export_monster_modifiers(
-    FILE* fff, const monster_type* m_ptr)
+    FILE* fff, const monster_type* m_ptr, int m_idx)
 {
     int i;
     u32b exported_mflag
@@ -2996,6 +3702,8 @@ static void scenario_export_monster_modifiers(
         fprintf(fff, ":consecutive_attacks=%d", m_ptr->consecutive_attacks);
     if (m_ptr->turns_stationary)
         fprintf(fff, ":turns_stationary=%d", m_ptr->turns_stationary);
+    if ((m_idx > 0) && (m_idx < MAX_MONSTERS) && scenario_monster_tags[m_idx][0])
+        fprintf(fff, ":tag=%s", scenario_monster_tags[m_idx]);
     if (m_ptr->mflag & MFLAG_HOME_WANDER)
         fprintf(fff, ":home_wander=1");
     if (m_ptr->mflag & MFLAG_NO_OPEN_DOORS)
@@ -3462,7 +4170,7 @@ bool scenario_export_current(cptr filename)
 
         fprintf(fff, "N:%u:%u:%s", (unsigned)m_ptr->fy, (unsigned)m_ptr->fx,
             scenario_export_monster_token(m_ptr->r_idx, token, sizeof(token)));
-        scenario_export_monster_modifiers(fff, m_ptr);
+        scenario_export_monster_modifiers(fff, m_ptr, y);
         fprintf(fff, "\n");
     }
 

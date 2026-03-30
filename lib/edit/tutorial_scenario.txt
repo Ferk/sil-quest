@@ -1,8 +1,5 @@
 # File: tutorial_scenario.txt
 #
-# Generated from a savefile. Edit by hand if you want, or regenerate it
-# with the scenario exporter to refresh the exact snapshot.
-#
 # Quick legend:
 # V:<n> format version
 # P:<field>:<value> player state
@@ -12,11 +9,9 @@
 # M:<symbols...> one map row using the T: legend above
 # O:<y>:<x>:<object>[:key=value...] floor object
 # N:<y>:<x>:<monster>[:key=value...] monster
-#
-# Readable names are preferred. The exporter falls back to #<id> when a
-# name would be ambiguous or unsafe to round-trip.
-# The map also tries to use vault-like glyphs where possible, such as #
-# for walls, . for floors, % for quartz, + for doors, and </> for stairs.
+# G:<y>:<x>:<tag> tag one grid for rule matching
+# X:<text-id>:<line> named multiline text block (repeatable)
+# R:<event>[:tag=<tag>][:when=<flag,!flag...>][:ACTION...] event rule
 
 # Format version.
 V:1
@@ -201,10 +196,89 @@ N:23:47:Orc soldier:hp=24:maxhp=24:alertness=-14:mspeed=2:energy=2:stance=0:mora
 N:25:47:Orc soldier:hp=23:maxhp=23:alertness=-12:mspeed=2:energy=0:stance=0:morale=0:tmp_morale=0:image_r_idx=206:wandering_idx=307:wandering_dist=50:mana=15:song=100:home_wander=1
 N:12:6:Orc soldier:hp=24:maxhp=24:alertness=-3:mspeed=2:energy=0:stance=0:morale=0:tmp_morale=0:image_r_idx=184:wandering_idx=304:wandering_dist=50:mana=15:song=100:home_wander=1
 N:9:6:Orc soldier:hp=14:maxhp=14:alertness=-2:mspeed=2:energy=2:stance=0:morale=0:tmp_morale=0:image_r_idx=114:wandering_idx=303:wandering_dist=50:mana=15:song=100:home_wander=1
-N:9:40:Orc archer:hp=21:maxhp=21:alertness=-8:mspeed=2:energy=8:stance=2:morale=100:tmp_morale=0:image_r_idx=104:wandering_idx=301:wandering_dist=1:song=100:home_wander=1:prev2=8:prev4=2
+N:9:40:Orc archer:hp=21:maxhp=21:alertness=-8:mspeed=2:energy=8:stance=2:morale=100:tmp_morale=0:image_r_idx=104:wandering_idx=301:wandering_dist=1:song=100:tag=archer_warning:home_wander=1:prev2=8:prev4=2
 N:10:52:Young fire-drake:hp=81:maxhp=81:alertness=-14:mspeed=2:energy=37:stance=2:morale=230:tmp_morale=0:image_r_idx=92:wandering_idx=306:wandering_dist=50:mana=30:song=100:home_wander=1
 N:20:40:Orc soldier:hp=27:maxhp=27:alertness=-7:mspeed=2:energy=0:stance=0:morale=0:tmp_morale=0:image_r_idx=101:wandering_idx=305:wandering_dist=50:mana=15:song=100:home_wander=1
-N:6:40:Orc archer:hp=15:maxhp=15:alertness=-2:mspeed=2:energy=9:stance=2:morale=100:tmp_morale=0:image_r_idx=94:wandering_idx=300:wandering_dist=1:song=100:home_wander=1:prev2=8:prev4=2
+N:6:40:Orc archer:hp=15:maxhp=15:alertness=-2:mspeed=2:energy=9:stance=2:morale=100:tmp_morale=0:image_r_idx=94:wandering_idx=300:wandering_dist=1:song=100:tag=archer_warning:home_wander=1:prev2=8:prev4=2
 N:10:6:Orc soldier:hp=24:maxhp=24:alertness=-2:mspeed=2:energy=5:stance=0:morale=0:tmp_morale=0:image_r_idx=204:wandering_idx=302:wandering_dist=50:mana=15:song=100:home_wander=1
 N:7:51:Fire-drake hatchling:hp=26:maxhp=26:alertness=-8:mspeed=2:energy=40:stance=2:morale=170:tmp_morale=0:image_r_idx=132:mana=20:song=100
 N:25:29:Tanglethorn:hp=19:maxhp=19:alertness=0:mspeed=2:energy=4:stance=0:morale=0:tmp_morale=0:image_r_idx=194:mana=15:song=100
+
+# Tagged grids used by the tutorial rules below.
+# These authored rule/text sections are maintained by hand rather than by the
+# raw save exporter.
+G:23:10:early_exit
+G:9:55:final_exit
+
+# Scenario-authored text blocks referenced by the rules below.
+X:tutorial_leave:You have finished the first half of the tutorial and are ready
+X:tutorial_leave:to create a new character.
+X:tutorial_leave:
+X:tutorial_leave:Don't let the choices overwhelm you the first time.
+X:tutorial_leave:Just start with the default Race and House, then invest most
+X:tutorial_leave:of your starting experience in Melee and Evasion.
+X:tutorial_leave:Once the game begins, finding some weapons and armour should
+X:tutorial_leave:be your top priority.
+X:tutorial_leave:
+X:tutorial_leave:Remember that a key feature of Sil (and all Roguelike games)
+X:tutorial_leave:is that you cannot use savepoints: if you die, that's it.
+X:tutorial_leave:It is thus a challenging game where you need to really *think*.
+X:tutorial_leave:You will die many times. When you do: reflect on what to learn
+X:tutorial_leave:from that death, see if you set a high score, then think about
+X:tutorial_leave:all the things you want to do differently with the next character...
+
+X:tutorial_win:Congratulations. You have survived a fire-drake (usually found
+X:tutorial_win:at 900 ft!), and have finished the tutorial in fine form.
+X:tutorial_win:You are more than ready to create a new character.
+X:tutorial_win:
+X:tutorial_win:Don't let the choices overwhelm you the first time.
+X:tutorial_win:Just start with the default Race and House, then invest most
+X:tutorial_win:of your starting experience in Melee and Evasion.
+X:tutorial_win:Once the game begins, finding some weapons and armour should
+X:tutorial_win:be your top priority.
+X:tutorial_win:
+X:tutorial_win:Remember that a key feature of Sil (and all Roguelike games)
+X:tutorial_win:is that you cannot use savepoints: if you die, that's it.
+X:tutorial_win:It is thus a challenging game where you need to really *think*.
+X:tutorial_win:You will die many times. When you do: reflect on what to learn
+X:tutorial_win:from that death, see if you set a high score, then think about
+X:tutorial_win:all the things you want to do differently with the next character...
+
+X:early_death:You have been slain.
+X:early_death:
+X:early_death:A key feature of Sil (and all Roguelike games) is that you cannot
+X:early_death:use savepoints: if you die, that's it!
+X:early_death:It is thus a challenging game where you need to really *think*.
+X:early_death:
+X:early_death:However, it is a bit frustrating to die before the end of the
+X:early_death:tutorial, so we evidentally made it a bit too deadly.
+X:early_death:
+X:early_death:Just restart the tutorial and you should be back to where you
+X:early_death:were in a couple of minutes. Remember that if combat is not going
+X:early_death:your way, you can try to escape and heal, then either come back
+X:early_death:and again to defeat your adversary, or simply ignore it.
+
+X:late_death:Congratulations: you have finished the tutorial.
+X:late_death:
+X:late_death:You have also just been through a rite of passage: dying.
+X:late_death:Remember that a key feature of Sil (and all Roguelike games)
+X:late_death:is that you cannot use savepoints: if you die, that's it.
+X:late_death:It is thus a challenging game where you need to really *think*.
+X:late_death:You will die many times. When you do: reflect on what to learn
+X:late_death:from that death, see if you set a high score, then think about
+X:late_death:all the things you want to do differently with the next character...
+X:late_death:
+X:late_death:You are now more than ready to create a character and start playing.
+X:late_death:
+X:late_death:Don't let the choices overwhelm you the first time.
+X:late_death:Just start with the default Race and House, then invest most
+X:late_death:of your starting experience in Melee and Evasion.
+X:late_death:Once the game begins, finding some weapons and armour should
+X:late_death:be your top priority.
+
+# Event rules that define the tutorial-specific behavior.
+R:SEE_MONSTER:tag=archer_warning:SET_FLAG=seen_archer
+R:DEATH:when=!seen_archer:DISPLAY_TEXT=early_death
+R:DEATH:when=seen_archer:DISPLAY_TEXT=late_death
+R:USE_EXIT:tag=early_exit:DISPLAY_TEXT=tutorial_leave:END_GAME
+R:USE_EXIT:tag=final_exit:DISPLAY_TEXT=tutorial_win:END_GAME

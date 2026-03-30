@@ -589,6 +589,9 @@ extern bool scenario_start_pending_new_game(void);
 extern bool scenario_pending_level_generation(void);
 extern bool scenario_generate_pending_level(void);
 extern bool scenario_export_current(cptr filename);
+extern void scenario_handle_monster_seen(monster_type* m_ptr);
+extern bool scenario_handle_use_exit(int y, int x);
+extern void scenario_handle_death(void);
 
 /* load.c */
 extern bool load_player(void);
@@ -1146,10 +1149,6 @@ extern int rough_direction(int y1, int x1, int y2, int x2);
 extern bool get_aim_dir(int* dp, int range);
 extern bool get_rep_dir(int* dp);
 extern bool confuse_dir(int* dp);
-extern const char tutorial_leave_text[][100];
-extern const char tutorial_win_text[][100];
-extern const char tutorial_early_death_text[][100];
-extern const char tutorial_late_death_text[][100];
 extern const char throne_poetry[][100];
 extern const char ultimate_bug_text[][100];
 extern void pause_with_text(const char desc[][100], int row, int col);
