@@ -1,0 +1,47 @@
+/* sound.json
+*
+# Configuration file for the Angband sound events
+#
+# Each event can be either:
+# - an array of default sample paths
+# - an object with an optional "default" array and exact-match arrays keyed by
+#   String(extra)
+#
+# Example:
+# "hit" : [ "hit.wav", "hit1.wav" ]
+# "walk" : { "default" : [ "walk.wav" ], "18" : [ "water-step.wav" ] }
+#
+# Look at the definition of "angband_sound_name" in variable.c for a complete list of
+# all the available event names.
+*/
+
+{
+  "hit"       : [ "hit01.flac", "hit02.flac", "hit03.flac" ]
+  ,"miss"     : [ "miss01.flac", "miss02.flac", "miss03.flac" ]
+  ,"flee"     : [ "flee01.flac" ]
+  ,"drop"     : [ "drop01.flac", "drop02.flac" ]
+  ,"kill"     : [ "kill01.flac", "kill02.flac", "kill03.flac", "kill04.flac", "kill05.flac" ]
+  ,"pickup"   : [ "pickup01.flac", "pickup02.flac" ]
+  ,"death"    : [ "death.flac" ]
+  ,"discover" : []
+  ,"shoot"    : [ "shoot01.flac" ]
+  ,"zap"      : []
+  ,"walk"     : [ "step01.flac", "step02.flac", "step03.flac", "step04.flac" ]
+  ,"hitwall"  : [ "hitwall01.flac", "hitwall02.flac" ]
+  ,"eat"      : [ "eat01.flac" ]
+  ,"quaff"    : [ "quaff01.flac" ]
+  ,"store1"   : []
+  ,"aware"    : [ "coin.flac" ]
+  ,"identify" : [ "identify.flac" ]
+  ,"disarm"   : [ "disarm01.flac", "disarm02.flac" ]
+  ,"bell"     : [ "bell.flac" ]
+  ,"hitpoint_warn": [ "hitpoint_warn.flac" ]
+  ,"dig"      : [ "dig01.flac" ]
+  ,"opendoor" : [ "open01.flac", "open02.flac" ]
+  ,"shutdoor" : [ "shut01.flac" ]
+  ,"tplevel"  : [ "teleport.flac" ]
+  ,"teleport" : []
+  ,"tpother"  : []
+  ,"lockpick_fail": []
+  ,"stairs"   : []
+}
