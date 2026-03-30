@@ -764,18 +764,17 @@ int cave_passable_mon(monster_type* m_ptr, int y, int x, bool* bash)
             int unlock_chance = 0;
             int bash_chance = 0;
 
-            // monsters don't open doors in the tutorial mode
-            // if (p_ptr->game_type < 0)
-            //{
-            //	return (0);
-            //}
-
             // Some monsters can simply pass through doors
             if ((r_ptr->flags2 & (RF2_PASS_DOOR)
                     || (r_ptr->flags2 & (RF2_PASS_WALL)))
                 && !cave_glyph(y, x))
             {
                 return (move_chance);
+            }
+
+            if (m_ptr->mflag & (MFLAG_NO_OPEN_DOORS))
+            {
+                return (0);
             }
 
             // unwary monsters won't open doors in vaults or interesting rooms
