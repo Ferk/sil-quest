@@ -404,6 +404,8 @@ static void player_wipe(void)
     }
 }
 
+void player_birth_wipe(void) { player_wipe(); }
+
 /*
  * Init players with some belongings
  *

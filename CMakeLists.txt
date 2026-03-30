@@ -165,6 +165,7 @@ set(SIL_SOURCES
     src/monster1.c
     src/monster2.c
     src/quest.c
+    src/scenario.c
     src/item-rules.c
     src/obj-info.c
     src/object1.c
