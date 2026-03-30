@@ -322,28 +322,11 @@ void do_cmd_go_down(void)
         return;
     }
 
+    if (scenario_handle_use_exit(p_ptr->py, p_ptr->px))
+        return;
+
     if (quests_try_complete_on_down_stairs())
         return;
-
-    // special message for tutorial
-    if (p_ptr->game_type == -1)
-    {
-        // display the tutorial leaving text
-        if (cave_feat[p_ptr->py][p_ptr->px] == FEAT_MORE)
-        {
-            pause_with_text(tutorial_leave_text, 5, 10);
-        }
-        else
-        {
-            pause_with_text(tutorial_win_text, 5, 10);
-        }
-
-        p_ptr->is_dead = TRUE;
-        p_ptr->energy_use = 100;
-        p_ptr->leaving = TRUE;
-        close_game();
-        return;
-    }
 
     // Do not descend from the Gates
     if (p_ptr->depth == 0)

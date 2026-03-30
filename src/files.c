@@ -5063,25 +5063,12 @@ void close_game(void)
         web_update_auto_resume_marker(FALSE);
 #endif /* USE_WEB */
         /* Auxiliary routine in normal games */
+        if (p_ptr->chp <= 0)
+            scenario_handle_death();
+
         if (p_ptr->game_type == 0)
         {
             close_game_aux();
-        }
-        else if (p_ptr->game_type == -1)
-        {
-            monster_lore* l_ptr = &l_list[R_IDX_ORC_ARCHER];
-
-            if (p_ptr->chp <= 0)
-            {
-                if (l_ptr->psights == 0)
-                {
-                    pause_with_text(tutorial_early_death_text, 5, 10);
-                }
-                else
-                {
-                    pause_with_text(tutorial_late_death_text, 5, 10);
-                }
-            }
         }
 
         /* Now wipe the level */
