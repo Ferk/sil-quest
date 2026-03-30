@@ -1818,12 +1818,13 @@ bool load_player(void)
 
 #ifdef USE_WEB
     /*
-     * In web builds, make sure tutorial always resolves from packaged xtra data
+     * In web builds, make sure packaged quest starters resolve from xtra data
      * rather than any stale persisted save namespace.
      */
-    if (suffix(savefile, "tutorial"))
+    if (quests_pending_savefile())
     {
-        path_build(savefile, sizeof(savefile), ANGBAND_DIR_XTRA, "tutorial");
+        path_build(savefile, sizeof(savefile), ANGBAND_DIR_XTRA,
+            quests_pending_savefile());
     }
 #endif
 

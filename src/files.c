@@ -3211,13 +3211,13 @@ void do_cmd_save_game(void)
     /* Disturb the player */
     disturb(1, 0);
 
-    // in final deployment versions, you cannot save in the tutorial
-    if (DEPLOYMENT && p_ptr->game_type != 0)
+    // Some quests intentionally disable saving in deployment builds.
+    if (DEPLOYMENT && quests_save_disabled())
     {
         if (!save_game_quietly)
         {
             /* Message */
-            msg_print("You cannot save games during the tutorial.");
+            msg_print("You cannot save games during this quest.");
         }
         return;
     }
@@ -3286,7 +3286,7 @@ bool save_game_automatically(void)
         return FALSE;
     }
 
-    if (DEPLOYMENT && p_ptr->game_type != 0)
+    if (DEPLOYMENT && quests_save_disabled())
         return FALSE;
 
     handle_stuff();

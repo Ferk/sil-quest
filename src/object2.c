@@ -677,6 +677,10 @@ s16b get_obj_num(int level)
             && (k_ptr->tval == TV_CHEST))
             continue;
 
+        /* Current quest can restrict random object generation. */
+        if (!quests_allow_object_kind(k_idx))
+            continue;
+
         /* Accept */
         table[i].prob3 = table[i].prob2;
 

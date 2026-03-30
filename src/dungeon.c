@@ -2987,6 +2987,10 @@ void play_game(bool new_game)
         /* The dungeon is not ready */
         character_dungeon = FALSE;
     }
+    else
+    {
+        quests_activate_pending_for_loaded_game();
+    }
 
     /* Hack -- Default base_name */
     if (!op_ptr->base_name[0])
@@ -3030,6 +3034,7 @@ void play_game(bool new_game)
 
         /* Roll up a new character */
         player_birth();
+        quests_activate_pending_for_new_game();
 
         /* Reset the item kind rules. */
         item_rules_clear();
