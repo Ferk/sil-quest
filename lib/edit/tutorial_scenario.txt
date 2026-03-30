@@ -1,0 +1,210 @@
+# File: tutorial_scenario.txt
+#
+# Generated from a savefile. Edit by hand if you want, or regenerate it
+# with the scenario exporter to refresh the exact snapshot.
+#
+# Quick legend:
+# V:<n> format version
+# P:<field>:<value> player state
+# P:ABILITY:<skill>:<ability>[:INNATE=0][:ACTIVE=0] player ability state
+# I:<slot>:<object>[:key=value...] starting inventory or equipment
+# T:<symbol>:FEATURE:<feature>[:flags...] terrain legend used by M: rows
+# M:<symbols...> one map row using the T: legend above
+# O:<y>:<x>:<object>[:key=value...] floor object
+# N:<y>:<x>:<monster>[:key=value...] monster
+#
+# Readable names are preferred. The exporter falls back to #<id> when a
+# name would be ambiguous or unsafe to round-trip.
+# The map also tries to use vault-like glyphs where possible, such as #
+# for walls, . for floors, % for quartz, + for doors, and </> for stairs.
+
+# Format version.
+V:1
+
+# Player state.
+P:RACE:Noldor
+P:HOUSE:House of Finarfin
+P:NAME:Laurilfea
+P:HISTORY:You are one of several children of a smith from the house of Finarfin.
+P:HISTORY:You have light grey eyes, straight golden hair, and a fair complexion. 
+P:AGE:3966
+P:HEIGHT:71
+P:WEIGHT:148
+P:DEPTH:1
+P:MAX_DEPTH:1
+P:EXP:12000
+P:NEW_EXP:2000
+P:FOOD:4753
+P:HP:41
+P:VOICE:41
+P:POS:28:3
+P:STAT:Str :2
+P:STAT:Dex :4
+P:STAT:Con :4
+P:STAT:Gra :4
+P:SKILL:Melee:5
+P:SKILL:Archery:5
+P:SKILL:Evasion:5
+P:SKILL:Stealth:5
+P:SKILL:Perception:0
+P:SKILL:Will:0
+P:SKILL:Smithing:5
+P:SKILL:Song:5
+P:ABILITY:Smithing:Jeweller
+P:ABILITY:Song:Song of Staunching
+P:ABILITY:Song:Song of the Trees
+
+# Starting inventory and equipped items.
+I:LITE:Wooden Torch:timeout=1999:ident=0x8:aware=1:everseen=1
+
+# Terrain legend for the map rows below.
+T:$:FEATURE:#63
+T:#:FEATURE:granite wall
+T:H:FEATURE:granite wall:GLOW
+T:%:FEATURE:quartz vein
+T:.:FEATURE:open floor:GLOW
+T:r:FEATURE:pile of rubble:GLOW
+T:+:FEATURE:door:GLOW
+T:_:FEATURE:open floor
+T:R:FEATURE:pile of rubble
+T:X:FEATURE:#58:GLOW:ROOM
+T:&:FEATURE:quartz vein:GLOW:ROOM
+T:W:FEATURE:granite wall:GLOW:ROOM
+T:`:FEATURE:open floor:GLOW:ROOM
+T:':FEATURE:open floor:ROOM
+T:M:FEATURE:#58:ROOM
+T:!:FEATURE:pile of rubble:GLOW:ROOM
+T:":FEATURE:#57:GLOW:ROOM
+T:=:FEATURE:door:GLOW:ROOM
+T:(:FEATURE:quartz vein:GLOW
+T:/:FEATURE:open door:GLOW:ROOM
+T:):FEATURE:#57:GLOW
+T:>:FEATURE:down shaft:GLOW:ROOM
+T:*:FEATURE:granite wall:ROOM
+T:0:FEATURE:forge (1 use remaining)
+T:s:FEATURE:secret door:ROOM
+T:\:FEATURE:open door:GLOW
+T:^:FEATURE:caltrop field:GLOW:ROOM:HIDDEN
+T:|:FEATURE:door
+T:}:FEATURE:down staircase:GLOW:ROOM
+T:S:FEATURE:secret door:GLOW:ROOM
+T:,:FEATURE:granite wall:MARK:GLOW
+T:-:FEATURE:secret door:MARK:GLOW
+T:1:FEATURE:open floor:MARK:GLOW
+T:2:FEATURE:door:MARK:GLOW
+T:3:FEATURE:locked door:GLOW
+T:4:FEATURE:#58:GLOW
+
+# Map rows using the terrain legend above.
+M:$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$
+M:$#########HHH#HHH######################%#%%%##############%#%%####################################$
+M:$#########H.rrr.+___R__################%%%################%%%#%%##################################$
+M:$#####____+.rr.rH###HH+HH##############%##%XXXXXXXXX#####%%#%%#%##########XXXXXXX#################$
+M:$#####_###Hr.rr.H###H...H##############%%%%&WWWWWWWX##%#%%###%############X`````X#################$
+M:$#####'MXXX`!``rH###H...H#####HHHHHHHHHHHH#&WWWWWWWX####%#%%##############X`"`"`XXXXXXXXXXXX######$
+M:$#HHHH=WWWWWWWXHHHHHH...HHHH##H....H.....HHXWWWWWWWXH(H((%################X`````/``````````X######$
+M:$#H...````WW```..X`````````XXXH.HH.H.....)H````WWWW`..``XXXXXX############X`"`"`X``````````X######$
+M:$#H.H.``W`WW```..=`````````=``+..``=``````.`````````..```WWWWW############W`````X``````````X######$
+M:$#H...````XX```..X`````````WWXH.HW`W`````W.`````````..`>`WWWWX############XXXXXXX``````````X######$
+M:$#H.H...H.HH.....XWWW```WWWWWXH..``W`````WHH..........```WWWWX##################X``````````X######$
+M:$#H.......HHHH+HHXWWW```WWWW*MHHHXWWWWWWWWHHHHHH......``WWWWWX##################X/XXXXXXXXXX######$
+M:$#H.H...H.HH.....XWWW```WWW**'__#X****WWW&(HHHHHHH...HXXXXXWXXXXXXX##############_################$
+M:$#H.......HH.....XWWWW=WW***''___M'''*WWW&%___##%H((HH###XWWWWWWWWX###########XXX/XXXX############$
+M:$HHHHH+HHHHH.....XXXXM''''''''0__s'''*****#___(H(((H#####M**WWWWWWW###########W``````X############$
+M:$H.....H###H.....H##########_____M'''MXXWWH___(....+_____''*WWWWWWX###########X``````X############$
+M:$H.....H###HHHHHHH#XXXXXWXXXX___#######HHHHHHH(....H_____''*WWWWWWX#XXXXXXXX##X``````X############$
+M:$H.....H###HHHHH.HHXW```````XHXXXXXWXXX****###(....H_____''*WWWWWWW#W``````/__/``````/_____#######$
+M:$H+HHHHH####H......`W`W`W`W`XH`W`WW```W''''___(HHH\H_____''MWXXXWXX#X``````X##X``````X##XX`XXXX###$
+M:$H.....+__''=````..`=```````=.````=``^=''''___%%%#_#_______##%%%#%#%&``````&%%&X&&/&&&%%X`````&#%#$
+M:$H.....H##**W````..`W`W`W`W`WH`W`WW```W''''___|____####|#####%#%#%%%X``````X%%#%#%_##%#%&`````X%##$
+M:$H.....HHHWWWWWW`HHWW```````XHXWWWWWWWWWWWWHHHHHHHH#%%#_#%%%###%###%X``````X%%%#%#_%%###&`````&%#%$
+M:$H.....H..``WWWWXH#XXXXXXXXXXXXXW```WW````````````X%#%#_#%%###%%#%#%X``````&XX&&X&/XXX%#&`````X%%%$
+M:$H........}`WWWWX##########H```W`````W````````````X####_#%%%#XXXWXX&&&/&/&&X`````````&%%X`````X%#%$
+M:$H.....H..``WWWWWHHHHHHHHHHH```S`````=````````````=_____#####X`````````X_##X`````````/__/`````X###$
+M:$,-,,,,,,HWWWX```....+....HH```W`````W````````````W##########X`````````X___/`````````X##XXXXXXX###$
+M:$,111111,#XXXX```....H....HH```WW```WW````````````X##########X`````````X###X`````````X############$
+M:$,1111112____3.......H....HH```WWWWWWWWWWWWWWWW"WWX##########X`````````/___``````````X############$
+M:$,1.1111,####4.......H....HHX=WWWWWWWWWWWWWWWWWWWWW##########W`````````X###XXXXXXXXXXX############$
+M:$,111111,####4.......H....+_''*WWWWWWWWXXXXXXWWWXXX##########XXXXXXXXXXX##########################$
+M:$,,,,,,,,####44444HHHHHHHHH##################%##%#################################################$
+M:$###########################################%#%%%#################################################$
+M:$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$
+
+# Floor objects.
+O:16:48:Set of Gauntlets:weight=27:ident=0x8:aware=1:everseen=1
+O:16:55:Shortsword:discount=108:weight=15:name2=21:ident=0x1:aware=1:everseen=1
+O:27:6:#452:ident=0x88:marked=1:aware=1:everseen=1
+O:19:39:#464:ident=0x88:aware=1:everseen=1
+O:28:3:#451:ident=0x88:marked=1:aware=1:everseen=1
+O:27:19:#454:ident=0x88:aware=1:everseen=1
+O:27:15:#453:ident=0x88:aware=1:everseen=1
+O:28:17:Leather Armour:weight=82:ident=0x8:aware=1:everseen=1
+O:26:17:Curved Sword:ident=0x8:aware=1:everseen=1
+O:25:23:#455:ident=0x88:aware=1:everseen=1
+O:25:29:#458:ident=0x80:aware=1:everseen=1
+O:29:24:#456:ident=0x88:aware=1:everseen=1
+O:25:34:Arrow:number=24:ident=0x8:aware=1:everseen=1
+O:19:18:#457:ident=0x88:aware=1:everseen=1
+O:24:48:#460:ident=0x88:aware=1:everseen=1
+O:23:34:Shortbow:ident=0x8:aware=1:everseen=1
+O:24:34:#459:ident=0x88:aware=1:everseen=1
+O:15:55:#462:ident=0x88:aware=1:everseen=1
+O:19:55:#461:ident=0x88:aware=1:everseen=1
+O:19:33:#466:ident=0x88:aware=1:everseen=1
+O:16:47:#463:ident=0x88:aware=1:everseen=1
+O:19:36:#465:ident=0x88:aware=1:everseen=1
+O:18:32:#467:ident=0x88:aware=1:everseen=1
+O:20:32:#468:ident=0x88:aware=1:everseen=1
+O:18:30:#469:ident=0x88:aware=1:everseen=1
+O:20:30:#470:ident=0x88:aware=1:everseen=1
+O:19:23:#472:ident=0x88:aware=1:everseen=1
+O:19:25:#471:ident=0x88:aware=1:everseen=1
+O:20:16:#474:ident=0x88:aware=1:everseen=1
+O:21:16:Battle Axe:weight=56:ident=0x8:aware=1:everseen=1
+O:18:16:#473:ident=0x88:aware=1:everseen=1
+O:17:16:Rage
+O:19:14:#475:ident=0x88:aware=1:everseen=1
+O:21:4:#476:ident=0x88:aware=1:everseen=1
+O:23:9:#477:ident=0x88:aware=1:everseen=1
+O:17:2:#478:ident=0x88:aware=1:everseen=1
+O:16:4:#479:ident=0x88:aware=1:everseen=1
+O:15:6:#480:ident=0x88:aware=1:everseen=1
+O:11:22:#484:ident=0x88:aware=1:everseen=1
+O:2:11:#481:ident=0x88:aware=1:everseen=1
+O:8:25:#485:ident=0x88:aware=1:everseen=1
+O:2:18:#482:ident=0x88:aware=1:everseen=1
+O:8:19:#483:ident=0x88:aware=1:everseen=1
+O:5:11:Round Shield:weight=54:ident=0x8:aware=1:everseen=1
+O:2:19:Shovel:weight=69:dd=3:ds=1:ident=0x8:aware=1:everseen=1
+O:8:33:#487:ident=0x88:aware=1:everseen=1
+O:9:53:#328
+O:8:32:#486:ident=0x88:aware=1:everseen=1
+O:11:52:Arrow:number=48:discount=108:name2=101:ident=0x1:aware=1:everseen=1
+O:10:52:Cowardice:pval=1:ident=0x80
+O:10:51:Crown:pval=1:discount=108:weight=40:name2=72:ident=0x1:aware=1:everseen=1
+O:9:52:Mail Corslet:discount=108:weight=315:name2=1:ps=5:ident=0x1:aware=1:everseen=1
+O:10:53:Last Chances:weight=3
+O:8:36:#488:ident=0x88:aware=1:everseen=1
+O:14:44:Spear:discount=108:name1=87:att=1:ident=0x1:xtra1=1:aware=1:everseen=1
+O:14:35:Quickness:everseen=1
+
+# Monsters.
+N:7:53:Fire-drake hatchling:hp=25:maxhp=25:alertness=-10:mspeed=2:energy=45:stance=2:morale=170:tmp_morale=0:image_r_idx=32:mana=20:song=100
+N:9:14:Wolf:hp=14:maxhp=14:alertness=-8:mspeed=3:energy=1:stance=0:morale=0:tmp_morale=0:image_r_idx=223:mana=15:song=100
+N:8:12:Wolf:hp=12:maxhp=12:alertness=-14:mspeed=3:energy=6:stance=0:morale=0:tmp_morale=0:image_r_idx=143:mana=15:song=100
+N:15:14:Nightthorn:hp=18:maxhp=18:alertness=1:mspeed=2:energy=30:stance=3:morale=120:tmp_morale=0:image_r_idx=231:song=100
+N:7:13:Wolf:hp=13:maxhp=13:alertness=-12:mspeed=3:energy=8:stance=0:morale=0:tmp_morale=0:image_r_idx=193:mana=15:song=100
+N:7:14:Wolf:hp=17:maxhp=17:alertness=-2:mspeed=3:energy=3:stance=0:morale=0:tmp_morale=0:image_r_idx=154:mana=15:song=100
+N:7:15:Wolf:hp=17:maxhp=17:alertness=-5:mspeed=3:energy=0:stance=0:morale=0:tmp_morale=0:image_r_idx=93:mana=15:song=100
+N:7:16:Wolf:hp=11:maxhp=11:alertness=-10:mspeed=3:energy=6:stance=0:morale=0:tmp_morale=0:image_r_idx=243:mana=15:song=100
+N:23:47:Orc soldier:hp=24:maxhp=24:alertness=-14:mspeed=2:energy=2:stance=0:morale=0:tmp_morale=0:image_r_idx=41:wandering_idx=308:wandering_dist=50:mana=15:song=100
+N:25:47:Orc soldier:hp=23:maxhp=23:alertness=-12:mspeed=2:energy=0:stance=0:morale=0:tmp_morale=0:image_r_idx=206:wandering_idx=307:wandering_dist=50:mana=15:song=100
+N:12:6:Orc soldier:hp=24:maxhp=24:alertness=-3:mspeed=2:energy=0:stance=0:morale=0:tmp_morale=0:image_r_idx=184:wandering_idx=304:wandering_dist=50:mana=15:song=100
+N:9:6:Orc soldier:hp=14:maxhp=14:alertness=-2:mspeed=2:energy=2:stance=0:morale=0:tmp_morale=0:image_r_idx=114:wandering_idx=303:wandering_dist=50:mana=15:song=100
+N:9:40:Orc archer:hp=21:maxhp=21:alertness=-8:mspeed=2:energy=8:stance=2:morale=100:tmp_morale=0:image_r_idx=104:wandering_idx=301:wandering_dist=1:song=100:prev2=8:prev4=2
+N:10:52:Young fire-drake:hp=81:maxhp=81:alertness=-14:mspeed=2:energy=37:stance=2:morale=230:tmp_morale=0:image_r_idx=92:wandering_idx=306:wandering_dist=50:mana=30:song=100
+N:20:40:Orc soldier:hp=27:maxhp=27:alertness=-7:mspeed=2:energy=0:stance=0:morale=0:tmp_morale=0:image_r_idx=101:wandering_idx=305:wandering_dist=50:mana=15:song=100
+N:6:40:Orc archer:hp=15:maxhp=15:alertness=-2:mspeed=2:energy=9:stance=2:morale=100:tmp_morale=0:image_r_idx=94:wandering_idx=300:wandering_dist=1:song=100:prev2=8:prev4=2
+N:10:6:Orc soldier:hp=24:maxhp=24:alertness=-2:mspeed=2:energy=5:stance=0:morale=0:tmp_morale=0:image_r_idx=204:wandering_idx=302:wandering_dist=50:mana=15:song=100
+N:7:51:Fire-drake hatchling:hp=26:maxhp=26:alertness=-8:mspeed=2:energy=40:stance=2:morale=170:tmp_morale=0:image_r_idx=132:mana=20:song=100
+N:25:29:Tanglethorn:hp=19:maxhp=19:alertness=0:mspeed=2:energy=4:stance=0:morale=0:tmp_morale=0:image_r_idx=194:mana=15:song=100

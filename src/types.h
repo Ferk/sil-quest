@@ -781,6 +781,7 @@ struct hist_type
 
 #define QST_START_BIRTH 0
 #define QST_START_SAVEFILE 1
+#define QST_START_SCENARIO 2
 
 #define QST_OBJECTIVE_NONE 0
 #define QST_OBJECTIVE_STAIRS_EXIT 1
@@ -794,15 +795,16 @@ struct hist_type
  * Quest definition loaded from quest.txt.
  *
  * This is intentionally small and conservative: a quest can start from a
- * normal birth flow or from a packaged starter savefile, can opt into a small
- * set of objective/behavior flags, and can restrict random item and monster
- * generation.
+ * normal birth flow, a packaged starter savefile, or a human-readable
+ * scenario file. It can also opt into a small set of objective/behavior flags,
+ * and can restrict random item and monster generation.
  */
 struct quest_type
 {
     u32b name; /* Name (offset) */
     u32b text; /* Description (offset) */
-    u32b start; /* Start savefile name (offset, if any) */
+    u32b start; /* Start payload name (savefile or scenario file, if any) */
+    u32b entry_text; /* Entry text shown on the first generated level */
     u32b completion_text; /* Completion text (offset, if any) */
 
     s16b game_type; /* Normal game=0, tutorial<0, scenario/challenge>0 */

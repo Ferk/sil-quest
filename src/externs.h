@@ -115,6 +115,8 @@ extern int player_uid;
 extern int player_euid;
 extern int player_egid;
 extern char savefile[1024];
+extern bool export_scenario_mode;
+extern char export_scenario_path[1024];
 extern s16b macro__num;
 extern cptr* macro__pat;
 extern cptr* macro__act;
@@ -263,6 +265,7 @@ struct ui_text_builder;
 
 /* birth.c */
 extern void player_birth(void);
+extern void player_birth_wipe(void);
 extern bool gain_skills(void);
 
 /* cave.c */
@@ -563,17 +566,29 @@ extern const quest_type* quests_get(int quest_id);
 extern const quest_type* quests_current(void);
 extern cptr quests_name(int quest_id);
 extern cptr quests_description(int quest_id);
+extern cptr quests_entry_text(int quest_id);
 extern bool quests_prepare_start(
     int quest_id, bool* new_game, char* savefile_buf, size_t savefile_len);
 extern void quests_clear_pending_start(void);
 extern cptr quests_pending_savefile(void);
-extern void quests_activate_pending_for_new_game(void);
+extern bool quests_start_pending_new_game(void);
 extern void quests_activate_pending_for_loaded_game(void);
+extern bool quests_pending_level_generation(void);
+extern bool quests_generate_pending_level(void);
 extern bool quests_allow_monster_race(int r_idx);
 extern bool quests_allow_object_kind(int k_idx);
 extern bool quests_allow_stair_monsters(void);
 extern bool quests_save_disabled(void);
+extern void quests_show_entry_text(void);
 extern bool quests_try_complete_on_down_stairs(void);
+
+/* scenario.c */
+extern bool scenario_prepare_pending(cptr filename);
+extern void scenario_clear_pending(void);
+extern bool scenario_start_pending_new_game(void);
+extern bool scenario_pending_level_generation(void);
+extern bool scenario_generate_pending_level(void);
+extern bool scenario_export_current(cptr filename);
 
 /* load.c */
 extern bool load_player(void);
@@ -1135,7 +1150,6 @@ extern const char tutorial_leave_text[][100];
 extern const char tutorial_win_text[][100];
 extern const char tutorial_early_death_text[][100];
 extern const char tutorial_late_death_text[][100];
-extern const char entry_poetry[][100];
 extern const char throne_poetry[][100];
 extern const char ultimate_bug_text[][100];
 extern void pause_with_text(const char desc[][100], int row, int col);
