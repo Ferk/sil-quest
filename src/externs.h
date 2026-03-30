@@ -170,6 +170,9 @@ extern player_type* p_ptr;
 extern vault_type* v_info;
 extern char* v_name;
 extern char* v_text;
+extern quest_type* q_info;
+extern char* q_name;
+extern char* q_text;
 extern feature_type* f_info;
 extern char* f_name;
 extern char* f_text;
@@ -552,6 +555,25 @@ extern void init_angband(void);
 extern void re_init_some_things(void);
 extern int initial_menu(int* highlight);
 extern void cleanup_angband(void);
+
+/* quest.c */
+extern int quests_count(void);
+extern int quests_get_id_by_position(int position);
+extern const quest_type* quests_get(int quest_id);
+extern const quest_type* quests_current(void);
+extern cptr quests_name(int quest_id);
+extern cptr quests_description(int quest_id);
+extern bool quests_prepare_start(
+    int quest_id, bool* new_game, char* savefile_buf, size_t savefile_len);
+extern void quests_clear_pending_start(void);
+extern cptr quests_pending_savefile(void);
+extern void quests_activate_pending_for_new_game(void);
+extern void quests_activate_pending_for_loaded_game(void);
+extern bool quests_allow_monster_race(int r_idx);
+extern bool quests_allow_object_kind(int k_idx);
+extern bool quests_allow_stair_monsters(void);
+extern bool quests_save_disabled(void);
+extern bool quests_try_complete_on_down_stairs(void);
 
 /* load.c */
 extern bool load_player(void);

@@ -272,6 +272,9 @@ header c_head;
 /// entries.
 header h_head;
 
+/// Header for the quest array (quest.txt), defining selectable quests.
+header q_head;
+
 /// Header for the flavor array (flavor.txt), defining object flavor
 /// descriptions.
 header flavor_head;
@@ -893,6 +896,33 @@ static errr init_h_info(void)
     /* Set the global variables */
     h_info = h_head.info_ptr;
     h_text = h_head.text_ptr;
+
+    return (err);
+}
+
+/*
+ * Initialize the "q_info" array
+ */
+static errr init_q_info(void)
+{
+    errr err;
+
+    /* Init the header */
+    init_header(&q_head, z_info->q_max, sizeof(quest_type));
+
+#ifdef ALLOW_TEMPLATES
+
+    /* Save a pointer to the parsing function */
+    q_head.parse_info_txt = parse_q_info;
+
+#endif /* ALLOW_TEMPLATES */
+
+    err = init_info("quest", &q_head);
+
+    /* Set the global variables */
+    q_info = q_head.info_ptr;
+    q_name = q_head.name_ptr;
+    q_text = q_head.text_ptr;
 
     return (err);
 }
@@ -1690,6 +1720,11 @@ void init_angband(void)
     if (init_c_info())
         quit("Cannot initialize houses");
 
+    /* Initialize quest info */
+    note("[Initializing arrays... (quests)]");
+    if (init_q_info())
+        quit("Cannot initialize quests");
+
     /* Initialize flavor info */
     note("[Initializing arrays... (flavors)]");
     if (init_flavor_info())
@@ -1727,14 +1762,39 @@ void init_angband(void)
     note("                                              ");
 }
 
-#define INITIAL_MENU_CHOICES 4
+static int initial_menu_choice_count(void) { return quests_count() + 2; }
 
-static const char* const initial_menu_labels[INITIAL_MENU_CHOICES] = {
-    "a) Tutorial",
-    "b) New character",
-    "c) Open saved character",
-    "d) Quit",
-};
+static void build_initial_menu_label(int choice, char* buf, size_t len)
+{
+    int quest_count = quests_count();
+    char key = (choice <= 26) ? (char)('a' + choice - 1) : '?';
+
+    if ((choice >= 1) && (choice <= quest_count))
+    {
+        strnfmt(buf, len, "%c) %s", key,
+            quests_name(quests_get_id_by_position(choice)));
+    }
+    else if (choice == quest_count + 1)
+    {
+        strnfmt(buf, len, "%c) Open saved character", key);
+    }
+    else
+    {
+        strnfmt(buf, len, "%c) Quit", key);
+    }
+}
+
+static int initial_menu_choice_for_key(int ch)
+{
+    int choice_count = initial_menu_choice_count();
+
+    if ((ch >= 'a') && (ch < 'a' + choice_count))
+        return ch - 'a' + 1;
+    if ((ch >= 'A') && (ch < 'A' + choice_count))
+        return ch - 'A' + 1;
+
+    return (0);
+}
 
 static int build_initial_menu_semantic_text(
     char* buf, byte* attrs, size_t buf_size, bool wizard_mode)
@@ -1781,9 +1841,18 @@ extern int initial_menu(int* highlight)
 {
     int ch;
     int i;
+    int choice_count;
     char menu_text[1024];
     byte menu_attrs[1024];
     int menu_text_len;
+    char label[80];
+
+    choice_count = initial_menu_choice_count();
+
+    if (*highlight < 1)
+        *highlight = 1;
+    if (*highlight > choice_count)
+        *highlight = choice_count;
 
     if (arg_wizard)
     {
@@ -1806,15 +1875,15 @@ extern int initial_menu(int* highlight)
     menu_text_len = build_initial_menu_semantic_text(
         menu_text, menu_attrs, sizeof(menu_text), arg_wizard);
     ui_menu_set_text(menu_text, menu_attrs, menu_text_len);
-    for (i = 0; i < INITIAL_MENU_CHOICES; i++)
+    for (i = 0; i < choice_count; i++)
     {
         bool selected = (*highlight == i + 1);
         int row = 19 + i;
 
-        Term_putstr(20, row, 25, selected ? TERM_L_BLUE : TERM_WHITE,
-            initial_menu_labels[i]);
-        ui_menu_add(20, row, 25, 1, '\r', selected, TERM_WHITE,
-            initial_menu_labels[i]);
+        build_initial_menu_label(i + 1, label, sizeof(label));
+        Term_putstr(
+            20, row, 40, selected ? TERM_L_BLUE : TERM_WHITE, label);
+        ui_menu_add(20, row, 40, 1, '\r', selected, TERM_WHITE, label);
     }
     ui_menu_end();
 
@@ -1829,35 +1898,12 @@ extern int initial_menu(int* highlight)
     ch = inkey();
     hide_cursor = FALSE;
 
-    /* Tutorial */
-    if ((ch == 'a') || (ch == 'T') || (ch == 't'))
+    i = initial_menu_choice_for_key(ch);
+    if (i > 0)
     {
-        *highlight = 1;
+        *highlight = i;
         ui_menu_clear();
-        return (1);
-    }
-
-    /* New */
-    if ((ch == 'b') || (ch == 'N') || (ch == 'n'))
-    {
-        *highlight = 2;
-        ui_menu_clear();
-        return (2);
-    }
-
-    /* Open */
-    if ((ch == 'c') || (ch == 'O') || (ch == 'o'))
-    {
-        *highlight = 3;
-        ui_menu_clear();
-        return (3);
-    }
-
-    /* Quit  */
-    if ((ch == 'd') || (ch == 'Q') || (ch == 'q'))
-    {
-        ui_menu_clear();
-        return (4);
+        return (i);
     }
 
     /* Choose current  */
@@ -1877,7 +1923,7 @@ extern int initial_menu(int* highlight)
     /* Next item */
     if (ch == '2')
     {
-        if (*highlight < 4)
+        if (*highlight < choice_count)
             (*highlight)++;
     }
 
@@ -1945,6 +1991,7 @@ void cleanup_angband(void)
     free_info(&c_head);
     free_info(&p_head);
     free_info(&h_head);
+    free_info(&q_head);
     free_info(&v_head);
     free_info(&r_head);
     free_info(&e_head);

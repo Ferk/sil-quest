@@ -322,6 +322,9 @@ void do_cmd_go_down(void)
         return;
     }
 
+    if (quests_try_complete_on_down_stairs())
+        return;
+
     // special message for tutorial
     if (p_ptr->game_type == -1)
     {
