@@ -1691,6 +1691,7 @@ void update_mon(int m_idx, bool full)
         l_ptr->psights++;
         if (l_ptr->tsights < MAX_SHORT)
             l_ptr->tsights++;
+        scenario_handle_monster_seen(m_ptr);
 
         // If the player encounters a Unique for the first time, write a note.
         if (r_ptr->flags1 & RF1_UNIQUE)

@@ -37,6 +37,20 @@ static void quests_activate(int quest_id)
     p_ptr->game_type = q_ptr->game_type;
 }
 
+/* Reload the current quest's scenario runtime data after loading a save. */
+static void quests_reload_current_scenario_runtime(void)
+{
+    const quest_type* q_ptr = quests_current();
+
+    if (!q_ptr || (q_ptr->start_kind != QST_START_SCENARIO) || !q_ptr->start
+        || !q_name)
+    {
+        return;
+    }
+
+    (void)scenario_prepare_pending(q_name + q_ptr->start);
+}
+
 /* Test whether a quest restriction mask allows the given value. */
 static bool quest_mask_has(const u32b* mask, int value)
 {
@@ -324,6 +338,7 @@ void quests_activate_pending_for_loaded_game(void)
         quests_activate(quest_pending_start_id);
     }
 
+    quests_reload_current_scenario_runtime();
     quest_pending_start_id = 0;
 }
 
