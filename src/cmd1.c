@@ -172,9 +172,9 @@ void new_wandering_flow(monster_type* m_ptr, int ty, int tx)
         return;
     }
 
-    // territorial monsters target their creation location
-    // same with the tutorial
-    if ((r_ptr->flags2 & (RF2_TERRITORIAL)) || (p_ptr->game_type < 0))
+    // territorial or home-wandering monsters target their creation location
+    if ((r_ptr->flags2 & (RF2_TERRITORIAL))
+        || (m_ptr->mflag & (MFLAG_HOME_WANDER)))
     {
         // they only pick a new location on creation
         // Sil-y: Hack: using the fact that speed hasn't been determined yet on

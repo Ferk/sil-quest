@@ -1967,45 +1967,52 @@
 /*** Monster flags ***/
 
 /*
- * Special Monster Flags
+ * Special Monster Flags.
+ *
+ * These mix a few different kinds of state:
+ * - persistent per-monster behavior flags such as HOME_WANDER
+ * - monster memory / visibility flags such as VIEW and MARK
+ * - short-lived tactical state such as HIT_BY_MELEE
+ *
+ * Keep that distinction in mind when changing save/load behavior.
  */
-// Monster is in line of sight
+// Monster is currently in line of sight of the player.
 #define MFLAG_VIEW 0x00000001
-// previously: Knowledge of monster is limited
-#define MFLAG_MFLAGXXXX2 0x00000002
-// Monster is magically summoned by a song
+// Monster keeps unwary wandering anchored to its starting area.
+#define MFLAG_HOME_WANDER 0x00000002
+// Monster was magically summoned by a song.
 #define MFLAG_SUMMONED 0x00000004
-// Monster is in active mode
+// Monster is currently using active rather than passive AI.
 #define MFLAG_ACTV 0x00000008
-// previously: Monster has moved
-#define MFLAG_MFLAGXXXX5 0x00000010
-// previously: Monster is using "townsman" AI
+// Monster will not actively open or bash doors.
+#define MFLAG_NO_OPEN_DOORS 0x00000010
+// Legacy unused bit kept reserved for savefile compatibility.
 #define MFLAG_MFLAGXXXX6 0x00000020
-// Monster is recently memorized
+// Monster was recently memorized and should be redrawn as seen.
 #define MFLAG_SHOW 0x00000040
-// Monster is currently memorized
+// Monster is currently memorized by detection or explicit knowledge.
 #define MFLAG_MARK 0x00000080
-// previously: Monster is wary
+// Legacy unused bit kept reserved for savefile compatibility.
 #define MFLAG_MFLAGXXXX7 0x00000100
-// previously: Monster is temporarily marked
+// Legacy unused bit kept reserved for savefile compatibility.
 #define MFLAG_MFLAGXXXX8 0x00000200
-// previously: Monster has full required visibility
+// Legacy unused bit kept reserved for savefile compatibility.
 #define MFLAG_MFLAGXXXX9 0x00000400
-// Monster was pushed since its last turn
+// Monster was pushed since its last turn.
 #define MFLAG_PUSHED 0x00000800
-// previously: Monster is slightly slower than normal
+// Legacy unused bit kept reserved for savefile compatibility.
 #define MFLAG_MFLAGXXX10 0x00001000
-// previously: Monster is slightly faster than normal
+// Legacy unused bit kept reserved for savefile compatibility.
 #define MFLAG_MFLAGXXX11 0x00002000
-// Monster will cast a spell first opportunity
+// Monster will cast a spell at its first good opportunity.
 #define MFLAG_ALWAYS_CAST 0x00004000
-// Monster was just charged by player last turn
+// Monster was just charged by the player last turn.
 #define MFLAG_CHARGED 0x00008000
-// Monster will be Aggressive instead of Confident
+// Monster will use Aggressive rather than Confident behavior.
 #define MFLAG_AGGRESSIVE 0x00010000
-// Monster has been hit with a spell
+// Monster was hit by a ranged attack or spell since its last turn.
 #define MFLAG_HIT_BY_RANGED 0x00020000
-// Monster was just meleed by player last turn
+// Monster was hit in melee since its last turn.
 #define MFLAG_HIT_BY_MELEE 0x00040000
 
 /*
