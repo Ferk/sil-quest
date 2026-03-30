@@ -574,41 +574,32 @@ int main(int argc, char* argv[])
         {
             int choice = 0;
             int highlight = 1;
+            int quest_count = quests_count();
 
             if (p_ptr->is_dead)
-                highlight = 4;
+                highlight = quest_count + 2;
 
             /* Process Events until "new" or "open" is selected */
             while (!game_in_progress)
             {
                 choice = initial_menu(&highlight);
 
-                switch (choice)
+                if ((choice >= 1) && (choice <= quest_count))
                 {
-                case 1:
+                    quests_clear_pending_start();
 #ifdef USE_WEB
                     web_update_auto_resume_marker(FALSE);
 #endif /* USE_WEB */
-                    path_build(savefile, sizeof(savefile), ANGBAND_DIR_XTRA,
-                        "tutorial");
-                    game_in_progress = TRUE;
-                    new_game = FALSE;
-                    break;
-                case 2:
-                    /*
-                     * A fresh character should not probe any previously
-                     * prepared default save namespace such as "nameless".
-                     * Leave savefile empty so play_game() goes straight to
-                     * birth and only names the save after character creation.
-                     */
-#ifdef USE_WEB
-                    web_update_auto_resume_marker(FALSE);
-#endif /* USE_WEB */
-                    savefile[0] = '\0';
-                    game_in_progress = TRUE;
-                    new_game = TRUE;
-                    break;
-                case 3:
+                    if (quests_prepare_start(
+                            quests_get_id_by_position(choice), &new_game, savefile,
+                            sizeof(savefile)))
+                    {
+                        game_in_progress = TRUE;
+                    }
+                }
+                else if (choice == quest_count + 1)
+                {
+                    quests_clear_pending_start();
                     game_in_progress = TRUE;
                     new_game = FALSE;
 
@@ -638,13 +629,14 @@ int main(int argc, char* argv[])
                         }
                     }
                     process_player_name(TRUE);
-                    break;
-                case 4:
+                }
+                else if (choice == quest_count + 2)
+                {
+                    quests_clear_pending_start();
                     /* Free resources */
                     cleanup_angband();
                     /* Quit */
                     quit(NULL);
-                    break;
                 }
             }
         }

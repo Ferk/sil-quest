@@ -1436,8 +1436,8 @@ bool save_player(void)
 
     char safe[1024];
 
-    // in final deployment versions, you cannot save in the tutorial
-    if (DEPLOYMENT && p_ptr->game_type != 0)
+    // Some quests intentionally disable saving in deployment builds.
+    if (DEPLOYMENT && quests_save_disabled())
     {
         return (FALSE);
     }

@@ -3134,6 +3134,295 @@ errr parse_h_info(char* buf, header* head)
     return (0);
 }
 
+typedef struct quest_tval_name quest_tval_name;
+
+struct quest_tval_name
+{
+    cptr name;
+    byte tval;
+};
+
+static const quest_tval_name quest_tval_names[] = {
+    { "NOTE", TV_NOTE }, { "SKELETON", TV_SKELETON }, { "METAL", TV_METAL },
+    { "CHEST", TV_CHEST }, { "ARROW", TV_ARROW }, { "BOW", TV_BOW },
+    { "DIGGING", TV_DIGGING }, { "HAFTED", TV_HAFTED },
+    { "POLEARM", TV_POLEARM }, { "SWORD", TV_SWORD },
+    { "BOOTS", TV_BOOTS }, { "GLOVES", TV_GLOVES }, { "HELM", TV_HELM },
+    { "CROWN", TV_CROWN }, { "SHIELD", TV_SHIELD },
+    { "CLOAK", TV_CLOAK }, { "SOFT_ARMOR", TV_SOFT_ARMOR },
+    { "SOFTARMOR", TV_SOFT_ARMOR }, { "MAIL", TV_MAIL },
+    { "LIGHT", TV_LIGHT }, { "AMULET", TV_AMULET }, { "RING", TV_RING },
+    { "STAFF", TV_STAFF }, { "HORN", TV_HORN }, { "POTION", TV_POTION },
+    { "FLASK", TV_FLASK }, { "FOOD", TV_FOOD }, { "EASTER", TV_EASTER },
+    { NULL, 0 }
+};
+
+static void quest_mask_set(u32b* mask, int value)
+{
+    int word = value / 32;
+    int bit = value % 32;
+
+    if ((value < 0) || (word >= QUEST_MASK_WORDS))
+        return;
+
+    mask[word] |= (1UL << bit);
+}
+
+static bool quest_parse_flags(quest_type* q_ptr, cptr spec)
+{
+    char tmp[160];
+    char* token;
+
+    if (!spec || !spec[0])
+        return (TRUE);
+
+    my_strcpy(tmp, spec, sizeof(tmp));
+
+    for (token = strtok(tmp, " ,|\t"); token; token = strtok(NULL, " ,|\t"))
+    {
+        if (!my_stricmp(token, "NO_SAVE"))
+        {
+            q_ptr->flags |= QST_F_NO_SAVE;
+        }
+        else if (!my_stricmp(token, "NO_STAIRS_MONSTERS")
+            || !my_stricmp(token, "NO_STAIR_MONSTERS"))
+        {
+            q_ptr->flags |= QST_F_NO_STAIRS_MONSTERS;
+        }
+        else
+        {
+            return (FALSE);
+        }
+    }
+
+    return (TRUE);
+}
+
+static bool quest_parse_monster_mask(quest_type* q_ptr, cptr spec)
+{
+    bool seen = FALSE;
+
+    if (!spec || !spec[0] || streq(spec, "*"))
+        return (TRUE);
+
+    while (*spec)
+    {
+        unsigned char ch = (unsigned char)(*spec++);
+
+        if ((ch == ' ') || (ch == '\t') || (ch == ',') || (ch == '|'))
+            continue;
+
+        if (ch == '*')
+            return (TRUE);
+
+        quest_mask_set(q_ptr->monster_char_mask, ch);
+        seen = TRUE;
+    }
+
+    if (!seen)
+        return (FALSE);
+
+    q_ptr->flags |= QST_F_LIMIT_MONSTERS;
+    return (TRUE);
+}
+
+static bool quest_parse_object_mask(quest_type* q_ptr, cptr spec)
+{
+    char tmp[160];
+    char* token;
+    bool seen = FALSE;
+    int i;
+
+    if (!spec || !spec[0] || streq(spec, "*"))
+        return (TRUE);
+
+    my_strcpy(tmp, spec, sizeof(tmp));
+
+    for (token = strtok(tmp, " ,|\t"); token; token = strtok(NULL, " ,|\t"))
+    {
+        bool matched = FALSE;
+
+        for (i = 0; quest_tval_names[i].name; i++)
+        {
+            if (!my_stricmp(token, quest_tval_names[i].name))
+            {
+                quest_mask_set(q_ptr->object_tval_mask, quest_tval_names[i].tval);
+                matched = TRUE;
+                seen = TRUE;
+                break;
+            }
+        }
+
+        if (!matched)
+            return (FALSE);
+    }
+
+    if (!seen)
+        return (FALSE);
+
+    q_ptr->flags |= QST_F_LIMIT_OBJECTS;
+    return (TRUE);
+}
+
+/*
+ * Initialize the "q_info" array, by parsing an ascii "template" file
+ */
+errr parse_q_info(char* buf, header* head)
+{
+    int i;
+
+    char *s, *t;
+
+    /* Current entry */
+    static quest_type* q_ptr = NULL;
+
+    /* Process 'N' for "New/Number/Name" */
+    if (buf[0] == 'N')
+    {
+        s = strchr(buf + 2, ':');
+
+        if (!s)
+            return (PARSE_ERROR_GENERIC);
+
+        *s++ = '\0';
+        if (!*s)
+            return (PARSE_ERROR_GENERIC);
+
+        i = atoi(buf + 2);
+
+        if (i <= error_idx)
+            return (PARSE_ERROR_NON_SEQUENTIAL_RECORDS);
+        if (i >= head->info_num)
+            return (PARSE_ERROR_TOO_MANY_ENTRIES);
+
+        error_idx = i;
+        q_ptr = (quest_type*)head->info_ptr + i;
+
+        if (!(q_ptr->name = add_name(head, s)))
+            return (PARSE_ERROR_OUT_OF_MEMORY);
+    }
+
+    /* Process 'D' for "Description" */
+    else if (buf[0] == 'D')
+    {
+        if (!q_ptr)
+            return (PARSE_ERROR_MISSING_RECORD_HEADER);
+
+        if (!add_text(&(q_ptr->text), head, buf + 2))
+            return (PARSE_ERROR_OUT_OF_MEMORY);
+    }
+
+    /* Process 'C' for "Completion text" */
+    else if (buf[0] == 'C')
+    {
+        if (!q_ptr)
+            return (PARSE_ERROR_MISSING_RECORD_HEADER);
+
+        if (!add_text(&(q_ptr->completion_text), head, buf + 2))
+            return (PARSE_ERROR_OUT_OF_MEMORY);
+    }
+
+    /* Process 'G' for "Game type" */
+    else if (buf[0] == 'G')
+    {
+        if (!q_ptr)
+            return (PARSE_ERROR_MISSING_RECORD_HEADER);
+
+        q_ptr->game_type = atoi(buf + 2);
+    }
+
+    /* Process 'S' for "Start mode" */
+    else if (buf[0] == 'S')
+    {
+        if (!q_ptr)
+            return (PARSE_ERROR_MISSING_RECORD_HEADER);
+
+        s = buf + 2;
+        t = strchr(s, ':');
+        if (t)
+            *t++ = '\0';
+
+        if (!my_stricmp(s, "BIRTH"))
+        {
+            q_ptr->start_kind = QST_START_BIRTH;
+        }
+        else if (!my_stricmp(s, "SAVEFILE"))
+        {
+            q_ptr->start_kind = QST_START_SAVEFILE;
+
+            if (!t || !*t)
+                return (PARSE_ERROR_TOO_FEW_ARGUMENTS);
+
+            if (!(q_ptr->start = add_name(head, t)))
+                return (PARSE_ERROR_OUT_OF_MEMORY);
+        }
+        else
+        {
+            return (PARSE_ERROR_INVALID_FLAG);
+        }
+    }
+
+    /* Process 'O' for "Objective" */
+    else if (buf[0] == 'O')
+    {
+        if (!q_ptr)
+            return (PARSE_ERROR_MISSING_RECORD_HEADER);
+
+        s = buf + 2;
+
+        if (!my_stricmp(s, "NONE"))
+        {
+            q_ptr->objective = QST_OBJECTIVE_NONE;
+        }
+        else if (!my_stricmp(s, "STAIRS_EXIT")
+            || !my_stricmp(s, "STAIRS"))
+        {
+            q_ptr->objective = QST_OBJECTIVE_STAIRS_EXIT;
+        }
+        else
+        {
+            return (PARSE_ERROR_INVALID_FLAG);
+        }
+    }
+
+    /* Process 'F' for "Flags" */
+    else if (buf[0] == 'F')
+    {
+        if (!q_ptr)
+            return (PARSE_ERROR_MISSING_RECORD_HEADER);
+
+        if (!quest_parse_flags(q_ptr, buf + 2))
+            return (PARSE_ERROR_INVALID_FLAG);
+    }
+
+    /* Process 'M' for "Allowed monster display chars" */
+    else if (buf[0] == 'M')
+    {
+        if (!q_ptr)
+            return (PARSE_ERROR_MISSING_RECORD_HEADER);
+
+        if (!quest_parse_monster_mask(q_ptr, buf + 2))
+            return (PARSE_ERROR_INVALID_FLAG);
+    }
+
+    /* Process 'I' for "Allowed item tvals" */
+    else if (buf[0] == 'I')
+    {
+        if (!q_ptr)
+            return (PARSE_ERROR_MISSING_RECORD_HEADER);
+
+        if (!quest_parse_object_mask(q_ptr, buf + 2))
+            return (PARSE_ERROR_INVALID_FLAG);
+    }
+
+    else
+    {
+        return (PARSE_ERROR_UNDEFINED_DIRECTIVE);
+    }
+
+    return (0);
+}
+
 /*
  * Initialize the "flavor_info" array, by parsing an ascii "template" file
  */

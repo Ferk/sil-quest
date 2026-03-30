@@ -77,6 +77,7 @@ typedef struct store_type store_type;
 typedef struct player_race player_race;
 typedef struct player_house player_house;
 typedef struct hist_type hist_type;
+typedef struct quest_type quest_type;
 typedef struct player_other player_other;
 typedef struct player_type player_type;
 typedef struct start_item start_item;
@@ -774,6 +775,45 @@ struct hist_type
     byte chart; /* Chart index */
     byte next; /* Next chart index */
     byte house; /* House to associate with */
+};
+
+#define QUEST_MASK_WORDS 4
+
+#define QST_START_BIRTH 0
+#define QST_START_SAVEFILE 1
+
+#define QST_OBJECTIVE_NONE 0
+#define QST_OBJECTIVE_STAIRS_EXIT 1
+
+#define QST_F_NO_SAVE 0x01
+#define QST_F_NO_STAIRS_MONSTERS 0x02
+#define QST_F_LIMIT_OBJECTS 0x04
+#define QST_F_LIMIT_MONSTERS 0x08
+
+/*
+ * Quest definition loaded from quest.txt.
+ *
+ * This is intentionally small and conservative: a quest can start from a
+ * normal birth flow or from a packaged starter savefile, can opt into a small
+ * set of objective/behavior flags, and can restrict random item and monster
+ * generation.
+ */
+struct quest_type
+{
+    u32b name; /* Name (offset) */
+    u32b text; /* Description (offset) */
+    u32b start; /* Start savefile name (offset, if any) */
+    u32b completion_text; /* Completion text (offset, if any) */
+
+    s16b game_type; /* Normal game=0, tutorial<0, scenario/challenge>0 */
+
+    byte start_kind; /* QST_START_* */
+    byte objective; /* QST_OBJECTIVE_* */
+    byte flags; /* QST_F_* */
+    byte unused; /* Reserved */
+
+    u32b object_tval_mask[QUEST_MASK_WORDS];
+    u32b monster_char_mask[QUEST_MASK_WORDS];
 };
 
 /*

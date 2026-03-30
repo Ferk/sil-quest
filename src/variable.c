@@ -503,6 +503,13 @@ char* v_name;
 char* v_text;
 
 /*
+ * The quest definition arrays
+ */
+quest_type* q_info;
+char* q_name;
+char* q_text;
+
+/*
  * The terrain feature arrays
  */
 feature_type* f_info;

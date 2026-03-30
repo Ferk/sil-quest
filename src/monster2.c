@@ -712,6 +712,10 @@ s16b get_mon_num(int level, bool special, bool allow_non_smart, bool vault)
                 && !(r_ptr->flags2 & (RF2_TERRITORIAL))))
             continue;
 
+        /* Current quest can restrict random monster generation. */
+        if (!quests_allow_monster_race(r_idx))
+            continue;
+
         /* Accept */
         table[i].prob3 = table[i].prob2;
 
@@ -3038,7 +3042,7 @@ bool alloc_monster(bool on_stairs, bool force_undead)
     if (on_stairs)
     {
         // no monsters come through the stairs on tutorial/challenge levels
-        if (p_ptr->game_type != 0)
+        if (!quests_allow_stair_monsters())
             return (FALSE);
 
         // get a stair location
