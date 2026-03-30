@@ -16,6 +16,7 @@
 
 static s16b quest_pending_start_id = 0;
 
+/* Return the quest currently attached to the live player state. */
 static int quests_current_id(void)
 {
     if (!p_ptr)
@@ -24,6 +25,7 @@ static int quests_current_id(void)
     return (int)(p_ptr->unused2);
 }
 
+/* Attach the selected quest rules to the current player. */
 static void quests_activate(int quest_id)
 {
     const quest_type* q_ptr = quests_get(quest_id);
@@ -35,6 +37,7 @@ static void quests_activate(int quest_id)
     p_ptr->game_type = q_ptr->game_type;
 }
 
+/* Test whether a quest restriction mask allows the given value. */
 static bool quest_mask_has(const u32b* mask, int value)
 {
     int word = value / 32;
@@ -46,6 +49,7 @@ static bool quest_mask_has(const u32b* mask, int value)
     return ((mask[word] & (1UL << bit)) != 0);
 }
 
+/* Show quest completion text using the standard full-screen text view. */
 static void quests_show_text(cptr text)
 {
     void (*old_hook)(byte a, cptr str) = text_out_hook;
@@ -68,6 +72,55 @@ static void quests_show_text(cptr text)
     text_out_hook = old_hook;
     text_out_wrap = old_wrap;
     text_out_indent = old_indent;
+
+    while (1)
+    {
+        hide_cursor = TRUE;
+        ch = inkey();
+        hide_cursor = FALSE;
+
+        if (ch != EOF)
+            break;
+
+        message_flush();
+    }
+
+    screen_load();
+}
+
+/*
+ * Show one quest-authored multiline splash screen using raw line breaks.
+ */
+static void quests_pause_with_text(cptr text, int row, int col)
+{
+    char ch;
+    char line[160];
+    int i = 0;
+    cptr s = text ? text : "";
+
+    screen_save();
+    Term_clear();
+
+    while (*s)
+    {
+        int len = 0;
+
+        while (s[len] && (s[len] != '\n') && (len < (int)sizeof(line) - 1))
+            len++;
+
+        memcpy(line, s, len);
+        line[len] = '\0';
+        c_put_str(TERM_WHITE, line, row + i, col);
+
+        if (s[len] == '\n')
+            s += len + 1;
+        else
+            s += len;
+
+        i++;
+    }
+
+    Term_fresh();
 
     while (1)
     {
@@ -161,6 +214,18 @@ cptr quests_description(int quest_id)
     return (q_text + q_ptr->text);
 }
 
+/* Return the first-level entry text configured for a quest, if any. */
+cptr quests_entry_text(int quest_id)
+{
+    const quest_type* q_ptr = quests_get(quest_id);
+
+    if (!q_ptr || !q_ptr->entry_text || !q_text)
+        return ("");
+
+    return (q_text + q_ptr->entry_text);
+}
+
+/* Resolve how a quest should start and queue any pending scenario state. */
 bool quests_prepare_start(
     int quest_id, bool* new_game, char* savefile_buf, size_t savefile_len)
 {
@@ -173,6 +238,7 @@ bool quests_prepare_start(
 
     if (q_ptr->start_kind == QST_START_BIRTH)
     {
+        scenario_clear_pending();
         savefile_buf[0] = '\0';
         *new_game = TRUE;
         return (TRUE);
@@ -180,9 +246,24 @@ bool quests_prepare_start(
 
     if ((q_ptr->start_kind == QST_START_SAVEFILE) && q_ptr->start && q_name)
     {
+        scenario_clear_pending();
         path_build(savefile_buf, savefile_len, ANGBAND_DIR_XTRA,
             q_name + q_ptr->start);
         *new_game = FALSE;
+        return (TRUE);
+    }
+
+    if ((q_ptr->start_kind == QST_START_SCENARIO) && q_ptr->start && q_name)
+    {
+        savefile_buf[0] = '\0';
+        *new_game = TRUE;
+
+        if (!scenario_prepare_pending(q_name + q_ptr->start))
+        {
+            quest_pending_start_id = 0;
+            return (FALSE);
+        }
+
         return (TRUE);
     }
 
@@ -190,7 +271,11 @@ bool quests_prepare_start(
     return (FALSE);
 }
 
-void quests_clear_pending_start(void) { quest_pending_start_id = 0; }
+void quests_clear_pending_start(void)
+{
+    quest_pending_start_id = 0;
+    scenario_clear_pending();
+}
 
 cptr quests_pending_savefile(void)
 {
@@ -199,25 +284,57 @@ cptr quests_pending_savefile(void)
     if (!q_ptr || !q_ptr->start || !q_name)
         return (NULL);
 
+    if (q_ptr->start_kind != QST_START_SAVEFILE)
+        return (NULL);
+
     return (q_name + q_ptr->start);
 }
 
-void quests_activate_pending_for_new_game(void)
+/* Start the pending quest as a new game, whether from birth or a scenario. */
+bool quests_start_pending_new_game(void)
 {
-    if (quest_pending_start_id > 0)
-        quests_activate(quest_pending_start_id);
+    const quest_type* q_ptr = quests_get(quest_pending_start_id);
 
+    if (!q_ptr)
+    {
+        scenario_clear_pending();
+        player_birth();
+        p_ptr->depth = 1;
+        return (TRUE);
+    }
+
+    quests_activate(quest_pending_start_id);
     quest_pending_start_id = 0;
+
+    if (q_ptr->start_kind == QST_START_SCENARIO)
+        return (scenario_start_pending_new_game());
+
+    scenario_clear_pending();
+    player_birth();
+    p_ptr->depth = 1;
+    return (TRUE);
 }
 
 void quests_activate_pending_for_loaded_game(void)
 {
+    scenario_clear_pending();
+
     if (quest_pending_start_id > 0)
     {
         quests_activate(quest_pending_start_id);
     }
 
     quest_pending_start_id = 0;
+}
+
+bool quests_pending_level_generation(void)
+{
+    return (scenario_pending_level_generation());
+}
+
+bool quests_generate_pending_level(void)
+{
+    return (scenario_generate_pending_level());
 }
 
 bool quests_allow_monster_race(int r_idx)
@@ -270,6 +387,22 @@ bool quests_save_disabled(void)
     return (p_ptr->game_type != 0);
 }
 
+/* Show the current quest's optional first-level entry text, if any. */
+void quests_show_entry_text(void)
+{
+    cptr text = "";
+    const quest_type* q_ptr = quests_current();
+
+    if (q_ptr)
+        text = quests_entry_text(quests_current_id());
+
+    if (!text[0])
+        return;
+
+    quests_pause_with_text(text, 5, 15);
+}
+
+/* Complete quests whose objective is satisfied by taking the down stairs. */
 bool quests_try_complete_on_down_stairs(void)
 {
     const quest_type* q_ptr = quests_current();

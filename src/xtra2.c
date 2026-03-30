@@ -5373,19 +5373,6 @@ bool confuse_dir(int* dp)
     return (FALSE);
 }
 
-const char entry_poetry[][100] = { { "Into the vast and echoing gloom," },
-    { "more dread than many-tunnelled tomb" },
-    //	{ "in labyrinthine pyramid" },
-    //	{ "where everlasting death is hid," },
-    { "  down awful corridors that wind" },
-    { "    down to a menace dark enshrined;" },
-    { "      down to the mountain's roots profound," },
-    { "devoured, tormented, bored and ground" },
-    { "by seething vermin spawned of stone;" },
-    { "  down to the depths they went alone..." },
-
-    { "" } };
-
 const char tutorial_leave_text[][100] = {
     { "You have finished the first half of the tutorial and are ready" },
     { "to create a new character." }, { " " },

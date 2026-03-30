@@ -478,6 +478,30 @@ int main(int argc, char* argv[])
             break;
         }
 
+        case 'X':
+        case 'x':
+        {
+            char input[1024];
+            cptr sep = strchr(arg, '=');
+            size_t input_len;
+
+            if (!sep || (sep == arg) || !sep[1])
+                goto usage;
+
+            input_len = (size_t)(sep - arg);
+            if (input_len >= sizeof(input))
+                goto usage;
+
+            my_strcpy(input, arg, input_len + 1);
+            input[input_len] = '\0';
+
+            path_parse(savefile, sizeof(savefile), input);
+            path_parse(export_scenario_path, sizeof(export_scenario_path), sep + 1);
+            export_scenario_mode = TRUE;
+            game_in_progress = TRUE;
+            continue;
+        }
+
         case '-':
         {
             argv[i] = argv[0];
@@ -500,6 +524,7 @@ int main(int argc, char* argv[])
             puts("  -r       Request rogue-like keyset");
             puts("  -s<num>  Show <num> high scores (default: 10)");
             puts("  -u<who>  Use your <who> savefile");
+            puts("  -x<in>=<out>  Export savefile <in> to scenario file <out>");
             puts("  -d<def>  Define a 'lib' dir sub-path");
             puts("  -m<sys>  use Module <sys>, where <sys> can be:");
             /* Print the name and help for each available module */
@@ -524,8 +549,11 @@ int main(int argc, char* argv[])
         argv[1] = NULL;
     }
 
-    /* Process the player name */
-    process_player_name(TRUE);
+    /*
+     * Preserve explicit savefile paths supplied by command-line tooling such as
+     * scenario export instead of rewriting them to the default player save.
+     */
+    process_player_name(!export_scenario_mode);
 
     /* Install "quit" hook */
     quit_aux = quit_hook;
@@ -565,6 +593,14 @@ int main(int argc, char* argv[])
 
     /* Play the game */
     // play_game(new_game);
+
+    if (export_scenario_mode)
+    {
+        play_game(FALSE);
+        cleanup_angband();
+        printf("Exported scenario to '%s'.\n", export_scenario_path);
+        quit(NULL);
+    }
 
     // Sil-y: There is now a text menu that can play repeated games
     while (1)

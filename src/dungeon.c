@@ -1785,7 +1785,7 @@ static void process_player(void)
         if ((cave_o_idx[p_ptr->py][p_ptr->px] != 0))
         {
             object_type* o_ptr = &o_list[cave_o_idx[p_ptr->py][p_ptr->px]];
-            if ((o_ptr->tval == TV_NOTE) && (playerturn == 1))
+            if ((o_ptr->tval == TV_NOTE) && (playerturn <= 1))
             {
                 note_info_screen(o_ptr);
             }
@@ -2992,6 +2992,18 @@ void play_game(bool new_game)
         quests_activate_pending_for_loaded_game();
     }
 
+    if (export_scenario_mode)
+    {
+        if (!character_loaded)
+            quit("Unable to load savefile for scenario export.");
+
+        if (!scenario_export_current(export_scenario_path))
+            quit("Unable to export scenario.");
+
+        character_icky--;
+        return;
+    }
+
     /* Hack -- Default base_name */
     if (!op_ptr->base_name[0])
     {
@@ -3032,9 +3044,8 @@ void play_game(bool new_game)
         /* Hack -- seed for random artefacts */
         seed_randart = rand_int(0x10000000);
 
-        /* Roll up a new character */
-        player_birth();
-        quests_activate_pending_for_new_game();
+        if (!quests_start_pending_new_game())
+            quit("Unable to start quest.");
 
         /* Reset the item kind rules. */
         item_rules_clear();
@@ -3043,9 +3054,6 @@ void play_game(bool new_game)
         turn = 1;
         playerturn = 0;
         min_depth_counter = 0;
-
-        /* Start player on level 1 */
-        p_ptr->depth = 1;
     }
 
     /* Normal machine (process player name) */

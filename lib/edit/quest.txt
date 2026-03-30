@@ -22,6 +22,8 @@
 # G:game_type
 # S:BIRTH
 # S:SAVEFILE:<xtra savefile name>
+# S:SCENARIO:<edit data file>
+# E:entry text line shown on the first generated level (repeatable)
 # O:NONE | STAIRS_EXIT
 # F:NO_SAVE | NO_STAIRS_MONSTERS
 # M:<allowed monster display chars, e.g. omT>
@@ -31,9 +33,9 @@
 V:1.5.1
 
 N:1:Tutorial
-D:Start from the packaged tutorial scenario and learn the basics in a guided environment.
+D:Start from an exact exported tutorial scenario and learn the basics in a guided environment.
 G:-1
-S:SAVEFILE:tutorial
+S:SCENARIO:tutorial_scenario.txt
 O:NONE
 F:NO_SAVE | NO_STAIRS_MONSTERS
 
@@ -41,4 +43,12 @@ N:2:Main Game
 D:Create a fresh character, steal a Silmaril from Morgoth, and escape alive.
 G:0
 S:BIRTH
+E:Into the vast and echoing gloom,
+E:more dread than many-tunnelled tomb
+E:  down awful corridors that wind
+E:    down to a menace dark enshrined;
+E:      down to the mountain's roots profound,
+E:devoured, tormented, bored and ground
+E:by seething vermin spawned of stone;
+E:  down to the depths they went alone...
 O:NONE

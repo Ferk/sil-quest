@@ -3312,6 +3312,19 @@ errr parse_q_info(char* buf, header* head)
             return (PARSE_ERROR_OUT_OF_MEMORY);
     }
 
+    /* Process 'E' for "Entry text" */
+    else if (buf[0] == 'E')
+    {
+        if (!q_ptr)
+            return (PARSE_ERROR_MISSING_RECORD_HEADER);
+
+        if (q_ptr->entry_text && !add_text(&(q_ptr->entry_text), head, "\n"))
+            return (PARSE_ERROR_OUT_OF_MEMORY);
+
+        if (!add_text(&(q_ptr->entry_text), head, buf + 2))
+            return (PARSE_ERROR_OUT_OF_MEMORY);
+    }
+
     /* Process 'C' for "Completion text" */
     else if (buf[0] == 'C')
     {
@@ -3349,6 +3362,16 @@ errr parse_q_info(char* buf, header* head)
         else if (!my_stricmp(s, "SAVEFILE"))
         {
             q_ptr->start_kind = QST_START_SAVEFILE;
+
+            if (!t || !*t)
+                return (PARSE_ERROR_TOO_FEW_ARGUMENTS);
+
+            if (!(q_ptr->start = add_name(head, t)))
+                return (PARSE_ERROR_OUT_OF_MEMORY);
+        }
+        else if (!my_stricmp(s, "SCENARIO"))
+        {
+            q_ptr->start_kind = QST_START_SCENARIO;
 
             if (!t || !*t)
                 return (PARSE_ERROR_TOO_FEW_ARGUMENTS);

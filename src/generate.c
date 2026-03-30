@@ -3996,10 +3996,10 @@ void generate_cave(void)
     /*allow uniques to be generated everywhere but in nests/pits*/
     allow_uniques = TRUE;
 
-    // display the entry poetry
+    // display any quest-specific entry text
     if (playerturn == 0)
     {
-        pause_with_text(entry_poetry, 5, 15);
+        quests_show_entry_text();
     }
 
     // reset smithing leftover (as there is no access to the old forge)
@@ -4071,8 +4071,16 @@ void generate_cave(void)
         /* Nothing good here yet */
         rating = 0;
 
+        if (quests_pending_level_generation())
+        {
+            if (!quests_generate_pending_level())
+                quit("Unable to generate scenario level.");
+
+            p_ptr->create_stair = 0;
+        }
+
         /* Build the gates to Angband */
-        if (!p_ptr->depth)
+        else if (!p_ptr->depth)
         {
             gates_gen();
 

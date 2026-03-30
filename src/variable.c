@@ -161,6 +161,8 @@ int player_egid;
  * Buffer to hold the current savefile name
  */
 char savefile[1024];
+bool export_scenario_mode = FALSE;
+char export_scenario_path[1024];
 
 /*
  * Number of active macros.
