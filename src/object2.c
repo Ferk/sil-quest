@@ -1224,6 +1224,13 @@ bool object_similar(const object_type* o_ptr, const object_type* j_ptr)
         return (FALSE);
     }
 
+    /* Notes */
+    case TV_NOTE:
+    {
+        /* Keep authored notes separate so their contents do not merge. */
+        return (FALSE);
+    }
+
     /* Food and Potions */
     case TV_FOOD:
     case TV_POTION:

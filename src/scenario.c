@@ -48,6 +48,10 @@
 #define SCN_ACTION_DISPLAY_TEXT 2
 #define SCN_ACTION_END_GAME 3
 
+#define SCN_NOTE_TEXT_MAGIC 0x53430000UL
+#define SCN_NOTE_TEXT_MASK 0xFFFF0000UL
+#define SCN_NOTE_TEXT_INDEX_MASK 0x0000FFFFUL
+
 #define SCENARIO_CAVE_INFO_FLAGS                                              \
     (CAVE_MARK | CAVE_GLOW | CAVE_ICKY | CAVE_ROOM | CAVE_G_VAULT | CAVE_HIDDEN)
 
@@ -888,10 +892,89 @@ static void scenario_set_flag(int idx, bool value)
     p_ptr->unused3 = (s32b)bits;
 }
 
+/* Look up one named scenario text block without creating it. */
+static int scenario_find_text(cptr token)
+{
+    int i;
+    char local[SCENARIO_MAX_NAME_LEN];
+    char trimmed[SCENARIO_MAX_NAME_LEN];
+
+    if (!token || !token[0])
+        return (-1);
+
+    my_strcpy(local, token, sizeof(local));
+    my_strcpy(trimmed, scenario_trim(local), sizeof(trimmed));
+    if (!trimmed[0])
+        return (-1);
+
+    for (i = 0; i < scenario.text_count; i++)
+    {
+        if (!my_stricmp(trimmed, scenario.texts[i].name))
+            return (i);
+    }
+
+    return (-1);
+}
+
+/* Encode one scenario text block id into a note object's spare save data. */
+static void scenario_note_set_text_idx(object_type* o_ptr, int text_idx)
+{
+    u32b encoded;
+
+    if (!o_ptr || (text_idx < 0) || (text_idx >= SCENARIO_MAX_TEXTS))
+        return;
+
+    encoded = SCN_NOTE_TEXT_MAGIC
+        | (((u32b)text_idx + 1) & SCN_NOTE_TEXT_INDEX_MASK);
+    o_ptr->unused4 = (s32b)encoded;
+}
+
+/* Recover the scenario text block id carried by one tagged note object. */
+static int scenario_note_text_idx(const object_type* o_ptr)
+{
+    u32b encoded;
+    int idx;
+
+    if (!o_ptr || (o_ptr->tval != TV_NOTE))
+        return (-1);
+
+    encoded = (u32b)o_ptr->unused4;
+    if ((encoded & SCN_NOTE_TEXT_MASK) != SCN_NOTE_TEXT_MAGIC)
+        return (-1);
+
+    idx = (int)(encoded & SCN_NOTE_TEXT_INDEX_MASK) - 1;
+    if ((idx < 0) || (idx >= scenario.text_count))
+        return (-1);
+
+    return (idx);
+}
+
+/* Return the authored tag name associated with one tagged scenario note. */
+static cptr scenario_note_tag(const object_type* o_ptr)
+{
+    int idx = scenario_note_text_idx(o_ptr);
+
+    if (idx < 0)
+        return (NULL);
+
+    return (scenario.texts[idx].name);
+}
+
+/* Return the authored scenario text shown when reading one tagged note. */
+cptr scenario_note_text(const object_type* o_ptr)
+{
+    int idx = scenario_note_text_idx(o_ptr);
+
+    if (idx < 0)
+        return (NULL);
+
+    return (scenario.texts[idx].text);
+}
+
 /* Look up or create one named multiline scenario text block. */
 static int scenario_intern_text(cptr token, int line)
 {
-    int i;
+    int idx;
     char local[SCENARIO_MAX_NAME_LEN];
     char trimmed[SCENARIO_MAX_NAME_LEN];
 
@@ -909,11 +992,9 @@ static int scenario_intern_text(cptr token, int line)
         return (-1);
     }
 
-    for (i = 0; i < scenario.text_count; i++)
-    {
-        if (!my_stricmp(trimmed, scenario.texts[i].name))
-            return (i);
-    }
+    idx = scenario_find_text(trimmed);
+    if (idx >= 0)
+        return (idx);
 
     if (scenario.text_count >= SCENARIO_MAX_TEXTS)
     {
@@ -2081,7 +2162,8 @@ static void scenario_roll_body_values(void)
     }
 }
 
-static void scenario_prepare_object(
+/* Instantiate one authored object spec, including tagged note text wiring. */
+static bool scenario_prepare_object(
     object_type* o_ptr, const scenario_object_spec* spec, bool default_known)
 {
     int i;
@@ -2141,6 +2223,33 @@ static void scenario_prepare_object(
     if (spec->unused4_set)
         o_ptr->unused4 = spec->unused4;
 
+    if ((spec->k_idx > 0) && (k_info[spec->k_idx].tval == TV_NOTE)
+        && spec->tag_set)
+    {
+        int text_idx;
+
+        if (spec->unused4_set)
+        {
+            msg_format(
+                "Scenario '%s': tagged notes cannot also set unused4.",
+                scenario.source);
+            message_flush();
+            return (FALSE);
+        }
+
+        text_idx = scenario_find_text(spec->tag);
+        if (text_idx < 0)
+        {
+            msg_format(
+                "Scenario '%s': note tag '%s' has no matching X: text block.",
+                scenario.source, spec->tag);
+            message_flush();
+            return (FALSE);
+        }
+
+        scenario_note_set_text_idx(o_ptr, text_idx);
+    }
+
     for (i = 0; i < 8; i++)
     {
         if (spec->ability_slot_set[i])
@@ -2161,6 +2270,8 @@ static void scenario_prepare_object(
     {
         object_known(o_ptr);
     }
+
+    return (TRUE);
 }
 
 static void scenario_apply_monster_spec(
@@ -2248,7 +2359,8 @@ static bool scenario_add_starting_item(const scenario_object_spec* spec)
     object_type* i_ptr = &object_type_body;
     int slot = spec->slot;
 
-    scenario_prepare_object(i_ptr, spec, TRUE);
+    if (!scenario_prepare_object(i_ptr, spec, TRUE))
+        return (FALSE);
 
     if (slot == SCN_SLOT_PACK)
     {
@@ -2365,7 +2477,8 @@ static bool scenario_place_floor_object(
     object_type* o_ptr;
     s16b o_idx;
 
-    scenario_prepare_object(i_ptr, spec, FALSE);
+    if (!scenario_prepare_object(i_ptr, spec, FALSE))
+        return (FALSE);
 
     o_idx = o_pop();
     if (!o_idx)
@@ -3552,6 +3665,7 @@ static void scenario_export_header(FILE* fff, cptr filename)
     fprintf(fff, "# T:<symbol>:FEATURE:<feature>[:flags...] terrain legend used by M: rows\n");
     fprintf(fff, "# M:<symbols...> one map row using the T: legend above\n");
     fprintf(fff, "# O:<y>:<x>:<object>[:key=value...] floor object\n");
+    fprintf(fff, "#   Tagged Note objects reuse tag=<text-id> to choose their X: text\n");
     fprintf(fff, "# N:<y>:<x>:<monster>[:key=value...] monster\n");
     fprintf(fff, "# G:<y>:<x>:<tag> tag one grid for rule matching\n");
     fprintf(fff, "# X:<text-id>:<line> named multiline text block (repeatable)\n");
@@ -3589,6 +3703,7 @@ static void scenario_export_object_modifiers(
     FILE* fff, const object_type* o_ptr)
 {
     object_kind* k_ptr = &k_info[o_ptr->k_idx];
+    cptr note_tag = scenario_note_tag(o_ptr);
     int i;
 
     if (o_ptr->number != 1)
@@ -3627,6 +3742,8 @@ static void scenario_export_object_modifiers(
         fprintf(fff, ":xtra1=%u", (unsigned)o_ptr->xtra1);
     if (o_ptr->abilities)
         fprintf(fff, ":abilities=%u", (unsigned)o_ptr->abilities);
+    if (note_tag && note_tag[0])
+        fprintf(fff, ":tag=%s", note_tag);
 
     for (i = 0; i < 8; i++)
     {
@@ -3644,7 +3761,7 @@ static void scenario_export_object_modifiers(
         fprintf(fff, ":unused2=%ld", (long)o_ptr->unused2);
     if (o_ptr->unused3)
         fprintf(fff, ":unused3=%ld", (long)o_ptr->unused3);
-    if (o_ptr->unused4)
+    if (o_ptr->unused4 && !(note_tag && note_tag[0]))
         fprintf(fff, ":unused4=%ld", (long)o_ptr->unused4);
 
     if (k_ptr->aware)
@@ -4003,6 +4120,101 @@ static cptr scenario_export_monster_token(int r_idx, char* buf, size_t len)
     return (buf);
 }
 
+/* Export one scenario text block using the repeatable X: line format. */
+static void scenario_export_text_block(FILE* fff, cptr name, cptr text)
+{
+    cptr start = text;
+
+    if (!name || !name[0])
+        return;
+
+    if (!text || !text[0])
+    {
+        fprintf(fff, "X:%s:\n", name);
+        return;
+    }
+
+    while (start)
+    {
+        cptr end = strchr(start, '\n');
+
+        if (end)
+        {
+            fprintf(fff, "X:%s:%.*s\n", name, (int)(end - start), start);
+            start = end + 1;
+        }
+        else
+        {
+            fprintf(fff, "X:%s:%s\n", name, start);
+            break;
+        }
+    }
+}
+
+/* Export one scenario rule back into the authored event/action syntax. */
+static void scenario_export_rule(FILE* fff, const scenario_rule* rule)
+{
+    int i;
+    cptr event = NULL;
+
+    if (!rule)
+        return;
+
+    switch (rule->event)
+    {
+    case SCN_EVENT_SEE_MONSTER:
+        event = "SEE_MONSTER";
+        break;
+    case SCN_EVENT_USE_EXIT:
+        event = "USE_EXIT";
+        break;
+    case SCN_EVENT_DEATH:
+        event = "DEATH";
+        break;
+    default:
+        return;
+    }
+
+    fprintf(fff, "R:%s", event);
+    if (rule->tag_set)
+        fprintf(fff, ":tag=%s", rule->tag);
+    if (rule->when_count > 0)
+    {
+        fprintf(fff, ":when=");
+        for (i = 0; i < rule->when_count; i++)
+        {
+            const scenario_rule_term* term = &rule->when[i];
+
+            if (i > 0)
+                fprintf(fff, ",");
+            if (!term->expected)
+                fprintf(fff, "!");
+            fprintf(fff, "%s", scenario.flag_names[term->flag_idx]);
+        }
+    }
+
+    for (i = 0; i < rule->action_count; i++)
+    {
+        const scenario_rule_action* action = &rule->actions[i];
+
+        if (action->kind == SCN_ACTION_SET_FLAG)
+        {
+            fprintf(fff, ":SET_FLAG=%s", scenario.flag_names[action->flag_idx]);
+        }
+        else if (action->kind == SCN_ACTION_DISPLAY_TEXT)
+        {
+            fprintf(
+                fff, ":DISPLAY_TEXT=%s", scenario.texts[action->text_idx].name);
+        }
+        else if (action->kind == SCN_ACTION_END_GAME)
+        {
+            fprintf(fff, ":END_GAME");
+        }
+    }
+
+    fprintf(fff, "\n");
+}
+
 /* Dump the current player and level state to a human-readable scenario file. */
 bool scenario_export_current(cptr filename)
 {
@@ -4172,6 +4384,34 @@ bool scenario_export_current(cptr filename)
             scenario_export_monster_token(m_ptr->r_idx, token, sizeof(token)));
         scenario_export_monster_modifiers(fff, m_ptr, y);
         fprintf(fff, "\n");
+    }
+
+    if (scenario.grid_tag_count > 0)
+    {
+        fprintf(fff, "\n# Tagged grids.\n");
+        for (y = 0; y < scenario.grid_tag_count; y++)
+        {
+            scenario_grid_tag* tag = &scenario.grid_tags[y];
+
+            fprintf(fff, "G:%d:%d:%s\n", tag->y, tag->x, tag->tag);
+        }
+    }
+
+    if (scenario.text_count > 0)
+    {
+        fprintf(fff, "\n# Scenario text blocks.\n");
+        for (y = 0; y < scenario.text_count; y++)
+        {
+            scenario_export_text_block(
+                fff, scenario.texts[y].name, scenario.texts[y].text);
+        }
+    }
+
+    if (scenario.rule_count > 0)
+    {
+        fprintf(fff, "\n# Scenario rules.\n");
+        for (y = 0; y < scenario.rule_count; y++)
+            scenario_export_rule(fff, &scenario.rules[y]);
     }
 
     my_fclose(fff);

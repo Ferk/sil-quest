@@ -1069,7 +1069,7 @@
  * only armour and weapons and a few other items use any of these flags.
  */
 
-#define TV_NOTE 2 //         ~ Tutorial notes
+#define TV_NOTE 2 //         ~ Notes
 #define TV_SKELETON 3 //     ~ Skeletons
 #define TV_METAL 4 //        ~ Piece of mithril
 #define TV_CHEST 7 //        ~ Chests

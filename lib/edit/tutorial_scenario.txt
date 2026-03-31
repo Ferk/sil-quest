@@ -115,58 +115,58 @@ M:$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$
 # Floor objects.
 O:16:48:Set of Gauntlets:weight=27:ident=0x8:aware=1:everseen=1
 O:16:55:Shortsword:discount=108:weight=15:name2=21:ident=0x1:aware=1:everseen=1
-O:27:6:#452:ident=0x88:marked=1:aware=1:everseen=1
-O:19:39:#464:ident=0x88:aware=1:everseen=1
-O:28:3:#451:ident=0x88:marked=1:aware=1:everseen=1
-O:27:19:#454:ident=0x88:aware=1:everseen=1
-O:27:15:#453:ident=0x88:aware=1:everseen=1
+O:27:6:Note:tag=note_452:ident=0x88:marked=1:aware=1:everseen=1
+O:19:39:Note:tag=note_464:ident=0x88:aware=1:everseen=1
+O:28:3:Note:tag=note_451:ident=0x88:marked=1:aware=1:everseen=1
+O:27:19:Note:tag=note_454:ident=0x88:aware=1:everseen=1
+O:27:15:Note:tag=note_453:ident=0x88:aware=1:everseen=1
 O:28:17:Leather Armour:weight=82:ident=0x8:aware=1:everseen=1
 O:26:17:Curved Sword:ident=0x8:aware=1:everseen=1
-O:25:23:#455:ident=0x88:aware=1:everseen=1
-O:25:29:#458:ident=0x80:aware=1:everseen=1
-O:29:24:#456:ident=0x88:aware=1:everseen=1
+O:25:23:Note:tag=note_455:ident=0x88:aware=1:everseen=1
+O:25:29:Note:tag=note_458:ident=0x80:aware=1:everseen=1
+O:29:24:Note:tag=note_456:ident=0x88:aware=1:everseen=1
 O:25:34:Arrow:number=24:ident=0x8:aware=1:everseen=1
-O:19:18:#457:ident=0x88:aware=1:everseen=1
-O:24:48:#460:ident=0x88:aware=1:everseen=1
+O:19:18:Note:tag=note_457:ident=0x88:aware=1:everseen=1
+O:24:48:Note:tag=note_460:ident=0x88:aware=1:everseen=1
 O:23:34:Shortbow:ident=0x8:aware=1:everseen=1
-O:24:34:#459:ident=0x88:aware=1:everseen=1
-O:15:55:#462:ident=0x88:aware=1:everseen=1
-O:19:55:#461:ident=0x88:aware=1:everseen=1
-O:19:33:#466:ident=0x88:aware=1:everseen=1
-O:16:47:#463:ident=0x88:aware=1:everseen=1
-O:19:36:#465:ident=0x88:aware=1:everseen=1
-O:18:32:#467:ident=0x88:aware=1:everseen=1
-O:20:32:#468:ident=0x88:aware=1:everseen=1
-O:18:30:#469:ident=0x88:aware=1:everseen=1
-O:20:30:#470:ident=0x88:aware=1:everseen=1
-O:19:23:#472:ident=0x88:aware=1:everseen=1
-O:19:25:#471:ident=0x88:aware=1:everseen=1
-O:20:16:#474:ident=0x88:aware=1:everseen=1
+O:24:34:Note:tag=note_459:ident=0x88:aware=1:everseen=1
+O:15:55:Note:tag=note_462:ident=0x88:aware=1:everseen=1
+O:19:55:Note:tag=note_461:ident=0x88:aware=1:everseen=1
+O:19:33:Note:tag=note_466:ident=0x88:aware=1:everseen=1
+O:16:47:Note:tag=note_463:ident=0x88:aware=1:everseen=1
+O:19:36:Note:tag=note_465:ident=0x88:aware=1:everseen=1
+O:18:32:Note:tag=note_467:ident=0x88:aware=1:everseen=1
+O:20:32:Note:tag=note_468:ident=0x88:aware=1:everseen=1
+O:18:30:Note:tag=note_469:ident=0x88:aware=1:everseen=1
+O:20:30:Note:tag=note_470:ident=0x88:aware=1:everseen=1
+O:19:23:Note:tag=note_472:ident=0x88:aware=1:everseen=1
+O:19:25:Note:tag=note_471:ident=0x88:aware=1:everseen=1
+O:20:16:Note:tag=note_474:ident=0x88:aware=1:everseen=1
 O:21:16:Battle Axe:weight=56:ident=0x8:aware=1:everseen=1
-O:18:16:#473:ident=0x88:aware=1:everseen=1
+O:18:16:Note:tag=note_473:ident=0x88:aware=1:everseen=1
 O:17:16:Rage
-O:19:14:#475:ident=0x88:aware=1:everseen=1
-O:21:4:#476:ident=0x88:aware=1:everseen=1
-O:23:9:#477:ident=0x88:aware=1:everseen=1
-O:17:2:#478:ident=0x88:aware=1:everseen=1
-O:16:4:#479:ident=0x88:aware=1:everseen=1
-O:15:6:#480:ident=0x88:aware=1:everseen=1
-O:11:22:#484:ident=0x88:aware=1:everseen=1
-O:2:11:#481:ident=0x88:aware=1:everseen=1
-O:8:25:#485:ident=0x88:aware=1:everseen=1
-O:2:18:#482:ident=0x88:aware=1:everseen=1
-O:8:19:#483:ident=0x88:aware=1:everseen=1
+O:19:14:Note:tag=note_475:ident=0x88:aware=1:everseen=1
+O:21:4:Note:tag=note_476:ident=0x88:aware=1:everseen=1
+O:23:9:Note:tag=note_477:ident=0x88:aware=1:everseen=1
+O:17:2:Note:tag=note_478:ident=0x88:aware=1:everseen=1
+O:16:4:Note:tag=note_479:ident=0x88:aware=1:everseen=1
+O:15:6:Note:tag=note_480:ident=0x88:aware=1:everseen=1
+O:11:22:Note:tag=note_484:ident=0x88:aware=1:everseen=1
+O:2:11:Note:tag=note_481:ident=0x88:aware=1:everseen=1
+O:8:25:Note:tag=note_485:ident=0x88:aware=1:everseen=1
+O:2:18:Note:tag=note_482:ident=0x88:aware=1:everseen=1
+O:8:19:Note:tag=note_483:ident=0x88:aware=1:everseen=1
 O:5:11:Round Shield:weight=54:ident=0x8:aware=1:everseen=1
 O:2:19:Shovel:weight=69:dd=3:ds=1:ident=0x8:aware=1:everseen=1
-O:8:33:#487:ident=0x88:aware=1:everseen=1
+O:8:33:Note:tag=note_487:ident=0x88:aware=1:everseen=1
 O:9:53:#328
-O:8:32:#486:ident=0x88:aware=1:everseen=1
+O:8:32:Note:tag=note_486:ident=0x88:aware=1:everseen=1
 O:11:52:Arrow:number=48:discount=108:name2=101:ident=0x1:aware=1:everseen=1
 O:10:52:Cowardice:pval=1:ident=0x80
 O:10:51:Crown:pval=1:discount=108:weight=40:name2=72:ident=0x1:aware=1:everseen=1
 O:9:52:Mail Corslet:discount=108:weight=315:name2=1:ps=5:ident=0x1:aware=1:everseen=1
 O:10:53:Last Chances:weight=3
-O:8:36:#488:ident=0x88:aware=1:everseen=1
+O:8:36:Note:tag=note_488:ident=0x88:aware=1:everseen=1
 O:14:44:Spear:discount=108:name1=87:att=1:ident=0x1:xtra1=1:aware=1:everseen=1
 O:14:35:Quickness:everseen=1
 
@@ -198,6 +198,248 @@ G:23:10:early_exit
 G:9:55:final_exit
 
 # Scenario-authored text blocks referenced by the rules below.
+X:note_451:Welcome to Sil. The game is set within a vast dungeon called Angband.
+X:note_451: You have journeyed far into the north to reach Angband, and at
+X:note_451: great cost have found your way in. You plan to descend 1,000 ft
+X:note_451: into the earth, to find the dark enemy Morgoth and to cut a
+X:note_451: Silmaril from his crown, so that its light might once again be free.
+X:note_451:
+X:note_451: As with many other Roguelike games, Sil's graphics are represented by text:
+X:note_451: you are represented by the @, the + is a door, the ~ is a note, the blocks are
+X:note_451: walls. Try moving around with the keypad or arrow keys to reach the note.
+X:note_451: (You may need to press Numlock if your keypad doesn't work).
+
+X:note_452:To proceed, you will need to go through that door. To open a door, just
+X:note_452: try to move into it. Some doors are locked, in which case you will
+X:note_452: need to try multiple times in order to pick the lock. Alternatively,
+X:note_452: you could try bashing down the door by holding down Control while you
+X:note_452: move into it (or press (/) before moving). Some doors are stuck, in
+X:note_452: which case bashing them down is the only way past.
+X:note_452:
+X:note_452: (Note: if you have vi keys enabled, Control behaves differently -
+X:note_452: use the / key instead.)
+
+X:note_453:There are many different types of objects, which are represented
+X:note_453: by punctuation symbols. For example the | is a sword and the (
+X:note_453: is a piece of armour. To pick them up, walk onto them and
+X:note_453: press (,). The comma key interacts with your current square.
+X:note_453: Since there is an object there, it picks it up. To drop an object,
+X:note_453: press (d).
+
+X:note_454:Once you have got the items, they will be in your inventory.
+X:note_454: Your inventory is displayed in a window to the right of the main map.
+X:note_454: If you cannot see this window, you can also view inventory
+X:note_454: by pressing (i).
+
+X:note_455:Now that you can view your inventory, try equipping your
+X:note_455: sword and armour. To do this, press (u) to use an item,
+X:note_455: followed by the inventory letter of the item you wish to
+X:note_455: use. When you have equipped both sword and armour, they
+X:note_455: will disappear from your inventory and appear in your
+X:note_455: equipment list (in a window to the right).
+X:note_455: You can also press (e) to view equipment.
+
+X:note_456:You are now ready to try some combat. Creatures in Sil are usually
+X:note_456: represented by letters of the alphabet. In the next room
+X:note_456: lies the least fearsome enemy in the game: the tanglethorn.
+X:note_456: It cannot move, so simply walk up to it and move into it
+X:note_456: to attack. However, remember that in Sil death is final.
+X:note_456: If things start going badly, you can always retreat.
+
+X:note_457:To find out everything else you need to know about combat,
+X:note_457: you should read the appropriate pages in the manual
+X:note_457: that comes with the game. This is
+X:note_457: not essential for your first few games, but will
+X:note_457: help you explore the rich tactical combat system in Sil.
+
+X:note_458:There is no obvious way out of this room, but there might be a
+X:note_458: secret door somewhere. Pressing (z) or (5) waits a single turn
+X:note_458: and also increases your natural searching ability. Try walking
+X:note_458: around the wall of the room and searching for a secret door.
+X:note_458: You can also rest until healed by holding Shift while pressing
+X:note_458: (z) or (5). This might be useful after that fight.
+
+X:note_459:The } here is a bow, and the - is a set of arrows. Pick them up
+X:note_459: using (,), then wield them both using (u). You can now fire arrows
+X:note_459: using (f). Try this in the next room.
+
+X:note_460:If you want to move a long distance, hold down Shift while
+X:note_460: you move (or press (.) before moving). This moves you continuously until
+X:note_460: something happens which needs your attention. It can even
+X:note_460: run around corners in corridors. Try it.
+
+X:note_461:Corridors and some rooms like this one are not lit, forcing you
+X:note_461: to rely on your torch or lantern for light. Darkness and light
+X:note_461: is a major theme in Sil.
+
+X:note_462:You have found a shortsword. Note that it is listed as a Shortsword
+X:note_462: (+0, 1d7) [+1]. The numbers given in round brackets are attack values
+X:note_462: and those in square brackets are evasion. This shortsword gives no
+X:note_462: bonus to hit, does a single seven sided die of damage, and gives a
+X:note_462: +1 bonus to evasion. In contrast, your curved sword has -1 to accuracy
+X:note_462: and does two five sided dice of damage, and the same bonus to evasion.
+X:note_462:
+X:note_462: This shortsword is also marked {special}. This means that it bears some
+X:note_462: unknown enchantment. You will have to discover what that is. For now
+X:note_462: try wielding it (u).
+
+X:note_463:Here is a set of Gauntlets (-1) [+0, 1d1]. This means that they
+X:note_463: give a penalty of -1 to your accuracy, they have no bonus to evasion
+X:note_463: and they absorb 1 point of damage (a one sided die worth...).
+X:note_463: In contrast, your Leather Armour [-1, 1d4] has a -1 penalty to evasion
+X:note_463: and absorbs one four sided die of damage.
+X:note_463:                                           As you can see, armour and
+X:note_463: weapons in Sil come with trade-offs between attack (chance of hitting;
+X:note_463: damage), and defence (chance of evading hits; damage reduction).
+X:note_463: Which pieces of equipment are best will depend on the circumstances.
+
+X:note_464:If you were wielding the shortsword, you would have noticed it glow
+X:note_464: brightly in the presence of the orc, indicating to the perceptive player
+X:note_464: that it bears an enchantment against orcs. This means that it does an
+X:note_464: extra die of damage against orcs, making its 1d7 into 2d7: a large bonus.
+
+X:note_465:The dungeons of Angband are littered with many traps. Near here is a
+X:note_465: caltrop trap which temporarily slows you. Like most traps, it can be
+X:note_465: disarmed by holding down Control while attempting to move into it
+X:note_465: (or pressing (/) before moving). This also has a chance of triggering the trap.
+X:note_465: Since it is not too dangerous, try to disarm it until you succeed.
+X:note_465:
+X:note_465: (Note: if you have vi keys enabled, Control behaves differently -
+X:note_465: use the / key instead.)
+
+X:note_466:Your character has four main statistics: Strength, Dexterity,
+X:note_466: Constitution, and Grace. These are represented at the left of
+X:note_466: the screen. The numbers can be positive or negative, with zero
+X:note_466: representing the average for the humans of this age (the Edain).
+
+X:note_467:Your Strength mainly affects the damage you deal. You can get an
+X:note_467: extra side on each damage die for each point of Strength. Your
+X:note_467: strength is 2, so you do 2d7 damage with the curved sword instead
+X:note_467: of 2d5.
+X:note_467: You only do 1d8 damage with the shortsword though, as you
+X:note_467: can get at most 1 extra side for each lb the weapon weighs.
+X:note_467: Your abilities with your current weapon/bow/armour are listed on the
+X:note_467: left of the screen too. Try switching weapons to see what happens.
+
+X:note_468:Your Constitution increases your maximum health. Unlike many other
+X:note_468: games, in Sil it is the only thing that affects maximum Health.
+X:note_468: To survive the more challenging opponents, you will need to
+X:note_468: get better at avoiding their attacks or absorbing the damage with armour.
+X:note_469:As well as your Statistics, you have 8 skills open to you.
+X:note_469: Your Dexterity affects the first four of these: Melee, Archery,
+X:note_469: Evasion, and Stealth.
+
+X:note_470:As well as your Statistics, you have 8 skills open to you.
+X:note_470: Your Grace affects the last four of these: Perception, Will,
+X:note_470: Smithing, and Song. It also increases your 'Voice' which is
+X:note_470: a measure of how long you can keep singing a song of power.
+
+X:note_471:To have a look at your character sheet, press (Escape) to bring up the
+X:note_471: main menu then choose the second option. This will show
+X:note_471: all of your Skills and much more. To exit just press (Escape)
+X:note_471: (which exits any menu or screen in Sil).
+X:note_471: An alternative way to look at your character sheet is to press the @
+X:note_471: key.
+
+X:note_472:In Sil, your character gains experience from encountering enemies,
+X:note_472: killing enemies, identifying items, and reaching new depths in
+X:note_472: the dungeon. You can use the experience you have earned to increase
+X:note_472: your Skills via the character sheet, but don't do so right now.
+
+X:note_473:Sometimes you won't know what a character on the screen represents.
+X:note_473: To find out, press (l), which allows you to look at objects.
+
+X:note_474:Sometimes you will have identified an item, but still won't know exactly
+X:note_474: what it does. You can find out more by pressing (x) to examine it.
+
+X:note_475:Sometimes you will forget which key does what, or need a new command.
+X:note_475: You can see a list of all the key commands by pressing (?).
+
+X:note_476:You now know more than enough to start playing Sil and can probably
+X:note_476: pick up most things as you go along, with occasional references to the
+X:note_476: manual if you want to know exactly how things work. If you'd like to
+X:note_476: continue with the tutorial, just take the door to the north. If you'd
+X:note_476: like to start a proper game, then go through the passage to the east.
+X:note_476: If you want to skip this part of the tutorial next time, there is a
+X:note_476: secret door to the south between the first room and this room.
+
+X:note_477:To use the staircase, type (,) when standing on it.
+
+X:note_478:Enemies in Sil have three levels of alertness. They can be asleep, unwary,
+X:note_478: or alert. When they are asleep they don't move, and their Evasion score is
+X:note_478: set to [-5]. When they are unwary, they move around oblivious to you and
+X:note_478: their Evasion is halved.
+X:note_478:
+X:note_478: Remaining unnoticed can be a great advantage in Sil. You can try to avoid
+X:note_478: all enemies, avoid only those you cannot handle, or kill them in their sleep.
+X:note_478: It is even possible to play the game without any combat if you are very
+X:note_478: careful.
+
+X:note_479:Your chance to remain unseen is primarily affected by your Stealth skill.
+X:note_479: Enemies get a penalty to notice you based on how far away they are, with
+X:note_479: closed doors counting as five squares.
+X:note_479:
+X:note_479: If you are within sight of an unwary enemy, it receives a bonus
+X:note_479: to notice you, and this effect is increased for each floor square around
+X:note_479: you. It thus pays to remain out of sight and behind closed doors, or
+X:note_479: (if you must be in sight), to hide near the walls and corners of rooms.
+X:note_479: Finally, there is a penalty for making loud noises, such as being
+X:note_479: involved in combat.
+
+X:note_480:If it is critical to avoid attracting attention, you get a bonus for staying
+X:note_480: still, or for moving slowly (Stealth mode). To switch this on or off, press (S).
+X:note_480: Using Stealth mode and sticking to the walls, see if you can evade these
+X:note_480: Orc soldiers. If not, don't despair -- stealth is not always easy.
+
+X:note_481:It looks like there has been a cave-in here. To get through
+X:note_481: you will need to move diagonally. This is easy with a keypad, but harder on
+X:note_481: a laptop. To move diagonally, use the 1 3 7 9 keys at the top of the
+X:note_481: keyboard. This can be a little tricky to learn, but it is often convenient and
+X:note_481: sometimes essential. If you are very familiar with the hjkl movement keys,
+X:note_481: there is an option to use them instead in the options menu (find it from the
+X:note_481: main menu).
+
+X:note_482:The corridor ahead is completely blocked, but there is a shovel here.
+X:note_482: If you are carrying a shovel, you can use Control
+X:note_482: (or (/)) to tunnel through the rubble. Deeper down you might find mattocks
+X:note_482: which can dig through quartz veins, and even some ways to dig through
+X:note_482: granite. It is strongly recommended that you carry some means of digging
+X:note_482: when you venture down into the depths, or you could become trapped.
+
+X:note_483:Some characters learn to sing songs of power, which can
+X:note_483: have great effect upon you, your enemies, or even your environment.
+X:note_483: Your character knows two songs: the Song of Staunching, which stops
+X:note_483: you from bleeding and increases the speed at which you heal, and
+X:note_483: the Song of the Trees, which increases your light radius. Behind this
+X:note_483: door you will find use for both of them. Press (s) to begin or end
+X:note_483: singing.
+
+X:note_484:Some characters master Smithing and create enchanted items.
+X:note_484: To do so requires you to find a forge and when standing in it,
+X:note_484: to press (,). Your character knows how to make magical jewellery.
+X:note_484: Find the forge through this door and create a Ring of Frost.
+X:note_484: This will help protect you from enemies that have fiery attacks.
+
+X:note_485:When you have learnt about Song and Smithing, go through this door.
+
+X:note_486:Each of the eight skills has a set of special Abilities tied to it.
+X:note_486: Each type of song is an Ability for the Song skill. Jewellery is
+X:note_486: an Ability for the Smithing skill.
+
+X:note_487:To look through the available Abilities, press (Tab). You will see
+X:note_487: that each one has a required number of points in that Skill and
+X:note_487: possibly some pre-requisite Abilities. Typically the first ability
+X:note_487: in a skill costs 500 experience, then 1000, 1500 etc. You will have
+X:note_487: to find the right balance between spending experience on Skill points
+X:note_487: and on abilities. Now might be a good time to spend any experience
+X:note_487: you have on Skills or Abilities.
+
+X:note_488:That's it. You now know enough about Sil to really get started.
+X:note_488: If you need to know any more, then have a look through the manual.
+X:note_488: Through here lies your final challenge, and one that will
+X:note_488: almost certainly mean your demise. See if you can make it past the
+X:note_488: challenge and reach the staircase, using it by pressing (,).
+
 X:tutorial_leave:You have finished the first half of the tutorial and are ready
 X:tutorial_leave:to create a new character.
 X:tutorial_leave:
