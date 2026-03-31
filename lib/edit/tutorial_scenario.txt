@@ -53,77 +53,64 @@ P:ABILITY:Song:Song of the Trees
 I:LITE:Wooden Torch:timeout=1999:ident=0x8:aware=1:everseen=1
 
 # Terrain legend for the map rows below.
-T:$:FEATURE:#63
-T:#:FEATURE:granite wall
-T:H:FEATURE:granite wall:GLOW
-T:%:FEATURE:quartz vein
-T:.:FEATURE:open floor:GLOW
-T:r:FEATURE:pile of rubble:GLOW
-T:+:FEATURE:door:GLOW
-T:_:FEATURE:open floor
-T:R:FEATURE:pile of rubble
-T:X:FEATURE:#58:GLOW:ROOM
-T:&:FEATURE:quartz vein:GLOW:ROOM
-T:W:FEATURE:granite wall:GLOW:ROOM
-T:`:FEATURE:open floor:GLOW:ROOM
+T:$:FEATURE:permanent granite wall
+T:#:FEATURE:outer granite wall:GLOW:ROOM
+T:M:FEATURE:inner granite wall:GLOW:ROOM
+T:H:FEATURE:outer granite wall
+T:W:FEATURE:granite wall:MARK:GLOW
+T:.:FEATURE:open floor:GLOW:ROOM
 T:':FEATURE:open floor:ROOM
-T:M:FEATURE:#58:ROOM
-T:!:FEATURE:pile of rubble:GLOW:ROOM
-T:":FEATURE:#57:GLOW:ROOM
-T:=:FEATURE:door:GLOW:ROOM
-T:(:FEATURE:quartz vein:GLOW
-T:/:FEATURE:open door:GLOW:ROOM
-T:):FEATURE:#57:GLOW
-T:>:FEATURE:down shaft:GLOW:ROOM
-T:*:FEATURE:granite wall:ROOM
-T:0:FEATURE:forge (1 use remaining)
-T:s:FEATURE:secret door:ROOM
-T:\:FEATURE:open door:GLOW
-T:^:FEATURE:caltrop field:GLOW:ROOM:HIDDEN
-T:|:FEATURE:door
-T:}:FEATURE:down staircase:GLOW:ROOM
+T:_:FEATURE:open floor
+T:%:FEATURE:quartz vein:GLOW
+T:R:FEATURE:pile of rubble
+T:r:FEATURE:pile of rubble:GLOW:ROOM
+T:+:FEATURE:door:GLOW:ROOM
+T:|:FEATURE:door:ROOM
+T:/:FEATURE:open door:GLOW
 T:S:FEATURE:secret door:GLOW:ROOM
-T:,:FEATURE:granite wall:MARK:GLOW
-T:-:FEATURE:secret door:MARK:GLOW
-T:1:FEATURE:open floor:MARK:GLOW
+T:s:FEATURE:secret door:ROOM
+T:=:FEATURE:locked door:GLOW
+T:0:FEATURE:forge (1 use remaining)
+T:^:FEATURE:caltrop field:GLOW:ROOM:HIDDEN
+T:}:FEATURE:down staircase:GLOW:ROOM
+T:>:FEATURE:down shaft:GLOW:ROOM
+T:,:FEATURE:open floor:MARK:GLOW
+T:1:FEATURE:secret door:MARK:GLOW
 T:2:FEATURE:door:MARK:GLOW
-T:3:FEATURE:locked door:GLOW
-T:4:FEATURE:#58:GLOW
 
 # Map rows using the terrain legend above.
-M:$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$
-M:$#########HHH#HHH######################%#%%%##############%#%%####################################$
-M:$#########H.rrr.+___R__################%%%################%%%#%%##################################$
-M:$#####____+.rr.rH###HH+HH##############%##%XXXXXXXXX#####%%#%%#%##########XXXXXXX#################$
-M:$#####_###Hr.rr.H###H...H##############%%%%&WWWWWWWX##%#%%###%############X`````X#################$
-M:$#####'MXXX`!``rH###H...H#####HHHHHHHHHHHH#&WWWWWWWX####%#%%##############X`"`"`XXXXXXXXXXXX######$
-M:$#HHHH=WWWWWWWXHHHHHH...HHHH##H....H.....HHXWWWWWWWXH(H((%################X`````/``````````X######$
-M:$#H...````WW```..X`````````XXXH.HH.H.....)H````WWWW`..``XXXXXX############X`"`"`X``````````X######$
-M:$#H.H.``W`WW```..=`````````=``+..``=``````.`````````..```WWWWW############W`````X``````````X######$
-M:$#H...````XX```..X`````````WWXH.HW`W`````W.`````````..`>`WWWWX############XXXXXXX``````````X######$
-M:$#H.H...H.HH.....XWWW```WWWWWXH..``W`````WHH..........```WWWWX##################X``````````X######$
-M:$#H.......HHHH+HHXWWW```WWWW*MHHHXWWWWWWWWHHHHHH......``WWWWWX##################X/XXXXXXXXXX######$
-M:$#H.H...H.HH.....XWWW```WWW**'__#X****WWW&(HHHHHHH...HXXXXXWXXXXXXX##############_################$
-M:$#H.......HH.....XWWWW=WW***''___M'''*WWW&%___##%H((HH###XWWWWWWWWX###########XXX/XXXX############$
-M:$HHHHH+HHHHH.....XXXXM''''''''0__s'''*****#___(H(((H#####M**WWWWWWW###########W``````X############$
-M:$H.....H###H.....H##########_____M'''MXXWWH___(....+_____''*WWWWWWX###########X``````X############$
-M:$H.....H###HHHHHHH#XXXXXWXXXX___#######HHHHHHH(....H_____''*WWWWWWX#XXXXXXXX##X``````X############$
-M:$H.....H###HHHHH.HHXW```````XHXXXXXWXXX****###(....H_____''*WWWWWWW#W``````/__/``````/_____#######$
-M:$H+HHHHH####H......`W`W`W`W`XH`W`WW```W''''___(HHH\H_____''MWXXXWXX#X``````X##X``````X##XX`XXXX###$
-M:$H.....+__''=````..`=```````=.````=``^=''''___%%%#_#_______##%%%#%#%&``````&%%&X&&/&&&%%X`````&#%#$
-M:$H.....H##**W````..`W`W`W`W`WH`W`WW```W''''___|____####|#####%#%#%%%X``````X%%#%#%_##%#%&`````X%##$
-M:$H.....HHHWWWWWW`HHWW```````XHXWWWWWWWWWWWWHHHHHHHH#%%#_#%%%###%###%X``````X%%%#%#_%%###&`````&%#%$
-M:$H.....H..``WWWWXH#XXXXXXXXXXXXXW```WW````````````X%#%#_#%%###%%#%#%X``````&XX&&X&/XXX%#&`````X%%%$
-M:$H........}`WWWWX##########H```W`````W````````````X####_#%%%#XXXWXX&&&/&/&&X`````````&%%X`````X%#%$
-M:$H.....H..``WWWWWHHHHHHHHHHH```S`````=````````````=_____#####X`````````X_##X`````````/__/`````X###$
-M:$,-,,,,,,HWWWX```....+....HH```W`````W````````````W##########X`````````X___/`````````X##XXXXXXX###$
-M:$,111111,#XXXX```....H....HH```WW```WW````````````X##########X`````````X###X`````````X############$
-M:$,1111112____3.......H....HH```WWWWWWWWWWWWWWWW"WWX##########X`````````/___``````````X############$
-M:$,1.1111,####4.......H....HHX=WWWWWWWWWWWWWWWWWWWWW##########W`````````X###XXXXXXXXXXX############$
-M:$,111111,####4.......H....+_''*WWWWWWWWXXXXXXWWWXXX##########XXXXXXXXXXX##########################$
-M:$,,,,,,,,####44444HHHHHHHHH##################%##%#################################################$
-M:$###########################################%#%%%#################################################$
-M:$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$
+M:$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$
+M:$$$$$$$$$$#######HHHHHHH$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$
+M:$$$$$HHHHH#.rrr.+___R__H$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$
+M:$$$$$H____+.rr.r#HHHHH+HH$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$
+M:$$$$$H_HHH#r.rr.#####...#$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$
+M:$$$$$H_H$$#.r..r#####...#$$$$$############$$$$$$$$$$$$$$$$$$$
+M:$$####+##############...#######....#.....#######$$###%#%%$$$$
+M:$$#.......##.....#.........#HH#.MM.#.....%#....####.....##$$$
+M:$$#.M...M.##.....+.........+__+....+.....................#$$$
+M:$$#.......##.....#.........#HH#.MM.#.....#.............>.#$$$
+M:$$#.M...M.##.....####...####$$#....#.....###.............#$$$
+M:$$#.......####+###$$#...#$$$####################........##$$$
+M:$$#.M...M.##.....#$$#...#$$##'''######$$$$%#######...####$$$$
+M:$$#.......##.....#$$##+#####'''''#'''#$$$$%___##%#%%##$$$$$$$
+M:$#####+#####.....#$$$#''''''''0''s'''#$$$$#___%#%%%#########$
+M:$#.....#$$#H.....###########'''''#'''#$$$$H___%....+'''''''#$
+M:$#.....#$$########$$#########'''#######HHHHHHH%....#'''''''#$
+M:$#.....#$$$$####.####.......##################%....#'''''''#$
+M:$#+##########.......#.M.M.M.##.#.##...#'''''''%###/#'''''''#$
+M:$#.....+____+.......+.......+.....+..^+'''''''%%%#_#'''''''#$
+M:$#.....#HHHH#.......#.M.M.M.##.#.##...#'''''''|____####|####$
+M:$#.....#########.####.......#######################$$$H_H$$$$
+M:$#.....#....#$$###$$#############...##............#$$$H_H$$$$
+M:$#........}.#$$$$$$$$$$$$$$#...#.....#............#HHHH_H$$$$
+M:$#.....#....################...S.....+............+_____H$$$$
+M:$W1WWWWWW#####.......+....##...#.....#............#HHHHHH$$$$
+M:$W,,,,,,WHHHH#.......#....##...##...##............#$$$$$$$$$$
+M:$W,,,,,,2____=.......#....##...####################$$$$$$$$$$
+M:$W,.,,,,WHHHH#.......#....###+##$$$$$$$$$$$$$$$$$$$$$$$$$$$$$
+M:$W,,,,,,W$$$$#.......#....+___H$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$
+M:$WWWWWWWW$$$$##############HHHH$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$
+M:$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$
 
 # Floor objects.
 O:16:48:Set of Gauntlets:weight=27:ident=0x8:aware=1:everseen=1

@@ -357,19 +357,19 @@ G:#:W1
 
 # 0x39 --> granite wall -- inner
 
-N:57:granite wall
+N:57:inner granite wall
 G:#:W1
 M:56
 
 # 0x3A --> granite wall -- outer
 
-N:58:granite wall
+N:58:outer granite wall
 G:#:W1
 M:56
 
 # 0x3B --> granite wall -- solid
 
-N:59:granite wall
+N:59:solid granite wall
 G:#:W1
 M:56
 
@@ -390,7 +390,7 @@ G:1:s
 
 # 0x3F --> granite wall -- permanent
 
-N:63:granite wall
+N:63:permanent granite wall
 G:#:W1
 M:56
 
