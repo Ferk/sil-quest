@@ -1004,6 +1004,8 @@ void note_info_screen(const object_type* o_ptr)
     ui_text_builder modal_builder;
 
     if (o_ptr && o_ptr->k_idx)
+        note_text = scenario_note_text(o_ptr);
+    if (!note_text && o_ptr && o_ptr->k_idx)
         note_text = k_text + k_info[o_ptr->k_idx].text;
 
     ui_text_builder_init(
@@ -1042,7 +1044,8 @@ void note_info_screen(const object_type* o_ptr)
 
     /* Note text */
     Term_gotoxy(text_out_indent, 2);
-    text_out_to_screen(TERM_WHITE, k_text + k_info[o_ptr->k_idx].text);
+    if (note_text)
+        text_out_to_screen(TERM_WHITE, note_text);
 
     /* Note outro */
     text_out_c(TERM_L_WHITE + TERM_SHADE, "\n\n(press any key)\n");
