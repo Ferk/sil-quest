@@ -589,6 +589,7 @@ extern bool scenario_start_pending_new_game(void);
 extern bool scenario_pending_level_generation(void);
 extern bool scenario_generate_pending_level(void);
 extern bool scenario_export_current(cptr filename);
+extern cptr scenario_note_text(const object_type* o_ptr);
 extern void scenario_handle_monster_seen(monster_type* m_ptr);
 extern bool scenario_handle_use_exit(int y, int x);
 extern void scenario_handle_death(void);
