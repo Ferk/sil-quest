@@ -1814,6 +1814,8 @@ extern void break_truce(bool obvious)
 
         if (!p_ptr->truce)
         {
+            quests_note_truce_broken();
+
             if (!obvious)
             {
                 msg_format(

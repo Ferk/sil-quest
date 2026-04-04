@@ -3850,12 +3850,6 @@ static void throne_gen(void)
     int i;
     int py = 0, px = 0;
 
-    // display the throne poetry
-    pause_with_text(throne_poetry, 5, 15);
-
-    // set the 'truce' in action
-    p_ptr->truce = TRUE;
-
     /* Restrict to single-screen size */
     p_ptr->cur_map_hgt = (3 * PANEL_HGT);
     p_ptr->cur_map_wid = (3 * PANEL_WID_FIXED);
@@ -4208,6 +4202,8 @@ void generate_cave(void)
 
     /* The dungeon is ready */
     character_dungeon = TRUE;
+
+    quests_handle_enter_level();
 
     /* Reset the number of traps on the level. */
     num_trap_on_level = 0;

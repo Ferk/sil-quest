@@ -37,16 +37,37 @@ static void quests_activate(int quest_id)
     p_ptr->game_type = q_ptr->game_type;
 }
 
-/* Reload the current quest's scenario runtime data after loading a save. */
-static void quests_reload_current_scenario_runtime(void)
+/* Guess the main quest for legacy normal-game saves with no quest id. */
+static int quests_guess_loaded_main_game_id(void)
+{
+    int i;
+
+    if (!q_info || !z_info || !p_ptr || (p_ptr->game_type != 0))
+        return (0);
+
+    for (i = 1; i < z_info->q_max; i++)
+    {
+        if (!q_info[i].name)
+            continue;
+        if ((q_info[i].game_type == 0)
+            && ((q_info[i].start_kind == QST_START_BIRTH)
+                || (q_info[i].start_kind == QST_START_SCENARIO)))
+            return (i);
+    }
+
+    return (0);
+}
+
+/* Reload the current quest's scenario runtime data after load. */
+static void quests_reload_current_runtime(void)
 {
     const quest_type* q_ptr = quests_current();
 
+    scenario_clear_pending();
+
     if (!q_ptr || (q_ptr->start_kind != QST_START_SCENARIO) || !q_ptr->start
         || !q_name)
-    {
         return;
-    }
 
     (void)scenario_prepare_pending(q_name + q_ptr->start);
 }
@@ -337,8 +358,15 @@ void quests_activate_pending_for_loaded_game(void)
     {
         quests_activate(quest_pending_start_id);
     }
+    else if (quests_current_id() <= 0)
+    {
+        int guessed_id = quests_guess_loaded_main_game_id();
 
-    quests_reload_current_scenario_runtime();
+        if (guessed_id > 0)
+            quests_activate(guessed_id);
+    }
+
+    quests_reload_current_runtime();
     quest_pending_start_id = 0;
 }
 
@@ -415,6 +443,30 @@ void quests_show_entry_text(void)
         return;
 
     quests_pause_with_text(text, 5, 15);
+}
+
+/* Trigger any quest-side enter-level runtime rules for the active quest. */
+void quests_handle_enter_level(void)
+{
+    scenario_handle_enter_level();
+}
+
+/* Trigger any quest-side up-stairs rules for the active quest. */
+bool quests_handle_use_up_exit(void)
+{
+    return (scenario_handle_use_up_exit());
+}
+
+/* Trigger any quest-side down-stairs rules for the active quest. */
+bool quests_handle_use_down_exit(int* new_depth)
+{
+    return (scenario_handle_use_down_exit(new_depth));
+}
+
+/* Mirror an externally broken truce back into the active quest flags. */
+void quests_note_truce_broken(void)
+{
+    scenario_note_truce(FALSE);
 }
 
 /* Complete quests whose objective is satisfied by taking the down stairs. */

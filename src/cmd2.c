@@ -147,11 +147,8 @@ void do_cmd_go_up(void)
     // store the action type
     p_ptr->previous_action[0] = ACTION_MISC;
 
-    // Cannot flee Morgoth's throne room without a Silmaril
-    if ((p_ptr->depth == MORGOTH_DEPTH) && (silmarils_possessed() == 0))
+    if (quests_handle_use_up_exit())
     {
-        msg_print("You enter a maze of staircases, but cannot find your way.");
-
         return;
     }
 
@@ -242,25 +239,8 @@ void do_cmd_go_up(void)
             message(MSG_STAIRS, 0, "The divine light reveals the way.");
         }
 
-        if (p_ptr->depth == MORGOTH_DEPTH)
-        {
-            if (!p_ptr->morgoth_slain)
-            {
-                msg_print("As you climb the stair, a great cry of rage and "
-                          "anguish comes "
-                          "from below.");
-                msg_print("Make quick your escape: it shall be hard-won.");
-            }
-
-            // set the 'on the run' flag
-            p_ptr->on_the_run = TRUE;
-
-            // remove the 'truce' flag if it hasn't been done already
-            p_ptr->truce = FALSE;
-        }
-
         // deal with trapped stairs when going upwards
-        else if (trapped_stairs())
+        if (trapped_stairs())
         {
             msg_print("The stairs crumble beneath you!");
             message_flush();
@@ -314,6 +294,7 @@ void do_cmd_go_down(void)
 {
     int min;
     int new;
+    int original_new;
 
     /* Verify stairs */
     if (!cave_down_stairs_bold(p_ptr->py, p_ptr->px))
@@ -361,21 +342,10 @@ void do_cmd_go_down(void)
         new = p_ptr->depth + 1;
     }
 
-    // warn players if this could lead them to Morgoth's Throne Room
-    if (new == MORGOTH_DEPTH)
-    {
-        if (!p_ptr->on_the_run)
-        {
-            msg_print("From up this stair comes the harsh din of feasting in "
-                      "Morgoth's own "
-                      "hall.");
-            if (!get_check("Are you completely sure you wish to descend? "))
-            {
-                p_ptr->create_stair = FALSE;
-                return;
-            }
-        }
-    }
+    original_new = new;
+
+    if (quests_handle_use_down_exit(&new))
+        return;
 
     /* Hack -- take a turn */
     p_ptr->energy_use = 100;
@@ -385,18 +355,11 @@ void do_cmd_go_down(void)
 
     message(MSG_STAIRS, 0, "You enter a maze of down staircases.");
 
-    // Can never return to the throne room...
-    if ((p_ptr->on_the_run) && (new == MORGOTH_DEPTH))
-    {
-        message(MSG_STAIRS, 0,
-            "Try though you might, you cannot find your way back to Morgoth's "
-            "throne.");
-        message(MSG_STAIRS, 0, "You emerge near where you began.");
-        p_ptr->create_stair = FEAT_MORE;
-        new = MORGOTH_DEPTH - 1;
-    }
-
     // deal with trapped stairs
+    if (new != original_new)
+    {
+        /* Quest rules redirected this staircase onto a different depth. */
+    }
     else if (trapped_stairs())
     {
         msg_print("The stairs crumble beneath you!");

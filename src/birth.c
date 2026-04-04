@@ -616,6 +616,8 @@ static bool player_birth_aux_1(void)
 
     int phase = 1;
 
+    scenario_birth_seed_choices();
+
     while (phase <= 2)
     {
         clear_question();
@@ -623,7 +625,11 @@ static bool player_birth_aux_1(void)
         if (phase == 1)
         {
             /* Choose the player's race */
-            if (!get_player_race())
+            if (scenario_birth_race_fixed())
+            {
+                rp_ptr = &p_info[p_ptr->prace];
+            }
+            else if (!get_player_race())
             {
                 continue;
             }
@@ -637,7 +643,11 @@ static bool player_birth_aux_1(void)
         if (phase == 2)
         {
             /* Choose the player's house */
-            if (!get_player_house())
+            if (scenario_birth_house_fixed())
+            {
+                hp_ptr = &c_info[p_ptr->phouse];
+            }
+            else if (!get_player_house())
             {
                 phase--;
                 continue;
@@ -697,6 +707,35 @@ static bool player_birth_aux_1(void)
     return (TRUE);
 }
 
+/* Apply one stat allocation set and refresh the derived birth displays. */
+static bool player_birth_apply_stats(const int* stats)
+{
+    int i;
+    int cost = 0;
+
+    for (i = 0; i < A_MAX; i++)
+    {
+        int bonus = rp_ptr->r_adj[i] + hp_ptr->h_adj[i];
+
+        p_ptr->stat_base[i] = stats[i] + bonus;
+        p_ptr->stat_drain[i] = 0;
+        cost += ui_birth_stat_cost_for_value(stats[i]);
+    }
+
+    if (cost > ui_birth_stat_budget())
+        return (FALSE);
+
+    p_ptr->new_exp = p_ptr->exp = get_start_xp();
+    p_ptr->update |= (PU_BONUS | PU_HP);
+    update_stuff();
+
+    p_ptr->chp = p_ptr->mhp;
+    calc_voice();
+    p_ptr->csp = p_ptr->msp;
+
+    return (TRUE);
+}
+
 /*
  * Helper function for 'player_birth()'.
  */
@@ -708,8 +747,6 @@ static bool player_birth_aux_2(void)
 
     int stats[A_MAX];
 
-    int cost;
-
     char ch;
 
     /* Initialize stats */
@@ -719,31 +756,24 @@ static bool player_birth_aux_2(void)
         stats[i] = p_ptr->stat_base[i];
     }
 
+    if (scenario_birth_stats_fixed())
+    {
+        if (!player_birth_apply_stats(stats))
+        {
+            msg_print("Scenario stat presets exceed the birth budget.");
+            return (FALSE);
+        }
+
+        return (TRUE);
+    }
+
     /* Determine experience and things */
     get_extra();
 
     /* Interact */
     while (1)
     {
-        /* Reset cost */
-        cost = 0;
-
-        /* Process stats */
-        for (i = 0; i < A_MAX; i++)
-        {
-            /* Obtain a "bonus" for "race" */
-            int bonus = rp_ptr->r_adj[i] + hp_ptr->h_adj[i];
-
-            /* Apply the racial bonuses */
-            p_ptr->stat_base[i] = stats[i] + bonus;
-            p_ptr->stat_drain[i] = 0;
-
-            /* Total cost */
-            cost += ui_birth_stat_cost_for_value(stats[i]);
-        }
-
-        /* Restrict cost */
-        if (cost > ui_birth_stat_budget())
+        if (!player_birth_apply_stats(stats))
         {
             /* Warning */
             bell("Excessive stats!");
@@ -754,21 +784,6 @@ static bool player_birth_aux_2(void)
             /* Recompute costs */
             continue;
         }
-
-        p_ptr->new_exp = p_ptr->exp = get_start_xp();
-
-        /* Calculate the bonuses and hitpoints */
-        p_ptr->update |= (PU_BONUS | PU_HP);
-
-        /* Update stuff */
-        update_stuff();
-
-        /* Fully healed */
-        p_ptr->chp = p_ptr->mhp;
-
-        /* Fully rested */
-        calc_voice();
-        p_ptr->csp = p_ptr->msp;
 
         /* Display the current semantic character sheet. */
         ui_character_publish_sheet();
@@ -969,24 +984,39 @@ static bool player_birth_aux(void)
     if (!player_birth_aux_1())
         return (FALSE);
 
+    scenario_birth_seed_background();
+
     /* Point-based stats */
     if (!player_birth_aux_2())
         return (FALSE);
 
-    /* Point-based skills */
-    if (!gain_skills())
+    if (!scenario_birth_seed_skills())
         return (FALSE);
 
+    /* Point-based skills */
+    if (!scenario_birth_skills_fixed() && !gain_skills())
+        return (FALSE);
+    if (scenario_birth_skills_fixed())
+    {
+        p_ptr->update |= (PU_BONUS);
+        update_stuff();
+    }
+
     /* Roll for history */
-    if (!get_history())
+    if (!scenario_birth_history_fixed() && !get_history())
         return (FALSE);
 
     /* Roll for age/height/weight */
-    if (!get_ahw())
+    if (!scenario_birth_ahw_fixed() && !get_ahw())
         return (FALSE);
 
     /* Get a name, prepare savefile */
-    if (!get_name())
+    if (scenario_birth_name_fixed())
+    {
+        process_player_name(FALSE);
+        p_ptr->redraw |= PR_MISC;
+    }
+    else if (!get_name())
         return (FALSE);
 
     // Reset the number of artefacts
