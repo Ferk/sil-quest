@@ -42,13 +42,5 @@ F:NO_SAVE | NO_STAIRS_MONSTERS
 N:2:Main Game
 D:Create a fresh character, steal a Silmaril from Morgoth, and escape alive.
 G:0
-S:BIRTH
-E:Into the vast and echoing gloom,
-E:more dread than many-tunnelled tomb
-E:  down awful corridors that wind
-E:    down to a menace dark enshrined;
-E:      down to the mountain's roots profound,
-E:devoured, tormented, bored and ground
-E:by seething vermin spawned of stone;
-E:  down to the depths they went alone...
+S:SCENARIO:quest/main_game.txt
 O:NONE
