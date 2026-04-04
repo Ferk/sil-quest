@@ -14,6 +14,8 @@
  */
 
 #include "angband.h"
+#include "ui-birth.h"
+#include "ui-character.h"
 
 #define SCENARIO_VERSION 1
 
@@ -43,10 +45,25 @@
 #define SCN_EVENT_SEE_MONSTER 1
 #define SCN_EVENT_USE_EXIT 2
 #define SCN_EVENT_DEATH 3
+#define SCN_EVENT_ENTER_LEVEL 4
+#define SCN_EVENT_USE_UP_EXIT 5
+#define SCN_EVENT_USE_DOWN_EXIT 6
 
 #define SCN_ACTION_SET_FLAG 1
 #define SCN_ACTION_DISPLAY_TEXT 2
 #define SCN_ACTION_END_GAME 3
+#define SCN_ACTION_CLEAR_FLAG 4
+#define SCN_ACTION_DISPLAY_MESSAGE 5
+#define SCN_ACTION_CONFIRM_TEXT 6
+#define SCN_ACTION_DENY_ACTION 7
+#define SCN_ACTION_SET_NEW_DEPTH 8
+#define SCN_ACTION_CREATE_STAIRS 9
+
+#define SCN_TERM_FLAG 1
+#define SCN_TERM_DEPTH 2
+#define SCN_TERM_NEW_DEPTH 3
+#define SCN_TERM_HAS_SILMARIL 4
+#define SCN_TERM_MORGOTH_SLAIN 5
 
 #define SCN_NOTE_TEXT_MAGIC 0x53430000UL
 #define SCN_NOTE_TEXT_MASK 0xFFFF0000UL
@@ -66,6 +83,7 @@ typedef struct scenario_text_block scenario_text_block;
 typedef struct scenario_rule_term scenario_rule_term;
 typedef struct scenario_rule_action scenario_rule_action;
 typedef struct scenario_rule scenario_rule;
+typedef struct scenario_event_context scenario_event_context;
 typedef struct scenario_event_result scenario_event_result;
 typedef struct scenario_state scenario_state;
 
@@ -300,8 +318,10 @@ struct scenario_text_block
 
 struct scenario_rule_term
 {
+    byte kind;
     byte flag_idx;
     bool expected;
+    s16b value;
 };
 
 struct scenario_rule_action
@@ -309,6 +329,7 @@ struct scenario_rule_action
     byte kind;
     byte flag_idx;
     byte text_idx;
+    s16b value;
 };
 
 struct scenario_rule
@@ -324,11 +345,31 @@ struct scenario_rule
     scenario_rule_action actions[SCENARIO_MAX_RULE_ACTIONS];
 };
 
+struct scenario_event_context
+{
+    byte event;
+    int y;
+    int x;
+    int depth;
+    int new_depth;
+    int monster_idx;
+    bool has_silmaril;
+    bool morgoth_slain;
+};
+
 struct scenario_event_result
 {
     bool end_game;
+    bool deny_action;
+    int prompt_text_idx;
+    bool new_depth_set;
+    s16b new_depth;
+    bool create_stair_set;
+    s16b create_stair;
     int text_count;
     byte text_idx[SCENARIO_MAX_RULES];
+    int message_count;
+    byte message_idx[SCENARIO_MAX_RULES];
 };
 
 struct scenario_state
@@ -433,11 +474,16 @@ struct scenario_state
 
 static scenario_state scenario;
 static char scenario_monster_tags[MAX_MONSTERS][SCENARIO_MAX_NAME_LEN];
+static int scenario_truce_flag_idx = -1;
+static int scenario_escape_flag_idx = -1;
 static int scenario_error_line = 0;
 static char scenario_error[160];
 static int scenario_warning_line = 0;
 static int scenario_warning_count = 0;
 static char scenario_warning[160];
+
+static int scenario_default_start_exp(void);
+static bool scenario_grid_has_tag(int y, int x, cptr tag);
 
 static bool scenario_fail(int line, cptr message)
 {
@@ -783,6 +829,56 @@ static int scenario_lookup_feature(cptr token)
     return (-1);
 }
 
+/* Parse one CREATE_STAIRS value into a deferred return-stair feature. */
+static bool scenario_parse_create_stairs_value(cptr token, s16b* feat)
+{
+    int parsed_feat;
+    char local[128];
+
+    if (!token || !feat)
+        return (FALSE);
+
+    my_strcpy(local, token, sizeof(local));
+    token = scenario_trim(local);
+
+    if (!my_stricmp(token, "none"))
+    {
+        *feat = 0;
+        return (TRUE);
+    }
+    if (!my_stricmp(token, "less"))
+    {
+        *feat = FEAT_LESS;
+        return (TRUE);
+    }
+    if (!my_stricmp(token, "more"))
+    {
+        *feat = FEAT_MORE;
+        return (TRUE);
+    }
+    if (!my_stricmp(token, "less_shaft"))
+    {
+        *feat = FEAT_LESS_SHAFT;
+        return (TRUE);
+    }
+    if (!my_stricmp(token, "more_shaft"))
+    {
+        *feat = FEAT_MORE_SHAFT;
+        return (TRUE);
+    }
+
+    parsed_feat = scenario_lookup_feature(token);
+    if ((parsed_feat == FEAT_LESS) || (parsed_feat == FEAT_MORE)
+        || (parsed_feat == FEAT_LESS_SHAFT)
+        || (parsed_feat == FEAT_MORE_SHAFT))
+    {
+        *feat = (s16b)parsed_feat;
+        return (TRUE);
+    }
+
+    return (FALSE);
+}
+
 static int scenario_lookup_slot(cptr token)
 {
     int numeric = scenario_lookup_numeric_id(token);
@@ -824,6 +920,30 @@ static int scenario_lookup_slot(cptr token)
     return (-1);
 }
 
+/* Look up one saved scenario flag bit by name without creating it. */
+static int scenario_find_flag(cptr token)
+{
+    int i;
+    char local[SCENARIO_MAX_NAME_LEN];
+    char trimmed[SCENARIO_MAX_NAME_LEN];
+
+    if (!token || !token[0])
+        return (-1);
+
+    my_strcpy(local, token, sizeof(local));
+    my_strcpy(trimmed, scenario_trim(local), sizeof(trimmed));
+    if (!trimmed[0])
+        return (-1);
+
+    for (i = 0; i < scenario.flag_count; i++)
+    {
+        if (!my_stricmp(trimmed, scenario.flag_names[i]))
+            return (i);
+    }
+
+    return (-1);
+}
+
 /* Look up or create one saved scenario flag bit by name. */
 static int scenario_intern_flag(cptr token, int line)
 {
@@ -845,11 +965,9 @@ static int scenario_intern_flag(cptr token, int line)
         return (-1);
     }
 
-    for (i = 0; i < scenario.flag_count; i++)
-    {
-        if (!my_stricmp(trimmed, scenario.flag_names[i]))
-            return (i);
-    }
+    i = scenario_find_flag(trimmed);
+    if (i >= 0)
+        return (i);
 
     if (scenario.flag_count >= SCENARIO_MAX_FLAGS)
     {
@@ -1036,17 +1154,109 @@ static bool scenario_append_text_line(cptr name_token, cptr text_line, int line)
 /* Resolve one scenario rule event token. */
 static int scenario_lookup_event(cptr token)
 {
+    if (!my_stricmp(token, "ENTER_LEVEL"))
+        return (SCN_EVENT_ENTER_LEVEL);
     if (!my_stricmp(token, "SEE_MONSTER"))
         return (SCN_EVENT_SEE_MONSTER);
     if (!my_stricmp(token, "USE_EXIT"))
         return (SCN_EVENT_USE_EXIT);
+    if (!my_stricmp(token, "USE_UP_EXIT"))
+        return (SCN_EVENT_USE_UP_EXIT);
+    if (!my_stricmp(token, "USE_DOWN_EXIT"))
+        return (SCN_EVENT_USE_DOWN_EXIT);
     if (!my_stricmp(token, "DEATH"))
         return (SCN_EVENT_DEATH);
 
     return (0);
 }
 
-/* Parse one comma-separated when= condition list into rule flag checks. */
+/* Parse one rule condition term from a when= list. */
+static bool scenario_parse_rule_term(
+    scenario_rule* rule, cptr token, int line)
+{
+    char local[128];
+    char* trimmed;
+    char* eq;
+    long value;
+    int flag_idx;
+    scenario_rule_term* term;
+
+    if (!token || !token[0])
+        return (scenario_fail(line, "Invalid rule condition."));
+    if (rule->when_count >= SCENARIO_MAX_RULE_TERMS)
+        return (scenario_fail(line, "Too many rule conditions."));
+
+    my_strcpy(local, token, sizeof(local));
+    trimmed = scenario_trim(local);
+    term = &rule->when[rule->when_count];
+    WIPE(term, scenario_rule_term);
+    term->expected = TRUE;
+
+    if (trimmed[0] == '!')
+    {
+        term->expected = FALSE;
+        trimmed = scenario_trim(trimmed + 1);
+    }
+
+    if (!trimmed[0])
+        return (scenario_fail(line, "Invalid rule condition."));
+
+    eq = strchr(trimmed, '=');
+    if (eq)
+    {
+        *eq++ = '\0';
+        eq = scenario_trim(eq);
+
+        if (!my_stricmp(trimmed, "depth"))
+        {
+            if (!scenario_parse_int(eq, &value))
+                return (scenario_fail(line, "Invalid depth condition."));
+
+            term->kind = SCN_TERM_DEPTH;
+            term->value = (s16b)value;
+            rule->when_count++;
+            return (TRUE);
+        }
+
+        if (!my_stricmp(trimmed, "new_depth"))
+        {
+            if (!scenario_parse_int(eq, &value))
+                return (scenario_fail(line, "Invalid new_depth condition."));
+
+            term->kind = SCN_TERM_NEW_DEPTH;
+            term->value = (s16b)value;
+            rule->when_count++;
+            return (TRUE);
+        }
+
+        return (scenario_fail(line, "Unknown rule condition."));
+    }
+
+    if (!my_stricmp(trimmed, "has_silmaril"))
+    {
+        term->kind = SCN_TERM_HAS_SILMARIL;
+        rule->when_count++;
+        return (TRUE);
+    }
+
+    if (!my_stricmp(trimmed, "morgoth_slain"))
+    {
+        term->kind = SCN_TERM_MORGOTH_SLAIN;
+        rule->when_count++;
+        return (TRUE);
+    }
+
+    flag_idx = scenario_intern_flag(trimmed, line);
+    if (flag_idx < 0)
+        return (FALSE);
+
+    term->kind = SCN_TERM_FLAG;
+    term->flag_idx = (byte)flag_idx;
+    rule->when_count++;
+    return (TRUE);
+}
+
+/* Parse one comma-separated when= condition list into rule terms. */
 static bool scenario_parse_rule_when(
     scenario_rule* rule, cptr token, int line)
 {
@@ -1062,33 +1272,12 @@ static bool scenario_parse_rule_when(
 
     while (part)
     {
-        int flag_idx;
-        bool expected = TRUE;
-        char* name;
-
         next = strchr(part, ',');
         if (next)
             *next++ = '\0';
 
-        name = scenario_trim(part);
-        if (name[0] == '!')
-        {
-            expected = FALSE;
-            name = scenario_trim(name + 1);
-        }
-
-        if (!name[0])
-            return (scenario_fail(line, "Invalid rule condition."));
-        if (rule->when_count >= SCENARIO_MAX_RULE_TERMS)
-            return (scenario_fail(line, "Too many rule conditions."));
-
-        flag_idx = scenario_intern_flag(name, line);
-        if (flag_idx < 0)
+        if (!scenario_parse_rule_term(rule, scenario_trim(part), line))
             return (FALSE);
-
-        rule->when[rule->when_count].flag_idx = (byte)flag_idx;
-        rule->when[rule->when_count].expected = expected;
-        rule->when_count++;
 
         part = next;
     }
@@ -1103,11 +1292,20 @@ static bool scenario_parse_rule_action(
     char local[128];
     char* eq;
     int idx;
+    long value;
+    s16b stair_feat;
 
     if (!token || !token[0])
         return (TRUE);
     if (rule->action_count >= SCENARIO_MAX_RULE_ACTIONS)
         return (scenario_fail(line, "Too many rule actions."));
+
+    if (!my_stricmp(token, "DENY_ACTION"))
+    {
+        rule->actions[rule->action_count].kind = SCN_ACTION_DENY_ACTION;
+        rule->action_count++;
+        return (TRUE);
+    }
 
     if (!my_stricmp(token, "END_GAME"))
     {
@@ -1142,6 +1340,67 @@ static bool scenario_parse_rule_action(
 
         rule->actions[rule->action_count].kind = SCN_ACTION_DISPLAY_TEXT;
         rule->actions[rule->action_count].text_idx = (byte)idx;
+        rule->action_count++;
+        return (TRUE);
+    }
+
+    if (!my_stricmp(scenario_trim(local), "CLEAR_FLAG"))
+    {
+        idx = scenario_intern_flag(scenario_trim(eq), line);
+        if (idx < 0)
+            return (FALSE);
+
+        rule->actions[rule->action_count].kind = SCN_ACTION_CLEAR_FLAG;
+        rule->actions[rule->action_count].flag_idx = (byte)idx;
+        rule->action_count++;
+        return (TRUE);
+    }
+
+    if (!my_stricmp(scenario_trim(local), "DISPLAY_MESSAGE"))
+    {
+        idx = scenario_intern_text(scenario_trim(eq), line);
+        if (idx < 0)
+            return (FALSE);
+
+        rule->actions[rule->action_count].kind = SCN_ACTION_DISPLAY_MESSAGE;
+        rule->actions[rule->action_count].text_idx = (byte)idx;
+        rule->action_count++;
+        return (TRUE);
+    }
+
+    if (!my_stricmp(scenario_trim(local), "CONFIRM_TEXT"))
+    {
+        idx = scenario_intern_text(scenario_trim(eq), line);
+        if (idx < 0)
+            return (FALSE);
+
+        rule->actions[rule->action_count].kind = SCN_ACTION_CONFIRM_TEXT;
+        rule->actions[rule->action_count].text_idx = (byte)idx;
+        rule->action_count++;
+        return (TRUE);
+    }
+
+    if (!my_stricmp(scenario_trim(local), "SET_NEW_DEPTH"))
+    {
+        if (!scenario_parse_int(scenario_trim(eq), &value) || (value < 0)
+            || (value >= MAX_DEPTH))
+        {
+            return (scenario_fail(line, "Invalid SET_NEW_DEPTH value."));
+        }
+
+        rule->actions[rule->action_count].kind = SCN_ACTION_SET_NEW_DEPTH;
+        rule->actions[rule->action_count].value = (s16b)value;
+        rule->action_count++;
+        return (TRUE);
+    }
+
+    if (!my_stricmp(scenario_trim(local), "CREATE_STAIRS"))
+    {
+        if (!scenario_parse_create_stairs_value(scenario_trim(eq), &stair_feat))
+            return (scenario_fail(line, "Invalid CREATE_STAIRS value."));
+
+        rule->actions[rule->action_count].kind = SCN_ACTION_CREATE_STAIRS;
+        rule->actions[rule->action_count].value = stair_feat;
         rule->action_count++;
         return (TRUE);
     }
@@ -1961,18 +2220,177 @@ static bool scenario_parse_terrain_legend(char* body, int line)
     return (TRUE);
 }
 
+/* Return whether the pending scenario carries an authored fixed level map. */
+static bool scenario_has_authored_level(void)
+{
+    return (scenario.terrain_rows > 0);
+}
+
+/* Return whether the pending scenario is a mapless birth-backed scenario. */
+bool scenario_birth_active(void)
+{
+    return (scenario.loaded && !scenario_has_authored_level());
+}
+
+/* Mirror reserved scenario flags onto the current live player state. */
+static void scenario_sync_player_state(void)
+{
+    if (!p_ptr)
+        return;
+
+    if (scenario_truce_flag_idx >= 0)
+        p_ptr->truce = scenario_get_flag(scenario_truce_flag_idx);
+    if (scenario_escape_flag_idx >= 0)
+        p_ptr->on_the_run = scenario_get_flag(scenario_escape_flag_idx);
+}
+
+/* Seed reserved scenario flags from older player state after loading a save. */
+static void scenario_seed_reserved_flags(void)
+{
+    if (!p_ptr)
+        return;
+
+    if ((scenario_truce_flag_idx >= 0) && p_ptr->truce)
+        scenario_set_flag(scenario_truce_flag_idx, TRUE);
+    if ((scenario_escape_flag_idx >= 0) && p_ptr->on_the_run)
+        scenario_set_flag(scenario_escape_flag_idx, TRUE);
+
+    scenario_sync_player_state();
+}
+
+/* Check whether one fixed house choice belongs to the chosen race. */
+static bool scenario_house_matches_race(void)
+{
+    u32b choice;
+
+    if (!scenario.prace_set || !scenario.phouse_set)
+        return (TRUE);
+    if (scenario.prace >= z_info->p_max)
+        return (FALSE);
+
+    choice = p_info[scenario.prace].choice;
+    return ((choice & (1UL << scenario.phouse)) != 0);
+}
+
+/* Validate any fixed stat presets against the birth stat budget. */
+static bool scenario_validate_birth_stats(void)
+{
+    int i;
+    int total_cost = 0;
+    bool any = FALSE;
+
+    for (i = 0; i < A_MAX; i++)
+    {
+        if (scenario.stat_set[i])
+        {
+            any = TRUE;
+            break;
+        }
+    }
+
+    if (!any)
+        return (TRUE);
+
+    if (!scenario.prace_set || !scenario.phouse_set)
+        return (scenario_fail(
+            0, "Birth stat presets require a fixed player race and house."));
+
+    for (i = 0; i < A_MAX; i++)
+    {
+        int raw;
+
+        if (!scenario.stat_set[i])
+            continue;
+
+        raw = scenario.stat_base[i]
+            - (p_info[scenario.prace].r_adj[i] + c_info[scenario.phouse].h_adj[i]);
+        if (raw < 0)
+        {
+            return (scenario_fail(
+                0, "A fixed birth stat is too low for the chosen race and house."));
+        }
+
+        total_cost += ui_birth_stat_cost_for_value(raw);
+    }
+
+    if (total_cost > ui_birth_stat_budget())
+        return (scenario_fail(0, "Fixed birth stats exceed the stat budget."));
+
+    return (TRUE);
+}
+
+/* Validate any fixed skill presets against the starting experience pool. */
+static bool scenario_validate_birth_skills(void)
+{
+    int i;
+    int total_cost = 0;
+
+    for (i = 0; i < S_MAX; i++)
+    {
+        if (!scenario.skill_set[i])
+            continue;
+        if (scenario.skill_base[i] < 0)
+            return (scenario_fail(0, "Fixed birth skills cannot be negative."));
+
+        total_cost += ui_character_skill_gain_cost(0, scenario.skill_base[i]);
+    }
+
+    if (total_cost > scenario_default_start_exp())
+    {
+        return (scenario_fail(
+            0, "Fixed birth skills exceed the starting experience budget."));
+    }
+
+    return (TRUE);
+}
+
 static bool scenario_validate(void)
 {
     int y;
+
+    if (scenario.phouse_set && !scenario.prace_set)
+    {
+        return (scenario_fail(
+            0, "A fixed player house requires a fixed player race."));
+    }
+
+    if (scenario.prace_set && scenario.phouse_set && !scenario_house_matches_race())
+    {
+        return (scenario_fail(
+            0, "The fixed player house does not belong to the fixed race."));
+    }
+
+    if (!scenario_has_authored_level())
+    {
+        if (scenario.player_pos_set)
+            return (scenario_fail(0, "Mapless scenarios cannot define P:POS."));
+        if (scenario.entity_rows > 0)
+            return (scenario_fail(0, "Mapless scenarios cannot define an entity map."));
+        if (scenario.entity_legend_count > 0)
+            return (scenario_fail(0, "Mapless scenarios cannot define entity legends."));
+        if (scenario.terrain_legend_count > 0)
+        {
+            return (scenario_fail(
+                0, "Mapless scenarios cannot define terrain legends."));
+        }
+        if (scenario.floor_object_count > 0)
+            return (scenario_fail(0, "Mapless scenarios cannot place floor objects."));
+        if (scenario.floor_monster_count > 0)
+            return (scenario_fail(0, "Mapless scenarios cannot place monsters."));
+        if (scenario.grid_tag_count > 0)
+            return (scenario_fail(0, "Mapless scenarios cannot tag map grids."));
+        if (!scenario_validate_birth_stats())
+            return (FALSE);
+        if (!scenario_validate_birth_skills())
+            return (FALSE);
+        return (TRUE);
+    }
 
     if (!scenario.prace_set)
         return (scenario_fail(0, "Scenario must define a player race."));
 
     if (!scenario.phouse_set)
         return (scenario_fail(0, "Scenario must define a player house."));
-
-    if (scenario.terrain_rows <= 0)
-        return (scenario_fail(0, "Scenario must define a terrain map."));
 
     scenario.height = scenario.terrain_rows;
 
@@ -2137,6 +2555,139 @@ static int scenario_default_start_exp(void)
         return (PY_FIXED_EXP);
 
     return (PY_START_EXP);
+}
+
+/* Seed any fixed birth choices before the normal birth prompts begin. */
+void scenario_birth_seed_choices(void)
+{
+    if (!scenario_birth_active())
+        return;
+
+    if (scenario.prace_set)
+        p_ptr->prace = scenario.prace;
+    if (scenario.phouse_set)
+        p_ptr->phouse = scenario.phouse;
+    if (scenario.full_name_set)
+        my_strcpy(op_ptr->full_name, scenario.full_name, sizeof(op_ptr->full_name));
+}
+
+/* Seed background and stat presets once race and house are known. */
+void scenario_birth_seed_background(void)
+{
+    int i;
+
+    if (!scenario_birth_active())
+        return;
+
+    if (scenario.history[0])
+        my_strcpy(p_ptr->history, scenario.history, sizeof(p_ptr->history));
+    if (scenario.age_set)
+        p_ptr->age = scenario.age;
+    if (scenario.ht_set)
+        p_ptr->ht = scenario.ht;
+    if (scenario.wt_set)
+        p_ptr->wt = scenario.wt;
+
+    for (i = 0; i < A_MAX; i++)
+    {
+        int bonus;
+
+        if (!scenario.stat_set[i])
+            continue;
+
+        bonus = rp_ptr->r_adj[i] + hp_ptr->h_adj[i];
+        p_ptr->stat_base[i] = scenario.stat_base[i] - bonus;
+    }
+}
+
+/* Seed fixed skill presets and pre-charge their share of the XP budget. */
+bool scenario_birth_seed_skills(void)
+{
+    int i;
+    int total_cost = 0;
+
+    if (!scenario_birth_active())
+        return (TRUE);
+
+    for (i = 0; i < S_MAX; i++)
+    {
+        if (!scenario.skill_set[i])
+            continue;
+
+        p_ptr->skill_base[i] = scenario.skill_base[i];
+        total_cost += ui_character_skill_gain_cost(0, scenario.skill_base[i]);
+    }
+
+    if (total_cost > p_ptr->exp)
+        return (FALSE);
+
+    p_ptr->new_exp = p_ptr->exp - total_cost;
+    return (TRUE);
+}
+
+/* Return whether the scenario fixes the player's race choice. */
+bool scenario_birth_race_fixed(void)
+{
+    return (scenario_birth_active() && scenario.prace_set);
+}
+
+/* Return whether the scenario fixes the player's house choice. */
+bool scenario_birth_house_fixed(void)
+{
+    return (scenario_birth_active() && scenario.phouse_set);
+}
+
+/* Return whether the scenario fixes every birth stat and can skip that screen. */
+bool scenario_birth_stats_fixed(void)
+{
+    int i;
+
+    if (!scenario_birth_active())
+        return (FALSE);
+
+    for (i = 0; i < A_MAX; i++)
+    {
+        if (!scenario.stat_set[i])
+            return (FALSE);
+    }
+
+    return (TRUE);
+}
+
+/* Return whether the scenario fixes every birth skill and can skip that screen. */
+bool scenario_birth_skills_fixed(void)
+{
+    int i;
+
+    if (!scenario_birth_active())
+        return (FALSE);
+
+    for (i = 0; i < S_MAX; i++)
+    {
+        if (!scenario.skill_set[i])
+            return (FALSE);
+    }
+
+    return (TRUE);
+}
+
+/* Return whether the scenario fixes the history step. */
+bool scenario_birth_history_fixed(void)
+{
+    return (scenario_birth_active() && scenario.history[0]);
+}
+
+/* Return whether the scenario fixes age, height, and weight together. */
+bool scenario_birth_ahw_fixed(void)
+{
+    return (scenario_birth_active() && scenario.age_set && scenario.ht_set
+        && scenario.wt_set);
+}
+
+/* Return whether the scenario fixes the player name. */
+bool scenario_birth_name_fixed(void)
+{
+    return (scenario_birth_active() && scenario.full_name_set);
 }
 
 static void scenario_roll_body_values(void)
@@ -2581,14 +3132,39 @@ static void scenario_init_wandering_flows(void)
     }
 }
 
-/* Test whether the current saved scenario flag state satisfies one rule. */
-static bool scenario_rule_when_matches(const scenario_rule* rule)
+/* Test whether the current event context satisfies one scenario rule. */
+static bool scenario_rule_when_matches(
+    const scenario_rule* rule, const scenario_event_context* context)
 {
     int i;
 
     for (i = 0; i < rule->when_count; i++)
     {
-        if (scenario_get_flag(rule->when[i].flag_idx) != rule->when[i].expected)
+        const scenario_rule_term* term = &rule->when[i];
+        bool actual = FALSE;
+
+        switch (term->kind)
+        {
+        case SCN_TERM_FLAG:
+            actual = scenario_get_flag(term->flag_idx);
+            break;
+        case SCN_TERM_DEPTH:
+            actual = (context->depth == term->value);
+            break;
+        case SCN_TERM_NEW_DEPTH:
+            actual = (context->new_depth == term->value);
+            break;
+        case SCN_TERM_HAS_SILMARIL:
+            actual = context->has_silmaril;
+            break;
+        case SCN_TERM_MORGOTH_SLAIN:
+            actual = context->morgoth_slain;
+            break;
+        default:
+            return (FALSE);
+        }
+
+        if (actual != term->expected)
             return (FALSE);
     }
 
@@ -2608,11 +3184,40 @@ static void scenario_apply_rule_actions(
         if (action->kind == SCN_ACTION_SET_FLAG)
         {
             scenario_set_flag(action->flag_idx, TRUE);
+            scenario_sync_player_state();
+        }
+        else if (action->kind == SCN_ACTION_CLEAR_FLAG)
+        {
+            scenario_set_flag(action->flag_idx, FALSE);
+            scenario_sync_player_state();
         }
         else if (action->kind == SCN_ACTION_DISPLAY_TEXT)
         {
             if (result->text_count < (int)N_ELEMENTS(result->text_idx))
                 result->text_idx[result->text_count++] = action->text_idx;
+        }
+        else if (action->kind == SCN_ACTION_DISPLAY_MESSAGE)
+        {
+            if (result->message_count < (int)N_ELEMENTS(result->message_idx))
+                result->message_idx[result->message_count++] = action->text_idx;
+        }
+        else if (action->kind == SCN_ACTION_CONFIRM_TEXT)
+        {
+            result->prompt_text_idx = action->text_idx;
+        }
+        else if (action->kind == SCN_ACTION_SET_NEW_DEPTH)
+        {
+            result->new_depth = action->value;
+            result->new_depth_set = TRUE;
+        }
+        else if (action->kind == SCN_ACTION_CREATE_STAIRS)
+        {
+            result->create_stair = action->value;
+            result->create_stair_set = TRUE;
+        }
+        else if (action->kind == SCN_ACTION_DENY_ACTION)
+        {
+            result->deny_action = TRUE;
         }
         else if (action->kind == SCN_ACTION_END_GAME)
         {
@@ -2677,6 +3282,170 @@ static void scenario_show_text_block(int text_idx)
     screen_load();
 }
 
+/* Show one named scenario text block as normal message lines. */
+static void scenario_show_message_block(int text_idx)
+{
+    cptr s;
+
+    if ((text_idx < 0) || (text_idx >= scenario.text_count))
+        return;
+
+    s = scenario.texts[text_idx].text;
+    if (!s[0])
+        return;
+
+    while (*s)
+    {
+        char line[160];
+        int len = 0;
+
+        while (s[len] && (s[len] != '\n') && (len < (int)sizeof(line) - 1))
+            len++;
+
+        memcpy(line, s, len);
+        line[len] = '\0';
+        msg_print(line);
+
+        if (s[len] == '\n')
+            s += len + 1;
+        else
+            s += len;
+    }
+}
+
+/* Flatten one scenario text block into a one-line confirmation prompt. */
+static cptr scenario_prompt_text(int text_idx, char* buf, size_t len)
+{
+    cptr s;
+    size_t used = 0;
+
+    if (!buf || !len)
+        return ("");
+    buf[0] = '\0';
+
+    if ((text_idx < 0) || (text_idx >= scenario.text_count))
+        return (buf);
+
+    s = scenario.texts[text_idx].text;
+    while (*s && (used + 1 < len))
+    {
+        char ch = *s++;
+
+        if (ch == '\n')
+            ch = ' ';
+
+        if ((used > 0) && (buf[used - 1] == ' ') && (ch == ' '))
+            continue;
+
+        buf[used++] = ch;
+    }
+
+    buf[used] = '\0';
+    return (buf);
+}
+
+/* Decide whether a tagged rule applies to the current event context. */
+static bool scenario_rule_tag_matches(
+    const scenario_rule* rule, const scenario_event_context* context)
+{
+    if (!rule->tag_set)
+        return (TRUE);
+
+    switch (context->event)
+    {
+    case SCN_EVENT_SEE_MONSTER:
+        if ((context->monster_idx <= 0) || (context->monster_idx >= MAX_MONSTERS))
+            return (FALSE);
+        return (!my_stricmp(rule->tag, scenario_monster_tags[context->monster_idx]));
+
+    case SCN_EVENT_USE_EXIT:
+    case SCN_EVENT_USE_UP_EXIT:
+    case SCN_EVENT_USE_DOWN_EXIT:
+        return (scenario_grid_has_tag(context->y, context->x, rule->tag));
+
+    default:
+        return (FALSE);
+    }
+}
+
+/* Evaluate all rules that match one scenario event context. */
+static scenario_event_result scenario_handle_event(
+    const scenario_event_context* context)
+{
+    scenario_event_result result;
+    int i;
+    char prompt[256];
+
+    WIPE(&result, scenario_event_result);
+    result.prompt_text_idx = -1;
+
+    if (!scenario.loaded || !context)
+        return (result);
+
+    for (i = 0; i < scenario.rule_count; i++)
+    {
+        scenario_rule* rule = &scenario.rules[i];
+
+        if (rule->event != context->event)
+            continue;
+        if (!scenario_rule_tag_matches(rule, context))
+            continue;
+        if (!scenario_rule_when_matches(rule, context))
+            continue;
+
+        scenario_apply_rule_actions(rule, &result);
+    }
+
+    for (i = 0; i < result.message_count; i++)
+        scenario_show_message_block(result.message_idx[i]);
+    for (i = 0; i < result.text_count; i++)
+        scenario_show_text_block(result.text_idx[i]);
+
+    if ((result.prompt_text_idx >= 0)
+        && !get_check(
+            scenario_prompt_text(result.prompt_text_idx, prompt, sizeof(prompt))))
+    {
+        result.deny_action = TRUE;
+    }
+
+    return (result);
+}
+
+/* Apply one terminal END_GAME result to the current run immediately. */
+static bool scenario_finish_game_if_needed(const scenario_event_result* result)
+{
+    if (!result || !result->end_game)
+        return (FALSE);
+
+    p_ptr->is_dead = TRUE;
+    p_ptr->energy_use = 100;
+    p_ptr->leaving = TRUE;
+    close_game();
+    return (TRUE);
+}
+
+/* Trigger any ENTER_LEVEL rules for the current scenario. */
+void scenario_handle_enter_level(void)
+{
+    scenario_event_context context;
+    scenario_event_result result;
+
+    if (!scenario.loaded || !p_ptr)
+        return;
+
+    WIPE(&context, scenario_event_context);
+    context.event = SCN_EVENT_ENTER_LEVEL;
+    context.y = p_ptr->py;
+    context.x = p_ptr->px;
+    context.depth = p_ptr->depth;
+    context.new_depth = p_ptr->depth;
+    context.has_silmaril = (silmarils_possessed() > 0);
+    context.morgoth_slain = p_ptr->morgoth_slain ? TRUE : FALSE;
+
+    result = scenario_handle_event(&context);
+    (void)scenario_finish_game_if_needed(&result);
+}
+
 /* Check whether one authored grid tag applies at the given map square. */
 static bool scenario_grid_has_tag(int y, int x, cptr tag)
 {
@@ -2701,102 +3470,143 @@ static bool scenario_grid_has_tag(int y, int x, cptr tag)
 /* Trigger all SEE_MONSTER rules for one authored monster instance. */
 void scenario_handle_monster_seen(monster_type* m_ptr)
 {
+    scenario_event_context context;
     scenario_event_result result;
-    int i;
-    int m_idx;
 
     if (!scenario.loaded || !m_ptr || !m_ptr->r_idx)
         return;
 
-    WIPE(&result, scenario_event_result);
-    m_idx = (int)(m_ptr - mon_list);
+    WIPE(&context, scenario_event_context);
+    context.event = SCN_EVENT_SEE_MONSTER;
+    context.depth = p_ptr->depth;
+    context.new_depth = p_ptr->depth;
+    context.monster_idx = (int)(m_ptr - mon_list);
+    context.has_silmaril = (silmarils_possessed() > 0);
+    context.morgoth_slain = p_ptr->morgoth_slain ? TRUE : FALSE;
 
-    for (i = 0; i < scenario.rule_count; i++)
-    {
-        scenario_rule* rule = &scenario.rules[i];
-
-        if (rule->event != SCN_EVENT_SEE_MONSTER)
-            continue;
-        if (rule->tag_set)
-        {
-            if ((m_idx <= 0) || (m_idx >= MAX_MONSTERS))
-                continue;
-            if (my_stricmp(rule->tag, scenario_monster_tags[m_idx]))
-                continue;
-        }
-        if (!scenario_rule_when_matches(rule))
-            continue;
-
-        scenario_apply_rule_actions(rule, &result);
-    }
-
-    for (i = 0; i < result.text_count; i++)
-        scenario_show_text_block(result.text_idx[i]);
+    result = scenario_handle_event(&context);
+    (void)scenario_finish_game_if_needed(&result);
 }
 
-/* Trigger USE_EXIT rules for the current grid and end the game if requested. */
+/* Trigger generic USE_EXIT rules for the current grid. */
 bool scenario_handle_use_exit(int y, int x)
 {
+    scenario_event_context context;
     scenario_event_result result;
-    int i;
 
-    if (!scenario.loaded)
+    if (!scenario.loaded || !p_ptr)
         return (FALSE);
 
-    WIPE(&result, scenario_event_result);
+    WIPE(&context, scenario_event_context);
+    context.event = SCN_EVENT_USE_EXIT;
+    context.y = y;
+    context.x = x;
+    context.depth = p_ptr->depth;
+    context.new_depth = p_ptr->depth;
+    context.has_silmaril = (silmarils_possessed() > 0);
+    context.morgoth_slain = p_ptr->morgoth_slain ? TRUE : FALSE;
 
-    for (i = 0; i < scenario.rule_count; i++)
+    result = scenario_handle_event(&context);
+    if (scenario_finish_game_if_needed(&result))
+        return (TRUE);
+
+    return (result.deny_action);
+}
+
+/* Trigger any USE_UP_EXIT rules for the current scenario. */
+bool scenario_handle_use_up_exit(void)
+{
+    scenario_event_context context;
+    scenario_event_result result;
+
+    if (!scenario.loaded || !p_ptr)
+        return (FALSE);
+
+    WIPE(&context, scenario_event_context);
+    context.event = SCN_EVENT_USE_UP_EXIT;
+    context.y = p_ptr->py;
+    context.x = p_ptr->px;
+    context.depth = p_ptr->depth;
+    context.new_depth = p_ptr->depth - 1;
+    context.has_silmaril = (silmarils_possessed() > 0);
+    context.morgoth_slain = p_ptr->morgoth_slain ? TRUE : FALSE;
+
+    result = scenario_handle_event(&context);
+    if (scenario_finish_game_if_needed(&result))
+        return (TRUE);
+    if (!result.deny_action && result.create_stair_set)
+        p_ptr->create_stair = result.create_stair;
+    if (result.deny_action)
     {
-        scenario_rule* rule = &scenario.rules[i];
-
-        if (rule->event != SCN_EVENT_USE_EXIT)
-            continue;
-        if (rule->tag_set && !scenario_grid_has_tag(y, x, rule->tag))
-            continue;
-        if (!scenario_rule_when_matches(rule))
-            continue;
-
-        scenario_apply_rule_actions(rule, &result);
+        p_ptr->create_stair = FALSE;
+        p_ptr->energy_use = 100;
     }
 
-    for (i = 0; i < result.text_count; i++)
-        scenario_show_text_block(result.text_idx[i]);
+    return (result.deny_action);
+}
 
-    if (!result.end_game)
+/* Trigger any USE_DOWN_EXIT rules for the current scenario. */
+bool scenario_handle_use_down_exit(int* new_depth)
+{
+    scenario_event_context context;
+    scenario_event_result result;
+
+    if (!scenario.loaded || !p_ptr)
         return (FALSE);
 
-    p_ptr->is_dead = TRUE;
-    p_ptr->energy_use = 100;
-    p_ptr->leaving = TRUE;
-    close_game();
-    return (TRUE);
+    WIPE(&context, scenario_event_context);
+    context.event = SCN_EVENT_USE_DOWN_EXIT;
+    context.y = p_ptr->py;
+    context.x = p_ptr->px;
+    context.depth = p_ptr->depth;
+    context.new_depth = new_depth ? *new_depth : p_ptr->depth + 1;
+    context.has_silmaril = (silmarils_possessed() > 0);
+    context.morgoth_slain = p_ptr->morgoth_slain ? TRUE : FALSE;
+
+    result = scenario_handle_event(&context);
+    if (scenario_finish_game_if_needed(&result))
+        return (TRUE);
+    if (!result.deny_action)
+    {
+        if (result.new_depth_set && new_depth)
+            *new_depth = result.new_depth;
+        if (result.create_stair_set)
+            p_ptr->create_stair = result.create_stair;
+    }
+    if (result.deny_action)
+        p_ptr->create_stair = FALSE;
+
+    return (result.deny_action);
 }
 
 /* Trigger DEATH rules for the current scenario without altering death flow. */
 void scenario_handle_death(void)
 {
+    scenario_event_context context;
     scenario_event_result result;
-    int i;
 
     if (!scenario.loaded)
         return;
 
-    WIPE(&result, scenario_event_result);
+    WIPE(&context, scenario_event_context);
+    context.event = SCN_EVENT_DEATH;
+    context.depth = p_ptr->depth;
+    context.new_depth = p_ptr->depth;
+    context.has_silmaril = (silmarils_possessed() > 0);
+    context.morgoth_slain = p_ptr->morgoth_slain ? TRUE : FALSE;
 
-    for (i = 0; i < scenario.rule_count; i++)
-    {
-        scenario_rule* rule = &scenario.rules[i];
+    result = scenario_handle_event(&context);
+    (void)scenario_finish_game_if_needed(&result);
+}
 
-        if (rule->event != SCN_EVENT_DEATH)
-            continue;
-        if (!scenario_rule_when_matches(rule))
-            continue;
+/* Mirror an external truce change back into the current scenario flags. */
+void scenario_note_truce(bool active)
+{
+    if (!scenario.loaded || (scenario_truce_flag_idx < 0))
+        return;
 
-        scenario_apply_rule_actions(rule, &result);
-    }
-
-    for (i = 0; i < result.text_count; i++)
-        scenario_show_text_block(result.text_idx[i]);
+    scenario_set_flag(scenario_truce_flag_idx, active);
+    scenario_sync_player_state();
 }
 
 /*
@@ -2807,6 +3617,8 @@ void scenario_clear_pending(void)
 {
     WIPE(&scenario, scenario_state);
     memset(scenario_monster_tags, 0, sizeof(scenario_monster_tags));
+    scenario_truce_flag_idx = -1;
+    scenario_escape_flag_idx = -1;
     scenario_error_line = 0;
     scenario_error[0] = '\0';
     scenario_warning_line = 0;
@@ -3449,7 +4261,78 @@ bool scenario_prepare_pending(cptr filename)
             (scenario_warning_count == 1) ? "" : "s", scenario_warning_line);
     }
 
+    scenario_truce_flag_idx = scenario_find_flag("truce_active");
+    scenario_escape_flag_idx = scenario_find_flag("escape_phase");
     scenario.loaded = TRUE;
+    scenario.level_pending = FALSE;
+    scenario_seed_reserved_flags();
+    return (TRUE);
+}
+
+/* Apply mapless scenario overrides after a normal birth-backed start. */
+static bool scenario_apply_post_birth_overrides(void)
+{
+    int i;
+    int j;
+
+    p_ptr->unused3 = 0;
+
+    for (i = 0; i < S_MAX; i++)
+    {
+        for (j = 0; j < ABILITIES_MAX; j++)
+        {
+            p_ptr->innate_ability[i][j] = scenario.innate_ability[i][j];
+            p_ptr->active_ability[i][j] = scenario.active_ability[i][j];
+        }
+    }
+
+    p_ptr->depth = scenario.depth_set ? scenario.depth : 1;
+    if (scenario.max_depth_set)
+        p_ptr->max_depth = scenario.max_depth;
+    else if (p_ptr->max_depth < p_ptr->depth)
+        p_ptr->max_depth = p_ptr->depth;
+    if (scenario.exp_set)
+        p_ptr->exp = scenario.exp;
+    if (scenario.new_exp_set)
+        p_ptr->new_exp = scenario.new_exp;
+    else if (p_ptr->new_exp > p_ptr->exp)
+        p_ptr->new_exp = p_ptr->exp;
+    p_ptr->song1 = SNG_NOTHING;
+    p_ptr->song2 = SNG_NOTHING;
+    p_ptr->song_duration = 0;
+    if (scenario.food_set)
+        p_ptr->food = scenario.food;
+
+    for (i = 0; i < scenario.item_count; i++)
+    {
+        if (!scenario_add_starting_item(&scenario.items[i]))
+        {
+            msg_format("Scenario '%s': failed to grant starting item %d.",
+                scenario.source, i + 1);
+            message_flush();
+            return (FALSE);
+        }
+    }
+
+    p_ptr->update |= (PU_BONUS | PU_HP | PU_MANA);
+    update_stuff();
+
+    if (scenario.chp_set)
+    {
+        p_ptr->chp = MIN(scenario.chp, p_ptr->mhp);
+        p_ptr->chp_frac = 0;
+    }
+
+    if (scenario.csp_set)
+    {
+        p_ptr->csp = MIN(scenario.csp, p_ptr->msp);
+        p_ptr->csp_frac = 0;
+    }
+
+    p_ptr->window |= (PW_INVEN | PW_EQUIP | PW_PLAYER_0);
+    p_ptr->redraw |= (PR_BASIC | PR_MISC | PR_EQUIPPY | PR_RESIST | PR_EXP);
+
+    scenario_sync_player_state();
     scenario.level_pending = FALSE;
     return (TRUE);
 }
@@ -3470,6 +4353,14 @@ bool scenario_start_pending_new_game(void)
 
     game_type = p_ptr->game_type;
     quest_id = p_ptr->unused2;
+
+    if (!scenario_has_authored_level())
+    {
+        player_birth();
+        p_ptr->game_type = game_type;
+        p_ptr->unused2 = quest_id;
+        return (scenario_apply_post_birth_overrides());
+    }
 
     player_birth_wipe();
 
@@ -3659,7 +4550,7 @@ static void scenario_export_header(FILE* fff, cptr filename)
     fprintf(fff, "#\n");
     fprintf(fff, "# Quick legend:\n");
     fprintf(fff, "# V:<n> format version\n");
-    fprintf(fff, "# P:<field>:<value> player state\n");
+    fprintf(fff, "# P:<field>:<value> player state or birth preset data\n");
     fprintf(fff, "# P:ABILITY:<skill>:<ability>[:INNATE=0][:ACTIVE=0] player ability state\n");
     fprintf(fff, "# I:<slot>:<object>[:key=value...] starting inventory or equipment\n");
     fprintf(fff, "# T:<symbol>:FEATURE:<feature>[:flags...] terrain legend used by M: rows\n");
@@ -3669,7 +4560,12 @@ static void scenario_export_header(FILE* fff, cptr filename)
     fprintf(fff, "# N:<y>:<x>:<monster>[:key=value...] monster\n");
     fprintf(fff, "# G:<y>:<x>:<tag> tag one grid for rule matching\n");
     fprintf(fff, "# X:<text-id>:<line> named multiline text block (repeatable)\n");
-    fprintf(fff, "# R:<event>[:tag=<tag>][:when=<flag,!flag...>][:ACTION...] event rule\n");
+    fprintf(fff, "# R:<event>[:tag=<tag>][:when=<term,!term...>][:ACTION...] event rule\n");
+    fprintf(fff, "# Rule actions include SET_FLAG, CLEAR_FLAG, DISPLAY_TEXT,\n");
+    fprintf(fff, "# DISPLAY_MESSAGE, CONFIRM_TEXT, DENY_ACTION, END_GAME,\n");
+    fprintf(fff, "# SET_NEW_DEPTH=<n>, and CREATE_STAIRS=<stair|none>.\n");
+    fprintf(fff, "# Map rows are optional: without M:/E:, the scenario uses normal birth and\n");
+    fprintf(fff, "# procedural level generation while still applying its P:/X:/R: data.\n");
 }
 
 static void scenario_export_wrapped_text(
@@ -4103,6 +4999,18 @@ static cptr scenario_export_feature_token(int feat, char* buf, size_t len)
     return (buf);
 }
 
+/* Export one CREATE_STAIRS value using a readable scenario token. */
+static cptr scenario_export_create_stairs_token(int feat, char* buf, size_t len)
+{
+    if (!feat)
+    {
+        my_strcpy(buf, "none", len);
+        return (buf);
+    }
+
+    return (scenario_export_feature_token(feat, buf, len));
+}
+
 static cptr scenario_export_monster_token(int r_idx, char* buf, size_t len)
 {
     if ((r_idx > 0) && (r_idx < z_info->r_max) && r_info[r_idx].name)
@@ -4162,11 +5070,20 @@ static void scenario_export_rule(FILE* fff, const scenario_rule* rule)
 
     switch (rule->event)
     {
+    case SCN_EVENT_ENTER_LEVEL:
+        event = "ENTER_LEVEL";
+        break;
     case SCN_EVENT_SEE_MONSTER:
         event = "SEE_MONSTER";
         break;
     case SCN_EVENT_USE_EXIT:
         event = "USE_EXIT";
+        break;
+    case SCN_EVENT_USE_UP_EXIT:
+        event = "USE_UP_EXIT";
+        break;
+    case SCN_EVENT_USE_DOWN_EXIT:
+        event = "USE_DOWN_EXIT";
         break;
     case SCN_EVENT_DEATH:
         event = "DEATH";
@@ -4189,7 +5106,27 @@ static void scenario_export_rule(FILE* fff, const scenario_rule* rule)
                 fprintf(fff, ",");
             if (!term->expected)
                 fprintf(fff, "!");
-            fprintf(fff, "%s", scenario.flag_names[term->flag_idx]);
+
+            if (term->kind == SCN_TERM_FLAG)
+            {
+                fprintf(fff, "%s", scenario.flag_names[term->flag_idx]);
+            }
+            else if (term->kind == SCN_TERM_DEPTH)
+            {
+                fprintf(fff, "depth=%d", term->value);
+            }
+            else if (term->kind == SCN_TERM_NEW_DEPTH)
+            {
+                fprintf(fff, "new_depth=%d", term->value);
+            }
+            else if (term->kind == SCN_TERM_HAS_SILMARIL)
+            {
+                fprintf(fff, "has_silmaril");
+            }
+            else if (term->kind == SCN_TERM_MORGOTH_SLAIN)
+            {
+                fprintf(fff, "morgoth_slain");
+            }
         }
     }
 
@@ -4201,10 +5138,40 @@ static void scenario_export_rule(FILE* fff, const scenario_rule* rule)
         {
             fprintf(fff, ":SET_FLAG=%s", scenario.flag_names[action->flag_idx]);
         }
+        else if (action->kind == SCN_ACTION_CLEAR_FLAG)
+        {
+            fprintf(fff, ":CLEAR_FLAG=%s", scenario.flag_names[action->flag_idx]);
+        }
         else if (action->kind == SCN_ACTION_DISPLAY_TEXT)
         {
             fprintf(
                 fff, ":DISPLAY_TEXT=%s", scenario.texts[action->text_idx].name);
+        }
+        else if (action->kind == SCN_ACTION_DISPLAY_MESSAGE)
+        {
+            fprintf(fff, ":DISPLAY_MESSAGE=%s",
+                scenario.texts[action->text_idx].name);
+        }
+        else if (action->kind == SCN_ACTION_CONFIRM_TEXT)
+        {
+            fprintf(fff, ":CONFIRM_TEXT=%s",
+                scenario.texts[action->text_idx].name);
+        }
+        else if (action->kind == SCN_ACTION_SET_NEW_DEPTH)
+        {
+            fprintf(fff, ":SET_NEW_DEPTH=%d", action->value);
+        }
+        else if (action->kind == SCN_ACTION_CREATE_STAIRS)
+        {
+            char feat_buf[128];
+
+            fprintf(fff, ":CREATE_STAIRS=%s",
+                scenario_export_create_stairs_token(
+                    action->value, feat_buf, sizeof(feat_buf)));
+        }
+        else if (action->kind == SCN_ACTION_DENY_ACTION)
+        {
+            fprintf(fff, ":DENY_ACTION");
         }
         else if (action->kind == SCN_ACTION_END_GAME)
         {

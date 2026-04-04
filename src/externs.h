@@ -580,6 +580,10 @@ extern bool quests_allow_object_kind(int k_idx);
 extern bool quests_allow_stair_monsters(void);
 extern bool quests_save_disabled(void);
 extern void quests_show_entry_text(void);
+extern void quests_handle_enter_level(void);
+extern bool quests_handle_use_up_exit(void);
+extern bool quests_handle_use_down_exit(int* new_depth);
+extern void quests_note_truce_broken(void);
 extern bool quests_try_complete_on_down_stairs(void);
 
 /* scenario.c */
@@ -589,10 +593,25 @@ extern bool scenario_start_pending_new_game(void);
 extern bool scenario_pending_level_generation(void);
 extern bool scenario_generate_pending_level(void);
 extern bool scenario_export_current(cptr filename);
+extern bool scenario_birth_active(void);
+extern void scenario_birth_seed_choices(void);
+extern void scenario_birth_seed_background(void);
+extern bool scenario_birth_seed_skills(void);
+extern bool scenario_birth_race_fixed(void);
+extern bool scenario_birth_house_fixed(void);
+extern bool scenario_birth_stats_fixed(void);
+extern bool scenario_birth_skills_fixed(void);
+extern bool scenario_birth_history_fixed(void);
+extern bool scenario_birth_ahw_fixed(void);
+extern bool scenario_birth_name_fixed(void);
 extern cptr scenario_note_text(const object_type* o_ptr);
+extern void scenario_handle_enter_level(void);
 extern void scenario_handle_monster_seen(monster_type* m_ptr);
 extern bool scenario_handle_use_exit(int y, int x);
+extern bool scenario_handle_use_up_exit(void);
+extern bool scenario_handle_use_down_exit(int* new_depth);
 extern void scenario_handle_death(void);
+extern void scenario_note_truce(bool active);
 
 /* load.c */
 extern bool load_player(void);
