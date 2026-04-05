@@ -18,9 +18,6 @@
 
 #include "ui-model.h"
 
-/* Number of oath entries, including the empty slot at index zero. */
-#define UI_OATH_COUNT 4
-
 /* Returns the display name for one oath. */
 cptr ui_oath_name(int oath);
 /* Returns the long-form vow description for one oath. */

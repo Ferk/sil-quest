@@ -3858,47 +3858,14 @@ bool knock_back(int y1, int x1, int y2, int x2)
     return (knocked);
 }
 
-static bool merciless_attack(monster_type* m_ptr)
-{
-    monster_race* r_ptr = &r_info[m_ptr->r_idx];
-
-    return (chosen_oath(OATH_MERCY) && !oath_invalid(OATH_MERCY)
-        && ((r_ptr->flags3 & (RF3_MAN)) || (r_ptr->flags3 & (RF3_ELF))));
-}
-
 bool abort_for_mercy(monster_type* m_ptr)
 {
-    // Unseen enemies are okay to kill
-    if (!m_ptr->ml)
-        return FALSE;
-
-    if (merciless_attack(m_ptr)
-        && !get_check("Are you sure you wish to break your oath? "))
-    {
-        return TRUE;
-    }
-
-    return FALSE;
+    return (quests_handle_attack_monster(m_ptr));
 }
 
 void break_mercy_oath(monster_type* m_ptr, int damage)
 {
-    // Unseen enemies are okay to kill
-    if (!m_ptr->ml)
-        return;
-
-    monster_race* r_ptr = &r_info[m_ptr->r_idx];
-
-    if (damage > 0
-        && ((r_ptr->flags3 & (RF3_MAN)) || (r_ptr->flags3 & (RF3_ELF))))
-    {
-        if (merciless_attack(m_ptr))
-        {
-            msg_print("You break your oath of mercy.");
-            do_cmd_note("Broke your oath", p_ptr->depth);
-        }
-        p_ptr->oaths_broken |= OATH_MERCY_FLAG;
-    }
+    quests_handle_damage_monster(m_ptr, damage);
 }
 
 /*
@@ -4050,7 +4017,8 @@ void py_attack_aux(int y, int x, int attack_type)
 
     // Don't make the player deal with Oath warnings on free attacks - pass them
     // up
-    if (!is_normal_attack(attack_type) && merciless_attack(m_ptr))
+    if (!is_normal_attack(attack_type)
+        && quests_current_oath_warns_on_attack(m_ptr))
     {
         abort_attack = TRUE;
     }
@@ -4645,7 +4613,7 @@ void flanking_or_retreat(int y, int x)
         {
             m_ptr = &mon_list[cave_m_idx[fy][fx]];
 
-            if (!merciless_attack(m_ptr)
+            if (!quests_current_oath_warns_on_attack(m_ptr)
                 && m_ptr->ml
                 && (!forgo_attacking_unwary
                     || (m_ptr->alertness >= ALERTNESS_ALERT)))
@@ -4687,7 +4655,7 @@ void flanking_or_retreat(int y, int x)
                 m_ptr = &mon_list[cave_m_idx[fy][fx]];
 
                 // base conditions for an attack
-                if (!merciless_attack(m_ptr)
+                if (!quests_current_oath_warns_on_attack(m_ptr)
                     && m_ptr->ml
                     && (!forgo_attacking_unwary
                         || (m_ptr->alertness >= ALERTNESS_ALERT)))

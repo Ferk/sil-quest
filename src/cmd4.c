@@ -460,23 +460,10 @@ void do_cmd_change_song(void)
 
     if (song_choice >= 0)
     {
-        if (song_choice != SNG_NOTHING)
+        if ((song_choice != SNG_NOTHING) && quests_handle_start_song())
         {
-            if (chosen_oath(OATH_SILENCE) && !oath_invalid(OATH_SILENCE))
-            {
-                if (get_check("Are you sure you wish to break your oath? "))
-                {
-                    msg_print("You break your oath of silence.");
-                    do_cmd_note("Broke your oath", p_ptr->depth);
-                }
-                else
-                {
-                    ui_menu_clear();
-                    return;
-                }
-            }
-
-            p_ptr->oaths_broken |= OATH_SILENCE_FLAG;
+            ui_menu_clear();
+            return;
         }
 
         change_song(song_choice);
@@ -741,20 +728,11 @@ static int bane_menu(int* highlight)
     return (0);
 }
 
-static u32b oath_flag[] = { 0L, OATH_MERCY_FLAG, OATH_SILENCE_FLAG, OATH_IRON_FLAG };
-
-bool oath_invalid(int i) { return ((p_ptr->oaths_broken & oath_flag[i]) > 0); }
-
-bool chosen_oath(int oath)
-{
-    return p_ptr->oath_type == oath;
-}
-
 static int oath_menu(int* highlight)
 {
     int i;
     int ch;
-    int options = 0;
+    int options = oath_count();
 
     char buf[120];
     char menu_text[768];
@@ -774,8 +752,15 @@ static int oath_menu(int* highlight)
 
     ui_menu_begin();
 
+    if (options <= 0)
+    {
+        ui_menu_clear();
+        bell("No oaths are available in this quest.");
+        return (options + 1);
+    }
+
     // list the oaths
-    for (i = 1; i < UI_OATH_COUNT; i++)
+    for (i = 1; i <= options; i++)
     {
         if (!oath_invalid(i))
         {
@@ -805,7 +790,7 @@ static int oath_menu(int* highlight)
             text_out_wrap = 79;
             text_out_indent = COL_DESCRIPTION;
 
-            Term_gotoxy(text_out_indent, UI_OATH_COUNT + 4);
+            Term_gotoxy(text_out_indent, options + 5);
 
             if (oath_invalid(i))
             {
@@ -838,9 +823,6 @@ static int oath_menu(int* highlight)
             text_out_wrap = 0;
             text_out_indent = 0;
         }
-
-        // keep track of the number of options
-        options = i;
     }
 
     ui_menu_set_text(menu_text, menu_attrs, ui_text_builder_length(&builder));
@@ -876,7 +858,7 @@ static int oath_menu(int* highlight)
     if ((ch == ESCAPE) || (ch == 'q') || (ch == '4'))
     {
         ui_menu_clear();
-        return (UI_OATH_COUNT + 1);
+        return (options + 1);
     }
 
     /* Choose current  */
@@ -1376,33 +1358,42 @@ void do_cmd_ability_screen(void)
                                 if ((skilltype == S_WIL)
                                     && (abilitynum == WIL_OATH))
                                 {
-                                    while (!return_to_abilities)
+                                    if (oath_count() <= 0)
                                     {
-                                        skip_purchase = FALSE;
-
-                                        oathchoice = oath_menu(&highlight3);
-
-                                        if ((oathchoice >= 1)
-                                            && (oathchoice <= UI_OATH_COUNT))
+                                        bell("No oaths are available in this quest.");
+                                        skip_purchase = TRUE;
+                                        return_to_abilities = TRUE;
+                                    }
+                                    else
+                                    {
+                                        while (!return_to_abilities)
                                         {
-                                            if (oath_invalid(oathchoice))
+                                            skip_purchase = FALSE;
+
+                                            oathchoice = oath_menu(&highlight3);
+
+                                            if ((oathchoice >= 1)
+                                                && (oathchoice <= oath_count()))
                                             {
-                                                return_to_abilities = FALSE;
-                                                skip_purchase = TRUE;
-                                                bell("This oath was broken "
-                                                     "before it was made.");
+                                                if (oath_invalid(oathchoice))
+                                                {
+                                                    return_to_abilities = FALSE;
+                                                    skip_purchase = TRUE;
+                                                    bell("This oath was broken "
+                                                         "before it was made.");
+                                                }
+                                                else
+                                                {
+                                                    return_to_abilities = TRUE;
+                                                }
                                             }
-                                            else
+                                            else if (oathchoice == oath_count() + 1)
                                             {
                                                 return_to_abilities = TRUE;
+                                                return_to_skills = TRUE;
+                                                return_to_game = TRUE;
+                                                skip_purchase = TRUE;
                                             }
-                                        }
-                                        else if (oathchoice == UI_OATH_COUNT + 1)
-                                        {
-                                            return_to_abilities = TRUE;
-                                            return_to_skills = TRUE;
-                                            return_to_game = TRUE;
-                                            skip_purchase = TRUE;
                                         }
                                     }
 

@@ -164,6 +164,7 @@ set(SIL_SOURCES
     src/melee2.c
     src/monster1.c
     src/monster2.c
+    src/oath.c
     src/quest.c
     src/scenario.c
     src/item-rules.c

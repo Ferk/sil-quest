@@ -15,38 +15,10 @@
 
 #include "ui-abilities.h"
 
-static cptr ui_oath_names[UI_OATH_COUNT] = {
-    "Nothing",
-    "Mercy",
-    "Silence",
-    "Iron",
-};
-
-static cptr ui_oath_desc1_text[UI_OATH_COUNT] = {
-    "Nothing",
-    "to leave Angband without shedding blood of Man or Elf",
-    "to leave Angband as you came, grim and silent",
-    "that none will daunt you from facing Morgoth forthwith",
-};
-
-static cptr ui_oath_desc2_text[UI_OATH_COUNT] = {
-    "Nothing",
-    "attack Men or Elves",
-    "sing",
-    "go up stairs without a Silmaril",
-};
-
-static cptr ui_oath_reward_text[UI_OATH_COUNT] = {
-    "Nothing",
-    "+1 Grace",
-    "+1 Strength",
-    "+2 Constitution",
-};
-
 /* Returns a safe oath index for shared text lookups. */
 static int ui_oath_index(int oath)
 {
-    if ((oath < 0) || (oath >= UI_OATH_COUNT))
+    if ((oath < 0) || (oath > oath_count()))
         return 0;
 
     return oath;
@@ -55,25 +27,25 @@ static int ui_oath_index(int oath)
 /* Returns the display name for one oath. */
 cptr ui_oath_name(int oath)
 {
-    return ui_oath_names[ui_oath_index(oath)];
+    return oath_name(ui_oath_index(oath));
 }
 
 /* Returns the long-form vow description for one oath. */
 cptr ui_oath_desc1(int oath)
 {
-    return ui_oath_desc1_text[ui_oath_index(oath)];
+    return oath_desc1(ui_oath_index(oath));
 }
 
 /* Returns the restriction text for one oath. */
 cptr ui_oath_desc2(int oath)
 {
-    return ui_oath_desc2_text[ui_oath_index(oath)];
+    return oath_desc2(ui_oath_index(oath));
 }
 
 /* Returns the reward text for one oath. */
 cptr ui_oath_reward(int oath)
 {
-    return ui_oath_reward_text[ui_oath_index(oath)];
+    return oath_reward(ui_oath_index(oath));
 }
 
 /* Returns the preferred terminal attr for one ability menu entry. */
@@ -454,10 +426,10 @@ int ui_song_menu_build_entries(ui_simple_menu_entry* entries, char labels[][80],
                 "\n\nThis is your current minor theme.",
                 sizeof(details[entry_count]));
         }
-        if (chosen_oath(OATH_SILENCE) && !oath_invalid(OATH_SILENCE))
+        if (quests_current_oath_breaks_on_start_song())
         {
             my_strcat(details[entry_count],
-                "\n\nSinging will break your oath of silence.",
+                "\n\nSinging will break your current oath.",
                 sizeof(details[entry_count]));
         }
         entries[entry_count].key = 'a' + i;

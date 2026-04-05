@@ -1,4 +1,4 @@
-# File: tutorial_scenario.txt
+# File: quests/tutorial_scenario.txt
 #
 # Quick legend:
 # V:<n> format version
