@@ -22,10 +22,10 @@
 
 static ui_text_builder* ui_knowledge_browser_builder = NULL;
 
-static cptr ui_knowledge_menu_labels[] = { "(1) Display known artefacts",
-    "(2) Display known monsters", "(3) Display known objects",
-    "(4) Display names of the fallen", "(5) Display kill counts",
-    "(6) Display character notes file" };
+static cptr ui_knowledge_menu_labels[] = { "(a) Display known artefacts",
+    "(b) Display known monsters", "(c) Display known objects",
+    "(d) Display names of the fallen", "(e) Display kill counts",
+    "(f) Display character notes file" };
 
 static cptr ui_knowledge_menu_details[] = {
     "Browse artefacts you have discovered and recall their properties.",
@@ -214,13 +214,15 @@ static void ui_knowledge_monster_append_details(
 {
     char race_name[80];
     char buf[80];
+    byte title_attr = TERM_WHITE;
     ui_text_output_state text_output_state;
 
     if (!builder || (r_idx <= 0))
         return;
 
     monster_desc_race(race_name, sizeof(race_name), r_idx);
-    ui_text_builder_append_line(builder, race_name, TERM_YELLOW);
+    title_attr = r_info[r_idx].d_attr ? r_info[r_idx].d_attr : TERM_WHITE;
+    ui_text_builder_append_line(builder, race_name, title_attr);
     if (cheat_know)
     {
         strnfmt(buf, sizeof(buf), "Idx: %d", r_idx);
@@ -333,6 +335,7 @@ static void ui_knowledge_object_append_details(
 {
     char buf[80];
     cptr title;
+    byte title_attr = TERM_WHITE;
 
     if (!builder || !obj || (obj->type == UI_KNOWLEDGE_OBJECT_NONE))
         return;
@@ -359,7 +362,8 @@ static void ui_knowledge_object_append_details(
     while (*title == ' ')
         title++;
 
-    ui_text_builder_append_line(builder, title, TERM_YELLOW);
+    title_attr = ui_knowledge_object_entry_attr(obj, FALSE);
+    ui_text_builder_append_line(builder, title, title_attr);
     if ((obj->type == UI_KNOWLEDGE_OBJECT_NORMAL) && cheat_know)
     {
         strnfmt(buf, sizeof(buf), "Idx: %d", obj->idx);
@@ -403,7 +407,7 @@ static int ui_knowledge_menu_choose(int* highlight)
 
     for (i = 0; i < 6; i++)
     {
-        entries[i].key = '1' + i;
+        entries[i].key = 'a' + i;
         entries[i].row = 4 + i;
         entries[i].label = ui_knowledge_menu_labels[i];
         entries[i].details = ui_knowledge_menu_details[i];
@@ -419,10 +423,13 @@ static int ui_knowledge_menu_choose(int* highlight)
         return 0;
     }
 
-    if ((action >= '1') && (action <= '6'))
+    for (i = 0; i < 6; i++)
     {
-        ui_menu_clear();
-        return action - '0';
+        if (action == entries[i].key)
+        {
+            ui_menu_clear();
+            return i + 1;
+        }
     }
 
     return -1;
@@ -469,6 +476,7 @@ void ui_knowledge_publish_artefacts(cptr group_text[], int grp_idx[],
             &details_builder, artefact_idx[artefact_cur]);
 
     ui_menu_begin();
+    ui_menu_set_layout_kind(UI_MENU_LAYOUT_BROWSER);
 
     for (i = 0; i < UI_KNOWLEDGE_BROWSER_ROWS && (grp_top + i < grp_cnt); i++)
     {
@@ -566,6 +574,7 @@ void ui_knowledge_publish_monsters(cptr group_text[], cptr group_char[],
     }
 
     ui_menu_begin();
+    ui_menu_set_layout_kind(UI_MENU_LAYOUT_BROWSER);
 
     for (i = 0; i < UI_KNOWLEDGE_BROWSER_ROWS && (grp_top + i < grp_cnt); i++)
     {
@@ -755,6 +764,7 @@ void ui_knowledge_publish_objects(cptr group_text[], int grp_idx[], int grp_cnt,
         ui_knowledge_object_append_details(&details_builder, &object_idx[object_cur]);
 
     ui_menu_begin();
+    ui_menu_set_layout_kind(UI_MENU_LAYOUT_BROWSER);
 
     for (i = 0; i < UI_KNOWLEDGE_BROWSER_ROWS && (grp_top + i < grp_cnt); i++)
     {
@@ -822,6 +832,48 @@ void ui_knowledge_recall_object(const ui_knowledge_object_entry* obj)
         ui_preview_show_kind_recall(obj->idx);
 
     ui_modal_clear();
+}
+
+/* Applies one pending semantic browser-row selection request, if any. */
+bool ui_knowledge_apply_browser_request(int* column, int* grp_cur, int grp_top,
+    int grp_cnt, int* list_cur, int list_top, int list_cnt)
+{
+    const ui_menu_item* items = ui_menu_get_items();
+    int item_count = ui_menu_get_item_count();
+    int requested = ui_menu_consume_requested_index();
+    int row;
+
+    if (!column || !grp_cur || !list_cur)
+        return FALSE;
+
+    if ((requested < 0) || (requested >= item_count))
+        return FALSE;
+
+    row = items[requested].y - 6;
+    if (row < 0)
+        return FALSE;
+
+    if (items[requested].x <= 0)
+    {
+        *column = 0;
+        if (grp_cnt > 0)
+            *grp_cur = MIN(grp_top + row, grp_cnt - 1);
+        else
+            *grp_cur = 0;
+        return TRUE;
+    }
+
+    if (items[requested].x == 1)
+    {
+        *column = 1;
+        if (list_cnt > 0)
+            *list_cur = MIN(list_top + row, list_cnt - 1);
+        else
+            *list_cur = 0;
+        return TRUE;
+    }
+
+    return FALSE;
 }
 
 /* Runs the top-level knowledge command loop. */

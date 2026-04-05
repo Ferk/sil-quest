@@ -947,6 +947,7 @@ static bool screen_out_head(const object_type* o_ptr)
 {
     char* o_name;
     int name_size = Term->wid;
+    byte title_attr = TERM_WHITE;
 
     bool has_description = FALSE;
 
@@ -957,7 +958,8 @@ static bool screen_out_head(const object_type* o_ptr)
     object_desc(o_name, name_size, o_ptr, TRUE, 3);
 
     /* Print, in colour */
-    text_out_c(TERM_YELLOW, format("%^s", o_name));
+    title_attr = object_attr((object_type*)o_ptr);
+    text_out_c(title_attr, format("%^s", o_name));
 
     /* Free up the memory */
     FREE(o_name);

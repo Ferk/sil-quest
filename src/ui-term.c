@@ -492,7 +492,10 @@ static int ui_term_collect_menu_columns(
     for (i = 0; i < count; i++)
     {
         int j;
-        int width = (int)strlen(items[i].label);
+        int width = items[i].w;
+
+        if (width <= 0)
+            width = (int)strlen(items[i].label);
 
         for (j = 0; j < column_count; j++)
         {
@@ -531,6 +534,71 @@ static int ui_term_find_menu_column(
     }
 
     return 0;
+}
+
+/* Returns whether one semantic menu item is a direct action rather than a list row. */
+static bool ui_term_menu_item_is_direct(const ui_menu_item* item)
+{
+    return item && (item->key > 0) && (item->key != '\r');
+}
+
+/* Returns whether the current semantic menu uses the tabbed layout. */
+static bool ui_term_menu_is_tabbed(void)
+{
+    return ui_menu_get_layout_kind() == UI_MENU_LAYOUT_TABBED;
+}
+
+/* Lays out the tab buttons for one tabbed semantic menu. */
+static int ui_term_layout_menu_tabs(const ui_menu_item* items, int count,
+    int* tab_indices, int* tab_positions)
+{
+    int direct_indices[UI_TERM_MENU_MAX_COLUMNS];
+    int direct_count = 0;
+    int i;
+    int next_col = 0;
+
+    for (i = 0; i < count; i++)
+    {
+        if (!ui_term_menu_item_is_direct(&items[i]))
+            continue;
+
+        if (direct_count >= UI_TERM_MENU_MAX_COLUMNS)
+            break;
+
+        direct_indices[direct_count++] = i;
+    }
+
+    if (direct_count <= 0)
+        return 0;
+
+    for (i = 0; i < direct_count - 1; i++)
+    {
+        int j;
+
+        for (j = i + 1; j < direct_count; j++)
+        {
+            if (items[direct_indices[j]].x < items[direct_indices[i]].x)
+            {
+                int swap = direct_indices[i];
+                direct_indices[i] = direct_indices[j];
+                direct_indices[j] = swap;
+            }
+        }
+    }
+
+    for (i = 0; i < direct_count; i++)
+    {
+        int width = items[direct_indices[i]].w;
+
+        if (width <= 0)
+            width = (int)strlen(items[direct_indices[i]].label);
+
+        tab_indices[i] = direct_indices[i];
+        tab_positions[i] = next_col;
+        next_col += width + UI_TERM_MENU_MIN_LIST_GAP;
+    }
+
+    return next_col - UI_TERM_MENU_MIN_LIST_GAP;
 }
 
 /* Chooses terminal x positions for the current semantic menu columns. */
@@ -620,6 +688,10 @@ static void ui_term_menu_render(void)
     int frame_top = 0;
     int frame_right = 0;
     int frame_bottom = 0;
+    int tab_indices[UI_TERM_MENU_MAX_COLUMNS];
+    int tab_positions[UI_TERM_MENU_MAX_COLUMNS];
+    int tab_count = 0;
+    int tabbed_menu = FALSE;
     bool local_modal = FALSE;
     bool has_details_pane = FALSE;
     bool has_summary = FALSE;
@@ -636,11 +708,44 @@ static void ui_term_menu_render(void)
 
     selected = ui_term_menu_cursor_index(items, count, active_column);
 
-    column_count = ui_term_collect_menu_columns(items, count, columns, widths);
-    ui_term_layout_menu_columns(widths, column_count, positions);
+    tabbed_menu = ui_term_menu_is_tabbed();
 
-    if (column_count > 0)
-        menu_right = positions[column_count - 1] + widths[column_count - 1];
+    if (tabbed_menu)
+    {
+        int active_width = 0;
+
+        for (i = 0; i < count; i++)
+        {
+            int width;
+
+            if (ui_term_menu_item_is_direct(&items[i]))
+                continue;
+
+            width = items[i].w;
+            if (width <= 0)
+                width = (int)strlen(items[i].label);
+            if (width > active_width)
+                active_width = width;
+        }
+
+        tab_count = ui_term_layout_menu_tabs(
+            items, count, tab_indices, tab_positions);
+        column_count = 1;
+        columns[0] = active_column;
+        widths[0] = active_width;
+        positions[0] = 0;
+        menu_right = active_width;
+        if (tab_count > menu_right)
+            menu_right = tab_count;
+    }
+    else
+    {
+        column_count = ui_term_collect_menu_columns(items, count, columns, widths);
+        ui_term_layout_menu_columns(widths, column_count, positions);
+
+        if (column_count > 0)
+            menu_right = positions[column_count - 1] + widths[column_count - 1];
+    }
 
     local_modal = ui_term_menu_is_local_modal(
         column_count, count, menu_right, 0, term_wid, term_hgt);
@@ -803,9 +908,29 @@ static void ui_term_menu_render(void)
 
     for (i = 0; i < count; i++)
     {
-        int column_index = ui_term_find_menu_column(columns, column_count, items[i].x);
-        int col = panel_origin_x + positions[column_index];
+        int col = panel_origin_x;
         int row = panel_origin_y + items[i].y + row_shift;
+
+        if (tabbed_menu && ui_term_menu_item_is_direct(&items[i]))
+        {
+            int tab_slot;
+
+            for (tab_slot = 0; tab_slot < 2; tab_slot++)
+            {
+                if (tab_indices[tab_slot] == i)
+                {
+                    col += tab_positions[tab_slot];
+                    break;
+                }
+            }
+        }
+        else if (!tabbed_menu)
+        {
+            int column_index =
+                ui_term_find_menu_column(columns, column_count, items[i].x);
+
+            col += positions[column_index];
+        }
 
         Term_putstr(col, row, -1,
             ui_term_menu_item_attr(&items[i], active_column), items[i].label);
@@ -832,11 +957,30 @@ static void ui_term_menu_render(void)
 
     if ((selected >= 0) && (selected < count))
     {
-        int column_index =
-            ui_term_find_menu_column(columns, column_count, items[selected].x);
+        int cursor_col = panel_origin_x;
 
-        Term_gotoxy(panel_origin_x + positions[column_index],
-            panel_origin_y + items[selected].y + row_shift);
+        if (tabbed_menu && ui_term_menu_item_is_direct(&items[selected]))
+        {
+            int tab_slot;
+
+            for (tab_slot = 0; tab_slot < 2; tab_slot++)
+            {
+                if (tab_indices[tab_slot] == selected)
+                {
+                    cursor_col += tab_positions[tab_slot];
+                    break;
+                }
+            }
+        }
+        else if (!tabbed_menu)
+        {
+            int column_index =
+                ui_term_find_menu_column(columns, column_count, items[selected].x);
+
+            cursor_col += positions[column_index];
+        }
+
+        Term_gotoxy(cursor_col, panel_origin_y + items[selected].y + row_shift);
     }
 }
 

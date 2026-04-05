@@ -23,6 +23,7 @@
 static ui_menu_item ui_menu_items[UI_MENU_ITEMS_MAX];
 static int ui_menu_item_count = 0;
 static int ui_menu_selected_hint = -1;
+static int ui_menu_requested_index = -1;
 static int ui_menu_active_x = 0;
 static bool ui_menu_active_x_valid = FALSE;
 static bool ui_menu_active_all_columns = FALSE;
@@ -39,6 +40,7 @@ static int ui_menu_summary_attrs_len = 0;
 static int ui_menu_details_width = 0;
 static int ui_menu_details_rows = 0;
 static int ui_menu_summary_rows = 0;
+static ui_menu_layout_kind ui_menu_layout_kind_value = UI_MENU_LAYOUT_GENERIC;
 static int ui_menu_details_visual_kind = UI_MENU_VISUAL_NONE;
 static int ui_menu_details_visual_attr = TERM_WHITE;
 static int ui_menu_details_visual_char = 0;
@@ -162,6 +164,7 @@ static void ui_menu_reset_state(void)
     ui_menu_details_width = 0;
     ui_menu_details_rows = 0;
     ui_menu_summary_rows = 0;
+    ui_menu_layout_kind_value = UI_MENU_LAYOUT_GENERIC;
     ui_menu_details_visual_kind = UI_MENU_VISUAL_NONE;
     ui_menu_details_visual_attr = TERM_WHITE;
     ui_menu_details_visual_char = 0;
@@ -237,6 +240,35 @@ static cptr ui_model_simple_menu_title(cptr label)
     }
 
     return title + i;
+}
+
+/* Builds one synthetic vertical-navigation hint for a simple menu item. */
+static void ui_model_build_simple_menu_nav(char* nav, size_t nav_size,
+    int current_highlight, int target_highlight)
+{
+    size_t off = 0;
+    int step = 0;
+    int distance;
+    int i;
+
+    if (!nav || (nav_size == 0))
+        return;
+
+    nav[0] = '\0';
+
+    if (current_highlight < target_highlight)
+        step = '2';
+    else if (current_highlight > target_highlight)
+        step = '8';
+
+    if (!step)
+        return;
+
+    distance = ABS(target_highlight - current_highlight);
+    for (i = 0; (i < distance) && (off + 1 < nav_size); i++)
+        nav[off++] = (char)step;
+
+    nav[off] = '\0';
 }
 
 /* Stores one new semantic prompt state and invalidates frontend caches. */
@@ -492,18 +524,24 @@ void ui_model_publish_simple_menu(cptr title, int title_row, int col,
     {
         cptr label = entries[i].label ? entries[i].label : "";
         size_t label_len = strlen(label);
+        char nav[UI_MENU_NAV_MAX];
 
-        ui_menu_add(0, entries[i].row, (int)label_len, 1, entries[i].key,
-            (i + 1 == highlight), TERM_WHITE, label);
+        ui_model_build_simple_menu_nav(nav, sizeof(nav), highlight, i + 1);
+        ui_menu_add_with_nav(0, entries[i].row, (int)label_len, 1,
+            entries[i].key, (i + 1 == highlight), TERM_WHITE, label, nav);
     }
 
     if ((highlight >= 1) && (highlight <= entry_count))
     {
         const ui_simple_menu_entry* selected = &entries[highlight - 1];
         cptr title = ui_model_simple_menu_title(selected->label);
+        byte title_attr = TERM_WHITE;
+
+        if ((highlight - 1 >= 0) && (highlight - 1 < ui_menu_item_count))
+            title_attr = (byte)ui_menu_items[highlight - 1].attr;
 
         ui_text_builder_append_line(&details_builder,
-            title, TERM_YELLOW);
+            title, title_attr);
         ui_text_builder_newline(&details_builder, TERM_WHITE);
         ui_text_builder_append_line(&details_builder,
             selected->details ? selected->details : "", TERM_SLATE);
@@ -816,10 +854,18 @@ void ui_menu_set_active_column(int x)
     ui_menu_touch();
 }
 
+/* Publishes the semantic layout style expected for the current menu frame. */
+void ui_menu_set_layout_kind(ui_menu_layout_kind kind)
+{
+    ui_menu_layout_kind_value = kind;
+    ui_menu_touch();
+}
+
 /* Clears the exported semantic menu state. */
 void ui_menu_clear(void)
 {
     ui_menu_reset_state();
+    ui_menu_requested_index = -1;
     ui_menu_touch();
 }
 
@@ -900,6 +946,24 @@ int ui_menu_select_index(int index)
     return 1;
 }
 
+/* Requests that the active semantic menu apply one item selection next tick. */
+void ui_menu_request_index(int index)
+{
+    if ((index < 0) || (index >= ui_menu_item_count))
+        return;
+
+    ui_menu_requested_index = index;
+}
+
+/* Consumes one pending semantic menu selection request, if any. */
+int ui_menu_consume_requested_index(void)
+{
+    int index = ui_menu_requested_index;
+
+    ui_menu_requested_index = -1;
+    return index;
+}
+
 /* Returns the active menu column, or `-1` when all are active. */
 int ui_menu_get_active_column(void)
 {
@@ -926,6 +990,12 @@ int ui_menu_get_active_column(void)
     }
 
     return max_x;
+}
+
+/* Returns the semantic layout style exported for the current menu frame. */
+ui_menu_layout_kind ui_menu_get_layout_kind(void)
+{
+    return ui_menu_layout_kind_value;
 }
 
 /* Returns the menu revision used by the frontend cache. */

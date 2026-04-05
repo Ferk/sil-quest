@@ -10,10 +10,8 @@ function initWebHelpers(root) {
       .replaceAll(">", "&gt;");
   }
 
-  // Renders ANSI-like colored text by grouping contiguous attribute runs.
-  function renderColoredText(text, attrs, fallbackAttr = 1) {
-    if (!text) return "";
-
+  // Renders one ANSI-like colored text line by grouping contiguous attribute runs.
+  function renderColoredLine(text, attrs, fallbackAttr = 1) {
     let html = "";
     let runAttr = -1;
     let runStart = 0;
@@ -27,15 +25,6 @@ function initWebHelpers(root) {
     };
 
     for (let i = 0; i < text.length; i++) {
-      const ch = text[i];
-      if (ch === "\n") {
-        flushRun(i);
-        html += "<br>";
-        runAttr = -1;
-        runStart = i + 1;
-        continue;
-      }
-
       const attr = (attrs && i < attrs.length) ? attrs[i] : fallbackAttr;
       if (runAttr < 0) {
         runAttr = attr;
@@ -51,6 +40,74 @@ function initWebHelpers(root) {
 
     flushRun(text.length);
     return html;
+  }
+
+  // Renders ANSI-like colored text by grouping contiguous attribute runs.
+  function renderColoredText(text, attrs, fallbackAttr = 1) {
+    if (!text) return "";
+
+    let html = "";
+    let lineStart = 0;
+
+    for (let i = 0; i <= text.length; i++) {
+      if (i !== text.length && text[i] !== "\n") continue;
+
+      if (i > lineStart) {
+        html += renderColoredLine(
+          text.slice(lineStart, i),
+          attrs ? attrs.subarray(lineStart, i) : null,
+          fallbackAttr
+        );
+      }
+
+      if (i !== text.length) {
+        html += "<br>";
+      }
+      lineStart = i + 1;
+    }
+
+    return html;
+  }
+
+  // Renders colored text as semantic blocks and lines instead of <br>-separated spans.
+  function renderColoredBlocks(text, attrs, fallbackAttr = 1) {
+    if (!text) return "";
+
+    const blocks = [];
+    let currentBlock = [];
+    let lineStart = 0;
+
+    const flushLine = (lineText, lineAttrs) => {
+      if (!lineText) {
+        if (currentBlock.length) {
+          blocks.push(currentBlock);
+          currentBlock = [];
+        }
+        return;
+      }
+
+      currentBlock.push(
+        `<p class="term-line">${renderColoredLine(lineText, lineAttrs, fallbackAttr)}</p>`
+      );
+    };
+
+    for (let i = 0; i <= text.length; i++) {
+      if (i !== text.length && text[i] !== "\n") continue;
+
+      flushLine(
+        text.slice(lineStart, i),
+        attrs ? attrs.subarray(lineStart, i) : null
+      );
+      lineStart = i + 1;
+    }
+
+    if (currentBlock.length) {
+      blocks.push(currentBlock);
+    }
+
+    return blocks
+      .map((block) => `<div class="term-block">${block.join("")}</div>`)
+      .join("");
   }
 
   // Chooses CSS class for right-side panel values based on semantic label/value.
@@ -235,6 +292,7 @@ function initWebHelpers(root) {
 
   root.WebHelpers = Object.freeze({
     clamp,
+    renderColoredBlocks,
     renderColoredText,
     renderSideState,
     setHtmlIfChanged,

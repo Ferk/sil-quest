@@ -585,6 +585,13 @@ static bool web_key_dequeue(int* key)
     return TRUE;
 }
 
+/* Drops any pending synthetic input from the web queue. */
+static void web_key_clear(void)
+{
+    key_head = 0;
+    key_tail = 0;
+}
+
 /* ------------------------------------------------------------------------ */
 /* Frontend Notifications                                                   */
 /* ------------------------------------------------------------------------ */
@@ -3184,6 +3191,11 @@ EMSCRIPTEN_KEEPALIVE int web_get_menu_active_x(void)
     return ui_menu_get_active_column();
 }
 
+EMSCRIPTEN_KEEPALIVE int web_get_menu_layout_kind(void)
+{
+    return ui_menu_get_layout_kind();
+}
+
 EMSCRIPTEN_KEEPALIVE unsigned int web_get_menu_revision(void)
 {
     return ui_menu_get_revision();
@@ -3263,6 +3275,7 @@ EMSCRIPTEN_KEEPALIVE int web_menu_hover(int index)
 {
     const ui_menu_item* items = ui_menu_get_items();
     int count = ui_menu_get_item_count();
+    ui_menu_layout_kind layout_kind = ui_menu_get_layout_kind();
     int selected;
     int step;
     int target;
@@ -3271,15 +3284,33 @@ EMSCRIPTEN_KEEPALIVE int web_menu_hover(int index)
     if ((index < 0) || (index >= count))
         return 0;
 
+    if (layout_kind == UI_MENU_LAYOUT_BROWSER)
+    {
+        web_key_clear();
+        ui_menu_request_index(index);
+        return web_key_enqueue('\r') ? 1 : 0;
+    }
+
+    if ((items[index].key > 0) && (items[index].key != '\r')
+        && (items[index].nav_len <= 0))
+    {
+        ui_menu_select_index(index);
+        return 1;
+    }
+
     if (items[index].nav_len > 0)
     {
+        if (layout_kind == UI_MENU_LAYOUT_BROWSER)
+            web_key_clear();
+
         for (i = 0; i < items[index].nav_len; i++)
         {
             if (!web_key_enqueue((byte)items[index].nav[i]))
                 return 0;
         }
 
-        ui_menu_select_index(index);
+        if (layout_kind != UI_MENU_LAYOUT_BROWSER)
+            ui_menu_select_index(index);
         return 1;
     }
 
@@ -3310,6 +3341,12 @@ EMSCRIPTEN_KEEPALIVE int web_menu_activate(int index)
 
     if ((index < 0) || (index >= count))
         return 0;
+
+    key = items[index].key;
+    if ((key > 0) && (key != '\r') && (items[index].nav_len <= 0))
+    {
+        return web_key_enqueue(key) ? 1 : 0;
+    }
 
     if (!web_menu_hover(index))
         return 0;

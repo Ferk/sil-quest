@@ -1010,19 +1010,21 @@ static int abilities_menu2(int skilltype, int* highlight)
     int options = 0; // a default value to soothe compilation warnings
 
     char buf[80];
-    char menu_text[4096];
-    byte menu_attrs[4096];
-    int menu_text_len = 0;
+    char menu_details[4096];
+    byte menu_details_attrs[4096];
+    int menu_details_len = 0;
 
     byte attr;
 
     // clear the abilities and description area
     wipe_screen_from(COL_ABILITY);
-    menu_text[0] = '\0';
+    menu_details[0] = '\0';
 
     // abilities title
     Term_putstr(COL_ABILITY, 2, -1, TERM_WHITE, "Abilities");
     ui_menu_begin();
+    ui_menu_set_text("Abilities", NULL, 0);
+    ui_menu_set_details_width(40);
 
     // list the abilities
     for (i = 0; i < z_info->b_max; i++)
@@ -1050,8 +1052,8 @@ static int abilities_menu2(int skilltype, int* highlight)
             Term_putstr(
                 COL_ABILITY, b_ptr->abilitynum + 4, -1, TERM_L_BLUE, buf);
 
-            menu_text_len = ui_ability_menu_build_details(skilltype, b_ptr, attr,
-                menu_text, menu_attrs, sizeof(menu_text), prereqs,
+            menu_details_len = ui_ability_menu_build_details(skilltype, b_ptr, attr,
+                menu_details, menu_details_attrs, sizeof(menu_details), prereqs,
                 abilities_in_skill,
                 bane_type_killed, bane_bonus_aux);
 
@@ -1210,7 +1212,7 @@ static int abilities_menu2(int skilltype, int* highlight)
         options = b_ptr->abilitynum + 1;
     }
 
-    ui_menu_set_text(menu_text, menu_attrs, menu_text_len);
+    ui_menu_set_details(menu_details, menu_details_attrs, menu_details_len);
     ui_menu_end();
 
     /* Flush the prompt */
@@ -9392,6 +9394,9 @@ void do_cmd_knowledge_artefacts(void)
         ui_knowledge_publish_artefacts(object_group_text, grp_idx, grp_cnt, grp_cur,
             grp_top, artefact_idx, artefact_cnt, artefact_cur, artefact_top,
             column);
+        if (ui_knowledge_apply_browser_request(&column, &grp_cur, grp_top,
+                grp_cnt, &artefact_cur, artefact_top, artefact_cnt))
+            continue;
         ui_menu_render_current();
 
         /* The "current" object changed */
@@ -9681,6 +9686,12 @@ void do_cmd_knowledge_monsters(void)
         ui_knowledge_publish_monsters(monster_group_text, monster_group_char,
             grp_idx, grp_cnt, grp_cur, grp_top, mon_idx, monster_count, mon_cur,
             mon_top, column);
+        if (ui_knowledge_apply_browser_request(&column, &grp_cur, grp_top,
+                grp_cnt, &mon_cur, mon_top, monster_count))
+        {
+            mon_cur_by_group[grp_cur] = mon_cur;
+            continue;
+        }
         ui_menu_render_current();
 
         /* Track selected monster, to enable recall in sub-win*/
@@ -9818,6 +9829,12 @@ void do_cmd_knowledge_objects(void)
             object_cur, &object_top, object_cnt, UI_KNOWLEDGE_BROWSER_ROWS);
         ui_knowledge_publish_objects(object_group_text, grp_idx, grp_cnt, grp_cur,
             grp_top, object_idx, object_cnt, object_cur, object_top, column);
+        if (ui_knowledge_apply_browser_request(&column, &grp_cur, grp_top,
+                grp_cnt, &object_cur, object_top, object_cnt))
+        {
+            object_cur_by_group[grp_cur] = object_cur;
+            continue;
+        }
         ui_menu_render_current();
 
         /* Track the selected object kind for any recall subwindow. */

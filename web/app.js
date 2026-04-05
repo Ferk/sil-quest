@@ -6,6 +6,7 @@
 
     const {
       clamp,
+      renderColoredBlocks,
       renderColoredText,
       renderSideState,
       setHtmlIfChanged,
@@ -103,6 +104,9 @@
     const UI_PROMPT_KIND_YES_NO = 3;
     const UI_PROMPT_KIND_TARGET = 4;
     const UI_PROMPT_KIND_MORE = 5;
+    const UI_MENU_LAYOUT_GENERIC = 0;
+    const UI_MENU_LAYOUT_TABBED = 1;
+    const UI_MENU_LAYOUT_BROWSER = 2;
     const UI_MODAL_KIND_GENERIC = 0;
     const UI_MODAL_KIND_MESSAGE_HISTORY = 1;
 
@@ -172,6 +176,7 @@
     let autosavePrimed = false;
     let activeMenuItems = [];
     let activeMenuColumnX = null;
+    let activeMenuLayoutKind = UI_MENU_LAYOUT_GENERIC;
     let activeMenuText = "";
     let activeMenuTextAttrs = null;
     let activeMenuDetailsText = "";
@@ -187,6 +192,10 @@
     let activeTileContextState = null;
     let semanticMenuSnapshot = null;
     let hoveredMenuIndex = -1;
+    let pressedOverlayMenuIndex = -1;
+    let menuHoverNeedsPointerMove = false;
+    let lastOverlayMenuPointerX = null;
+    let lastOverlayMenuPointerY = null;
     let compactSideOpen = false;
     let sideCollapsed = false;
     let wasCompactLayout = false;
@@ -1110,7 +1119,34 @@
       return maxX;
     }
 
-    // Only the rightmost submenu column should react to passive hover; older columns remain click-only.
+    // Detects the inventory-style "tab bar + one active list" semantic menu pattern.
+    function getTabbedMenuLayout(
+      items,
+      activeColumnX = activeMenuColumnX,
+      layoutKind = activeMenuLayoutKind
+    ) {
+      if (!Array.isArray(items) || items.length <= 0) return null;
+      if (layoutKind !== UI_MENU_LAYOUT_TABBED) return null;
+
+      const activeX = getActiveMenuColumnX(items, activeColumnX);
+      const tabs = items
+        .filter((item) => isDirectMenuItem(item))
+        .sort((a, b) => a.x - b.x || a.y - b.y);
+
+      if (!Number.isInteger(activeX) || tabs.length !== 2) return null;
+      if (tabs[0].y !== tabs[1].y) return null;
+      if (tabs[0].x === tabs[1].x) return null;
+
+      const listItems = items
+        .filter((item) => !isDirectMenuItem(item))
+        .sort((a, b) => a.y - b.y || a.x - b.x);
+
+      if (listItems.some((item) => item.x !== activeX)) return null;
+
+      return { activeX, tabs, listItems };
+    }
+
+    // Only passive-hover the active list column, never direct action items such as tabs.
     function isPassiveHoverMenuItem(index) {
       if (
         index < 0 ||
@@ -1118,6 +1154,32 @@
         !Number.isInteger(index)
       ) {
         return false;
+      }
+
+      const tabbedMenu = getTabbedMenuLayout(
+        activeMenuItems,
+        activeMenuColumnX,
+        activeMenuLayoutKind
+      );
+      if (tabbedMenu) {
+        if (isDirectMenuItem(activeMenuItems[index])) {
+          return false;
+        }
+
+        return activeMenuItems[index].x === tabbedMenu.activeX;
+      }
+
+      if (activeMenuLayoutKind === UI_MENU_LAYOUT_BROWSER) {
+        return true;
+      }
+
+      const activeColumnX = getActiveMenuColumnX(
+        activeMenuItems,
+        activeMenuColumnX
+      );
+
+      if (Number.isInteger(activeColumnX)) {
+        return activeMenuItems[index].x === activeColumnX;
       }
 
       let rightmostColumnX = activeMenuItems[0].x;
@@ -1259,6 +1321,7 @@
     function snapshotSemanticMenu(
       items,
       activeColumnX,
+      layoutKind,
       text,
       textAttrs,
       detailsText,
@@ -1273,6 +1336,7 @@
       semanticMenuSnapshot = {
         items: items.map((item) => ({ ...item })),
         activeColumnX,
+        layoutKind,
         text,
         textAttrs: cloneAttrBytes(textAttrs),
         detailsText,
@@ -1370,6 +1434,7 @@
         snapshotSemanticMenu(
           activeMenuItems,
           activeMenuColumnX,
+          activeMenuLayoutKind,
           activeMenuText,
           activeMenuTextAttrs,
           activeMenuDetailsText,
@@ -1383,6 +1448,7 @@
         return {
           items: activeMenuItems,
           activeColumnX: activeMenuColumnX,
+          layoutKind: activeMenuLayoutKind,
           text: activeMenuText,
           textAttrs: activeMenuTextAttrs,
           detailsText: activeMenuDetailsText,
@@ -1412,6 +1478,7 @@
       ) {
         activeMenuItems = [];
         activeMenuColumnX = null;
+        activeMenuLayoutKind = UI_MENU_LAYOUT_GENERIC;
         activeMenuText = "";
         activeMenuTextAttrs = null;
         activeMenuDetailsText = "";
@@ -1439,6 +1506,10 @@
         typeof api.getMenuAttrsLen === "function" ? api.getMenuAttrsLen() : 0;
       const activeColumnX =
         typeof api.getMenuActiveX === "function" ? api.getMenuActiveX() : null;
+      const layoutKind =
+        typeof api.getMenuLayoutKind === "function"
+          ? api.getMenuLayoutKind()
+          : UI_MENU_LAYOUT_GENERIC;
       const detailsPtr =
         typeof api.getMenuDetailsPtr === "function" ? api.getMenuDetailsPtr() : 0;
       const detailsLen =
@@ -1475,6 +1546,8 @@
       activeMenuText = readUtf8(heap, textPtr, textLen);
       activeMenuTextAttrs = readBytes(heap, attrPtr, attrLen);
       activeMenuColumnX = Number.isInteger(activeColumnX) ? activeColumnX : null;
+      activeMenuLayoutKind =
+        Number.isInteger(layoutKind) ? layoutKind : UI_MENU_LAYOUT_GENERIC;
       activeMenuDetailsText = readUtf8(heap, detailsPtr, detailsLen);
       activeMenuDetailsAttrs = readBytes(heap, detailsAttrPtr, detailsAttrLen);
       activeMenuSummaryText = readUtf8(heap, summaryPtr, summaryLen);
@@ -1492,6 +1565,7 @@
       if (!ptr || count <= 0 || stride < 40 || ptr < 0 || (ptr + byteLen) > heap.length) {
         activeMenuItems = [];
         activeMenuColumnX = null;
+        activeMenuLayoutKind = UI_MENU_LAYOUT_GENERIC;
         activeMenuDetailsText = "";
         activeMenuDetailsAttrs = null;
         activeMenuSummaryText = "";
@@ -3913,20 +3987,44 @@
         menuState.items,
         menuState.activeColumnX
       );
+      const tabbedMenu = getTabbedMenuLayout(
+        menuState.items,
+        menuState.activeColumnX,
+        menuState.layoutKind
+      );
       const hasCopy = !!menuState.text;
       const hasDetails = !!menuState.detailsText;
       const hasSummary = !!menuState.summaryText;
       const hasDetailsVisual =
         !!menuState.detailsVisual && Number.isInteger(menuState.detailsVisual.kind);
       const hasDetailsPane = hasDetails || hasDetailsVisual;
-      const renderMenuButton = (item, index) => {
+      const detailsBlockHtml = hasDetails
+        ? renderColoredBlocks(menuState.detailsText, menuState.detailsAttrs, 1)
+        : "";
+      const summaryBlockHtml = hasSummary
+        ? renderColoredBlocks(menuState.summaryText, menuState.summaryAttrs, 1)
+        : "";
+      const menuShellTypeClass =
+        menuState.text && menuState.text.trim() === "Abilities"
+          ? " menu-shell-abilities"
+          : "";
+      const renderMenuItem = (item, index) => {
+        const interactive =
+          !!item &&
+          (item.key > 0 || menuState.layoutKind === UI_MENU_LAYOUT_BROWSER);
         const selectedClass = item.selected ? " menu-item-selected" : "";
-        const attrClass = item.selected ? "" : ` term-c${item.attr & 0x0f}`;
-        const directClass = isDirectMenuItem(item) ? " menu-item-direct" : "";
+        const attrClass = ` term-c${item.attr & 0x0f}`;
+        const directClass =
+          interactive && isDirectMenuItem(item) ? " menu-item-direct" : "";
         const label = escapeHtml(item.label || String.fromCharCode(item.key));
         const visualHtml = item.visual
           ? `<span class="menu-item-visual" data-menu-visual-kind="${item.visual.kind}" data-menu-visual-attr="${item.visual.attr}" data-menu-visual-char="${item.visual.chr}"></span>`
           : "";
+
+        if (!interactive) {
+          return `<div class="menu-item menu-item-static${attrClass}">${visualHtml}<span class="menu-item-label">${label}</span></div>`;
+        }
+
         return `<button type="button" class="menu-item${selectedClass}${attrClass}${directClass}" data-menu-index="${index}">${visualHtml}<span class="menu-item-label">${label}</span></button>`;
       };
       const introHtml = `<div class="menu-copy${hasCopy ? "" : " menu-copy-empty"}">${
@@ -3935,33 +4033,52 @@
       const detailsHtml = `<div class="menu-item-details${hasDetailsPane ? "" : " menu-item-details-empty"}"><div class="menu-item-details-visual"></div><div class="menu-item-details-copy${
         hasDetails ? "" : " menu-item-details-copy-empty"
       }">${
-        hasDetails
-          ? renderColoredText(menuState.detailsText, menuState.detailsAttrs, 1)
-          : ""
+        detailsBlockHtml
       }</div></div>`;
       const summaryHtml = `<div class="menu-summary${hasSummary ? "" : " menu-summary-empty"}">${
-        hasSummary
-          ? renderColoredText(menuState.summaryText, menuState.summaryAttrs, 1)
-          : ""
+        summaryBlockHtml
       }</div>`;
-      const menuColumnsHtml = columns
-        .map((column, columnIndex) => {
-          const columnX = column.length ? column[0].x : columnIndex;
-          const columnStateClass =
-            columns.length > 1 &&
-            Number.isInteger(activeColumnX) &&
-            columnX !== activeColumnX
-              ? " menu-column-inactive"
-              : " menu-column-active";
-          const itemsHtml = column
-            .map((item, itemIndex) => renderMenuButton(item, menuState.items.indexOf(item)))
-            .join("");
-          return `<div class="menu-column${columnStateClass}" data-menu-column="${columnX}">${itemsHtml}</div>`;
-        })
-        .join("");
-      const shellClass = hasCopy ? "menu-shell-with-copy" : "menu-shell-no-copy";
+      const shellClass =
+        (hasCopy ? "menu-shell-with-copy" : "menu-shell-no-copy") +
+        menuShellTypeClass;
       const bodyClass = hasDetailsPane ? "menu-body-with-details" : "menu-body-no-details";
-      const menuHtml = `<div class="menu-shell ${shellClass}">${introHtml}<div class="menu-body ${bodyClass}"><div class="menu-columns-wrap"><div class="menu-columns">${menuColumnsHtml}</div></div>${detailsHtml}</div>${summaryHtml}</div>`;
+      let menuBrowserHtml = "";
+
+      if (tabbedMenu) {
+        const tabsHtml = tabbedMenu.tabs
+          .map((item) => renderMenuItem(item, menuState.items.indexOf(item)))
+          .join("");
+        const listHtml = tabbedMenu.listItems
+          .map((item) => renderMenuItem(item, menuState.items.indexOf(item)))
+          .join("");
+
+        menuBrowserHtml =
+          `<div class="menu-columns-wrap menu-columns-wrap-tabbed">` +
+            `<div class="menu-tabs">${tabsHtml}</div>` +
+            `<div class="menu-tab-panel" data-menu-column="${tabbedMenu.activeX}">${listHtml}</div>` +
+          `</div>`;
+      } else {
+        const menuColumnsHtml = columns
+          .map((column, columnIndex) => {
+            const columnX = column.length ? column[0].x : columnIndex;
+            const columnStateClass =
+              columns.length > 1 &&
+              Number.isInteger(activeColumnX) &&
+              columnX !== activeColumnX
+                ? " menu-column-inactive"
+                : " menu-column-active";
+            const itemsHtml = column
+              .map((item) => renderMenuItem(item, menuState.items.indexOf(item)))
+              .join("");
+            return `<div class="menu-column${columnStateClass}" data-menu-column="${columnX}">${itemsHtml}</div>`;
+          })
+          .join("");
+
+        menuBrowserHtml =
+          `<div class="menu-columns-wrap"><div class="menu-columns">${menuColumnsHtml}</div></div>`;
+      }
+
+      const menuHtml = `<div class="menu-shell ${shellClass}">${introHtml}<div class="menu-body ${bodyClass}">${menuBrowserHtml}${detailsHtml}</div>${summaryHtml}</div>`;
 
       showSemanticOverlay("overlay-menu", menuHtml);
       if (hasDetailsPane && Number.isInteger(menuState.detailsWidth) && menuState.detailsWidth > 0) {
@@ -4315,6 +4432,7 @@
           ? api.getCharacterSheetStateRevision()
           : 0;
       const frameChanged = frameId !== lastFrameId;
+      const menuChanged = menuRevision !== lastMenuRevision;
       if (
         !forceRedraw &&
         frameId === lastFrameId &&
@@ -4336,6 +4454,10 @@
       lastBirthStateRevision = birthStateRevision;
       lastCharacterSheetRevision = characterSheetRevision;
       lastMapFxActive = mapFxActive;
+
+      if (menuChanged && activeMenuLayoutKind !== UI_MENU_LAYOUT_BROWSER) {
+        hoveredMenuIndex = -1;
+      }
 
       const cols = api.getCols();
       const rows = api.getRows();
@@ -4934,7 +5056,9 @@
         hoveredMenuIndex = index;
 
         if (api.menuHover(index)) {
-          requestRender(true);
+          if (activeMenuLayoutKind !== UI_MENU_LAYOUT_BROWSER) {
+            requestRender(true);
+          }
         }
 
         return index;
@@ -4971,13 +5095,27 @@
 
     // Binds semantic hover/click handling for HTML menu overlays.
     function bindOverlayMenuInput() {
-      const hoverFromOverlayEvent = (target) => {
+      const hoverFromOverlayEvent = (ev) => {
         if (isInteractiveTopPromptActive() || morePromptActive) {
           hoveredMenuIndex = -1;
           return;
         }
 
-        const itemEl = target.closest("[data-menu-index]");
+        if (menuHoverNeedsPointerMove) {
+          if (
+            ev.clientX === lastOverlayMenuPointerX &&
+            ev.clientY === lastOverlayMenuPointerY
+          ) {
+            return;
+          }
+
+          menuHoverNeedsPointerMove = false;
+        }
+
+        lastOverlayMenuPointerX = ev.clientX;
+        lastOverlayMenuPointerY = ev.clientY;
+
+        const itemEl = ev.target.closest("[data-menu-index]");
         if (!itemEl || !api || typeof api.menuHover !== "function") return;
 
         const index = Number(itemEl.dataset.menuIndex);
@@ -4995,20 +5133,34 @@
 
         hoveredMenuIndex = index;
         if (api.menuHover(index)) {
-          requestRender(true);
+          if (activeMenuLayoutKind !== UI_MENU_LAYOUT_BROWSER) {
+            requestRender(true);
+          }
         }
       };
+
+      overlayModalEl.addEventListener("pointerdown", (ev) => {
+        if (!overlayModalEl.classList.contains("overlay-menu")) return;
+        if (ev.pointerType === "mouse" && ev.button !== 0) return;
+
+        const itemEl = ev.target.closest("[data-menu-index]");
+        lastOverlayMenuPointerX = ev.clientX;
+        lastOverlayMenuPointerY = ev.clientY;
+        pressedOverlayMenuIndex = itemEl
+          ? Number(itemEl.dataset.menuIndex)
+          : -1;
+      });
+
+      for (const eventName of ["pointercancel", "pointerleave"]) {
+        overlayModalEl.addEventListener(eventName, () => {
+          pressedOverlayMenuIndex = -1;
+        });
+      }
 
       overlayModalEl.addEventListener("pointermove", (ev) => {
         if (!overlayModalEl.classList.contains("overlay-menu")) return;
         if (ev.pointerType !== "mouse") return;
-        hoverFromOverlayEvent(ev.target);
-      });
-
-      overlayModalEl.addEventListener("pointerover", (ev) => {
-        if (!overlayModalEl.classList.contains("overlay-menu")) return;
-        if (ev.pointerType !== "mouse") return;
-        hoverFromOverlayEvent(ev.target);
+        hoverFromOverlayEvent(ev);
       });
 
       overlayModalEl.addEventListener("click", (ev) => {
@@ -5018,11 +5170,17 @@
         const itemEl = ev.target.closest("[data-menu-index]");
         if (!itemEl || !api || typeof api.menuActivate !== "function") return;
 
-        const index = Number(itemEl.dataset.menuIndex);
+        const fallbackIndex = Number(itemEl.dataset.menuIndex);
+        const index =
+          Number.isInteger(pressedOverlayMenuIndex) && pressedOverlayMenuIndex >= 0
+            ? pressedOverlayMenuIndex
+            : fallbackIndex;
+        pressedOverlayMenuIndex = -1;
         if (!Number.isInteger(index)) return;
 
         hoveredMenuIndex = index;
         if (api.menuActivate(index)) {
+          menuHoverNeedsPointerMove = true;
           activeMenuItems = [];
           activeMenuColumnX = null;
           hoveredMenuIndex = -1;
@@ -6263,6 +6421,10 @@
           getMenuAttrsPtr: Module._web_get_menu_attrs_ptr,
           getMenuAttrsLen: Module._web_get_menu_attrs_len,
           getMenuActiveX: Module._web_get_menu_active_x,
+          getMenuLayoutKind:
+            typeof Module._web_get_menu_layout_kind === "function"
+              ? Module._web_get_menu_layout_kind
+              : null,
           getMenuRevision: Module._web_get_menu_revision,
           getMenuSnapshotRetained: Module._web_get_menu_snapshot_retained,
           getMenuDetailsPtr: Module._web_get_menu_details_ptr,

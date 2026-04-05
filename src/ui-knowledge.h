@@ -76,5 +76,8 @@ void ui_knowledge_publish_objects(cptr group_text[], int grp_idx[], int grp_cnt,
     int object_cnt, int object_cur, int object_top, int column);
 /* Shows the full recall modal for one object browser entry. */
 void ui_knowledge_recall_object(const ui_knowledge_object_entry* obj);
+/* Applies one pending semantic browser-row selection request, if any. */
+bool ui_knowledge_apply_browser_request(int* column, int* grp_cur, int grp_top,
+    int grp_cnt, int* list_cur, int list_top, int list_cnt);
 
 #endif

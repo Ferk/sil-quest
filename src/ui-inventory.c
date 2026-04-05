@@ -52,7 +52,6 @@ struct ui_inventory_section_layout
     int section;
     int item_start;
     int item_end;
-    int term_col;
     int menu_col;
     cptr heading;
     cptr empty_text;
@@ -76,9 +75,9 @@ static const ui_inventory_action_entry ui_inventory_action_defs[] = {
 };
 
 static const ui_inventory_section_layout ui_inventory_sections[] = {
-    { UI_INVENTORY_SECTION_EQUIP, INVEN_WIELD, INVEN_TOTAL, 2, 0,
-        "Equipped", "(nothing equipped)" },
-    { UI_INVENTORY_SECTION_INVEN, 0, INVEN_PACK, 41, 1,
+    { UI_INVENTORY_SECTION_EQUIP, INVEN_WIELD, INVEN_TOTAL, 0,
+        "Equipment", "(nothing equipped)" },
+    { UI_INVENTORY_SECTION_INVEN, 0, INVEN_PACK, 1,
         "Inventory", "(nothing in your pack)" },
 };
 
@@ -91,24 +90,13 @@ static object_type* ui_inventory_object(int item)
     return &inventory[item];
 }
 
-/* Returns the opposite inventory section for left/right navigation. */
-static int ui_inventory_other_section(int section)
-{
-    return (section == UI_INVENTORY_SECTION_EQUIP)
-        ? UI_INVENTORY_SECTION_INVEN
-        : UI_INVENTORY_SECTION_EQUIP;
-}
-
 /* Chooses the row color used for one item in the inventory lists. */
 static byte ui_inventory_item_attr(object_type* o_ptr)
 {
     if (!o_ptr)
         return TERM_WHITE;
 
-    if (weapon_glows(o_ptr))
-        return TERM_L_BLUE;
-
-    return tval_to_attr[o_ptr->tval % N_ELEMENTS(tval_to_attr)];
+    return (byte)object_attr(o_ptr);
 }
 
 /* Exports the visual that should be shown beside an inventory entry. */
@@ -354,6 +342,37 @@ static int ui_inventory_find_by_section_row(
     return -1;
 }
 
+/* Returns the selected row index for one visible inventory section. */
+static int ui_inventory_selected_section_row(
+    const ui_inventory_item_entry* entries, int item_count, int selected,
+    int section)
+{
+    if ((selected >= 0) && (selected < item_count)
+        && (entries[selected].section == section))
+    {
+        return entries[selected].section_row;
+    }
+
+    return 0;
+}
+
+/* Chooses the selected item for one section and remembered row. */
+static int ui_inventory_select_section_row(
+    const ui_inventory_item_entry* entries, int item_count, int section, int row)
+{
+    int count = ui_inventory_section_count(entries, item_count, section);
+
+    if (count <= 0)
+        return -1;
+
+    if (row < 0)
+        row = 0;
+    if (row >= count)
+        row = count - 1;
+
+    return ui_inventory_find_by_section_row(entries, item_count, section, row);
+}
+
 /* Finds one item by its inventory letter shortcut. */
 static int ui_inventory_find_by_label(const ui_inventory_item_entry* entries,
     int item_count, char ch)
@@ -431,65 +450,22 @@ static int ui_inventory_default_selection(
     return (count > 0) ? 0 : -1;
 }
 
-/* Keeps the selected index within the available item range. */
-static int ui_inventory_clamp_selection(int selected, int item_count)
-{
-    if (selected >= item_count)
-        selected = item_count - 1;
-    if ((item_count > 0) && (selected < 0))
-        selected = 0;
-
-    return selected;
-}
-
 /* Moves the selection up or down inside the current section. */
 static int ui_inventory_move_vertical(const ui_inventory_item_entry* entries,
-    int item_count, int selected, int initial_section, int delta)
+    int item_count, int section, int row, int delta)
 {
-    int section;
-    int row;
     int count;
 
     if (item_count <= 0)
-        return selected;
+        return row;
 
-    section = (selected >= 0) ? entries[selected].section : initial_section;
-    row = (selected >= 0) ? entries[selected].section_row : 0;
     count = ui_inventory_section_count(entries, item_count, section);
     if (count <= 0)
-        return selected;
+        return row;
 
     row = (row + delta + count) % count;
-    return ui_inventory_find_by_section_row(entries, item_count, section, row);
-}
 
-/* Moves the selection left or right between equipped and inventory columns. */
-static int ui_inventory_move_horizontal(const ui_inventory_item_entry* entries,
-    int item_count, int selected, int initial_section, int preferred_section)
-{
-    int current_section;
-    int target_section;
-    int row;
-    int count;
-
-    if (item_count <= 0)
-        return selected;
-
-    current_section = (selected >= 0) ? entries[selected].section : initial_section;
-    target_section = preferred_section;
-    if (target_section == current_section)
-        target_section = ui_inventory_other_section(current_section);
-
-    count = ui_inventory_section_count(entries, item_count, target_section);
-    if (count <= 0)
-        return selected;
-
-    row = (selected >= 0) ? entries[selected].section_row : 0;
-    if (row >= count)
-        row = count - 1;
-
-    return ui_inventory_find_by_section_row(
-        entries, item_count, target_section, row);
+    return row;
 }
 
 /* Appends one compact item-summary block above the full lore text. */
@@ -560,22 +536,19 @@ static void ui_inventory_append_selected_details(ui_text_builder* builder,
     int item, const object_type* o_ptr)
 {
     char buf[128];
+    char title[160];
+    byte title_attr = TERM_WHITE;
 
     if (!builder || !o_ptr)
         return;
 
-    strnfmt(buf, sizeof(buf), "%s item",
-        (item >= INVEN_WIELD) ? "Equipped" : "Inventory");
-    ui_text_builder_append_line(builder, buf, TERM_WHITE);
+    object_desc(title, sizeof(title), o_ptr, TRUE, 3);
+    title_attr = object_attr((object_type*)o_ptr);
+    ui_text_builder_append_line(builder, title, title_attr);
 
     if (item >= INVEN_WIELD)
     {
         strnfmt(buf, sizeof(buf), "Slot: %s", mention_use(item));
-        ui_text_builder_append_line(builder, buf, TERM_SLATE);
-    }
-    else
-    {
-        strnfmt(buf, sizeof(buf), "Pack slot: %c", index_to_label(item));
         ui_text_builder_append_line(builder, buf, TERM_SLATE);
     }
 
@@ -588,7 +561,48 @@ static void ui_inventory_append_selected_details(ui_text_builder* builder,
     ui_text_builder_newline(builder, TERM_WHITE);
     ui_inventory_append_item_summary(builder, o_ptr);
     ui_text_builder_newline(builder, TERM_WHITE);
-    object_info_append_ui_text(builder, o_ptr, TRUE);
+    {
+        size_t info_start = builder->off;
+
+        object_info_append_ui_text(builder, o_ptr, TRUE);
+
+        if (builder->off > info_start)
+        {
+            size_t keep_from = info_start;
+            size_t i;
+
+            for (i = info_start; i < builder->off; i++)
+            {
+                if (builder->text[i] == '\n')
+                {
+                    keep_from = i;
+                    while ((keep_from < builder->off)
+                        && (builder->text[keep_from] == '\n'))
+                    {
+                        keep_from++;
+                    }
+                    break;
+                }
+            }
+
+            if (keep_from > info_start)
+            {
+                size_t keep_len = builder->off - keep_from;
+
+                memmove(builder->text + info_start, builder->text + keep_from,
+                    keep_len);
+                memmove(builder->attrs + info_start, builder->attrs + keep_from,
+                    keep_len * sizeof(*builder->attrs));
+                builder->off = info_start + keep_len;
+                builder->text[builder->off] = '\0';
+            }
+            else
+            {
+                builder->off = info_start;
+                builder->text[builder->off] = '\0';
+            }
+        }
+    }
 }
 
 /* Populates the details pane and preview visual for the current selection. */
@@ -620,21 +634,39 @@ static void ui_inventory_publish_selected_details(
 }
 
 /* Renders one inventory column, including its empty-state message. */
-static void ui_inventory_render_section(const ui_inventory_item_entry* entries,
-    int item_count, int selected, const ui_inventory_section_layout* layout)
+static void ui_inventory_render_tabs(int active_section)
 {
+    size_t i;
+
+    for (i = 0; i < N_ELEMENTS(ui_inventory_sections); i++)
+    {
+        const ui_inventory_section_layout* layout = &ui_inventory_sections[i];
+        int key =
+            (layout->section == UI_INVENTORY_SECTION_EQUIP) ? '4' : '6';
+
+        ui_menu_add(layout->menu_col, 4, (int)strlen(layout->heading), 1, key,
+            (layout->section == active_section), TERM_WHITE, layout->heading);
+    }
+}
+
+/* Renders the currently active inventory section below the tab row. */
+static void ui_inventory_render_active_section(
+    const ui_inventory_item_entry* entries, int item_count, int active_section,
+    int selected)
+{
+    const ui_inventory_section_layout* layout =
+        &ui_inventory_sections[active_section];
     int count;
     int i;
 
-    if (!entries || !layout)
+    if (!entries)
         return;
 
-    Term_putstr(layout->term_col, 4, -1, TERM_L_BLUE, layout->heading);
-
-    count = ui_inventory_section_count(entries, item_count, layout->section);
+    count = ui_inventory_section_count(entries, item_count, active_section);
     if (count <= 0)
     {
-        Term_putstr(layout->term_col, 6, -1, TERM_SLATE, layout->empty_text);
+        ui_menu_add(layout->menu_col, 6, (int)strlen(layout->empty_text), 1, 0,
+            FALSE, TERM_SLATE, layout->empty_text);
         return;
     }
 
@@ -642,10 +674,9 @@ static void ui_inventory_render_section(const ui_inventory_item_entry* entries,
     {
         char nav[UI_MENU_NAV_MAX];
         bool is_selected;
-        byte term_attr;
         int term_row;
 
-        if (entries[i].section != layout->section)
+        if (entries[i].section != active_section)
             continue;
 
         term_row = 6 + entries[i].section_row;
@@ -653,20 +684,17 @@ static void ui_inventory_render_section(const ui_inventory_item_entry* entries,
             entries[selected].section, entries[selected].section_row,
             entries[i].section, entries[i].section_row);
         is_selected = (i == selected);
-        term_attr = is_selected ? TERM_L_BLUE : entries[i].attr;
         ui_menu_add_visual_with_nav(layout->menu_col, term_row,
             (int)strlen(entries[i].label), 1, '\r', is_selected,
             entries[i].attr, entries[i].visual_kind, entries[i].visual_attr,
             entries[i].visual_char, entries[i].label, nav);
-        if (term_row < Term->hgt)
-            Term_putstr(layout->term_col, term_row, -1, term_attr,
-                entries[i].label);
     }
 }
 
 /* Publishes the main inventory browser view into the semantic menu model. */
 static void ui_inventory_render_item_menu(
-    const ui_inventory_item_entry* entries, int item_count, int selected)
+    const ui_inventory_item_entry* entries, int item_count, int active_section,
+    int selected)
 {
     char menu_text[UI_INVENTORY_TEXT_MAX];
     byte menu_attrs[UI_INVENTORY_TEXT_MAX];
@@ -674,7 +702,6 @@ static void ui_inventory_render_item_menu(
     byte menu_details_attrs[UI_INVENTORY_TEXT_MAX];
     ui_text_builder menu_builder;
     ui_text_builder details_builder;
-    size_t i;
 
     ui_text_builder_init(&menu_builder, menu_text, menu_attrs, sizeof(menu_text));
     ui_text_builder_init(
@@ -685,23 +712,18 @@ static void ui_inventory_render_item_menu(
     ui_text_builder_append_line(&menu_builder,
         "Use movement keys or pointer to select an item.", TERM_SLATE);
     ui_text_builder_append_line(&menu_builder,
-        "Equipped items on the left; Inventory on the right.",
+        "Use 4/6 or tap the tabs to switch between Equipped and Inventory.",
         TERM_SLATE);
 
-    Term_putstr(2, 1, -1, TERM_WHITE, "Inventory");
-
     ui_menu_begin();
+    ui_menu_set_layout_kind(UI_MENU_LAYOUT_TABBED);
     ui_menu_set_text(
         menu_text, menu_attrs, ui_text_builder_length(&menu_builder));
     ui_menu_set_details_width(30);
-
-    for (i = 0; i < N_ELEMENTS(ui_inventory_sections); i++)
-    {
-        ui_inventory_render_section(
-            entries, item_count, selected, &ui_inventory_sections[i]);
-    }
-
-    ui_menu_set_active_column(-1);
+    ui_inventory_render_tabs(active_section);
+    ui_inventory_render_active_section(entries, item_count, active_section,
+        selected);
+    ui_menu_set_active_column(active_section);
     ui_inventory_publish_selected_details(entries, item_count, selected,
         &details_builder, menu_details, menu_details_attrs);
     ui_menu_end();
@@ -879,7 +901,9 @@ bool do_cmd_ui_inventory_menu(
 {
     ui_inventory_item_entry entries[INVEN_TOTAL];
     int item_count;
+    int active_section;
     int selected;
+    int section_rows[N_ELEMENTS(ui_inventory_sections)] = { 0, 0 };
 
     if (!can_wear)
         return FALSE;
@@ -890,6 +914,10 @@ bool do_cmd_ui_inventory_menu(
     item_count = ui_inventory_collect_items(
         entries, N_ELEMENTS(entries), initial_section);
     selected = ui_inventory_default_selection(entries, item_count, initial_section);
+    active_section =
+        (selected >= 0) ? entries[selected].section : initial_section;
+    if ((selected >= 0) && (selected < item_count))
+        section_rows[active_section] = entries[selected].section_row;
 
     while (TRUE)
     {
@@ -901,10 +929,12 @@ bool do_cmd_ui_inventory_menu(
         ui_input_nested_menu_action action;
         int i;
 
-        selected = ui_inventory_clamp_selection(selected, item_count);
+        selected = ui_inventory_select_section_row(entries, item_count,
+            active_section, section_rows[active_section]);
 
-        ui_inventory_render_item_menu(entries, item_count, selected);
-        Term_fresh();
+        ui_inventory_render_item_menu(entries, item_count, active_section,
+            selected);
+        ui_menu_render_current();
 
         if ((selected >= 0) && (selected < item_count))
         {
@@ -923,29 +953,29 @@ bool do_cmd_ui_inventory_menu(
 
         if ((item_count > 0) && (action == UI_INPUT_NESTED_MENU_ACTION_UP))
         {
-            selected = ui_inventory_move_vertical(
-                entries, item_count, selected, initial_section, -1);
+            section_rows[active_section] = ui_inventory_move_vertical(
+                entries, item_count, active_section, section_rows[active_section],
+                -1);
             continue;
         }
 
         if ((item_count > 0) && (action == UI_INPUT_NESTED_MENU_ACTION_DOWN))
         {
-            selected = ui_inventory_move_vertical(
-                entries, item_count, selected, initial_section, 1);
+            section_rows[active_section] = ui_inventory_move_vertical(
+                entries, item_count, active_section, section_rows[active_section],
+                1);
             continue;
         }
 
-        if ((item_count > 0) && (action == UI_INPUT_NESTED_MENU_ACTION_LEFT))
+        if (action == UI_INPUT_NESTED_MENU_ACTION_LEFT)
         {
-            selected = ui_inventory_move_horizontal(entries, item_count, selected,
-                initial_section, UI_INVENTORY_SECTION_EQUIP);
+            active_section = UI_INVENTORY_SECTION_EQUIP;
             continue;
         }
 
-        if ((item_count > 0) && (action == UI_INPUT_NESTED_MENU_ACTION_RIGHT))
+        if (action == UI_INPUT_NESTED_MENU_ACTION_RIGHT)
         {
-            selected = ui_inventory_move_horizontal(entries, item_count, selected,
-                initial_section, UI_INVENTORY_SECTION_INVEN);
+            active_section = UI_INVENTORY_SECTION_INVEN;
             continue;
         }
 
@@ -970,7 +1000,11 @@ bool do_cmd_ui_inventory_menu(
         label_index = ui_inventory_find_by_label(entries, item_count, ch);
         if (label_index >= 0)
         {
+            active_section = entries[label_index].section;
             selected = label_index;
+            section_rows[active_section] =
+                ui_inventory_selected_section_row(entries, item_count, selected,
+                    active_section);
             if (ui_inventory_open_selected_item(entries, selected))
                 return TRUE;
         }

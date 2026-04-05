@@ -22,6 +22,7 @@ typedef struct ui_menu_item ui_menu_item;
 typedef struct ui_simple_menu_entry ui_simple_menu_entry;
 typedef struct ui_text_output_state ui_text_output_state;
 typedef enum ui_modal_kind ui_modal_kind;
+typedef enum ui_menu_layout_kind ui_menu_layout_kind;
 typedef enum ui_prompt_kind ui_prompt_kind;
 typedef bool (*ui_prompt_render_hook)(int row, int col);
 typedef void (*ui_prompt_clear_hook)(void);
@@ -92,6 +93,13 @@ enum ui_modal_kind
 {
     UI_MODAL_KIND_GENERIC = 0,
     UI_MODAL_KIND_MESSAGE_HISTORY = 1
+};
+
+enum ui_menu_layout_kind
+{
+    UI_MENU_LAYOUT_GENERIC = 0,
+    UI_MENU_LAYOUT_TABBED = 1,
+    UI_MENU_LAYOUT_BROWSER = 2
 };
 
 /* Starts writing into one text-plus-attrs builder. */
@@ -167,6 +175,8 @@ void ui_menu_add_with_nav(int x, int y, int w, int h, int key, int selected,
     int attr, cptr label, cptr nav);
 /* Restricts menu selection to one column, or all columns with `-1`. */
 void ui_menu_set_active_column(int x);
+/* Publishes the semantic layout style expected for the current menu frame. */
+void ui_menu_set_layout_kind(ui_menu_layout_kind kind);
 /* Publishes the menu's main text block. */
 void ui_menu_set_text(cptr text, const byte* attrs, int attrs_len);
 /* Publishes the menu's details pane text block. */
@@ -197,8 +207,14 @@ int ui_menu_get_item_count(void);
 int ui_menu_get_selected_index(void);
 /* Selects one menu item and updates the active column state. */
 int ui_menu_select_index(int index);
+/* Requests that the active semantic menu apply one item selection next tick. */
+void ui_menu_request_index(int index);
+/* Consumes one pending semantic menu selection request, if any. */
+int ui_menu_consume_requested_index(void);
 /* Returns the active menu column, or `-1` when all are active. */
 int ui_menu_get_active_column(void);
+/* Returns the semantic layout style exported for the current menu frame. */
+ui_menu_layout_kind ui_menu_get_layout_kind(void);
 /* Returns the menu revision used by the frontend cache. */
 unsigned int ui_menu_get_revision(void);
 /* Returns the current menu text buffer. */
