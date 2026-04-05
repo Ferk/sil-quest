@@ -92,7 +92,8 @@ enum ui_prompt_kind
 enum ui_modal_kind
 {
     UI_MODAL_KIND_GENERIC = 0,
-    UI_MODAL_KIND_MESSAGE_HISTORY = 1
+    UI_MODAL_KIND_MESSAGE_HISTORY = 1,
+    UI_MODAL_KIND_RECALL = 2
 };
 
 enum ui_menu_layout_kind
@@ -266,6 +267,8 @@ void ui_modal_set(cptr text, const byte* attrs, int attrs_len, int dismiss_key);
 /* Publishes one modal text block plus its dismiss key and semantic kind. */
 void ui_modal_set_kind(cptr text, const byte* attrs, int attrs_len,
     int dismiss_key, ui_modal_kind kind);
+/* Publishes the optional visual shown beside one modal text block. */
+void ui_modal_set_visual(int kind, int attr, int chr);
 /* Clears the exported modal state. */
 void ui_modal_clear(void);
 /* Returns the current modal text buffer. */
@@ -280,6 +283,12 @@ int ui_modal_get_attrs_len(void);
 int ui_modal_get_dismiss_key(void);
 /* Returns the semantic kind exported for the current modal. */
 ui_modal_kind ui_modal_get_kind(void);
+/* Returns the visual kind exported for the current modal. */
+int ui_modal_get_visual_kind(void);
+/* Returns the visual attr exported for the current modal. */
+int ui_modal_get_visual_attr(void);
+/* Returns the visual character exported for the current modal. */
+int ui_modal_get_visual_char(void);
 /* Returns the modal revision used by the frontend cache. */
 unsigned int ui_modal_get_revision(void);
 

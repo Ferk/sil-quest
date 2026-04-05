@@ -11,6 +11,7 @@
 #include "angband.h"
 #include "item-rules.h"
 #include "ui-input.h"
+#include "ui-knowledge.h"
 #include "ui-marks.h"
 #include "ui-model.h"
 
@@ -3718,6 +3719,8 @@ static int target_set_interactive_aux(int y, int x, int mode, cptr info)
                     {
                         char recall_prompt[80];
 
+                        ui_knowledge_set_target_monster_recall(m_ptr->r_idx, TRUE);
+
                         /* Save screen */
                         screen_save();
 
@@ -3737,6 +3740,8 @@ static int target_set_interactive_aux(int y, int x, int mode, cptr info)
 
                         /* Load screen */
                         screen_load();
+                        ui_knowledge_set_target_monster_recall(
+                            m_ptr->r_idx, FALSE);
                     }
 
                     /* Normal */

@@ -261,6 +261,27 @@ static void ui_knowledge_monster_set_details_visual(int r_idx)
     }
 }
 
+/* Publishes the appropriate glyph preview for one monster modal. */
+static void ui_knowledge_monster_set_modal_visual(int r_idx)
+{
+    monster_race* r_ptr;
+
+    if (r_idx <= 0)
+        return;
+
+    r_ptr = &r_info[r_idx];
+    if (use_graphics)
+    {
+        ui_modal_set_visual(
+            UI_MENU_VISUAL_TILE, (byte)r_ptr->x_attr, (byte)r_ptr->x_char);
+    }
+    else
+    {
+        ui_modal_set_visual(
+            UI_MENU_VISUAL_TEXT, (byte)r_ptr->d_attr, (byte)r_ptr->d_char);
+    }
+}
+
 /* Appends the summary text shown above the monster browser groups. */
 static void ui_knowledge_monster_group_append_summary(
     ui_text_builder* builder, cptr group_char[], int grp_cur)
@@ -615,7 +636,8 @@ void ui_knowledge_publish_monsters(cptr group_text[], cptr group_char[],
 }
 
 /* Shows the full recall modal for one monster entry. */
-void ui_knowledge_recall_monster(int r_idx)
+void ui_knowledge_show_monster_recall_modal(
+    int r_idx, int dismiss_key, int kind)
 {
     char modal_text[UI_KNOWLEDGE_TEXT_MAX];
     byte modal_attrs[UI_KNOWLEDGE_TEXT_MAX];
@@ -625,13 +647,34 @@ void ui_knowledge_recall_monster(int r_idx)
         &modal_builder, modal_text, modal_attrs, sizeof(modal_text));
     ui_knowledge_monster_append_details(&modal_builder, r_idx);
     ui_knowledge_finish_modal(&modal_builder);
-    ui_modal_set(modal_text, modal_attrs, ui_text_builder_length(&modal_builder),
-        '\r');
+    ui_modal_set_kind(modal_text, modal_attrs,
+        ui_text_builder_length(&modal_builder), dismiss_key, (ui_modal_kind)kind);
+    ui_knowledge_monster_set_modal_visual(r_idx);
+}
+
+/* Shows the full recall modal for one monster entry. */
+void ui_knowledge_recall_monster(int r_idx)
+{
+    ui_knowledge_show_monster_recall_modal(
+        r_idx, '\r', UI_MODAL_KIND_GENERIC);
 
     screen_roff(r_idx);
     (void)inkey();
 
     ui_modal_clear();
+}
+
+/* Publishes or clears the semantic recall modal used during targeting. */
+void ui_knowledge_set_target_monster_recall(int r_idx, bool active)
+{
+    if (!active)
+    {
+        ui_modal_clear();
+        return;
+    }
+
+    ui_knowledge_show_monster_recall_modal(
+        r_idx, 0, UI_MODAL_KIND_GENERIC);
 }
 
 /* Formats the display label for one object browser entry. */

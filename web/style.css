@@ -1562,6 +1562,22 @@
       display: none;
     }
 
+    .modal-copy-shell {
+      display: flex;
+      flex-direction: column;
+      gap: 0.9rem;
+      max-width: min(42rem, 92vw);
+    }
+
+    .modal-copy {
+      white-space: pre-wrap;
+      line-height: 1.25;
+    }
+
+    .modal-visual {
+      align-self: flex-start;
+    }
+
     .menu-summary {
       min-width: 0;
       min-height: var(--menu-summary-min-height, 0);

@@ -51,6 +51,9 @@ static byte ui_modal_attrs[UI_MENU_TEXT_MAX];
 static int ui_modal_attrs_len = 0;
 static int ui_modal_dismiss_key = 0;
 static ui_modal_kind ui_modal_kind_value = UI_MODAL_KIND_GENERIC;
+static int ui_modal_visual_kind = UI_MENU_VISUAL_NONE;
+static int ui_modal_visual_attr = TERM_WHITE;
+static int ui_modal_visual_char = 0;
 static unsigned int ui_prompt_revision = 1;
 static char ui_prompt_text[UI_MENU_TEXT_MAX];
 static byte ui_prompt_attrs[UI_MENU_TEXT_MAX];
@@ -1127,6 +1130,18 @@ void ui_modal_set_kind(cptr text, const byte* attrs, int attrs_len,
         sizeof(ui_modal_text), text, attrs, attrs_len);
     ui_modal_dismiss_key = dismiss_key;
     ui_modal_kind_value = kind;
+    ui_modal_visual_kind = UI_MENU_VISUAL_NONE;
+    ui_modal_visual_attr = TERM_WHITE;
+    ui_modal_visual_char = 0;
+    ui_modal_touch();
+}
+
+/* Publishes the optional visual shown beside one modal text block. */
+void ui_modal_set_visual(int kind, int attr, int chr)
+{
+    ui_modal_visual_kind = ui_menu_normalize_visual_kind(kind);
+    ui_modal_visual_attr = attr;
+    ui_modal_visual_char = chr;
     ui_modal_touch();
 }
 
@@ -1137,6 +1152,9 @@ void ui_modal_clear(void)
     ui_modal_attrs_len = 0;
     ui_modal_dismiss_key = 0;
     ui_modal_kind_value = UI_MODAL_KIND_GENERIC;
+    ui_modal_visual_kind = UI_MENU_VISUAL_NONE;
+    ui_modal_visual_attr = TERM_WHITE;
+    ui_modal_visual_char = 0;
     ui_modal_touch();
 }
 
@@ -1174,6 +1192,24 @@ int ui_modal_get_dismiss_key(void)
 ui_modal_kind ui_modal_get_kind(void)
 {
     return ui_modal_kind_value;
+}
+
+/* Returns the visual kind exported for the current modal. */
+int ui_modal_get_visual_kind(void)
+{
+    return ui_modal_visual_kind;
+}
+
+/* Returns the visual attr exported for the current modal. */
+int ui_modal_get_visual_attr(void)
+{
+    return ui_modal_visual_attr;
+}
+
+/* Returns the visual character exported for the current modal. */
+int ui_modal_get_visual_char(void)
+{
+    return ui_modal_visual_char;
 }
 
 /* Returns the modal revision used by the frontend cache. */

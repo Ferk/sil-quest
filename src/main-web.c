@@ -19,6 +19,7 @@
 #include "main.h"
 #include "ui-birth.h"
 #include "ui-character.h"
+#include "ui-knowledge.h"
 #include "ui-marks.h"
 #include "ui-model.h"
 
@@ -123,6 +124,7 @@ static term_data data;
 #define WEB_PLAYER_STATE_MAX 8192
 #define WEB_TILE_CONTEXT_STATE_MAX 4096
 #define WEB_AUTO_RESUME_MARKER_NAME "web-autoresume.txt"
+#define WEB_GRID_CONTEXT_ACTION_RECALL 100
 
 struct web_birth_submission
 {
@@ -145,6 +147,8 @@ static char web_character_sheet_state[WEB_CHARACTER_SHEET_STATE_MAX];
 static uint32_t web_character_sheet_state_revision = UINT32_MAX;
 static char web_player_state[WEB_PLAYER_STATE_MAX];
 static char web_tile_context_state[WEB_TILE_CONTEXT_STATE_MAX];
+static int web_tile_context_target_y = -1;
+static int web_tile_context_target_x = -1;
 static char web_overlay_text[WEB_OVERLAY_TEXT_MAX];
 static byte web_overlay_attrs[WEB_OVERLAY_TEXT_MAX];
 static int web_overlay_attrs_len = 0;
@@ -171,6 +175,8 @@ static void web_mark_dirty(term_data* td, int x, int y, int w, int h);
 static void web_request_render(void);
 static void web_overlay_capture_clear(void);
 static void web_get_auto_resume_marker_path(char* buf, size_t max);
+static bool web_get_tile_context_target(int dir, int* y, int* x);
+static int web_get_tile_context_dir_for_grid(int y, int x);
 
 /* MicroChasm defaults */
 static int web_tile_wid = 16;
@@ -249,6 +255,9 @@ EMSCRIPTEN_KEEPALIVE uintptr_t web_get_modal_attrs_ptr(void);
 EMSCRIPTEN_KEEPALIVE int web_get_modal_attrs_len(void);
 EMSCRIPTEN_KEEPALIVE int web_get_modal_dismiss_key(void);
 EMSCRIPTEN_KEEPALIVE int web_get_modal_kind(void);
+EMSCRIPTEN_KEEPALIVE int web_get_modal_visual_kind(void);
+EMSCRIPTEN_KEEPALIVE int web_get_modal_visual_attr(void);
+EMSCRIPTEN_KEEPALIVE int web_get_modal_visual_char(void);
 EMSCRIPTEN_KEEPALIVE unsigned int web_get_modal_revision(void);
 EMSCRIPTEN_KEEPALIVE int web_get_prompt_kind(void);
 EMSCRIPTEN_KEEPALIVE int web_get_prompt_more_hint(void);
@@ -289,6 +298,8 @@ EMSCRIPTEN_KEEPALIVE uintptr_t web_get_player_state_ptr(void);
 EMSCRIPTEN_KEEPALIVE int web_get_player_state_len(void);
 EMSCRIPTEN_KEEPALIVE uintptr_t web_get_tile_context_state_ptr(int dir);
 EMSCRIPTEN_KEEPALIVE int web_get_tile_context_state_len(int dir);
+EMSCRIPTEN_KEEPALIVE uintptr_t web_get_map_tile_context_state_ptr(int y, int x);
+EMSCRIPTEN_KEEPALIVE int web_get_map_tile_context_state_len(int y, int x);
 EMSCRIPTEN_KEEPALIVE int web_execute_tile_context_action(int dir, int action_id);
 EMSCRIPTEN_KEEPALIVE void web_consume_render_request(void);
 EMSCRIPTEN_KEEPALIVE int web_get_overlay_mode(void);
@@ -1380,6 +1391,9 @@ static cptr web_get_tile_context_action_label(int dir, int action_id)
     case GRID_CONTEXT_ACTION_OPEN:
         return "Open door";
 
+    case WEB_GRID_CONTEXT_ACTION_RECALL:
+        return "Recall";
+
     default:
         return NULL;
     }
@@ -1411,6 +1425,67 @@ static void web_json_append_tile_context_actions_array(char* buf, size_t buf_siz
     }
 
     strnfcat(buf, buf_size, off, "]");
+}
+
+/* Returns one visible monster on one inspected grid, if present. */
+static monster_type* web_get_tile_context_visible_monster_for_grid(int y, int x)
+{
+    int m_idx;
+
+    if (!in_bounds(y, x))
+        return NULL;
+
+    m_idx = cave_m_idx[y][x];
+    if (m_idx <= 0)
+        return NULL;
+    if (!mon_list[m_idx].ml)
+        return NULL;
+
+    return &mon_list[m_idx];
+}
+
+/* Collects the tile-context actions exported for one inspected grid. */
+static int web_collect_tile_context_actions_for_grid(int y, int x,
+    int action_ids[], int max)
+{
+    int count = 0;
+    int dir = web_get_tile_context_dir_for_grid(y, x);
+
+    if (dir == 5)
+        count = current_square_collect_context_actions(action_ids, max);
+    else if (dir > 0)
+        count = adjacent_collect_context_actions(dir, action_ids, max);
+
+    if (web_get_tile_context_visible_monster_for_grid(y, x))
+    {
+        int i;
+
+        for (i = 0; i < count; i++)
+        {
+            if (action_ids[i] == WEB_GRID_CONTEXT_ACTION_RECALL)
+                return count;
+        }
+
+        if (count < max)
+        {
+            action_ids[count] = WEB_GRID_CONTEXT_ACTION_RECALL;
+            count++;
+        }
+    }
+
+    return count;
+}
+
+/* Collects the tile-context actions exported for one current/adjacent grid. */
+static int web_collect_tile_context_actions(int dir, int action_ids[], int max)
+{
+    int y;
+    int x;
+
+    if (!web_get_tile_context_target(dir, &y, &x))
+        return 0;
+
+    return web_collect_tile_context_actions_for_grid(y, x, action_ids, max);
 }
 
 /* Chooses the default quiver for one synthetic ranged action. */
@@ -2124,18 +2199,53 @@ static bool web_get_tile_context_target(int dir, int* y, int* x)
     return TRUE;
 }
 
-/* Builds the semantic tile-context popup payload for one current/adjacent grid. */
-static void web_build_tile_context_state(int dir)
+/* Returns the current/adjacent direction for one grid, or 0 if it is not nearby. */
+static int web_get_tile_context_dir_for_grid(int y, int x)
+{
+    int dir;
+
+    if (!p_ptr)
+        return 0;
+
+    for (dir = 1; dir <= 9; dir++)
+    {
+        if ((p_ptr->py + ddy[dir] == y) && (p_ptr->px + ddx[dir] == x))
+            return dir;
+    }
+
+    return 0;
+}
+
+/* Returns one user-facing heading for a semantic tile-context popup target. */
+static cptr web_get_tile_context_heading(int dir)
+{
+    switch (dir)
+    {
+    case 1: return "Southwest Tile";
+    case 2: return "South Tile";
+    case 3: return "Southeast Tile";
+    case 4: return "West Tile";
+    case 5: return "Current Tile";
+    case 6: return "East Tile";
+    case 7: return "Northwest Tile";
+    case 8: return "North Tile";
+    case 9: return "Northeast Tile";
+    default: return "Tile";
+    }
+}
+
+/* Builds the semantic tile-context popup payload for one arbitrary grid. */
+static void web_build_tile_context_state_for_grid(int y, int x)
 {
     char description[2048];
+    cptr heading;
     char monster_name[80];
     char monster_hp_bar[9];
     char monster_state[32];
     int action_ids[8];
     int action_count = 0;
     int monster_hp_fill = 0;
-    int y;
-    int x;
+    int dir = 0;
     size_t off = 0;
     bool first = TRUE;
     bool monster_visible = FALSE;
@@ -2145,27 +2255,23 @@ static void web_build_tile_context_state(int dir)
     bool monster_stunned = FALSE;
 
     web_tile_context_state[0] = '\0';
+    web_tile_context_target_y = -1;
+    web_tile_context_target_x = -1;
 
-    if (!web_get_tile_context_target(dir, &y, &x))
+    if (!p_ptr || !character_dungeon || !in_bounds(y, x))
     {
         my_strcpy(web_tile_context_state, "{\"valid\":0}",
             sizeof(web_tile_context_state));
         return;
     }
 
-    if (dir == 5)
-        action_count = current_square_collect_context_actions(
-            action_ids, N_ELEMENTS(action_ids));
-    else
-        action_count = adjacent_collect_context_actions(
-            dir, action_ids, N_ELEMENTS(action_ids));
+    dir = web_get_tile_context_dir_for_grid(y, x);
+    heading = web_get_tile_context_heading(dir);
+    web_tile_context_target_y = y;
+    web_tile_context_target_x = x;
 
-    if (action_count <= 0)
-    {
-        my_strcpy(web_tile_context_state, "{\"valid\":0}",
-            sizeof(web_tile_context_state));
-        return;
-    }
+    action_count = web_collect_tile_context_actions_for_grid(
+        y, x, action_ids, N_ELEMENTS(action_ids));
 
     describe_grid_for_look(description, sizeof(description), y, x);
 
@@ -2192,6 +2298,9 @@ static void web_build_tile_context_state(int dir)
     web_json_append_field_int(
         web_tile_context_state, sizeof(web_tile_context_state), &off, &first,
         "dir", dir);
+    web_json_append_field_string(
+        web_tile_context_state, sizeof(web_tile_context_state), &off, &first,
+        "heading", heading);
     web_json_append_field_string(
         web_tile_context_state, sizeof(web_tile_context_state), &off, &first,
         "description", description);
@@ -2228,6 +2337,24 @@ static void web_build_tile_context_state(int dir)
     strnfcat(web_tile_context_state, sizeof(web_tile_context_state), &off, "}");
 }
 
+/* Builds the semantic tile-context popup payload for one current/adjacent grid. */
+static void web_build_tile_context_state(int dir)
+{
+    int y;
+    int x;
+
+    web_tile_context_state[0] = '\0';
+
+    if (!web_get_tile_context_target(dir, &y, &x))
+    {
+        my_strcpy(web_tile_context_state, "{\"valid\":0}",
+            sizeof(web_tile_context_state));
+        return;
+    }
+
+    web_build_tile_context_state_for_grid(y, x);
+}
+
 /* Returns whether one action id is currently valid for one tile-context target. */
 static bool web_tile_context_has_action(int dir, int action_id)
 {
@@ -2235,12 +2362,15 @@ static bool web_tile_context_has_action(int dir, int action_id)
     int action_count;
     int i;
 
-    if (dir == 5)
-        action_count = current_square_collect_context_actions(
+    if ((dir >= 1) && (dir <= 9))
+        action_count = web_collect_tile_context_actions(
+            dir, action_ids, N_ELEMENTS(action_ids));
+    else if ((web_tile_context_target_y >= 0) && (web_tile_context_target_x >= 0))
+        action_count = web_collect_tile_context_actions_for_grid(
+            web_tile_context_target_y, web_tile_context_target_x,
             action_ids, N_ELEMENTS(action_ids));
     else
-        action_count = adjacent_collect_context_actions(
-            dir, action_ids, N_ELEMENTS(action_ids));
+        action_count = 0;
 
     for (i = 0; i < action_count; i++)
     {
@@ -3388,6 +3518,21 @@ EMSCRIPTEN_KEEPALIVE int web_get_modal_kind(void)
     return ui_modal_get_kind();
 }
 
+EMSCRIPTEN_KEEPALIVE int web_get_modal_visual_kind(void)
+{
+    return ui_modal_get_visual_kind();
+}
+
+EMSCRIPTEN_KEEPALIVE int web_get_modal_visual_attr(void)
+{
+    return ui_modal_get_visual_attr();
+}
+
+EMSCRIPTEN_KEEPALIVE int web_get_modal_visual_char(void)
+{
+    return ui_modal_get_visual_char();
+}
+
 EMSCRIPTEN_KEEPALIVE unsigned int web_get_modal_revision(void)
 {
     return ui_modal_get_revision();
@@ -3437,6 +3582,13 @@ EMSCRIPTEN_KEEPALIVE unsigned int web_get_prompt_revision(void)
 EMSCRIPTEN_KEEPALIVE int web_modal_activate(void)
 {
     int key = ui_modal_get_dismiss_key();
+    ui_modal_kind kind = ui_modal_get_kind();
+
+    if ((ui_modal_get_text_len() > 0) && (kind == UI_MODAL_KIND_RECALL))
+    {
+        ui_modal_clear();
+        return 1;
+    }
 
     if ((ui_modal_get_text_len() <= 0) || (key <= 0))
         return 0;
@@ -3735,10 +3887,36 @@ EMSCRIPTEN_KEEPALIVE int web_get_tile_context_state_len(int dir)
     return (int)strlen(web_tile_context_state);
 }
 
+EMSCRIPTEN_KEEPALIVE uintptr_t web_get_map_tile_context_state_ptr(int y, int x)
+{
+    web_build_tile_context_state_for_grid(y, x);
+    return (uintptr_t)web_tile_context_state;
+}
+
+EMSCRIPTEN_KEEPALIVE int web_get_map_tile_context_state_len(int y, int x)
+{
+    web_build_tile_context_state_for_grid(y, x);
+    return (int)strlen(web_tile_context_state);
+}
+
 EMSCRIPTEN_KEEPALIVE int web_execute_tile_context_action(int dir, int action_id)
 {
+    int target_y = -1;
+    int target_x = -1;
+
     if (!p_ptr || !character_dungeon || !p_ptr->playing)
         return 0;
+
+    if ((dir >= 1) && (dir <= 9))
+    {
+        if (!web_get_tile_context_target(dir, &target_y, &target_x))
+            return 0;
+    }
+    else if ((web_tile_context_target_y >= 0) && (web_tile_context_target_x >= 0))
+    {
+        target_y = web_tile_context_target_y;
+        target_x = web_tile_context_target_x;
+    }
 
     if (!web_tile_context_has_action(dir, action_id))
         return 0;
@@ -3776,6 +3954,19 @@ EMSCRIPTEN_KEEPALIVE int web_execute_tile_context_action(int dir, int action_id)
             return 1;
 
         return web_key_enqueue(I2D(dir)) ? 1 : 0;
+
+    case WEB_GRID_CONTEXT_ACTION_RECALL:
+    {
+        monster_type* m_ptr = web_get_tile_context_visible_monster_for_grid(
+            target_y, target_x);
+
+        if (!m_ptr || (m_ptr->r_idx <= 0))
+            return 0;
+
+        ui_knowledge_show_monster_recall_modal(
+            m_ptr->r_idx, 0, UI_MODAL_KIND_RECALL);
+        return 1;
+    }
 
     default:
         return 0;

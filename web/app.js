@@ -109,6 +109,7 @@
     const UI_MENU_LAYOUT_BROWSER = 2;
     const UI_MODAL_KIND_GENERIC = 0;
     const UI_MODAL_KIND_MESSAGE_HISTORY = 1;
+    const UI_MODAL_KIND_RECALL = 2;
 
     const colors = [
       "#000000", "#ffffff", "#9ca3af", "#f59e0b",
@@ -1979,19 +1980,8 @@
       }
     }
 
-    // Reads and parses the active tile-context popup payload exported by wasm.
-    function readTileContextState(heap, dir) {
-      if (
-        !api ||
-        typeof api.getTileContextStatePtr !== "function" ||
-        typeof api.getTileContextStateLen !== "function"
-      ) {
-        return null;
-      }
-
-      const ptr = api.getTileContextStatePtr(dir);
-      const len = api.getTileContextStateLen(dir);
-      const payload = readUtf8(heap, ptr, len);
+    // Parses one semantic tile-context popup payload exported by wasm.
+    function parseTileContextStatePayload(payload, fallbackDir = 0) {
       if (!payload) return null;
 
       try {
@@ -2003,7 +1993,8 @@
 
         return {
           valid: true,
-          dir: Number(state.dir ?? dir),
+          dir: Number(state.dir ?? fallbackDir),
+          heading: String(state.heading || ""),
           description: String(state.description || ""),
           monster: monsterVisible
             ? {
@@ -2030,6 +2021,36 @@
         console.warn("Invalid tile-context payload from wasm:", err);
         return null;
       }
+    }
+
+    // Reads and parses the active tile-context popup payload exported for one current/adjacent tile.
+    function readTileContextState(heap, dir) {
+      if (
+        !api ||
+        typeof api.getTileContextStatePtr !== "function" ||
+        typeof api.getTileContextStateLen !== "function"
+      ) {
+        return null;
+      }
+
+      const ptr = api.getTileContextStatePtr(dir);
+      const len = api.getTileContextStateLen(dir);
+      return parseTileContextStatePayload(readUtf8(heap, ptr, len), dir);
+    }
+
+    // Reads and parses the semantic tile-context popup payload for one clicked map tile.
+    function readMapTileContextState(heap, worldY, worldX) {
+      if (
+        !api ||
+        typeof api.getMapTileContextStatePtr !== "function" ||
+        typeof api.getMapTileContextStateLen !== "function"
+      ) {
+        return null;
+      }
+
+      const ptr = api.getMapTileContextStatePtr(worldY, worldX);
+      const len = api.getMapTileContextStateLen(worldY, worldX);
+      return parseTileContextStatePayload(readUtf8(heap, ptr, len), 0);
     }
 
     // Formats one action key label for the custom character-sheet footer.
@@ -3230,6 +3251,26 @@
       return adjacentState.visible ? adjacentState.visual : null;
     }
 
+    // Reads one clicked map cell visual so tile-context popups can reflect the inspected tile.
+    function getMapTileContextVisual(heap, mapX, mapY) {
+      if (
+        !heap ||
+        !api ||
+        typeof api.getMapCellsPtr !== "function" ||
+        mapX < 0 ||
+        mapY < 0 ||
+        mapX >= mapCols ||
+        mapY >= mapRows
+      ) {
+        return null;
+      }
+
+      const mapPtr = api.getMapCellsPtr();
+      if (!mapPtr) return null;
+
+      return normalizeCellVisual(readCell(heap, mapPtr, mapCols, mapX, mapY));
+    }
+
     function getTileContextMonsterConditions(monster) {
       if (!monster) return [];
 
@@ -3293,7 +3334,7 @@
       }
 
       const tileContextState = readTileContextState(heap, dir);
-      if (!tileContextState || !tileContextState.actions.length) {
+      if (!tileContextState) {
         return false;
       }
 
@@ -3306,10 +3347,37 @@
       return true;
     }
 
+    // Opens one semantic tile-context popup for an arbitrary map tile clicked by the user.
+    function openMapTileContextOverlayAtClientPoint(clientX, clientY) {
+      const heap = getHeapU8();
+      if (!heap || !canUseMapTileContext()) return false;
+
+      const playerState = readPlayerState(heap);
+      const hit = clientPointToMapWorld(clientX, clientY);
+      if (!playerState || Number(playerState.ready) !== 1 || !hit) {
+        return false;
+      }
+
+      const tileContextState = readMapTileContextState(heap, hit.worldY, hit.worldX);
+      if (!tileContextState) {
+        return false;
+      }
+
+      activeTileContextState = {
+        ...tileContextState,
+        visual:
+          getMapTileContextVisual(heap, hit.mapX, hit.mapY) ||
+          getTileContextVisual(playerState, Number(tileContextState.dir ?? 0)),
+      };
+      setCompactSideOpen(false);
+      requestRender(true);
+      return true;
+    }
+
     // Renders the frontend-owned popup for contextual tile inspection and actions.
     function updateTileContextSemantic() {
       const state = activeTileContextState;
-      if (!state || !Array.isArray(state.actions) || !state.actions.length) {
+      if (!state) {
         if (overlayModalEl.classList.contains("overlay-tile-context")) {
           hideSemanticOverlay();
         }
@@ -3318,17 +3386,25 @@
       }
 
       const dir = Number(state.dir ?? 5);
+      const heading = String(state.heading || getTileContextHeading(dir));
       const description = String(state.description || "You see nothing of interest.");
       const monsterHtml = renderTileContextMonsterSummary(state.monster);
-      const actionsHtml = state.actions
-        .map((action, index) => (
-          `<button type="button" class="tile-context-action${index === 0 ? " tile-context-action-primary" : ""}" ` +
-            `data-tile-context-action="${action.id}" data-tile-context-dir="${dir}">` +
-            `<span class="tile-context-action-label">${escapeHtml(action.label || "Act")}</span>` +
-            `${index === 0 ? '<span class="tile-context-action-tag">Default</span>' : ""}` +
-          "</button>"
-        ))
-        .join("");
+      const actions = Array.isArray(state.actions) ? state.actions : [];
+      const actionsHtml = actions.length
+        ? (
+          `<div class="tile-context-actions">` +
+            actions
+              .map((action, index) => (
+                `<button type="button" class="tile-context-action${index === 0 ? " tile-context-action-primary" : ""}" ` +
+                  `data-tile-context-action="${action.id}" data-tile-context-dir="${dir}">` +
+                  `<span class="tile-context-action-label">${escapeHtml(action.label || "Act")}</span>` +
+                  `${index === 0 ? '<span class="tile-context-action-tag">Default</span>' : ""}` +
+                "</button>"
+              ))
+              .join("") +
+          `</div>`
+        )
+        : "";
 
       const html =
         `<div class="tile-context-shell">` +
@@ -3337,13 +3413,13 @@
               `<div class="tile-context-visual" data-tile-context-visual></div>` +
             `</div>` +
             `<div class="tile-context-copy">` +
-              `<h2>${escapeHtml(getTileContextHeading(dir))}</h2>` +
-              `<p>Inspect the tile and choose an action.</p>` +
+              `<h2>${escapeHtml(heading)}</h2>` +
+              `<p>${actions.length ? "Inspect the tile and choose an action." : "Inspect the tile."}</p>` +
             `</div>` +
           `</div>` +
           `${monsterHtml}` +
           `<div class="tile-context-description">${escapeHtml(description)}</div>` +
-          `<div class="tile-context-actions">${actionsHtml}</div>` +
+          `${actionsHtml}` +
         `</div>`;
 
       showSemanticOverlay("overlay-tile-context", html);
@@ -4131,6 +4207,16 @@
         typeof api.getModalKind === "function"
           ? Number(api.getModalKind()) || UI_MODAL_KIND_GENERIC
           : UI_MODAL_KIND_GENERIC;
+      const modalVisual =
+        typeof api.getModalVisualKind === "function" &&
+        typeof api.getModalVisualAttr === "function" &&
+        typeof api.getModalVisualChar === "function"
+          ? normalizeMenuItemVisual(
+              Number(api.getModalVisualKind()) || 0,
+              Number(api.getModalVisualAttr()) || 0,
+              Number(api.getModalVisualChar()) || 0
+            )
+          : null;
       const modalRevision =
         typeof api.getModalRevision === "function" ? api.getModalRevision() : 0;
       const text = readUtf8(heap, textPtr, textLen);
@@ -4144,6 +4230,10 @@
 
       const modeClass =
         modalKind === UI_MODAL_KIND_MESSAGE_HISTORY ? "overlay-message-log" : null;
+      const modalVisualHtml =
+        modalVisual && modalVisual.kind
+          ? `<div class="menu-item-details-visual modal-visual" data-modal-visual></div>`
+          : "";
       const modalHtml =
         modalKind === UI_MODAL_KIND_MESSAGE_HISTORY
           ? `<div class="message-log-modal">` +
@@ -4155,11 +4245,17 @@
                 `<div class="message-log-modal-copy">${renderColoredText(text, attrs, 1)}</div>` +
               `</div>` +
             `</div>`
-          : renderColoredText(text, attrs, 1);
+          : `<div class="modal-copy-shell">${modalVisualHtml}<div class="modal-copy">${renderColoredText(text, attrs, 1)}</div></div>`;
 
       showSemanticOverlay(modeClass, modalHtml, {
-        dismissable: dismissKey > 0,
+        dismissable: dismissKey > 0 || modalKind === UI_MODAL_KIND_RECALL,
       });
+      if (modalVisualHtml) {
+        renderActionFabVisual(
+          overlayModalEl.querySelector("[data-modal-visual]"),
+          modalVisual
+        );
+      }
       if (
         modalKind === UI_MODAL_KIND_MESSAGE_HISTORY &&
         modalRevision !== lastMessageHistoryModalRevision
@@ -4575,6 +4671,11 @@
       return !!api &&
         typeof api.travelTo === "function" &&
         isGameplayViewIdle();
+    }
+
+    // Returns whether the current frontend state allows map tile inspection popups.
+    function canUseMapTileContext() {
+      return !!api && (isGameplayViewIdle() || isTileContextOverlayActive());
     }
 
     // Returns whether the shell toolbar can open a non-action gameplay screen right now.
@@ -5941,6 +6042,7 @@
       let touchTapStartX = 0;
       let touchTapStartY = 0;
       let touchTapEligible = false;
+      let touchTileContextTimerId = 0;
       let mouseClickPointerId = null;
       let mouseClickStartX = 0;
       let mouseClickStartY = 0;
@@ -5951,6 +6053,25 @@
 
       const resetPinch = () => {
         if (touchPoints.size < 2) pinchBaseDistance = 0;
+      };
+
+      const clearTouchTileContextTimer = () => {
+        if (touchTileContextTimerId) {
+          globalThis.clearTimeout(touchTileContextTimerId);
+          touchTileContextTimerId = 0;
+        }
+      };
+
+      const scheduleTouchTileContext = (pointerId, clientX, clientY) => {
+        clearTouchTileContextTimer();
+        touchTileContextTimerId = globalThis.setTimeout(() => {
+          touchTileContextTimerId = 0;
+          if (!touchTapEligible || touchTapPointerId !== pointerId) return;
+          if (!openMapTileContextOverlayAtClientPoint(clientX, clientY)) return;
+          touchTapPointerId = null;
+          touchTapEligible = false;
+          stopDrag(pointerId);
+        }, TILE_CONTEXT_LONG_PRESS_MSEC);
       };
 
       const updatePinchBase = () => {
@@ -5998,7 +6119,9 @@
             touchTapStartY = ev.clientY;
             touchTapEligible = true;
             startDrag(ev.pointerId, ev.clientX, ev.clientY);
+            scheduleTouchTileContext(ev.pointerId, ev.clientX, ev.clientY);
           } else if (touchPoints.size === 2) {
+            clearTouchTileContextTimer();
             touchTapPointerId = null;
             touchTapEligible = false;
             stopDrag();
@@ -6040,6 +6163,7 @@
               const dx = ev.clientX - touchTapStartX;
               const dy = ev.clientY - touchTapStartY;
               if ((dx * dx) + (dy * dy) > touchTapThresholdSq) {
+                clearTouchTileContextTimer();
                 touchTapEligible = false;
               } else {
                 ev.preventDefault();
@@ -6095,6 +6219,7 @@
       };
 
       const clearPointer = (ev) => {
+        clearTouchTileContextTimer();
         stopDrag(ev.pointerId);
         if (touchTapPointerId === ev.pointerId) {
           touchTapPointerId = null;
@@ -6128,6 +6253,14 @@
         const touch = ev.changedTouches[0];
         commitTouchTapAt(touch.clientX, touch.clientY);
       }, { passive: true });
+
+      mapWrapEl.addEventListener("contextmenu", (ev) => {
+        const hit = clientPointToMapWorld(ev.clientX, ev.clientY);
+        if (!hit || !canUseMapTileContext()) return;
+        if (!openMapTileContextOverlayAtClientPoint(ev.clientX, ev.clientY)) return;
+        ev.preventDefault();
+        ev.stopPropagation();
+      });
     }
 
     /* ==========================================================================
@@ -6285,6 +6418,9 @@
           typeof Module._web_get_modal_attrs_ptr === "function" &&
           typeof Module._web_get_modal_attrs_len === "function" &&
           typeof Module._web_get_modal_dismiss_key === "function" &&
+          typeof Module._web_get_modal_visual_kind === "function" &&
+          typeof Module._web_get_modal_visual_attr === "function" &&
+          typeof Module._web_get_modal_visual_char === "function" &&
           typeof Module._web_get_modal_revision === "function" &&
           typeof Module._web_get_prompt_kind === "function" &&
           typeof Module._web_get_prompt_more_hint === "function" &&
@@ -6397,6 +6533,14 @@
           getPlayerStateLen: Module._web_get_player_state_len,
           getTileContextStatePtr: Module._web_get_tile_context_state_ptr,
           getTileContextStateLen: Module._web_get_tile_context_state_len,
+          getMapTileContextStatePtr:
+            typeof Module._web_get_map_tile_context_state_ptr === "function"
+              ? Module._web_get_map_tile_context_state_ptr
+              : null,
+          getMapTileContextStateLen:
+            typeof Module._web_get_map_tile_context_state_len === "function"
+              ? Module._web_get_map_tile_context_state_len
+              : null,
           executeTileContextAction:
             typeof Module._web_execute_tile_context_action === "function"
               ? Module._web_execute_tile_context_action
@@ -6460,6 +6604,9 @@
           getModalAttrsPtr: Module._web_get_modal_attrs_ptr,
           getModalAttrsLen: Module._web_get_modal_attrs_len,
           getModalDismissKey: Module._web_get_modal_dismiss_key,
+          getModalVisualKind: Module._web_get_modal_visual_kind,
+          getModalVisualAttr: Module._web_get_modal_visual_attr,
+          getModalVisualChar: Module._web_get_modal_visual_char,
           getModalKind:
             typeof Module._web_get_modal_kind === "function"
               ? Module._web_get_modal_kind

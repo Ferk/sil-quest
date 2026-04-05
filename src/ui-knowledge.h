@@ -62,6 +62,11 @@ void ui_knowledge_publish_monsters(cptr group_text[], cptr group_char[],
     int mon_top, int column);
 /* Shows the full recall modal for one monster entry. */
 void ui_knowledge_recall_monster(int r_idx);
+/* Publishes one semantic monster-recall modal for frontend-owned flows. */
+void ui_knowledge_show_monster_recall_modal(
+    int r_idx, int dismiss_key, int kind);
+/* Publishes or clears the semantic recall modal used during targeting. */
+void ui_knowledge_set_target_monster_recall(int r_idx, bool active);
 /* Formats the display label for one object browser entry. */
 void ui_knowledge_object_entry_label(
     char* buf, size_t buf_size, const ui_knowledge_object_entry* obj);
