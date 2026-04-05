@@ -1,0 +1,130 @@
+# File: quests/main_game.txt
+#
+# -----------------------------------------------------------------------------
+# vim: ft=conf
+#
+# The line above must be within the first 1-5 lines of this file. It is a
+# modeline for vim/neovim to parse this file as a "config" file, which
+# visually highlights `# ...` lines as comments, making this file easier to
+# parse and edit for a human.
+# -----------------------------------------------------------------------------
+#
+# Copyright (c) 2026 Fernando Carmona Varo
+# This file is part of Sil-Quest.
+# Licensed under the EUPL, Version 1.2 or subsequent versions of the EUPL
+# You may not use this work except in compliance with the Licence.
+# You may obtain copy of it at: https://joinup.ec.europa.eu/software/page/eupl
+#
+# Scenario-backed rules for the birth-based "Main Game" quest.
+#
+# This file intentionally has no M:/E: map rows. That means it still uses the
+# normal birth flow and procedural dungeon generation, while reusing the
+# scenario rule engine for quest text and event handling.
+#
+# Supported directives:
+#   V:<version>
+#   P:<field>:<value>
+#   X:<text-name>:<text line>
+#   OATH:<name>:VOW|RESTRICTION|REWARD_STAT:<value>
+#   R:<event>[:when=<term[,term...]>][:ACTION...]
+#
+# Supported events:
+#   ENTER_LEVEL
+#   USE_EXIT
+#   USE_UP_EXIT
+#   USE_DOWN_EXIT
+#   ESCAPE
+#   SEE_MONSTER
+#   START_SONG
+#   ATTACK_MONSTER
+#   DAMAGE_MONSTER
+#   DEATH
+#
+# Supported when= terms:
+#   <flag> | !<flag>
+#   depth=<n>
+#   new_depth=<n>
+#   has_item(<object>[,<amount>])
+#   has_silmaril() | !has_silmaril()
+#   monster_slain(<monster>)
+#   chosen_oath(<name>|None)
+#   oath_broken()
+#   monster_is(<monster>|Man|Elf)
+#   monster_visible()
+#
+# Supported actions:
+#   SET_FLAG=<flag>
+#   CLEAR_FLAG=<flag>
+#   DISPLAY_TEXT=<text-name>
+#   DISPLAY_MESSAGE=<text-name>
+#   ADD_NOTE=<text-name>
+#   CONFIRM_TEXT=<text-name>
+#   BREAK_OATH
+#   SET_NEW_DEPTH=<n>
+#   CREATE_STAIRS=<stair|none>
+#   DENY_ACTION
+#
+# Reserved flags currently mirrored onto engine state:
+#   truce_active  -> player truce state
+#   escape_phase  -> on-the-run endgame state
+
+V:1
+
+OATH:Mercy:VOW:to leave Angband without shedding blood of Man or Elf
+OATH:Mercy:RESTRICTION:attack Men or Elves
+OATH:Mercy:REWARD_STAT:Grace:1
+OATH:Silence:VOW:to leave Angband as you came, grim and silent
+OATH:Silence:RESTRICTION:sing
+OATH:Silence:REWARD_STAT:Strength:1
+OATH:Iron:VOW:that none will daunt you from facing Morgoth forthwith
+OATH:Iron:RESTRICTION:go up stairs without a Silmaril
+OATH:Iron:REWARD_STAT:Constitution:2
+
+X:entry_intro:Into the vast and echoing gloom,
+X:entry_intro:more dread than many-tunnelled tomb
+X:entry_intro:  down awful corridors that wind
+X:entry_intro:    down to a menace dark enshrined;
+X:entry_intro:      down to the mountain's roots profound,
+X:entry_intro:devoured, tormented, bored and ground
+X:entry_intro:by seething vermin spawned of stone;
+X:entry_intro:  down to the depths they went alone...
+
+X:throne_intro:Loud rose a din of laughter hoarse,
+X:throne_intro:  self-loathing yet without remorse;
+X:throne_intro:    loud came a singing harsh and fierce
+X:throne_intro:      like swords of terror souls to pierce.
+X:throne_intro:Red was the glare through open doors
+X:throne_intro:  of firelight mirrored on brazen floors,
+X:throne_intro:    and up the arches towering clomb
+X:throne_intro:      to glooms unguessed, to vaulted dome
+X:throne_intro:        swathed in wavering smokes and steams
+X:throne_intro:          stabbed with flickering lightning-gleams.
+
+X:throne_no_escape:You enter a maze of staircases, but cannot find your way.
+
+X:throne_escape_cry:As you climb the stair, a great cry of rage and anguish comes from below.
+X:throne_escape_cry:Make quick your escape: it shall be hard-won.
+
+X:throne_warning:From up this stair comes the harsh din of feasting in Morgoth's own hall.
+X:throne_confirm:Are you completely sure you wish to descend?
+X:throne_no_return:Try though you might, you cannot find your way back to Morgoth's throne.
+X:throne_no_return:You emerge near where you began.
+X:break_oath_confirm:Are you sure you wish to break your oath?
+X:escape_oath_broken:You will be remembered always as a shameful oathbreaker.
+X:escape_oath_kept:You kept your oath to the very end.
+
+R:START_SONG:when=chosen_oath(Silence):CONFIRM_TEXT=break_oath_confirm:BREAK_OATH
+R:ATTACK_MONSTER:when=chosen_oath(Mercy),monster_visible(),monster_is(Man):CONFIRM_TEXT=break_oath_confirm
+R:ATTACK_MONSTER:when=chosen_oath(Mercy),monster_visible(),monster_is(Elf):CONFIRM_TEXT=break_oath_confirm
+R:DAMAGE_MONSTER:when=chosen_oath(Mercy),monster_visible(),monster_is(Man):BREAK_OATH
+R:DAMAGE_MONSTER:when=chosen_oath(Mercy),monster_visible(),monster_is(Elf):BREAK_OATH
+R:USE_UP_EXIT:when=chosen_oath(Iron),!has_silmaril():CONFIRM_TEXT=break_oath_confirm:BREAK_OATH
+R:ENTER_LEVEL:when=depth=1,!entry_intro_shown:DISPLAY_TEXT=entry_intro:SET_FLAG=entry_intro_shown
+R:ENTER_LEVEL:when=depth=20,!escape_phase:DISPLAY_TEXT=throne_intro:SET_FLAG=truce_active
+R:USE_UP_EXIT:when=depth=20,!has_silmaril():DISPLAY_MESSAGE=throne_no_escape:DENY_ACTION
+R:USE_UP_EXIT:when=depth=20,has_silmaril(),!monster_slain(Morgoth, Lord of Darkness):DISPLAY_MESSAGE=throne_escape_cry
+R:USE_UP_EXIT:when=depth=20,has_silmaril():SET_FLAG=escape_phase:CLEAR_FLAG=truce_active
+R:USE_DOWN_EXIT:when=new_depth=20,!escape_phase:DISPLAY_MESSAGE=throne_warning:CONFIRM_TEXT=throne_confirm
+R:USE_DOWN_EXIT:when=new_depth=20,escape_phase:DISPLAY_MESSAGE=throne_no_return:SET_NEW_DEPTH=19:CREATE_STAIRS=down staircase
+R:ESCAPE:when=!chosen_oath(None),oath_broken():ADD_NOTE=escape_oath_broken
+R:ESCAPE:when=!chosen_oath(None),!oath_broken():ADD_NOTE=escape_oath_kept

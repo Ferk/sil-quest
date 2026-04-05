@@ -460,6 +460,18 @@ extern int elf_bane_bonus(monster_type* m_ptr);
 extern char* bane_name[];
 extern int bane_bonus(monster_type* m_ptr);
 extern int spider_bane_bonus(void);
+extern void oath_clear_catalog(void);
+extern bool oath_add_definition(
+    cptr name, cptr vow, cptr restriction, int reward_stat, int reward_amount);
+extern int oath_count(void);
+extern int oath_lookup(cptr token);
+extern cptr oath_name(int oath);
+extern cptr oath_desc1(int oath);
+extern cptr oath_desc2(int oath);
+extern cptr oath_reward(int oath);
+extern bool oath_broken_current(void);
+extern bool oath_break_current(void);
+extern void oath_apply_bonus(void);
 extern bool oath_invalid(int i);
 extern bool chosen_oath(int oath);
 extern void do_cmd_ability_screen(void);
@@ -583,6 +595,12 @@ extern void quests_show_entry_text(void);
 extern void quests_handle_enter_level(void);
 extern bool quests_handle_use_up_exit(void);
 extern bool quests_handle_use_down_exit(int* new_depth);
+extern void quests_handle_escape(void);
+extern bool quests_handle_start_song(void);
+extern bool quests_current_oath_breaks_on_start_song(void);
+extern bool quests_current_oath_warns_on_attack(monster_type* m_ptr);
+extern bool quests_handle_attack_monster(monster_type* m_ptr);
+extern void quests_handle_damage_monster(monster_type* m_ptr, int damage);
 extern void quests_note_truce_broken(void);
 extern bool quests_try_complete_on_down_stairs(void);
 
@@ -610,7 +628,13 @@ extern void scenario_handle_monster_seen(monster_type* m_ptr);
 extern bool scenario_handle_use_exit(int y, int x);
 extern bool scenario_handle_use_up_exit(void);
 extern bool scenario_handle_use_down_exit(int* new_depth);
+extern void scenario_handle_escape(void);
 extern void scenario_handle_death(void);
+extern bool scenario_handle_start_song(void);
+extern bool scenario_current_oath_breaks_on_start_song(void);
+extern bool scenario_current_oath_warns_on_attack(monster_type* m_ptr);
+extern bool scenario_handle_attack_monster(monster_type* m_ptr);
+extern void scenario_handle_damage_monster(monster_type* m_ptr, int damage);
 extern void scenario_note_truce(bool active);
 
 /* load.c */

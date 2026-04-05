@@ -2553,14 +2553,7 @@ static void calc_bonuses(void)
     }
 
     if (p_ptr->active_ability[S_WIL][WIL_OATH])
-    {
-        if (chosen_oath(OATH_IRON) && !oath_invalid(OATH_IRON))
-            p_ptr->stat_misc_mod[A_CON] += 2;
-        else if (chosen_oath(OATH_SILENCE) && !oath_invalid(OATH_SILENCE))
-            p_ptr->stat_misc_mod[A_STR]++;
-        else if (chosen_oath(OATH_MERCY) && !oath_invalid(OATH_MERCY))
-            p_ptr->stat_misc_mod[A_GRA]++;
-    }
+        oath_apply_bonus();
 
     if (p_ptr->active_ability[S_MEL][MEL_RAPID_ATTACK])
     {
