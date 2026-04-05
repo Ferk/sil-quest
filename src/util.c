@@ -3482,6 +3482,9 @@ bool askfor_aux(char* buf, size_t len)
 
     bool done = FALSE;
 
+    if (ui_prompt_input_available())
+        return ui_prompt_input_run(buf, len, FALSE, NULL);
+
     /* Locate the cursor */
     Term_locate(&x, &y);
 
@@ -3560,6 +3563,9 @@ bool askfor_name(char* buf, size_t len)
 
     bool done = FALSE;
     bool new_default_name = FALSE;
+
+    if (ui_prompt_input_available())
+        return ui_prompt_input_run(buf, len, TRUE, make_random_name);
 
     /* Locate the cursor */
     Term_locate(&x, &y);

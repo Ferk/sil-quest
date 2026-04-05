@@ -16,6 +16,10 @@
 
 #include "angband.h"
 
+/* Enables or disables semantic object-recall modals for one frontend. */
+void ui_preview_set_object_recall_modal_enabled(bool enabled);
+/* Shows one semantic object-recall modal when the active frontend supports it. */
+bool ui_preview_show_object_recall_modal(const object_type* o_ptr);
 /* Adds preview-only defaults so object descriptions remain readable. */
 void ui_preview_apply_object_defaults(object_type* o_ptr);
 /* Builds one fake known object-kind preview for details or recall screens. */

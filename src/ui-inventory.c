@@ -25,6 +25,7 @@
 typedef struct ui_inventory_item_entry ui_inventory_item_entry;
 typedef struct ui_inventory_action_entry ui_inventory_action_entry;
 typedef struct ui_inventory_section_layout ui_inventory_section_layout;
+typedef enum ui_inventory_action_result ui_inventory_action_result;
 
 static bool (*ui_inventory_can_wear_hook)(const object_type*) = NULL;
 
@@ -55,6 +56,13 @@ struct ui_inventory_section_layout
     int menu_col;
     cptr heading;
     cptr empty_text;
+};
+
+enum ui_inventory_action_result
+{
+    UI_INVENTORY_ACTION_RESULT_NONE = 0,
+    UI_INVENTORY_ACTION_RESULT_STAY_OPEN = 1,
+    UI_INVENTORY_ACTION_RESULT_CLOSE = 2
 };
 
 static const ui_inventory_action_entry ui_inventory_action_defs[] = {
@@ -342,6 +350,21 @@ static int ui_inventory_find_by_section_row(
     return -1;
 }
 
+/* Finds one item by its stable inventory slot index. */
+static int ui_inventory_find_by_item(
+    const ui_inventory_item_entry* entries, int item_count, int item)
+{
+    int i;
+
+    for (i = 0; i < item_count; i++)
+    {
+        if (entries[i].item == item)
+            return i;
+    }
+
+    return -1;
+}
+
 /* Returns the selected row index for one visible inventory section. */
 static int ui_inventory_selected_section_row(
     const ui_inventory_item_entry* entries, int item_count, int selected,
@@ -448,6 +471,34 @@ static int ui_inventory_default_selection(
     }
 
     return (count > 0) ? 0 : -1;
+}
+
+/* Rebuilds the inventory list and restores focus to one chosen item. */
+static void ui_inventory_refresh_selection(ui_inventory_item_entry* entries,
+    int* item_count, int max_entries, int* active_section, int* section_rows,
+    int selected_item)
+{
+    int selected;
+
+    if (!entries || !item_count || !active_section || !section_rows)
+        return;
+
+    *item_count = ui_inventory_collect_items(entries, max_entries, *active_section);
+
+    selected = ui_inventory_find_by_item(entries, *item_count, selected_item);
+    if (selected < 0)
+    {
+        selected = ui_inventory_select_section_row(entries, *item_count,
+            *active_section, section_rows[*active_section]);
+    }
+    if (selected < 0)
+        selected = ui_inventory_default_selection(entries, *item_count, *active_section);
+
+    if ((selected >= 0) && (selected < *item_count))
+    {
+        *active_section = entries[selected].section;
+        section_rows[*active_section] = entries[selected].section_row;
+    }
 }
 
 /* Moves the selection up or down inside the current section. */
@@ -788,7 +839,7 @@ static int ui_inventory_action_menu(int item)
 }
 
 /* Restores the pre-inventory screen state before running a real command. */
-static void ui_inventory_finish_menu(void)
+static void ui_inventory_reset_menu_state(void)
 {
     ui_menu_set_snapshot_retained(FALSE);
     ui_menu_clear();
@@ -797,100 +848,150 @@ static void ui_inventory_finish_menu(void)
     p_ptr->command_see = FALSE;
     p_ptr->command_wrk = 0;
     item_tester_full = FALSE;
+}
+
+/* Restores the pre-inventory screen state before running a real command. */
+static void ui_inventory_finish_menu(void)
+{
+    ui_inventory_reset_menu_state();
     screen_load();
 }
 
+/* Hides the inventory temporarily while one nested command runs. */
+static void ui_inventory_pause_menu(void)
+{
+    ui_menu_set_snapshot_retained(FALSE);
+    ui_menu_clear();
+    screen_load();
+}
+
+/* Reopens the saved-screen context after a non-turn inventory command. */
+static void ui_inventory_resume_menu(void)
+{
+    screen_save();
+}
+
 /* Dispatches one chosen action back into the normal command handlers. */
-static bool ui_inventory_execute_action(int action_key, int item)
+static ui_inventory_action_result ui_inventory_execute_action(
+    int action_key, int item)
 {
     object_type* o_ptr = ui_inventory_object(item);
+    int old_energy = p_ptr->energy_use;
+    bool executed = TRUE;
 
     if (!o_ptr || !o_ptr->k_idx)
-        return FALSE;
-
-    ui_inventory_finish_menu();
+        return UI_INVENTORY_ACTION_RESULT_NONE;
 
     switch (action_key)
     {
     case 'u':
+        ui_inventory_pause_menu();
         ui_preselect_item(item);
         do_cmd_use_item();
-        return TRUE;
+        break;
 
     case 'w':
+        ui_inventory_pause_menu();
         do_cmd_wield(o_ptr, item);
-        return TRUE;
+        break;
 
     case 'r':
+        ui_inventory_pause_menu();
         do_cmd_takeoff(o_ptr, item);
-        return TRUE;
+        break;
 
     case 'd':
+        ui_inventory_pause_menu();
         ui_preselect_item(item);
         do_cmd_drop();
-        return TRUE;
+        break;
 
     case 'k':
+        ui_inventory_pause_menu();
         ui_preselect_item(item);
         do_cmd_destroy();
-        return TRUE;
+        break;
 
     case 'x':
+        ui_inventory_pause_menu();
         ui_preselect_item(item);
         do_cmd_observe();
-        return TRUE;
+        break;
 
     case '{':
+        ui_inventory_pause_menu();
         ui_preselect_item(item);
         do_cmd_inscribe();
-        return TRUE;
+        break;
 
     case 'a':
+        ui_inventory_pause_menu();
         do_cmd_activate_staff(o_ptr, item);
-        return TRUE;
+        break;
 
     case 'p':
+        ui_inventory_pause_menu();
         do_cmd_play_instrument(o_ptr, item);
-        return TRUE;
+        break;
 
     case 'q':
+        ui_inventory_pause_menu();
         do_cmd_quaff_potion(o_ptr, item);
-        return TRUE;
+        break;
 
     case 'E':
+        ui_inventory_pause_menu();
         do_cmd_eat_food(o_ptr, item);
-        return TRUE;
+        break;
 
     case 't':
+        ui_inventory_pause_menu();
         ui_preselect_item(item);
         do_cmd_throw(FALSE);
-        return TRUE;
+        break;
 
     case 'f':
+        ui_inventory_pause_menu();
         do_cmd_fire(1);
-        return TRUE;
+        break;
 
     case 'F':
+        ui_inventory_pause_menu();
         do_cmd_fire(2);
-        return TRUE;
+        break;
 
     default:
-        return FALSE;
+        executed = FALSE;
+        break;
     }
+
+    if (!executed)
+        return UI_INVENTORY_ACTION_RESULT_NONE;
+
+    ui_clear_preselected_item();
+
+    if (p_ptr->energy_use == old_energy)
+    {
+        ui_inventory_resume_menu();
+        return UI_INVENTORY_ACTION_RESULT_STAY_OPEN;
+    }
+
+    ui_inventory_reset_menu_state();
+    return UI_INVENTORY_ACTION_RESULT_CLOSE;
 }
 
 /* Opens the action chooser for the current selection and runs the result. */
-static bool ui_inventory_open_selected_item(
+static ui_inventory_action_result ui_inventory_open_selected_item(
     const ui_inventory_item_entry* entries, int selected)
 {
     int action_key;
 
     if (selected < 0)
-        return FALSE;
+        return UI_INVENTORY_ACTION_RESULT_NONE;
 
     action_key = ui_inventory_action_menu(entries[selected].item);
     if (!action_key)
-        return FALSE;
+        return UI_INVENTORY_ACTION_RESULT_NONE;
 
     return ui_inventory_execute_action(action_key, entries[selected].item);
 }
@@ -903,6 +1004,7 @@ bool do_cmd_ui_inventory_menu(
     int item_count;
     int active_section;
     int selected;
+    int selected_item = -1;
     int section_rows[N_ELEMENTS(ui_inventory_sections)] = { 0, 0 };
 
     if (!can_wear)
@@ -982,8 +1084,18 @@ bool do_cmd_ui_inventory_menu(
         if ((item_count > 0)
             && (action == UI_INPUT_NESTED_MENU_ACTION_CHOOSE))
         {
-            if (ui_inventory_open_selected_item(entries, selected))
+            ui_inventory_action_result result =
+                ui_inventory_open_selected_item(entries, selected);
+
+            if (result == UI_INVENTORY_ACTION_RESULT_CLOSE)
                 return TRUE;
+            if (result == UI_INVENTORY_ACTION_RESULT_STAY_OPEN)
+            {
+                selected_item = entries[selected].item;
+                ui_inventory_refresh_selection(entries, &item_count,
+                    N_ELEMENTS(entries), &active_section, section_rows,
+                    selected_item);
+            }
             continue;
         }
 
@@ -991,8 +1103,18 @@ bool do_cmd_ui_inventory_menu(
         {
             if (ch == actions[i].key)
             {
-                if (ui_inventory_execute_action(ch, entries[selected].item))
+                ui_inventory_action_result result =
+                    ui_inventory_execute_action(ch, entries[selected].item);
+
+                if (result == UI_INVENTORY_ACTION_RESULT_CLOSE)
                     return TRUE;
+                if (result == UI_INVENTORY_ACTION_RESULT_STAY_OPEN)
+                {
+                    selected_item = entries[selected].item;
+                    ui_inventory_refresh_selection(entries, &item_count,
+                        N_ELEMENTS(entries), &active_section, section_rows,
+                        selected_item);
+                }
                 break;
             }
         }
@@ -1005,8 +1127,20 @@ bool do_cmd_ui_inventory_menu(
             section_rows[active_section] =
                 ui_inventory_selected_section_row(entries, item_count, selected,
                     active_section);
-            if (ui_inventory_open_selected_item(entries, selected))
-                return TRUE;
+            {
+                ui_inventory_action_result result =
+                    ui_inventory_open_selected_item(entries, selected);
+
+                if (result == UI_INVENTORY_ACTION_RESULT_CLOSE)
+                    return TRUE;
+                if (result == UI_INVENTORY_ACTION_RESULT_STAY_OPEN)
+                {
+                    selected_item = entries[selected].item;
+                    ui_inventory_refresh_selection(entries, &item_count,
+                        N_ELEMENTS(entries), &active_section, section_rows,
+                        selected_item);
+                }
+            }
         }
     }
 

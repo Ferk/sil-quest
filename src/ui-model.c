@@ -62,6 +62,12 @@ static ui_prompt_kind ui_prompt_kind_value = UI_PROMPT_KIND_NONE;
 static bool ui_prompt_more_hint = FALSE;
 static ui_prompt_kind ui_prompt_pending_kind = UI_PROMPT_KIND_NONE;
 static bool ui_prompt_pending_more_hint = FALSE;
+static char ui_prompt_input_text[UI_MENU_TEXT_MAX];
+static int ui_prompt_input_max_length = 0;
+static bool ui_prompt_input_allow_random = FALSE;
+static bool ui_prompt_input_active_value = FALSE;
+static unsigned int ui_prompt_input_revision = 1;
+static ui_prompt_input_submit_hook ui_prompt_input_submit = NULL;
 static ui_prompt_render_hook ui_front_prompt_render = NULL;
 static ui_prompt_clear_hook ui_front_prompt_clear = NULL;
 static ui_menu_render_hook ui_front_menu_render = NULL;
@@ -102,6 +108,15 @@ static void ui_prompt_touch(void)
     ui_prompt_revision++;
     if (ui_prompt_revision == 0)
         ui_prompt_revision = 1;
+    ui_front_invalidate();
+}
+
+/* Bumps the text-entry prompt revision so frontends can detect updates. */
+static void ui_prompt_input_touch(void)
+{
+    ui_prompt_input_revision++;
+    if (ui_prompt_input_revision == 0)
+        ui_prompt_input_revision = 1;
     ui_front_invalidate();
 }
 
@@ -287,6 +302,39 @@ static void ui_prompt_set_state(
     ui_prompt_kind_value = kind;
     ui_prompt_more_hint = has_more_hint ? TRUE : FALSE;
     ui_prompt_touch();
+}
+
+/* Stores the current semantic text-entry prompt state. */
+static void ui_prompt_input_set_state(
+    cptr text, size_t max_length, bool allow_random)
+{
+    size_t text_len = 0;
+
+    ui_prompt_input_active_value = TRUE;
+    ui_prompt_input_allow_random = allow_random ? TRUE : FALSE;
+    ui_prompt_input_max_length = (int)max_length;
+    if (ui_prompt_input_max_length < 0)
+        ui_prompt_input_max_length = 0;
+
+    if (text)
+        text_len = strlen(text);
+    if (text_len >= sizeof(ui_prompt_input_text))
+        text_len = sizeof(ui_prompt_input_text) - 1;
+
+    if (text_len > 0)
+        memcpy(ui_prompt_input_text, text, text_len);
+    ui_prompt_input_text[text_len] = '\0';
+    ui_prompt_input_touch();
+}
+
+/* Clears the current semantic text-entry prompt state. */
+static void ui_prompt_input_clear_state(void)
+{
+    ui_prompt_input_text[0] = '\0';
+    ui_prompt_input_max_length = 0;
+    ui_prompt_input_allow_random = FALSE;
+    ui_prompt_input_active_value = FALSE;
+    ui_prompt_input_touch();
 }
 
 /* Asks the active frontend to redraw the current semantic top-line prompt. */
@@ -1239,6 +1287,7 @@ void ui_prompt_putstr(int col, byte attr, cptr text)
 {
     size_t len;
     size_t text_len;
+    size_t end;
     size_t i;
 
     if (!text || !text[0])
@@ -1283,9 +1332,9 @@ void ui_prompt_putstr(int col, byte attr, cptr text)
         ui_prompt_attrs[col + (int)i] = attr;
     }
 
-    len = strlen(ui_prompt_text);
-    if ((size_t)col + text_len > len)
-        len = (size_t)col + text_len;
+    end = (size_t)col + text_len;
+    if (end > len)
+        len = end;
     ui_prompt_text[len] = '\0';
     ui_prompt_attrs_len = (int)len;
     ui_prompt_kind_value = UI_PROMPT_KIND_MESSAGE;
@@ -1305,6 +1354,8 @@ void ui_prompt_clear(void)
     ui_prompt_more_hint = FALSE;
     ui_prompt_pending_kind = UI_PROMPT_KIND_NONE;
     ui_prompt_pending_more_hint = FALSE;
+    if (ui_prompt_input_active_value)
+        ui_prompt_input_clear_state();
     ui_prompt_touch();
 }
 
@@ -1386,6 +1437,90 @@ int ui_prompt_get_attrs_len(void)
 unsigned int ui_prompt_get_revision(void)
 {
     return ui_prompt_revision;
+}
+
+/* Registers the frontend hook used to submit accepted semantic text prompts. */
+void ui_prompt_input_set_submit_hook(ui_prompt_input_submit_hook submit_hook)
+{
+    ui_prompt_input_submit = submit_hook;
+}
+
+/* Returns whether a frontend can handle semantic text-entry prompts. */
+bool ui_prompt_input_available(void)
+{
+    return ui_prompt_input_submit != NULL;
+}
+
+/* Runs one frontend-backed semantic text-entry prompt when available. */
+bool ui_prompt_input_run(char* buf, size_t len, bool allow_random,
+    ui_prompt_input_randomize_hook randomize_hook)
+{
+    char ch;
+
+    if (!buf || (len == 0) || !ui_prompt_input_available())
+        return FALSE;
+
+    buf[len - 1] = '\0';
+
+    while (TRUE)
+    {
+        ui_prompt_input_set_state(buf, len - 1, allow_random);
+
+        hide_cursor = TRUE;
+        ch = inkey();
+        hide_cursor = FALSE;
+
+        if (ui_input_is_accept_key(ch))
+        {
+            if (ui_prompt_input_submit)
+                (void)ui_prompt_input_submit(buf, len);
+            ui_prompt_input_clear_state();
+            return TRUE;
+        }
+
+        if (allow_random && (ch == '\t') && randomize_hook)
+        {
+            randomize_hook(buf, len);
+            continue;
+        }
+
+        if (ui_input_is_cancel_key(ch))
+        {
+            buf[0] = '\0';
+            ui_prompt_input_clear_state();
+            return FALSE;
+        }
+    }
+}
+
+/* Returns whether a semantic text-entry prompt is currently active. */
+bool ui_prompt_input_active(void)
+{
+    return ui_prompt_input_active_value;
+}
+
+/* Returns the current semantic text-entry prompt buffer. */
+const char* ui_prompt_input_get_text(void)
+{
+    return ui_prompt_input_text;
+}
+
+/* Returns the current maximum accepted text-entry length. */
+int ui_prompt_input_get_max_length(void)
+{
+    return ui_prompt_input_max_length;
+}
+
+/* Returns whether the current semantic text-entry prompt allows rerolling. */
+bool ui_prompt_input_get_allow_random(void)
+{
+    return ui_prompt_input_allow_random;
+}
+
+/* Returns the text-entry prompt revision used by frontend caches. */
+unsigned int ui_prompt_input_get_revision(void)
+{
+    return ui_prompt_input_revision;
 }
 
 /* Marks the start of one saved-screen scope such as screen_save(). */

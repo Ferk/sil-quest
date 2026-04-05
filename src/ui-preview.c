@@ -14,6 +14,11 @@
 #include "angband.h"
 
 #include "ui-preview.h"
+#include "ui-model.h"
+
+#define UI_PREVIEW_MODAL_TEXT_MAX 8192
+
+static bool ui_preview_object_recall_modal_enabled = FALSE;
 
 /* Opens the standard full recall screen for one prepared preview object. */
 static void ui_preview_show_object_recall(const object_type* o_ptr)
@@ -24,6 +29,46 @@ static void ui_preview_show_object_recall(const object_type* o_ptr)
     handle_stuff();
     Term_gotoxy(0, 0);
     object_info_screen(o_ptr);
+}
+
+/* Enables or disables semantic object-recall modals for one frontend. */
+void ui_preview_set_object_recall_modal_enabled(bool enabled)
+{
+    ui_preview_object_recall_modal_enabled = enabled;
+}
+
+/* Shows one semantic object-recall modal when the active frontend supports it. */
+bool ui_preview_show_object_recall_modal(const object_type* o_ptr)
+{
+    char modal_text[UI_PREVIEW_MODAL_TEXT_MAX];
+    byte modal_attrs[UI_PREVIEW_MODAL_TEXT_MAX];
+    ui_text_builder modal_builder;
+
+    if (!ui_preview_object_recall_modal_enabled || !o_ptr)
+        return FALSE;
+
+    ui_text_builder_init(
+        &modal_builder, modal_text, modal_attrs, sizeof(modal_text));
+    object_info_append_ui_text(&modal_builder, o_ptr, TRUE);
+    if ((modal_builder.off > 0)
+        && (modal_builder.text[modal_builder.off - 1] != '\n'))
+    {
+        ui_text_builder_newline(&modal_builder, TERM_WHITE);
+    }
+    ui_text_builder_newline(&modal_builder, TERM_WHITE);
+    ui_text_builder_append_line(&modal_builder, "(press any key)", TERM_L_BLUE);
+
+    ui_modal_set_kind(modal_text, modal_attrs,
+        ui_text_builder_length(&modal_builder), '\r', UI_MODAL_KIND_GENERIC);
+    ui_modal_set_visual(graphics_are_ascii() ? UI_MENU_VISUAL_TEXT
+                                             : UI_MENU_VISUAL_TILE,
+        (byte)object_attr((object_type*)o_ptr),
+        (byte)object_char((object_type*)o_ptr));
+
+    (void)inkey();
+    ui_modal_clear();
+
+    return TRUE;
 }
 
 /* Adds preview-only defaults so object descriptions remain readable. */

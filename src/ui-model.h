@@ -24,6 +24,8 @@ typedef struct ui_text_output_state ui_text_output_state;
 typedef enum ui_modal_kind ui_modal_kind;
 typedef enum ui_menu_layout_kind ui_menu_layout_kind;
 typedef enum ui_prompt_kind ui_prompt_kind;
+typedef bool (*ui_prompt_input_submit_hook)(char* text, size_t text_size);
+typedef void (*ui_prompt_input_randomize_hook)(char* text, size_t text_size);
 typedef bool (*ui_prompt_render_hook)(int row, int col);
 typedef void (*ui_prompt_clear_hook)(void);
 typedef void (*ui_menu_render_hook)(void);
@@ -321,6 +323,23 @@ const byte* ui_prompt_get_attrs(void);
 int ui_prompt_get_attrs_len(void);
 /* Returns the prompt revision used by the frontend cache. */
 unsigned int ui_prompt_get_revision(void);
+/* Registers the frontend hook used to submit accepted semantic text prompts. */
+void ui_prompt_input_set_submit_hook(ui_prompt_input_submit_hook submit_hook);
+/* Returns whether a frontend can handle semantic text-entry prompts. */
+bool ui_prompt_input_available(void);
+/* Runs one frontend-backed semantic text-entry prompt when available. */
+bool ui_prompt_input_run(char* buf, size_t len, bool allow_random,
+    ui_prompt_input_randomize_hook randomize_hook);
+/* Returns whether a semantic text-entry prompt is currently active. */
+bool ui_prompt_input_active(void);
+/* Returns the current semantic text-entry prompt buffer. */
+const char* ui_prompt_input_get_text(void);
+/* Returns the current maximum accepted text-entry length. */
+int ui_prompt_input_get_max_length(void);
+/* Returns whether the current semantic text-entry prompt allows rerolling. */
+bool ui_prompt_input_get_allow_random(void);
+/* Returns the text-entry prompt revision used by frontend caches. */
+unsigned int ui_prompt_input_get_revision(void);
 
 /* Marks the start of one saved-screen scope such as screen_save(). */
 void ui_saved_screen_begin(void);

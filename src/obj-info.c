@@ -10,6 +10,7 @@
 
 #include "angband.h"
 #include "ui-model.h"
+#include "ui-preview.h"
 
 /* TRUE if a paragraph break should be output before next p_text_out() */
 static bool new_paragraph = FALSE;
@@ -1069,6 +1070,9 @@ void note_info_screen(const object_type* o_ptr)
 void object_info_screen(const object_type* o_ptr)
 {
     bool has_description, has_info;
+
+    if (ui_preview_show_object_recall_modal(o_ptr))
+        return;
 
     /* Redirect output to the screen */
     text_out_hook = text_out_to_screen;

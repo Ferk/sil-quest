@@ -128,6 +128,7 @@
     let lastMenuRevision = -1;
     let lastModalRevision = -1;
     let lastPromptRevision = -1;
+    let lastPromptInputRevision = -1;
     let lastMessageHistoryModalRevision = -1;
     let lastBirthStateRevision = -1;
     let lastCharacterSheetRevision = -1;
@@ -185,15 +186,23 @@
     let activeMenuSummaryText = "";
     let activeMenuSummaryAttrs = null;
     let activeMenuDetailsWidth = null;
+    let activeMenuDetailsRows = null;
     let activeMenuSummaryRows = null;
     let activeMenuDetailsVisual = null;
     let activeBirthState = null;
     let activeCharacterSheetState = null;
+    let activePromptInputState = null;
     let activePlayerState = null;
     let activeTileContextState = null;
     let semanticMenuSnapshot = null;
     let hoveredMenuIndex = -1;
     let pressedOverlayMenuIndex = -1;
+    let suppressedOverlayMenuActivateIndex = -1;
+    let overlayMenuLongPressTimerId = 0;
+    let overlayMenuLongPressPointerId = null;
+    let suppressedMapMenuActivateIndex = -1;
+    let mapMenuLongPressTimerId = 0;
+    let mapMenuLongPressPointerId = null;
     let menuHoverNeedsPointerMove = false;
     let lastOverlayMenuPointerX = null;
     let lastOverlayMenuPointerY = null;
@@ -207,6 +216,9 @@
     let birthAhwDraft = createEmptyBirthAhwDraft();
     let birthAhwSource = createEmptyBirthAhwDraft();
     let birthAhwDirty = false;
+    let promptInputDraft = "";
+    let promptInputSourceText = "";
+    let promptInputDirty = false;
     const alternateFabLongPressTimers = new WeakMap();
     const alternateFabSuppressedClicks = new WeakSet();
     const iconMeta = {
@@ -1330,6 +1342,7 @@
       summaryText,
       summaryAttrs,
       detailsWidth,
+      detailsRows,
       summaryRows,
       detailsVisual
     ) {
@@ -1345,6 +1358,7 @@
         summaryText,
         summaryAttrs: cloneAttrBytes(summaryAttrs),
         detailsWidth,
+        detailsRows,
         summaryRows,
         detailsVisual: detailsVisual ? { ...detailsVisual } : null,
       };
@@ -1443,6 +1457,7 @@
           activeMenuSummaryText,
           activeMenuSummaryAttrs,
           activeMenuDetailsWidth,
+          activeMenuDetailsRows,
           activeMenuSummaryRows,
           activeMenuDetailsVisual
         );
@@ -1457,6 +1472,7 @@
           summaryText: activeMenuSummaryText,
           summaryAttrs: activeMenuSummaryAttrs,
           detailsWidth: activeMenuDetailsWidth,
+          detailsRows: activeMenuDetailsRows,
           summaryRows: activeMenuSummaryRows,
           detailsVisual: activeMenuDetailsVisual,
         };
@@ -1487,6 +1503,7 @@
         activeMenuSummaryText = "";
         activeMenuSummaryAttrs = null;
         activeMenuDetailsWidth = null;
+        activeMenuDetailsRows = null;
         activeMenuSummaryRows = null;
         activeMenuDetailsVisual = null;
         hoveredMenuIndex = -1;
@@ -1529,6 +1546,8 @@
         typeof api.getMenuSummaryAttrsLen === "function" ? api.getMenuSummaryAttrsLen() : 0;
       const detailsWidth =
         typeof api.getMenuDetailsWidth === "function" ? api.getMenuDetailsWidth() : 0;
+      const detailsRows =
+        typeof api.getMenuDetailsRows === "function" ? api.getMenuDetailsRows() : 0;
       const summaryRows =
         typeof api.getMenuSummaryRows === "function" ? api.getMenuSummaryRows() : 0;
       const detailsVisualKind =
@@ -1555,6 +1574,8 @@
       activeMenuSummaryAttrs = readBytes(heap, summaryAttrPtr, summaryAttrLen);
       activeMenuDetailsWidth =
         Number.isInteger(detailsWidth) && detailsWidth > 0 ? detailsWidth : null;
+      activeMenuDetailsRows =
+        Number.isInteger(detailsRows) && detailsRows > 0 ? detailsRows : null;
       activeMenuSummaryRows =
         Number.isInteger(summaryRows) && summaryRows > 0 ? summaryRows : null;
       activeMenuDetailsVisual = normalizeMenuDetailsVisual(
@@ -1572,6 +1593,7 @@
         activeMenuSummaryText = "";
         activeMenuSummaryAttrs = null;
         activeMenuDetailsWidth = null;
+        activeMenuDetailsRows = null;
         activeMenuSummaryRows = null;
         activeMenuDetailsVisual = null;
         hoveredMenuIndex = -1;
@@ -1736,6 +1758,61 @@
       birthAhwDraft = createEmptyBirthAhwDraft();
       birthAhwSource = createEmptyBirthAhwDraft();
       birthAhwDirty = false;
+    }
+
+    // Clears the local shared prompt-input draft state.
+    function resetPromptInputDraft() {
+      promptInputDraft = "";
+      promptInputSourceText = "";
+      promptInputDirty = false;
+    }
+
+    // Keeps the local shared prompt-input draft aligned with backend state.
+    function syncPromptInputDraft(state, force = false) {
+      const nextText = String(state?.text || "");
+
+      if (force || !promptInputDirty || nextText !== promptInputSourceText) {
+        promptInputDraft = nextText;
+        promptInputSourceText = nextText;
+        promptInputDirty = false;
+      }
+    }
+
+    // Commits one shared prompt-input draft value to local state only.
+    function commitPromptInputDraft(text = promptInputDraft) {
+      promptInputDraft = String(text ?? "");
+      promptInputDirty = promptInputDraft !== promptInputSourceText;
+      return promptInputDraft;
+    }
+
+    // Submits one accepted semantic text-entry prompt through the wasm adapter.
+    function submitPromptInput(textOverride = null) {
+      if (
+        !api ||
+        typeof api.submitPromptInput !== "function" ||
+        typeof api.getPromptSubmitTextPtr !== "function"
+      ) {
+        return false;
+      }
+
+      const maxLength = Number(activePromptInputState?.maxLength ?? 0);
+      const heap = getHeapU8();
+      const ptr = Number(api.getPromptSubmitTextPtr() || 0);
+      const text =
+        textOverride === null
+          ? commitPromptInputDraft(promptInputDraft)
+          : commitPromptInputDraft(textOverride);
+
+      if (!heap || ptr <= 0 || maxLength <= 0) {
+        return false;
+      }
+
+      const encoded = utf8Encoder.encode(String(text ?? ""));
+      const writeLen = Math.min(encoded.length, maxLength);
+      heap.set(encoded.subarray(0, writeLen), ptr);
+      heap[ptr + writeLen] = 0;
+
+      return api.submitPromptInput() !== 0;
     }
 
     // Submits one accepted birth form through the shared wasm adapter interface.
@@ -3100,6 +3177,7 @@
 
     const semanticOverlayClasses = [
       "overlay-message-log",
+      "overlay-prompt-input",
       "overlay-birth-name",
       "overlay-birth-ahw",
       "overlay-birth-history",
@@ -3129,6 +3207,7 @@
         overlayModalEl.classList.add("overlay-dismissable");
       }
       overlayModalEl.style.removeProperty("--menu-details-width");
+      overlayModalEl.style.removeProperty("--menu-details-min-height");
       overlayModalEl.style.removeProperty("--menu-summary-min-height");
       setHtmlIfChanged(overlayModalEl, html);
     }
@@ -3138,6 +3217,7 @@
       overlayModalEl.style.display = "none";
       resetSemanticOverlayModes();
       overlayModalEl.style.removeProperty("--menu-details-width");
+      overlayModalEl.style.removeProperty("--menu-details-min-height");
       overlayModalEl.style.removeProperty("--menu-summary-min-height");
       setHtmlIfChanged(overlayModalEl, "");
     }
@@ -3581,6 +3661,41 @@
       topPromptAttrs = promptAttrs;
     }
 
+    // Reads the shared semantic text-entry prompt state exported by wasm.
+    function readPromptInputState(heap) {
+      activePromptInputState = null;
+
+      if (
+        !api ||
+        !heap ||
+        typeof api.getPromptInputActive !== "function" ||
+        typeof api.getPromptInputTextPtr !== "function" ||
+        typeof api.getPromptInputTextLen !== "function"
+      ) {
+        resetPromptInputDraft();
+        return null;
+      }
+
+      if (Number(api.getPromptInputActive()) !== 1) {
+        resetPromptInputDraft();
+        return null;
+      }
+
+      activePromptInputState = {
+        active: true,
+        text: readUtf8(heap, api.getPromptInputTextPtr(), api.getPromptInputTextLen()),
+        maxLength:
+          typeof api.getPromptInputMaxLength === "function"
+            ? Number(api.getPromptInputMaxLength()) || 0
+            : 0,
+        allowRandom:
+          typeof api.getPromptInputAllowRandom === "function" &&
+          Number(api.getPromptInputAllowRandom()) === 1,
+      };
+      syncPromptInputDraft(activePromptInputState);
+      return activePromptInputState;
+    }
+
     // Formats one inches value as feet and inches for the age/height/weight editor.
     function formatBirthHeight(value) {
       const inches = parseBirthNumberInput(value);
@@ -3589,6 +3704,64 @@
 
       if (inches <= 0 || feet <= 0) return "";
       return remainder > 0 ? `${feet}'${remainder}"` : `${feet}'`;
+    }
+
+    // Renders one shared semantic text-entry prompt as a responsive form overlay.
+    function updatePromptInputSemantic() {
+      const state = activePromptInputState;
+      if (!state || !state.active) return false;
+
+      const title = String(topPromptText || "Input").trim() || "Input";
+      const help = state.allowRandom
+        ? "Enter accepts, Escape cancels, and Tab generates a random value."
+        : "Enter accepts and Escape cancels.";
+      const randomHtml = state.allowRandom
+        ? `<button type="button" class="character-sheet-action" data-prompt-input-action="random">` +
+            `<span class="character-sheet-action-key">Tab</span>` +
+            `<span class="character-sheet-action-label">Random</span>` +
+          `</button>`
+        : "";
+      const html =
+        `<div class="character-sheet-shell prompt-input-editor">` +
+          `<section class="character-sheet-card character-history-editor">` +
+            `<div class="character-sheet-card-head">` +
+              `<h2 class="character-sheet-title">${escapeHtml(title)}</h2>` +
+            `</div>` +
+            `<p class="character-sheet-help">${escapeHtml(help)}</p>` +
+            `<div class="character-birth-form">` +
+              `<label class="character-birth-field">` +
+                `<span class="character-birth-field-label">Value</span>` +
+                `<input class="character-birth-input prompt-input-field" ` +
+                  `data-prompt-input-field ` +
+                  `type="text" ` +
+                  `maxlength="${Math.max(0, state.maxLength)}" ` +
+                  `value="${escapeHtml(promptInputDraft)}" />` +
+              `</label>` +
+            `</div>` +
+          `</section>` +
+          `<div class="character-sheet-actions">` +
+            `${randomHtml}` +
+            `<button type="button" class="character-sheet-action" data-prompt-input-action="accept">` +
+              `<span class="character-sheet-action-key">Enter</span>` +
+              `<span class="character-sheet-action-label">Accept</span>` +
+            `</button>` +
+            `<button type="button" class="character-sheet-action" data-prompt-input-action="cancel">` +
+              `<span class="character-sheet-action-key">Esc</span>` +
+              `<span class="character-sheet-action-label">Cancel</span>` +
+            `</button>` +
+          `</div>` +
+        `</div>`;
+
+      showSemanticOverlay("overlay-prompt-input", html);
+      globalThis.requestAnimationFrame(() => {
+        const inputEl = overlayModalEl.querySelector("[data-prompt-input-field]");
+        if (!inputEl || document.activeElement === inputEl) return;
+        inputEl.focus({ preventScroll: true });
+        if (!promptInputDirty && inputEl.value.length > 0) {
+          inputEl.select();
+        }
+      });
+      return true;
     }
 
     // Renders the shared birth name editor as a responsive HTML overlay.
@@ -4106,10 +4279,10 @@
       const introHtml = `<div class="menu-copy${hasCopy ? "" : " menu-copy-empty"}">${
         hasCopy ? renderColoredText(menuState.text, menuState.textAttrs, 1) : ""
       }</div>`;
-      const detailsHtml = `<div class="menu-item-details${hasDetailsPane ? "" : " menu-item-details-empty"}"><div class="menu-item-details-visual"></div><div class="menu-item-details-copy${
-        hasDetails ? "" : " menu-item-details-copy-empty"
+      const detailsHtml = `<div class="menu-item-details${hasDetailsPane ? "" : " menu-item-details-empty"}"><div class="menu-item-details-copy${
+        hasDetailsPane ? "" : " menu-item-details-copy-empty"
       }">${
-        detailsBlockHtml
+        `<div class="menu-item-details-visual"></div>${detailsBlockHtml}`
       }</div></div>`;
       const summaryHtml = `<div class="menu-summary${hasSummary ? "" : " menu-summary-empty"}">${
         summaryBlockHtml
@@ -4162,13 +4335,16 @@
           "--menu-details-width",
           `${menuState.detailsWidth}ch`
         );
-      } else if (hasDetailsPane && Number.isInteger(menuState.detailsHeight) && menuState.detailsHeight > 0) {
-        overlayModalEl.style.setProperty(
-          "--menu-details-min-height",
-          `${menuState.detailsRows}ch`
-        );
       } else {
         overlayModalEl.style.removeProperty("--menu-details-width");
+      }
+      if (hasDetailsPane && Number.isInteger(menuState.detailsRows) && menuState.detailsRows > 0) {
+        overlayModalEl.style.setProperty(
+          "--menu-details-min-height",
+          `calc(${menuState.detailsRows} * 1.25em + 1.5rem)`
+        );
+      } else {
+        overlayModalEl.style.removeProperty("--menu-details-min-height");
       }
       if (hasSummary && Number.isInteger(menuState.summaryRows) && menuState.summaryRows > 0) {
         overlayModalEl.style.setProperty(
@@ -4306,6 +4482,11 @@
         return true;
       }
 
+      if (updatePromptInputSemantic()) {
+        activeTileContextState = null;
+        return true;
+      }
+
       if (updateTileContextSemantic()) {
         return true;
       }
@@ -4353,7 +4534,10 @@
         return false;
       }
 
-      showSemanticOverlay(null, renderColoredText(text, attrs, 1));
+      showSemanticOverlay(
+        null,
+        `<div class="modal-copy-shell"><div class="modal-copy">${renderColoredText(text, attrs, 1)}</div></div>`
+      );
       return true;
     }
 
@@ -4451,6 +4635,19 @@
       hudBarsEl.title = titleBits.length ? titleBits.join(" - ") : "Character panel";
     }
 
+    // Extracts the newest colored line from one newline-delimited message buffer.
+    function getLastColoredLine(text, attrs) {
+      if (!text) {
+        return { text: "", attrs: null };
+      }
+
+      const lineStart = text.lastIndexOf("\n") + 1;
+      return {
+        text: text.slice(lineStart),
+        attrs: attrs ? attrs.subarray(lineStart, text.length) : null,
+      };
+    }
+
     // Updates side and log panels using semantic text and color attributes.
     function updateSemanticPanels(heap, state = null) {
       if (!api) return;
@@ -4464,32 +4661,25 @@
 
       const logText = readUtf8(heap, logPtr, logLen).trimEnd();
       const logAttrs = readBytes(heap, logAttrPtr, logAttrLen);
+      const latestLog = getLastColoredLine(logText, logAttrs);
 
       const sideHtml = hasNamedCharacter(state)
         ? renderSideState(state)
         : "";
-      const hasLogText = Boolean(logText);
+      const hasLogText = Boolean(latestLog.text);
       let logHtml = hasLogText
-        ? renderColoredText(logText, logAttrs, 1)
+        ? renderColoredText(latestLog.text, latestLog.attrs, 1)
         : "<span class=\"term-c2\">(message panel empty)</span>";
-
-      if (
-        topPromptActive &&
-        topPromptText &&
-        topPromptKind !== UI_PROMPT_KIND_MESSAGE
-      ) {
-        const promptHtml = `${renderColoredText(topPromptText, topPromptAttrs, 11)}${
-          topPromptMoreHint ? "<span class=\"more-indicator\">-more-</span>" : ""
-        }`;
-        logHtml = hasLogText ? `${logHtml}<br>${promptHtml}` : promptHtml;
-      }
 
       if (morePromptActive) {
         const promptLead = morePromptText
           ? `${renderColoredText(morePromptText, morePromptAttrs, 11)} `
           : "";
-        const promptHtml = `${promptLead}<span class="more-indicator">-more-</span>`;
-        logHtml = hasLogText ? `${logHtml}<br>${promptHtml}` : promptHtml;
+        logHtml = `${promptLead}<span class="more-indicator">-more-</span>`;
+      } else if (topPromptActive && topPromptText && !activePromptInputState?.active) {
+        logHtml = `${renderColoredText(topPromptText, topPromptAttrs, 11)}${
+          topPromptMoreHint ? "<span class=\"more-indicator\">-more-</span>" : ""
+        }`;
       }
 
       updateMobileHud(state);
@@ -4521,6 +4711,10 @@
         typeof api.getModalRevision === "function" ? api.getModalRevision() : 0;
       const promptRevision =
         typeof api.getPromptRevision === "function" ? api.getPromptRevision() : 0;
+      const promptInputRevision =
+        typeof api.getPromptInputRevision === "function"
+          ? api.getPromptInputRevision()
+          : 0;
       const birthStateRevision =
         typeof api.getBirthStateRevision === "function" ? api.getBirthStateRevision() : 0;
       const characterSheetRevision =
@@ -4535,6 +4729,7 @@
         menuRevision === lastMenuRevision &&
         modalRevision === lastModalRevision &&
         promptRevision === lastPromptRevision &&
+        promptInputRevision === lastPromptInputRevision &&
         birthStateRevision === lastBirthStateRevision &&
         characterSheetRevision === lastCharacterSheetRevision &&
         !mapFxStateChanged &&
@@ -4547,6 +4742,7 @@
       lastMenuRevision = menuRevision;
       lastModalRevision = modalRevision;
       lastPromptRevision = promptRevision;
+      lastPromptInputRevision = promptInputRevision;
       lastBirthStateRevision = birthStateRevision;
       lastCharacterSheetRevision = characterSheetRevision;
       lastMapFxActive = mapFxActive;
@@ -4568,6 +4764,7 @@
       readBirthState(heap);
       readCharacterSheetState(heap);
       updatePromptState(heap);
+      readPromptInputState(heap);
 
       const overlayActive = updateOverlaySemantic(heap);
       const state = readPlayerState(heap);
@@ -4656,6 +4853,7 @@
         !overlayModalEl.classList.contains("overlay-tile-context") &&
         !overlayModalEl.classList.contains("overlay-menu") &&
         !overlayModalEl.classList.contains("overlay-birth-name") &&
+        !overlayModalEl.classList.contains("overlay-prompt-input") &&
         !overlayModalEl.classList.contains("overlay-birth-ahw") &&
         !overlayModalEl.classList.contains("overlay-birth-history") &&
         !overlayModalEl.classList.contains("overlay-birth-stats") &&
@@ -4749,14 +4947,15 @@
     // Returns whether the floating close button should replace the inventory button.
     function canUseCloseFab() {
       return !!api &&
-        !morePromptActive &&
         (
+          morePromptActive ||
           !!activeTileContextState ||
           activeMenuItems.length > 0 ||
           isBirthScreenActive() ||
           isCharacterSkillEditorActive() ||
           isCharacterSheetActive() ||
           overlayModalEl.classList.contains("overlay-tile-context") ||
+          overlayModalEl.classList.contains("overlay-prompt-input") ||
           overlayModalEl.classList.contains("overlay-birth-name") ||
           overlayModalEl.classList.contains("overlay-birth-ahw") ||
           overlayModalEl.classList.contains("overlay-birth-history") ||
@@ -4949,6 +5148,7 @@
 
     // Returns the visible close-FAB label metadata for the current overlay state.
     function getCloseFabMeta({
+      morePromptActive,
       yesNoPromptActive,
       tileContextActive,
       birthTextActive,
@@ -4959,6 +5159,9 @@
       dismissableModalActive,
       genericOverlayActive,
     }) {
+      if (morePromptActive) {
+        return { title: "Dismiss message (Esc)", ariaLabel: "Dismiss message" };
+      }
       if (yesNoPromptActive) {
         return { title: "No (n)", ariaLabel: "No" };
       }
@@ -5033,6 +5236,7 @@
         skillEditorActive,
       });
       const closeFabMeta = getCloseFabMeta({
+        morePromptActive,
         yesNoPromptActive,
         tileContextActive,
         birthTextActive,
@@ -5135,6 +5339,36 @@
 
     // Binds semantic hover/click handling for menus exported by the wasm frontend.
     function bindMenuPointerInput() {
+      let pressedMapMenuIndex = -1;
+
+      const clearMapMenuLongPress = (pointerId = null) => {
+        if (pointerId !== null && mapMenuLongPressPointerId !== pointerId) return;
+        if (mapMenuLongPressTimerId) {
+          globalThis.clearTimeout(mapMenuLongPressTimerId);
+          mapMenuLongPressTimerId = 0;
+        }
+        mapMenuLongPressPointerId = null;
+      };
+
+      const previewMenuIndex = (index) => {
+        if (
+          !Number.isInteger(index) ||
+          index < 0 ||
+          !api ||
+          typeof api.menuHover !== "function"
+        ) {
+          return false;
+        }
+
+        hoveredMenuIndex = index;
+        if (!api.menuHover(index)) {
+          return false;
+        }
+
+        requestRender(true);
+        return true;
+      };
+
       const hoverMenuAtPoint = (clientX, clientY) => {
         if (isInteractiveTopPromptActive() || morePromptActive) {
           hoveredMenuIndex = -1;
@@ -5171,6 +5405,7 @@
       });
 
       mapCanvas.addEventListener("pointerleave", () => {
+        clearMapMenuLongPress();
         hoveredMenuIndex = -1;
       });
 
@@ -5182,6 +5417,24 @@
         if (index < 0 || !api) return;
 
         hoveredMenuIndex = index;
+        suppressedMapMenuActivateIndex = -1;
+        pressedMapMenuIndex = index;
+
+        if (ev.pointerType === "touch") {
+          clearMapMenuLongPress();
+          mapMenuLongPressPointerId = ev.pointerId;
+          mapMenuLongPressTimerId = globalThis.setTimeout(() => {
+            mapMenuLongPressTimerId = 0;
+            if (mapMenuLongPressPointerId !== ev.pointerId) return;
+            if (!previewMenuIndex(index)) return;
+            suppressedMapMenuActivateIndex = index;
+            clearMapMenuLongPress(ev.pointerId);
+          }, TILE_CONTEXT_LONG_PRESS_MSEC);
+          ev.preventDefault();
+          ev.stopPropagation();
+          return;
+        }
+
         if (typeof api.menuActivate === "function" && api.menuActivate(index)) {
           activeMenuItems = [];
           activeMenuColumnX = null;
@@ -5192,10 +5445,87 @@
         ev.preventDefault();
         ev.stopPropagation();
       });
+
+      for (const eventName of ["pointerup", "pointercancel", "pointerleave"]) {
+        mapCanvas.addEventListener(eventName, (ev) => {
+          const index = findMenuItemIndexAtClientPoint(ev.clientX, ev.clientY);
+          clearMapMenuLongPress(ev.pointerId);
+
+          if (
+            eventName === "pointerup" &&
+            ev.pointerType === "touch" &&
+            suppressedMapMenuActivateIndex >= 0 &&
+            index === suppressedMapMenuActivateIndex
+          ) {
+            pressedMapMenuIndex = -1;
+            suppressedMapMenuActivateIndex = -1;
+            ev.preventDefault();
+            ev.stopPropagation();
+            return;
+          }
+
+          if (
+            eventName === "pointerup" &&
+            ev.pointerType === "touch" &&
+            pressedMapMenuIndex >= 0 &&
+            index === pressedMapMenuIndex &&
+            suppressedMapMenuActivateIndex < 0 &&
+            api &&
+            typeof api.menuActivate === "function"
+          ) {
+            pressedMapMenuIndex = -1;
+            if (api.menuActivate(index)) {
+              activeMenuItems = [];
+              activeMenuColumnX = null;
+              hoveredMenuIndex = -1;
+              requestRender(true);
+            }
+            ev.preventDefault();
+            ev.stopPropagation();
+            return;
+          }
+
+          if (eventName !== "pointerup") {
+            suppressedMapMenuActivateIndex = -1;
+          }
+
+          if (eventName !== "pointerleave") {
+            pressedMapMenuIndex = -1;
+          }
+        });
+      }
     }
 
     // Binds semantic hover/click handling for HTML menu overlays.
     function bindOverlayMenuInput() {
+      const clearOverlayMenuLongPress = (pointerId = null) => {
+        if (pointerId !== null && overlayMenuLongPressPointerId !== pointerId) return;
+        if (overlayMenuLongPressTimerId) {
+          globalThis.clearTimeout(overlayMenuLongPressTimerId);
+          overlayMenuLongPressTimerId = 0;
+        }
+        overlayMenuLongPressPointerId = null;
+      };
+
+      const previewOverlayMenuIndex = (index) => {
+        if (
+          !Number.isInteger(index) ||
+          index < 0 ||
+          !api ||
+          typeof api.menuHover !== "function"
+        ) {
+          return false;
+        }
+
+        hoveredMenuIndex = index;
+        if (!api.menuHover(index)) {
+          return false;
+        }
+
+        requestRender(true);
+        return true;
+      };
+
       const hoverFromOverlayEvent = (ev) => {
         if (isInteractiveTopPromptActive() || morePromptActive) {
           hoveredMenuIndex = -1;
@@ -5250,13 +5580,36 @@
         pressedOverlayMenuIndex = itemEl
           ? Number(itemEl.dataset.menuIndex)
           : -1;
+        suppressedOverlayMenuActivateIndex = -1;
+
+        if (
+          ev.pointerType === "touch" &&
+          Number.isInteger(pressedOverlayMenuIndex) &&
+          pressedOverlayMenuIndex >= 0
+        ) {
+          clearOverlayMenuLongPress();
+          overlayMenuLongPressPointerId = ev.pointerId;
+          overlayMenuLongPressTimerId = globalThis.setTimeout(() => {
+            overlayMenuLongPressTimerId = 0;
+            if (overlayMenuLongPressPointerId !== ev.pointerId) return;
+            if (!previewOverlayMenuIndex(pressedOverlayMenuIndex)) return;
+            suppressedOverlayMenuActivateIndex = pressedOverlayMenuIndex;
+            clearOverlayMenuLongPress(ev.pointerId);
+          }, TILE_CONTEXT_LONG_PRESS_MSEC);
+        }
       });
 
       for (const eventName of ["pointercancel", "pointerleave"]) {
-        overlayModalEl.addEventListener(eventName, () => {
+        overlayModalEl.addEventListener(eventName, (ev) => {
+          clearOverlayMenuLongPress(ev.pointerId);
           pressedOverlayMenuIndex = -1;
+          suppressedOverlayMenuActivateIndex = -1;
         });
       }
+
+      overlayModalEl.addEventListener("pointerup", (ev) => {
+        clearOverlayMenuLongPress(ev.pointerId);
+      });
 
       overlayModalEl.addEventListener("pointermove", (ev) => {
         if (!overlayModalEl.classList.contains("overlay-menu")) return;
@@ -5278,6 +5631,18 @@
             : fallbackIndex;
         pressedOverlayMenuIndex = -1;
         if (!Number.isInteger(index)) return;
+
+        if (
+          suppressedOverlayMenuActivateIndex >= 0 &&
+          index === suppressedOverlayMenuActivateIndex
+        ) {
+          suppressedOverlayMenuActivateIndex = -1;
+          ev.preventDefault();
+          ev.stopPropagation();
+          return;
+        }
+
+        suppressedOverlayMenuActivateIndex = -1;
 
         hoveredMenuIndex = index;
         if (api.menuActivate(index)) {
@@ -5357,6 +5722,81 @@
 
         const action = String(actionEl.dataset.birthTextAction || "");
         if (!dispatchBirthTextScreenAction(action, config.kind)) return;
+
+        ev.preventDefault();
+        ev.stopPropagation();
+      });
+    }
+
+    // Binds shared text input and button handling for semantic text-entry prompts.
+    function bindOverlayPromptInput() {
+      overlayModalEl.addEventListener("pointerdown", (ev) => {
+        if (!overlayModalEl.classList.contains("overlay-prompt-input")) return;
+        ev.stopPropagation();
+      });
+
+      overlayModalEl.addEventListener("input", (ev) => {
+        if (!overlayModalEl.classList.contains("overlay-prompt-input")) return;
+
+        const inputEl = ev.target.closest("[data-prompt-input-field]");
+        if (!inputEl) return;
+
+        commitPromptInputDraft(inputEl.value);
+      });
+
+      overlayModalEl.addEventListener("keydown", (ev) => {
+        if (!overlayModalEl.classList.contains("overlay-prompt-input")) return;
+
+        const inputEl = ev.target.closest("[data-prompt-input-field]");
+        if (!inputEl) return;
+
+        if (ev.key === "Escape") {
+          pushAscii(27);
+          requestRender(true);
+          ev.preventDefault();
+          ev.stopPropagation();
+          return;
+        }
+
+        if (activePromptInputState?.allowRandom && ev.key === "Tab") {
+          commitPromptInputDraft(inputEl.value);
+          pushAscii(9);
+          requestRender(true);
+          ev.preventDefault();
+          ev.stopPropagation();
+          return;
+        }
+
+        if (ev.key === "Enter") {
+          if (!submitPromptInput(inputEl.value)) return;
+          pushAscii(13);
+          requestRender(true);
+          ev.preventDefault();
+          ev.stopPropagation();
+        }
+      });
+
+      overlayModalEl.addEventListener("click", (ev) => {
+        if (!overlayModalEl.classList.contains("overlay-prompt-input")) return;
+
+        const actionEl = ev.target.closest("[data-prompt-input-action]");
+        if (!actionEl) return;
+
+        const action = String(actionEl.dataset.promptInputAction || "");
+        if (action === "accept") {
+          const inputEl = overlayModalEl.querySelector("[data-prompt-input-field]");
+          if (!submitPromptInput(inputEl ? inputEl.value : promptInputDraft)) return;
+          pushAscii(13);
+          requestRender(true);
+        } else if (action === "random") {
+          pushAscii(9);
+          requestRender(true);
+        } else if (action === "cancel") {
+          pushAscii(27);
+          requestRender(true);
+        } else {
+          return;
+        }
 
         ev.preventDefault();
         ev.stopPropagation();
@@ -6013,6 +6453,12 @@
         ev.stopPropagation();
         if (!canUseCloseFab()) return;
 
+        if (morePromptActive) {
+          pushAscii(27);
+          requestRender(true);
+          return;
+        }
+
         if (tryDismissActiveOverlay()) {
           return;
         }
@@ -6429,6 +6875,14 @@
           typeof Module._web_get_prompt_attrs_ptr === "function" &&
           typeof Module._web_get_prompt_attrs_len === "function" &&
           typeof Module._web_get_prompt_revision === "function" &&
+          typeof Module._web_get_prompt_input_active === "function" &&
+          typeof Module._web_get_prompt_input_text_ptr === "function" &&
+          typeof Module._web_get_prompt_input_text_len === "function" &&
+          typeof Module._web_get_prompt_input_max_length === "function" &&
+          typeof Module._web_get_prompt_input_allow_random === "function" &&
+          typeof Module._web_get_prompt_input_revision === "function" &&
+          typeof Module._web_get_prompt_submit_text_ptr === "function" &&
+          typeof Module._web_submit_prompt_input === "function" &&
           typeof Module._web_consume_render_request === "function" &&
           typeof Module._web_menu_hover === "function" &&
           typeof Module._web_menu_activate === "function" &&
@@ -6587,6 +7041,10 @@
             typeof Module._web_get_menu_details_width === "function"
               ? Module._web_get_menu_details_width
               : null,
+          getMenuDetailsRows:
+            typeof Module._web_get_menu_details_rows === "function"
+              ? Module._web_get_menu_details_rows
+              : null,
           getMenuDetailsVisualKind:
             typeof Module._web_get_menu_details_visual_kind === "function"
               ? Module._web_get_menu_details_visual_kind
@@ -6619,6 +7077,14 @@
           getPromptAttrsPtr: Module._web_get_prompt_attrs_ptr,
           getPromptAttrsLen: Module._web_get_prompt_attrs_len,
           getPromptRevision: Module._web_get_prompt_revision,
+          getPromptInputActive: Module._web_get_prompt_input_active,
+          getPromptInputTextPtr: Module._web_get_prompt_input_text_ptr,
+          getPromptInputTextLen: Module._web_get_prompt_input_text_len,
+          getPromptInputMaxLength: Module._web_get_prompt_input_max_length,
+          getPromptInputAllowRandom: Module._web_get_prompt_input_allow_random,
+          getPromptInputRevision: Module._web_get_prompt_input_revision,
+          getPromptSubmitTextPtr: Module._web_get_prompt_submit_text_ptr,
+          submitPromptInput: Module._web_submit_prompt_input,
           consumeRenderRequest: Module._web_consume_render_request,
           menuHover: Module._web_menu_hover,
           menuActivate: Module._web_menu_activate,
@@ -6643,6 +7109,7 @@
         bindFloatingActionInput();
         bindMenuPointerInput();
         bindOverlayMenuInput();
+        bindOverlayPromptInput();
         bindOverlayBirthTextInput();
         bindOverlayBirthAhwInput();
         bindOverlayBirthStatsInput();

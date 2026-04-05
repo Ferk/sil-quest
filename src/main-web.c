@@ -22,6 +22,7 @@
 #include "ui-knowledge.h"
 #include "ui-marks.h"
 #include "ui-model.h"
+#include "ui-preview.h"
 
 #include <stdint.h>
 #include <string.h>
@@ -123,6 +124,7 @@ static term_data data;
 #define WEB_CHARACTER_SHEET_STATE_MAX 8192
 #define WEB_PLAYER_STATE_MAX 8192
 #define WEB_TILE_CONTEXT_STATE_MAX 4096
+#define WEB_PROMPT_INPUT_TEXT_MAX (MESSAGE_BUF * 2)
 #define WEB_AUTO_RESUME_MARKER_NAME "web-autoresume.txt"
 #define WEB_GRID_CONTEXT_ACTION_RECALL 100
 
@@ -136,6 +138,12 @@ struct web_birth_submission
     int weight;
 };
 
+struct web_prompt_input_submission
+{
+    bool pending;
+    char text[WEB_PROMPT_INPUT_TEXT_MAX];
+};
+
 static char web_log_text[WEB_LOG_TEXT_MAX];
 static byte web_log_attrs[WEB_LOG_TEXT_MAX];
 static int web_log_attrs_len = 0;
@@ -143,6 +151,7 @@ static uint32_t web_log_text_frame = UINT32_MAX;
 static char web_birth_state[WEB_BIRTH_STATE_MAX];
 static uint32_t web_birth_state_revision = UINT32_MAX;
 static struct web_birth_submission web_birth_submission = { 0 };
+static struct web_prompt_input_submission web_prompt_input_submission = { 0 };
 static char web_character_sheet_state[WEB_CHARACTER_SHEET_STATE_MAX];
 static uint32_t web_character_sheet_state_revision = UINT32_MAX;
 static char web_player_state[WEB_PLAYER_STATE_MAX];
@@ -243,6 +252,7 @@ EMSCRIPTEN_KEEPALIVE int web_get_menu_summary_len(void);
 EMSCRIPTEN_KEEPALIVE uintptr_t web_get_menu_summary_attrs_ptr(void);
 EMSCRIPTEN_KEEPALIVE int web_get_menu_summary_attrs_len(void);
 EMSCRIPTEN_KEEPALIVE int web_get_menu_details_width(void);
+EMSCRIPTEN_KEEPALIVE int web_get_menu_details_rows(void);
 EMSCRIPTEN_KEEPALIVE int web_get_menu_summary_rows(void);
 EMSCRIPTEN_KEEPALIVE int web_get_menu_details_visual_kind(void);
 EMSCRIPTEN_KEEPALIVE int web_get_menu_details_visual_attr(void);
@@ -266,6 +276,14 @@ EMSCRIPTEN_KEEPALIVE int web_get_prompt_text_len(void);
 EMSCRIPTEN_KEEPALIVE uintptr_t web_get_prompt_attrs_ptr(void);
 EMSCRIPTEN_KEEPALIVE int web_get_prompt_attrs_len(void);
 EMSCRIPTEN_KEEPALIVE unsigned int web_get_prompt_revision(void);
+EMSCRIPTEN_KEEPALIVE int web_get_prompt_input_active(void);
+EMSCRIPTEN_KEEPALIVE uintptr_t web_get_prompt_input_text_ptr(void);
+EMSCRIPTEN_KEEPALIVE int web_get_prompt_input_text_len(void);
+EMSCRIPTEN_KEEPALIVE int web_get_prompt_input_max_length(void);
+EMSCRIPTEN_KEEPALIVE int web_get_prompt_input_allow_random(void);
+EMSCRIPTEN_KEEPALIVE unsigned int web_get_prompt_input_revision(void);
+EMSCRIPTEN_KEEPALIVE uintptr_t web_get_prompt_submit_text_ptr(void);
+EMSCRIPTEN_KEEPALIVE int web_submit_prompt_input(void);
 EMSCRIPTEN_KEEPALIVE int web_modal_activate(void);
 EMSCRIPTEN_KEEPALIVE int web_get_cursor_x(void);
 EMSCRIPTEN_KEEPALIVE int web_get_cursor_y(void);
@@ -407,6 +425,12 @@ static void web_clear_birth_submission(void)
     WIPE(&web_birth_submission, struct web_birth_submission);
 }
 
+/* Clears any staged web text-prompt submission. */
+static void web_clear_prompt_input_submission(void)
+{
+    WIPE(&web_prompt_input_submission, struct web_prompt_input_submission);
+}
+
 /* Builds the persisted marker path used to remember the latest resumable save. */
 static void web_get_auto_resume_marker_path(char* buf, size_t max)
 {
@@ -476,6 +500,17 @@ static bool web_consume_birth_submission(
     }
 
     web_clear_birth_submission();
+    return TRUE;
+}
+
+/* Consumes one accepted text submission for the active semantic prompt input. */
+static bool web_consume_prompt_input_submission(char* text, size_t text_size)
+{
+    if (!web_prompt_input_submission.pending || !text || !text_size)
+        return FALSE;
+
+    my_strcpy(text, web_prompt_input_submission.text, text_size);
+    web_clear_prompt_input_submission();
     return TRUE;
 }
 
@@ -3113,7 +3148,10 @@ errr init_web(int argc, char** argv)
     web_fx_rows = 0;
     web_map_cells_frame = UINT32_MAX;
     ui_birth_set_submit_hook((ui_birth_submit_hook)web_consume_birth_submission);
+    ui_prompt_input_set_submit_hook(
+        (ui_prompt_input_submit_hook)web_consume_prompt_input_submission);
     ui_message_recall_set_semantic_enabled(TRUE);
+    ui_preview_set_object_recall_modal_enabled(TRUE);
 
     return (0);
 }
@@ -3381,6 +3419,11 @@ EMSCRIPTEN_KEEPALIVE int web_get_menu_details_width(void)
     return ui_menu_get_details_width();
 }
 
+EMSCRIPTEN_KEEPALIVE int web_get_menu_details_rows(void)
+{
+    return ui_menu_get_details_rows();
+}
+
 EMSCRIPTEN_KEEPALIVE int web_get_menu_summary_rows(void)
 {
     return ui_menu_get_summary_rows();
@@ -3577,6 +3620,47 @@ EMSCRIPTEN_KEEPALIVE int web_get_prompt_attrs_len(void)
 EMSCRIPTEN_KEEPALIVE unsigned int web_get_prompt_revision(void)
 {
     return ui_prompt_get_revision();
+}
+
+EMSCRIPTEN_KEEPALIVE int web_get_prompt_input_active(void)
+{
+    return ui_prompt_input_active() ? 1 : 0;
+}
+
+EMSCRIPTEN_KEEPALIVE uintptr_t web_get_prompt_input_text_ptr(void)
+{
+    return (uintptr_t)(const void*)ui_prompt_input_get_text();
+}
+
+EMSCRIPTEN_KEEPALIVE int web_get_prompt_input_text_len(void)
+{
+    return (int)strlen(ui_prompt_input_get_text());
+}
+
+EMSCRIPTEN_KEEPALIVE int web_get_prompt_input_max_length(void)
+{
+    return ui_prompt_input_get_max_length();
+}
+
+EMSCRIPTEN_KEEPALIVE int web_get_prompt_input_allow_random(void)
+{
+    return ui_prompt_input_get_allow_random() ? 1 : 0;
+}
+
+EMSCRIPTEN_KEEPALIVE unsigned int web_get_prompt_input_revision(void)
+{
+    return ui_prompt_input_get_revision();
+}
+
+EMSCRIPTEN_KEEPALIVE uintptr_t web_get_prompt_submit_text_ptr(void)
+{
+    return (uintptr_t)(void*)web_prompt_input_submission.text;
+}
+
+EMSCRIPTEN_KEEPALIVE int web_submit_prompt_input(void)
+{
+    web_prompt_input_submission.pending = TRUE;
+    return 1;
 }
 
 EMSCRIPTEN_KEEPALIVE int web_modal_activate(void)
