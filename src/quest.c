@@ -463,6 +463,42 @@ bool quests_handle_use_down_exit(int* new_depth)
     return (scenario_handle_use_down_exit(new_depth));
 }
 
+/* Trigger any quest-side escape-epilogue rules for the active quest. */
+void quests_handle_escape(void)
+{
+    scenario_handle_escape();
+}
+
+/* Trigger any quest-side start-song rules for the active quest. */
+bool quests_handle_start_song(void)
+{
+    return (scenario_handle_start_song());
+}
+
+/* Return whether the active intact oath would break on starting a song. */
+bool quests_current_oath_breaks_on_start_song(void)
+{
+    return (scenario_current_oath_breaks_on_start_song());
+}
+
+/* Return whether the active intact oath would warn on attacking this monster. */
+bool quests_current_oath_warns_on_attack(monster_type* m_ptr)
+{
+    return (scenario_current_oath_warns_on_attack(m_ptr));
+}
+
+/* Trigger any quest-side pre-attack rules for the active quest. */
+bool quests_handle_attack_monster(monster_type* m_ptr)
+{
+    return (scenario_handle_attack_monster(m_ptr));
+}
+
+/* Trigger any quest-side post-damage rules for the active quest. */
+void quests_handle_damage_monster(monster_type* m_ptr, int damage)
+{
+    scenario_handle_damage_monster(m_ptr, damage);
+}
+
 /* Mirror an externally broken truce back into the active quest flags. */
 void quests_note_truce_broken(void)
 {

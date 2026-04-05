@@ -35,12 +35,12 @@ V:1.5.1
 N:1:Tutorial
 D:Start from an exact exported tutorial scenario and learn the basics in a guided environment.
 G:-1
-S:SCENARIO:tutorial_scenario.txt
+S:SCENARIO:quests/tutorial_scenario.txt
 O:NONE
 F:NO_SAVE | NO_STAIRS_MONSTERS
 
 N:2:Main Game
 D:Create a fresh character, steal a Silmaril from Morgoth, and escape alive.
 G:0
-S:SCENARIO:quest/main_game.txt
+S:SCENARIO:quests/main_game.txt
 O:NONE

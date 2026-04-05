@@ -34,6 +34,8 @@
 #define SCENARIO_MAX_RULE_ACTIONS 8
 #define SCENARIO_MAX_NAME_LEN 32
 #define SCENARIO_MAX_FLAGS 32
+#define SCENARIO_MAX_OATHS 8
+#define SCENARIO_MAX_OATH_TEXT_LEN 160
 
 #define SCN_FLAG_LIT 0x01
 
@@ -48,6 +50,10 @@
 #define SCN_EVENT_ENTER_LEVEL 4
 #define SCN_EVENT_USE_UP_EXIT 5
 #define SCN_EVENT_USE_DOWN_EXIT 6
+#define SCN_EVENT_ESCAPE 7
+#define SCN_EVENT_START_SONG 8
+#define SCN_EVENT_ATTACK_MONSTER 9
+#define SCN_EVENT_DAMAGE_MONSTER 10
 
 #define SCN_ACTION_SET_FLAG 1
 #define SCN_ACTION_DISPLAY_TEXT 2
@@ -58,12 +64,22 @@
 #define SCN_ACTION_DENY_ACTION 7
 #define SCN_ACTION_SET_NEW_DEPTH 8
 #define SCN_ACTION_CREATE_STAIRS 9
+#define SCN_ACTION_ADD_NOTE 10
+#define SCN_ACTION_BREAK_OATH 11
 
 #define SCN_TERM_FLAG 1
 #define SCN_TERM_DEPTH 2
 #define SCN_TERM_NEW_DEPTH 3
 #define SCN_TERM_HAS_SILMARIL 4
-#define SCN_TERM_MORGOTH_SLAIN 5
+#define SCN_TERM_MONSTER_SLAIN 5
+#define SCN_TERM_HAS_ITEM 6
+#define SCN_TERM_CHOSEN_OATH 7
+#define SCN_TERM_OATH_BROKEN 8
+#define SCN_TERM_MONSTER_IS 9
+#define SCN_TERM_MONSTER_VISIBLE 10
+
+#define SCN_MONSTER_IS_MAN -1
+#define SCN_MONSTER_IS_ELF -2
 
 #define SCN_NOTE_TEXT_MAGIC 0x53430000UL
 #define SCN_NOTE_TEXT_MASK 0xFFFF0000UL
@@ -80,11 +96,13 @@ typedef struct scenario_floor_object scenario_floor_object;
 typedef struct scenario_floor_monster scenario_floor_monster;
 typedef struct scenario_grid_tag scenario_grid_tag;
 typedef struct scenario_text_block scenario_text_block;
+typedef struct scenario_oath scenario_oath;
 typedef struct scenario_rule_term scenario_rule_term;
 typedef struct scenario_rule_action scenario_rule_action;
 typedef struct scenario_rule scenario_rule;
 typedef struct scenario_event_context scenario_event_context;
 typedef struct scenario_event_result scenario_event_result;
+typedef struct scenario_rule_effects scenario_rule_effects;
 typedef struct scenario_state scenario_state;
 
 struct scenario_object_spec
@@ -316,12 +334,25 @@ struct scenario_text_block
     char text[SCENARIO_MAX_TEXT_LEN];
 };
 
+struct scenario_oath
+{
+    char name[SCENARIO_MAX_NAME_LEN];
+    char vow[SCENARIO_MAX_OATH_TEXT_LEN];
+    bool vow_set;
+    char restriction[SCENARIO_MAX_OATH_TEXT_LEN];
+    bool restriction_set;
+    byte reward_stat;
+    s16b reward_amount;
+    bool reward_stat_set;
+};
+
 struct scenario_rule_term
 {
     byte kind;
     byte flag_idx;
     bool expected;
     s16b value;
+    s16b extra;
 };
 
 struct scenario_rule_action
@@ -353,8 +384,8 @@ struct scenario_event_context
     int depth;
     int new_depth;
     int monster_idx;
+    bool monster_visible;
     bool has_silmaril;
-    bool morgoth_slain;
 };
 
 struct scenario_event_result
@@ -370,6 +401,30 @@ struct scenario_event_result
     byte text_idx[SCENARIO_MAX_RULES];
     int message_count;
     byte message_idx[SCENARIO_MAX_RULES];
+    int note_count;
+    byte note_idx[SCENARIO_MAX_RULES];
+};
+
+struct scenario_rule_effects
+{
+    bool end_game;
+    bool deny_action;
+    int prompt_text_idx;
+    bool new_depth_set;
+    s16b new_depth;
+    bool create_stair_set;
+    s16b create_stair;
+    bool break_oath;
+    int text_count;
+    byte text_idx[SCENARIO_MAX_RULE_ACTIONS];
+    int message_count;
+    byte message_idx[SCENARIO_MAX_RULE_ACTIONS];
+    int note_count;
+    byte note_idx[SCENARIO_MAX_RULE_ACTIONS];
+    int set_flag_count;
+    byte set_flag_idx[SCENARIO_MAX_RULE_ACTIONS];
+    int clear_flag_count;
+    byte clear_flag_idx[SCENARIO_MAX_RULE_ACTIONS];
 };
 
 struct scenario_state
@@ -462,6 +517,9 @@ struct scenario_state
     int text_count;
     scenario_text_block texts[SCENARIO_MAX_TEXTS];
 
+    int oath_count;
+    scenario_oath oaths[SCENARIO_MAX_OATHS];
+
     int rule_count;
     scenario_rule rules[SCENARIO_MAX_RULES];
 
@@ -484,6 +542,9 @@ static char scenario_warning[160];
 
 static int scenario_default_start_exp(void);
 static bool scenario_grid_has_tag(int y, int x, cptr tag);
+static void scenario_show_text_block(int text_idx);
+static void scenario_show_message_block(int text_idx);
+static void scenario_add_note_block(int text_idx);
 
 static bool scenario_fail(int line, cptr message)
 {
@@ -770,6 +831,21 @@ static int scenario_lookup_monster(cptr token)
     return (0);
 }
 
+/* Resolve one monster selector token for monster-related rule predicates. */
+static int scenario_lookup_monster_selector(cptr token)
+{
+    int r_idx = scenario_lookup_monster(token);
+
+    if (r_idx > 0)
+        return (r_idx);
+    if (!my_stricmp(token, "Man"))
+        return (SCN_MONSTER_IS_MAN);
+    if (!my_stricmp(token, "Elf"))
+        return (SCN_MONSTER_IS_ELF);
+
+    return (0);
+}
+
 static int scenario_lookup_object(cptr token)
 {
     int i;
@@ -829,6 +905,76 @@ static int scenario_lookup_feature(cptr token)
     return (-1);
 }
 
+/* Intern one scenario-local oath name so rules can reference it by index. */
+static int scenario_intern_oath(cptr token, int line)
+{
+    int i;
+    char local[64];
+    cptr name;
+
+    if (!token || !token[0] || !my_stricmp(token, "None"))
+        return (0);
+
+    my_strcpy(local, token, sizeof(local));
+    name = scenario_trim(local);
+    if (!name[0])
+        return (scenario_fail(line, "Missing oath name."));
+
+    for (i = 0; i < scenario.oath_count; i++)
+    {
+        if (!my_stricmp(name, scenario.oaths[i].name))
+            return (i + 1);
+    }
+
+    if (scenario.oath_count >= SCENARIO_MAX_OATHS)
+    {
+        scenario_fail(line, "Too many oath definitions.");
+        return (-1);
+    }
+
+    my_strcpy(scenario.oaths[scenario.oath_count].name, name,
+        sizeof(scenario.oaths[scenario.oath_count].name));
+    scenario.oath_count++;
+    return (scenario.oath_count);
+}
+
+/* Return whether the player has slain at least one monster of one race. */
+static bool scenario_monster_has_been_slain(int r_idx)
+{
+    if ((r_idx <= 0) || (r_idx >= z_info->r_max))
+        return (FALSE);
+
+    return (l_list[r_idx].pkills > 0);
+}
+
+/* Return whether one monster context matches a parsed monster selector. */
+static bool scenario_monster_matches(
+    const scenario_event_context* context, int selector)
+{
+    monster_type* m_ptr;
+    monster_race* r_ptr;
+
+    if (!context || (context->monster_idx <= 0)
+        || (context->monster_idx >= mon_max))
+    {
+        return (FALSE);
+    }
+
+    m_ptr = &mon_list[context->monster_idx];
+    if (!m_ptr->r_idx)
+        return (FALSE);
+
+    r_ptr = &r_info[m_ptr->r_idx];
+    if (selector > 0)
+        return (m_ptr->r_idx == selector);
+    if (selector == SCN_MONSTER_IS_MAN)
+        return ((r_ptr->flags3 & RF3_MAN) != 0);
+    if (selector == SCN_MONSTER_IS_ELF)
+        return ((r_ptr->flags3 & RF3_ELF) != 0);
+
+    return (FALSE);
+}
+
 /* Parse one CREATE_STAIRS value into a deferred return-stair feature. */
 static bool scenario_parse_create_stairs_value(cptr token, s16b* feat)
 {
@@ -877,6 +1023,69 @@ static bool scenario_parse_create_stairs_value(cptr token, s16b* feat)
     }
 
     return (FALSE);
+}
+
+/* Parse the arguments of one has_item(object[,amount]) rule term. */
+static bool scenario_parse_has_item_args(
+    cptr token, s16b* k_idx, s16b* amount, int line)
+{
+    char local[128];
+    char* open;
+    char* close;
+    char* comma;
+    long parsed_amount = 1;
+    int parsed_kind;
+
+    if (!token || !k_idx || !amount)
+        return (scenario_fail(line, "Invalid has_item condition."));
+
+    my_strcpy(local, token, sizeof(local));
+    open = strchr(local, '(');
+    close = strrchr(local, ')');
+
+    if (!open || !close || (close < open))
+        return (scenario_fail(line, "Malformed has_item condition."));
+
+    *close = '\0';
+    open++;
+    comma = strrchr(open, ',');
+    if (comma)
+    {
+        *comma++ = '\0';
+        comma = scenario_trim(comma);
+        if (!scenario_parse_int(comma, &parsed_amount) || (parsed_amount <= 0))
+            return (scenario_fail(line, "Invalid has_item amount."));
+    }
+
+    parsed_kind = scenario_lookup_object(scenario_trim(open));
+    if (parsed_kind <= 0)
+        return (scenario_fail(line, "Unknown object in has_item condition."));
+
+    *k_idx = (s16b)parsed_kind;
+    *amount = (s16b)parsed_amount;
+    return (TRUE);
+}
+
+/* Count how many carried or equipped items match one object kind. */
+static int scenario_count_item_kind(int k_idx)
+{
+    int i;
+    int count = 0;
+
+    if (k_idx <= 0)
+        return (0);
+
+    for (i = 0; i < INVEN_TOTAL; i++)
+    {
+        object_type* o_ptr = &inventory[i];
+
+        if (!o_ptr->k_idx || (o_ptr->k_idx != k_idx))
+            continue;
+
+        count += (o_ptr->number > 0) ? o_ptr->number : 1;
+    }
+
+    return (count);
 }
 
 static int scenario_lookup_slot(cptr token)
@@ -1151,6 +1360,115 @@ static bool scenario_append_text_line(cptr name_token, cptr text_line, int line)
     return (TRUE);
 }
 
+/* Parse one OATH:name:field:value directive into the pending oath catalog. */
+static bool scenario_parse_oath(cptr token, int line)
+{
+    char local[512];
+    char* first;
+    char* second;
+    char* name;
+    char* field;
+    char* value;
+    char* parts[3];
+    int count;
+    int oath_idx;
+    int stat_idx;
+    long amount;
+    scenario_oath* oath;
+
+    if (!token || !token[0])
+        return (scenario_fail(line, "Malformed oath directive."));
+
+    my_strcpy(local, token, sizeof(local));
+    first = strchr(local, ':');
+    if (!first)
+        return (scenario_fail(line, "Malformed oath directive."));
+    *first++ = '\0';
+
+    second = strchr(first, ':');
+    if (!second)
+        return (scenario_fail(line, "Malformed oath directive."));
+    *second++ = '\0';
+
+    name = scenario_trim(local);
+    field = scenario_trim(first);
+    value = scenario_trim(second);
+    if (!name[0] || !field[0] || !value[0])
+        return (scenario_fail(line, "Malformed oath directive."));
+
+    oath_idx = scenario_intern_oath(name, line);
+    if (oath_idx < 0)
+        return (FALSE);
+    if (oath_idx == 0)
+        return (scenario_fail(line, "Oath name cannot be None."));
+
+    oath = &scenario.oaths[oath_idx - 1];
+    if (!my_stricmp(field, "VOW"))
+    {
+        my_strcpy(oath->vow, value, sizeof(oath->vow));
+        oath->vow_set = TRUE;
+        return (TRUE);
+    }
+
+    if (!my_stricmp(field, "RESTRICTION"))
+    {
+        my_strcpy(
+            oath->restriction, value, sizeof(oath->restriction));
+        oath->restriction_set = TRUE;
+        return (TRUE);
+    }
+
+    if (!my_stricmp(field, "REWARD_STAT"))
+    {
+        count = scenario_split(value, parts, 3);
+        if (count < 2)
+            return (scenario_fail(line, "REWARD_STAT needs a stat and amount."));
+
+        stat_idx = scenario_lookup_stat(scenario_trim(parts[0]));
+        if ((stat_idx < 0)
+            || !scenario_parse_int(scenario_trim(parts[1]), &amount)
+            || (amount == 0))
+        {
+            return (scenario_fail(line, "Invalid oath stat reward."));
+        }
+
+        oath->reward_stat = (byte)stat_idx;
+        oath->reward_amount = (s16b)amount;
+        oath->reward_stat_set = TRUE;
+        return (TRUE);
+    }
+
+    return (scenario_fail(line, "Unknown oath directive."));
+}
+
+/* Validate and activate the pending oath catalog for the loaded scenario. */
+static bool scenario_activate_oaths(void)
+{
+    int i;
+
+    oath_clear_catalog();
+
+    for (i = 0; i < scenario.oath_count; i++)
+    {
+        scenario_oath* oath = &scenario.oaths[i];
+
+        if (!oath->name[0] || !oath->vow_set || !oath->restriction_set
+            || !oath->reward_stat_set)
+        {
+            return (
+                scenario_fail(0, "Each defined oath needs vow, restriction, and reward."));
+        }
+
+        if (!oath_add_definition(oath->name, oath->vow, oath->restriction,
+                oath->reward_stat, oath->reward_amount))
+        {
+            return (scenario_fail(0, "Failed to activate one oath definition."));
+        }
+    }
+
+    return (TRUE);
+}
+
 /* Resolve one scenario rule event token. */
 static int scenario_lookup_event(cptr token)
 {
@@ -1164,6 +1482,14 @@ static int scenario_lookup_event(cptr token)
         return (SCN_EVENT_USE_UP_EXIT);
     if (!my_stricmp(token, "USE_DOWN_EXIT"))
         return (SCN_EVENT_USE_DOWN_EXIT);
+    if (!my_stricmp(token, "ESCAPE"))
+        return (SCN_EVENT_ESCAPE);
+    if (!my_stricmp(token, "START_SONG"))
+        return (SCN_EVENT_START_SONG);
+    if (!my_stricmp(token, "ATTACK_MONSTER"))
+        return (SCN_EVENT_ATTACK_MONSTER);
+    if (!my_stricmp(token, "DAMAGE_MONSTER"))
+        return (SCN_EVENT_DAMAGE_MONSTER);
     if (!my_stricmp(token, "DEATH"))
         return (SCN_EVENT_DEATH);
 
@@ -1174,8 +1500,10 @@ static int scenario_lookup_event(cptr token)
 static bool scenario_parse_rule_term(
     scenario_rule* rule, cptr token, int line)
 {
-    char local[128];
+    char local[256];
     char* trimmed;
+    char* open;
+    char* close;
     char* eq;
     long value;
     int flag_idx;
@@ -1200,6 +1528,112 @@ static bool scenario_parse_rule_term(
 
     if (!trimmed[0])
         return (scenario_fail(line, "Invalid rule condition."));
+
+    if (!my_strnicmp(trimmed, "has_item(", 9))
+    {
+        term->kind = SCN_TERM_HAS_ITEM;
+        if (!scenario_parse_has_item_args(trimmed, &term->value, &term->extra, line))
+            return (FALSE);
+
+        rule->when_count++;
+        return (TRUE);
+    }
+
+    if (!my_strnicmp(trimmed, "has_silmaril(", 13))
+    {
+        open = strchr(trimmed, '(');
+        close = strrchr(trimmed, ')');
+        if (!open || !close || (close != open + 1))
+            return (scenario_fail(line, "Malformed has_silmaril() condition."));
+
+        term->kind = SCN_TERM_HAS_SILMARIL;
+        rule->when_count++;
+        return (TRUE);
+    }
+
+    if (!my_strnicmp(trimmed, "monster_slain(", 14))
+    {
+        int r_idx;
+
+        open = strchr(trimmed, '(');
+        close = strrchr(trimmed, ')');
+        if (!open || !close || (close <= open + 1))
+            return (scenario_fail(line, "Malformed monster_slain() condition."));
+
+        *close = '\0';
+        r_idx = scenario_lookup_monster(scenario_trim(open + 1));
+        if (r_idx <= 0)
+            return (scenario_fail(line, "Unknown monster in monster_slain()."));
+
+        term->kind = SCN_TERM_MONSTER_SLAIN;
+        term->value = (s16b)r_idx;
+        rule->when_count++;
+        return (TRUE);
+    }
+
+    if (!my_strnicmp(trimmed, "chosen_oath(", 12))
+    {
+        int oath_idx;
+
+        open = strchr(trimmed, '(');
+        close = strrchr(trimmed, ')');
+        if (!open || !close || (close <= open + 1))
+            return (scenario_fail(line, "Malformed chosen_oath() condition."));
+
+        *close = '\0';
+        oath_idx = scenario_intern_oath(scenario_trim(open + 1), line);
+        if (oath_idx < 0)
+            return (FALSE);
+
+        term->kind = SCN_TERM_CHOSEN_OATH;
+        term->value = (s16b)oath_idx;
+        rule->when_count++;
+        return (TRUE);
+    }
+
+    if (!my_strnicmp(trimmed, "oath_broken(", 12))
+    {
+        open = strchr(trimmed, '(');
+        close = strrchr(trimmed, ')');
+        if (!open || !close || (close != open + 1))
+            return (scenario_fail(line, "Malformed oath_broken() condition."));
+
+        term->kind = SCN_TERM_OATH_BROKEN;
+        rule->when_count++;
+        return (TRUE);
+    }
+
+    if (!my_strnicmp(trimmed, "monster_is(", 11))
+    {
+        int selector;
+
+        open = strchr(trimmed, '(');
+        close = strrchr(trimmed, ')');
+        if (!open || !close || (close <= open + 1))
+            return (scenario_fail(line, "Malformed monster_is() condition."));
+
+        *close = '\0';
+        selector = scenario_lookup_monster_selector(scenario_trim(open + 1));
+        if (!selector)
+            return (scenario_fail(line, "Unknown monster selector in monster_is()."));
+
+        term->kind = SCN_TERM_MONSTER_IS;
+        term->value = (s16b)selector;
+        rule->when_count++;
+        return (TRUE);
+    }
+
+    if (!my_strnicmp(trimmed, "monster_visible(", 16))
+    {
+        open = strchr(trimmed, '(');
+        close = strrchr(trimmed, ')');
+        if (!open || !close || (close != open + 1))
+            return (scenario_fail(line, "Malformed monster_visible() condition."));
+
+        term->kind = SCN_TERM_MONSTER_VISIBLE;
+        rule->when_count++;
+        return (TRUE);
+    }
 
     eq = strchr(trimmed, '=');
     if (eq)
@@ -1232,20 +1666,6 @@ static bool scenario_parse_rule_term(
         return (scenario_fail(line, "Unknown rule condition."));
     }
 
-    if (!my_stricmp(trimmed, "has_silmaril"))
-    {
-        term->kind = SCN_TERM_HAS_SILMARIL;
-        rule->when_count++;
-        return (TRUE);
-    }
-
-    if (!my_stricmp(trimmed, "morgoth_slain"))
-    {
-        term->kind = SCN_TERM_MORGOTH_SLAIN;
-        rule->when_count++;
-        return (TRUE);
-    }
-
     flag_idx = scenario_intern_flag(trimmed, line);
     if (flag_idx < 0)
         return (FALSE);
@@ -1262,24 +1682,37 @@ static bool scenario_parse_rule_when(
 {
     char local[256];
     char* part = NULL;
-    char* next = NULL;
+    char* cursor = NULL;
+    int depth = 0;
 
     if (!token || !token[0])
         return (scenario_fail(line, "Missing rule condition."));
 
     my_strcpy(local, token, sizeof(local));
     part = local;
+    cursor = local;
 
-    while (part)
+    while (TRUE)
     {
-        next = strchr(part, ',');
-        if (next)
-            *next++ = '\0';
+        if (*cursor == '(')
+            depth++;
+        else if ((*cursor == ')') && (depth > 0))
+            depth--;
 
-        if (!scenario_parse_rule_term(rule, scenario_trim(part), line))
-            return (FALSE);
+        if (((*cursor == ',') && (depth == 0)) || (*cursor == '\0'))
+        {
+            char saved = *cursor;
 
-        part = next;
+            *cursor = '\0';
+            if (!scenario_parse_rule_term(rule, scenario_trim(part), line))
+                return (FALSE);
+            if (!saved)
+                break;
+
+            part = cursor + 1;
+        }
+
+        cursor++;
     }
 
     return (TRUE);
@@ -1314,6 +1747,13 @@ static bool scenario_parse_rule_action(
         return (TRUE);
     }
 
+    if (!my_stricmp(token, "BREAK_OATH"))
+    {
+        rule->actions[rule->action_count].kind = SCN_ACTION_BREAK_OATH;
+        rule->action_count++;
+        return (TRUE);
+    }
+
     my_strcpy(local, token, sizeof(local));
     eq = strchr(local, '=');
     if (!eq)
@@ -1339,6 +1779,18 @@ static bool scenario_parse_rule_action(
             return (FALSE);
 
         rule->actions[rule->action_count].kind = SCN_ACTION_DISPLAY_TEXT;
+        rule->actions[rule->action_count].text_idx = (byte)idx;
+        rule->action_count++;
+        return (TRUE);
+    }
+
+    if (!my_stricmp(scenario_trim(local), "ADD_NOTE"))
+    {
+        idx = scenario_intern_text(scenario_trim(eq), line);
+        if (idx < 0)
+            return (FALSE);
+
+        rule->actions[rule->action_count].kind = SCN_ACTION_ADD_NOTE;
         rule->actions[rule->action_count].text_idx = (byte)idx;
         rule->action_count++;
         return (TRUE);
@@ -3157,8 +3609,23 @@ static bool scenario_rule_when_matches(
         case SCN_TERM_HAS_SILMARIL:
             actual = context->has_silmaril;
             break;
-        case SCN_TERM_MORGOTH_SLAIN:
-            actual = context->morgoth_slain;
+        case SCN_TERM_MONSTER_SLAIN:
+            actual = scenario_monster_has_been_slain(term->value);
+            break;
+        case SCN_TERM_HAS_ITEM:
+            actual = (scenario_count_item_kind(term->value) >= term->extra);
+            break;
+        case SCN_TERM_CHOSEN_OATH:
+            actual = chosen_oath(term->value);
+            break;
+        case SCN_TERM_OATH_BROKEN:
+            actual = oath_broken_current();
+            break;
+        case SCN_TERM_MONSTER_IS:
+            actual = scenario_monster_matches(context, term->value);
+            break;
+        case SCN_TERM_MONSTER_VISIBLE:
+            actual = context->monster_visible;
             break;
         default:
             return (FALSE);
@@ -3171,9 +3638,9 @@ static bool scenario_rule_when_matches(
     return (TRUE);
 }
 
-/* Queue or apply the effects from one matching scenario rule. */
+/* Queue the effects from one matching scenario rule for later commit. */
 static void scenario_apply_rule_actions(
-    const scenario_rule* rule, scenario_event_result* result)
+    const scenario_rule* rule, scenario_rule_effects* effects)
 {
     int i;
 
@@ -3183,47 +3650,122 @@ static void scenario_apply_rule_actions(
 
         if (action->kind == SCN_ACTION_SET_FLAG)
         {
-            scenario_set_flag(action->flag_idx, TRUE);
-            scenario_sync_player_state();
+            if (effects->set_flag_count < (int)N_ELEMENTS(effects->set_flag_idx))
+                effects->set_flag_idx[effects->set_flag_count++]
+                    = action->flag_idx;
         }
         else if (action->kind == SCN_ACTION_CLEAR_FLAG)
         {
-            scenario_set_flag(action->flag_idx, FALSE);
-            scenario_sync_player_state();
+            if (effects->clear_flag_count
+                < (int)N_ELEMENTS(effects->clear_flag_idx))
+            {
+                effects->clear_flag_idx[effects->clear_flag_count++]
+                    = action->flag_idx;
+            }
         }
         else if (action->kind == SCN_ACTION_DISPLAY_TEXT)
         {
-            if (result->text_count < (int)N_ELEMENTS(result->text_idx))
-                result->text_idx[result->text_count++] = action->text_idx;
+            if (effects->text_count < (int)N_ELEMENTS(effects->text_idx))
+                effects->text_idx[effects->text_count++] = action->text_idx;
         }
         else if (action->kind == SCN_ACTION_DISPLAY_MESSAGE)
         {
-            if (result->message_count < (int)N_ELEMENTS(result->message_idx))
-                result->message_idx[result->message_count++] = action->text_idx;
+            if (effects->message_count < (int)N_ELEMENTS(effects->message_idx))
+                effects->message_idx[effects->message_count++] = action->text_idx;
+        }
+        else if (action->kind == SCN_ACTION_ADD_NOTE)
+        {
+            if (effects->note_count < (int)N_ELEMENTS(effects->note_idx))
+                effects->note_idx[effects->note_count++] = action->text_idx;
         }
         else if (action->kind == SCN_ACTION_CONFIRM_TEXT)
         {
-            result->prompt_text_idx = action->text_idx;
+            effects->prompt_text_idx = action->text_idx;
         }
         else if (action->kind == SCN_ACTION_SET_NEW_DEPTH)
         {
-            result->new_depth = action->value;
-            result->new_depth_set = TRUE;
+            effects->new_depth = action->value;
+            effects->new_depth_set = TRUE;
         }
         else if (action->kind == SCN_ACTION_CREATE_STAIRS)
         {
-            result->create_stair = action->value;
-            result->create_stair_set = TRUE;
+            effects->create_stair = action->value;
+            effects->create_stair_set = TRUE;
         }
         else if (action->kind == SCN_ACTION_DENY_ACTION)
         {
-            result->deny_action = TRUE;
+            effects->deny_action = TRUE;
         }
         else if (action->kind == SCN_ACTION_END_GAME)
         {
-            result->end_game = TRUE;
+            effects->end_game = TRUE;
+        }
+        else if (action->kind == SCN_ACTION_BREAK_OATH)
+        {
+            effects->break_oath = TRUE;
         }
     }
+}
+
+/* Show one rule's queued message and text blocks before confirmation. */
+static void scenario_show_rule_effects(const scenario_rule_effects* effects)
+{
+    int i;
+
+    if (!effects)
+        return;
+
+    for (i = 0; i < effects->message_count; i++)
+        scenario_show_message_block(effects->message_idx[i]);
+    for (i = 0; i < effects->text_count; i++)
+        scenario_show_text_block(effects->text_idx[i]);
+}
+
+/* Commit one rule's queued side effects after any confirmation succeeds. */
+static void scenario_commit_rule_effects(
+    const scenario_rule_effects* effects, scenario_event_result* result)
+{
+    int i;
+    bool sync_player = FALSE;
+
+    if (!effects || !result)
+        return;
+
+    for (i = 0; i < effects->set_flag_count; i++)
+    {
+        scenario_set_flag(effects->set_flag_idx[i], TRUE);
+        sync_player = TRUE;
+    }
+
+    for (i = 0; i < effects->clear_flag_count; i++)
+    {
+        scenario_set_flag(effects->clear_flag_idx[i], FALSE);
+        sync_player = TRUE;
+    }
+
+    if (sync_player)
+        scenario_sync_player_state();
+
+    if (effects->break_oath)
+        (void)oath_break_current();
+
+    for (i = 0; i < effects->note_count; i++)
+        scenario_add_note_block(effects->note_idx[i]);
+
+    if (effects->new_depth_set)
+    {
+        result->new_depth = effects->new_depth;
+        result->new_depth_set = TRUE;
+    }
+    if (effects->create_stair_set)
+    {
+        result->create_stair = effects->create_stair;
+        result->create_stair_set = TRUE;
+    }
+    if (effects->deny_action)
+        result->deny_action = TRUE;
+    if (effects->end_game)
+        result->end_game = TRUE;
 }
 
 /* Show one named scenario text block using raw embedded line breaks. */
@@ -3313,6 +3855,37 @@ static void scenario_show_message_block(int text_idx)
     }
 }
 
+/* Append one named scenario text block to the run notes chronicle. */
+static void scenario_add_note_block(int text_idx)
+{
+    cptr s;
+
+    if ((text_idx < 0) || (text_idx >= scenario.text_count))
+        return;
+
+    s = scenario.texts[text_idx].text;
+    if (!s[0])
+        return;
+
+    while (*s)
+    {
+        char line[160];
+        int len = 0;
+
+        while (s[len] && (s[len] != '\n') && (len < (int)sizeof(line) - 1))
+            len++;
+
+        memcpy(line, s, len);
+        line[len] = '\0';
+        do_cmd_note(line, p_ptr->depth);
+
+        if (s[len] == '\n')
+            s += len + 1;
+        else
+            s += len;
+    }
+}
+
 /* Flatten one scenario text block into a one-line confirmation prompt. */
 static cptr scenario_prompt_text(int text_idx, char* buf, size_t len)
 {
@@ -3354,6 +3927,8 @@ static bool scenario_rule_tag_matches(
     switch (context->event)
     {
     case SCN_EVENT_SEE_MONSTER:
+    case SCN_EVENT_ATTACK_MONSTER:
+    case SCN_EVENT_DAMAGE_MONSTER:
         if ((context->monster_idx <= 0) || (context->monster_idx >= MAX_MONSTERS))
             return (FALSE);
         return (!my_stricmp(rule->tag, scenario_monster_tags[context->monster_idx]));
@@ -3373,11 +3948,11 @@ static scenario_event_result scenario_handle_event(
     const scenario_event_context* context)
 {
     scenario_event_result result;
+    scenario_rule_effects effects;
     int i;
     char prompt[256];
 
     WIPE(&result, scenario_event_result);
-    result.prompt_text_idx = -1;
 
     if (!scenario.loaded || !context)
         return (result);
@@ -3393,19 +3968,21 @@ static scenario_event_result scenario_handle_event(
         if (!scenario_rule_when_matches(rule, context))
             continue;
 
-        scenario_apply_rule_actions(rule, &result);
-    }
+        WIPE(&effects, scenario_rule_effects);
+        effects.prompt_text_idx = -1;
 
-    for (i = 0; i < result.message_count; i++)
-        scenario_show_message_block(result.message_idx[i]);
-    for (i = 0; i < result.text_count; i++)
-        scenario_show_text_block(result.text_idx[i]);
+        scenario_apply_rule_actions(rule, &effects);
+        scenario_show_rule_effects(&effects);
 
-    if ((result.prompt_text_idx >= 0)
-        && !get_check(
-            scenario_prompt_text(result.prompt_text_idx, prompt, sizeof(prompt))))
-    {
-        result.deny_action = TRUE;
+        if ((effects.prompt_text_idx >= 0)
+            && !get_check(scenario_prompt_text(
+                effects.prompt_text_idx, prompt, sizeof(prompt))))
+        {
+            result.deny_action = TRUE;
+            break;
+        }
+
+        scenario_commit_rule_effects(&effects, &result);
     }
 
     return (result);
@@ -3424,6 +4001,26 @@ static bool scenario_finish_game_if_needed(const scenario_event_result* result)
     return (TRUE);
 }
 
+/* Seed the shared parts of one scenario event context from the live player. */
+static void scenario_prepare_event_context(
+    scenario_event_context* context, int event)
+{
+    if (!context)
+        return;
+
+    WIPE(context, scenario_event_context);
+    context->event = (byte)event;
+
+    if (!p_ptr)
+        return;
+
+    context->y = p_ptr->py;
+    context->x = p_ptr->px;
+    context->depth = p_ptr->depth;
+    context->new_depth = p_ptr->depth;
+    context->has_silmaril = (silmarils_possessed() > 0);
+}
+
 /* Trigger any ENTER_LEVEL rules for the current scenario. */
 void scenario_handle_enter_level(void)
 {
@@ -3433,14 +4030,7 @@ void scenario_handle_enter_level(void)
     if (!scenario.loaded || !p_ptr)
         return;
 
-    WIPE(&context, scenario_event_context);
-    context.event = SCN_EVENT_ENTER_LEVEL;
-    context.y = p_ptr->py;
-    context.x = p_ptr->px;
-    context.depth = p_ptr->depth;
-    context.new_depth = p_ptr->depth;
-    context.has_silmaril = (silmarils_possessed() > 0);
-    context.morgoth_slain = p_ptr->morgoth_slain ? TRUE : FALSE;
+    scenario_prepare_event_context(&context, SCN_EVENT_ENTER_LEVEL);
 
     result = scenario_handle_event(&context);
     (void)scenario_finish_game_if_needed(&result);
@@ -3476,13 +4066,9 @@ void scenario_handle_monster_seen(monster_type* m_ptr)
     if (!scenario.loaded || !m_ptr || !m_ptr->r_idx)
         return;
 
-    WIPE(&context, scenario_event_context);
-    context.event = SCN_EVENT_SEE_MONSTER;
-    context.depth = p_ptr->depth;
-    context.new_depth = p_ptr->depth;
+    scenario_prepare_event_context(&context, SCN_EVENT_SEE_MONSTER);
     context.monster_idx = (int)(m_ptr - mon_list);
-    context.has_silmaril = (silmarils_possessed() > 0);
-    context.morgoth_slain = p_ptr->morgoth_slain ? TRUE : FALSE;
+    context.monster_visible = m_ptr->ml ? TRUE : FALSE;
 
     result = scenario_handle_event(&context);
     (void)scenario_finish_game_if_needed(&result);
@@ -3497,14 +4083,9 @@ bool scenario_handle_use_exit(int y, int x)
     if (!scenario.loaded || !p_ptr)
         return (FALSE);
 
-    WIPE(&context, scenario_event_context);
-    context.event = SCN_EVENT_USE_EXIT;
+    scenario_prepare_event_context(&context, SCN_EVENT_USE_EXIT);
     context.y = y;
     context.x = x;
-    context.depth = p_ptr->depth;
-    context.new_depth = p_ptr->depth;
-    context.has_silmaril = (silmarils_possessed() > 0);
-    context.morgoth_slain = p_ptr->morgoth_slain ? TRUE : FALSE;
 
     result = scenario_handle_event(&context);
     if (scenario_finish_game_if_needed(&result))
@@ -3522,14 +4103,8 @@ bool scenario_handle_use_up_exit(void)
     if (!scenario.loaded || !p_ptr)
         return (FALSE);
 
-    WIPE(&context, scenario_event_context);
-    context.event = SCN_EVENT_USE_UP_EXIT;
-    context.y = p_ptr->py;
-    context.x = p_ptr->px;
-    context.depth = p_ptr->depth;
+    scenario_prepare_event_context(&context, SCN_EVENT_USE_UP_EXIT);
     context.new_depth = p_ptr->depth - 1;
-    context.has_silmaril = (silmarils_possessed() > 0);
-    context.morgoth_slain = p_ptr->morgoth_slain ? TRUE : FALSE;
 
     result = scenario_handle_event(&context);
     if (scenario_finish_game_if_needed(&result))
@@ -3554,14 +4129,8 @@ bool scenario_handle_use_down_exit(int* new_depth)
     if (!scenario.loaded || !p_ptr)
         return (FALSE);
 
-    WIPE(&context, scenario_event_context);
-    context.event = SCN_EVENT_USE_DOWN_EXIT;
-    context.y = p_ptr->py;
-    context.x = p_ptr->px;
-    context.depth = p_ptr->depth;
+    scenario_prepare_event_context(&context, SCN_EVENT_USE_DOWN_EXIT);
     context.new_depth = new_depth ? *new_depth : p_ptr->depth + 1;
-    context.has_silmaril = (silmarils_possessed() > 0);
-    context.morgoth_slain = p_ptr->morgoth_slain ? TRUE : FALSE;
 
     result = scenario_handle_event(&context);
     if (scenario_finish_game_if_needed(&result))
@@ -3588,12 +4157,153 @@ void scenario_handle_death(void)
     if (!scenario.loaded)
         return;
 
-    WIPE(&context, scenario_event_context);
-    context.event = SCN_EVENT_DEATH;
-    context.depth = p_ptr->depth;
-    context.new_depth = p_ptr->depth;
-    context.has_silmaril = (silmarils_possessed() > 0);
-    context.morgoth_slain = p_ptr->morgoth_slain ? TRUE : FALSE;
+    scenario_prepare_event_context(&context, SCN_EVENT_DEATH);
+
+    result = scenario_handle_event(&context);
+    (void)scenario_finish_game_if_needed(&result);
+}
+
+/* Trigger ESCAPE rules for the current scenario during the escape epilogue. */
+void scenario_handle_escape(void)
+{
+    scenario_event_context context;
+    scenario_event_result result;
+
+    if (!scenario.loaded)
+        return;
+
+    scenario_prepare_event_context(&context, SCN_EVENT_ESCAPE);
+
+    result = scenario_handle_event(&context);
+    (void)scenario_finish_game_if_needed(&result);
+}
+
+/* Trigger START_SONG rules before the player begins singing. */
+bool scenario_handle_start_song(void)
+{
+    scenario_event_context context;
+    scenario_event_result result;
+
+    if (!scenario.loaded || !p_ptr)
+        return (FALSE);
+
+    scenario_prepare_event_context(&context, SCN_EVENT_START_SONG);
+    result = scenario_handle_event(&context);
+    if (scenario_finish_game_if_needed(&result))
+        return (TRUE);
+
+    return (result.deny_action);
+}
+
+/* Return whether the active intact oath would break on START_SONG right now. */
+bool scenario_current_oath_breaks_on_start_song(void)
+{
+    scenario_event_context context;
+    int i;
+
+    if (!scenario.loaded || !p_ptr || (p_ptr->oath_type <= 0)
+        || oath_invalid(p_ptr->oath_type))
+    {
+        return (FALSE);
+    }
+
+    scenario_prepare_event_context(&context, SCN_EVENT_START_SONG);
+
+    for (i = 0; i < scenario.rule_count; i++)
+    {
+        int j;
+        scenario_rule* rule = &scenario.rules[i];
+
+        if (rule->event != SCN_EVENT_START_SONG)
+            continue;
+        if (!scenario_rule_tag_matches(rule, &context))
+            continue;
+        if (!scenario_rule_when_matches(rule, &context))
+            continue;
+
+        for (j = 0; j < rule->action_count; j++)
+        {
+            if (rule->actions[j].kind == SCN_ACTION_BREAK_OATH)
+                return (TRUE);
+        }
+    }
+
+    return (FALSE);
+}
+
+/* Return whether the active intact oath would warn or break on one attack. */
+bool scenario_current_oath_warns_on_attack(monster_type* m_ptr)
+{
+    scenario_event_context context;
+    int i;
+
+    if (!scenario.loaded || !p_ptr || (p_ptr->oath_type <= 0)
+        || oath_invalid(p_ptr->oath_type) || !m_ptr || !m_ptr->r_idx)
+    {
+        return (FALSE);
+    }
+
+    scenario_prepare_event_context(&context, SCN_EVENT_ATTACK_MONSTER);
+    context.monster_idx = (int)(m_ptr - mon_list);
+    context.monster_visible = m_ptr->ml ? TRUE : FALSE;
+
+    for (i = 0; i < scenario.rule_count; i++)
+    {
+        int j;
+        scenario_rule* rule = &scenario.rules[i];
+
+        if (rule->event != SCN_EVENT_ATTACK_MONSTER)
+            continue;
+        if (!scenario_rule_tag_matches(rule, &context))
+            continue;
+        if (!scenario_rule_when_matches(rule, &context))
+            continue;
+
+        for (j = 0; j < rule->action_count; j++)
+        {
+            if ((rule->actions[j].kind == SCN_ACTION_CONFIRM_TEXT)
+                || (rule->actions[j].kind == SCN_ACTION_BREAK_OATH))
+            {
+                return (TRUE);
+            }
+        }
+    }
+
+    return (FALSE);
+}
+
+/* Trigger ATTACK_MONSTER rules before resolving one melee attack. */
+bool scenario_handle_attack_monster(monster_type* m_ptr)
+{
+    scenario_event_context context;
+    scenario_event_result result;
+
+    if (!scenario.loaded || !m_ptr || !m_ptr->r_idx)
+        return (FALSE);
+
+    scenario_prepare_event_context(&context, SCN_EVENT_ATTACK_MONSTER);
+    context.monster_idx = (int)(m_ptr - mon_list);
+    context.monster_visible = m_ptr->ml ? TRUE : FALSE;
+
+    result = scenario_handle_event(&context);
+    if (scenario_finish_game_if_needed(&result))
+        return (TRUE);
+
+    return (result.deny_action);
+}
+
+/* Trigger DAMAGE_MONSTER rules after one visible monster takes damage. */
+void scenario_handle_damage_monster(monster_type* m_ptr, int damage)
+{
+    scenario_event_context context;
+    scenario_event_result result;
+
+    if (!scenario.loaded || !m_ptr || !m_ptr->r_idx || (damage <= 0))
+        return;
+
+    scenario_prepare_event_context(&context, SCN_EVENT_DAMAGE_MONSTER);
+    context.monster_idx = (int)(m_ptr - mon_list);
+    context.monster_visible = m_ptr->ml ? TRUE : FALSE;
 
     result = scenario_handle_event(&context);
     (void)scenario_finish_game_if_needed(&result);
@@ -3617,6 +4327,7 @@ void scenario_clear_pending(void)
 {
     WIPE(&scenario, scenario_state);
     memset(scenario_monster_tags, 0, sizeof(scenario_monster_tags));
+    oath_clear_catalog();
     scenario_truce_flag_idx = -1;
     scenario_escape_flag_idx = -1;
     scenario_error_line = 0;
@@ -4217,6 +4928,11 @@ bool scenario_prepare_pending(cptr filename)
                 break;
             }
         }
+        else if (!my_strnicmp(s, "OATH:", 5))
+        {
+            if (!scenario_parse_oath(scenario_trim(s + 5), line))
+                break;
+        }
         else if (!my_strnicmp(s, "E:", 2))
         {
             if (!scenario_append_row(
@@ -4239,6 +4955,10 @@ bool scenario_prepare_pending(cptr filename)
     if (!scenario_error[0] && !scenario_validate())
     {
         /* Validation stores the error. */
+    }
+    if (!scenario_error[0] && !scenario_activate_oaths())
+    {
+        /* Activation stores the error. */
     }
 
     if (scenario_error[0])
@@ -4560,9 +5280,19 @@ static void scenario_export_header(FILE* fff, cptr filename)
     fprintf(fff, "# N:<y>:<x>:<monster>[:key=value...] monster\n");
     fprintf(fff, "# G:<y>:<x>:<tag> tag one grid for rule matching\n");
     fprintf(fff, "# X:<text-id>:<line> named multiline text block (repeatable)\n");
+    fprintf(fff, "# OATH:<name>:VOW|RESTRICTION|REWARD_STAT:<value>\n");
     fprintf(fff, "# R:<event>[:tag=<tag>][:when=<term,!term...>][:ACTION...] event rule\n");
+    fprintf(fff, "# Events include ENTER_LEVEL, USE_EXIT, USE_UP_EXIT, USE_DOWN_EXIT,\n");
+    fprintf(fff, "# SEE_MONSTER, START_SONG, ATTACK_MONSTER, DAMAGE_MONSTER,\n");
+    fprintf(fff, "# ESCAPE, and DEATH.\n");
+    fprintf(fff, "# Common when= terms include depth=<n>, new_depth=<n>,\n");
+    fprintf(fff, "# has_item(<object>[,<amount>]), has_silmaril(),\n");
+    fprintf(fff, "# monster_slain(<monster>), chosen_oath(<name>|None),\n");
+    fprintf(fff, "# oath_broken(), monster_is(<selector>), monster_visible(),\n");
+    fprintf(fff, "# and named quest flags.\n");
     fprintf(fff, "# Rule actions include SET_FLAG, CLEAR_FLAG, DISPLAY_TEXT,\n");
-    fprintf(fff, "# DISPLAY_MESSAGE, CONFIRM_TEXT, DENY_ACTION, END_GAME,\n");
+    fprintf(fff, "# DISPLAY_MESSAGE, ADD_NOTE, CONFIRM_TEXT, BREAK_OATH,\n");
+    fprintf(fff, "# DENY_ACTION, END_GAME,\n");
     fprintf(fff, "# SET_NEW_DEPTH=<n>, and CREATE_STAIRS=<stair|none>.\n");
     fprintf(fff, "# Map rows are optional: without M:/E:, the scenario uses normal birth and\n");
     fprintf(fff, "# procedural level generation while still applying its P:/X:/R: data.\n");
@@ -5059,6 +5789,18 @@ static void scenario_export_text_block(FILE* fff, cptr name, cptr text)
     }
 }
 
+/* Export one active oath definition back into the OATH: directive syntax. */
+static void scenario_export_oath(FILE* fff, const scenario_oath* oath)
+{
+    if (!fff || !oath || !oath->name[0])
+        return;
+
+    fprintf(fff, "OATH:%s:VOW:%s\n", oath->name, oath->vow);
+    fprintf(fff, "OATH:%s:RESTRICTION:%s\n", oath->name, oath->restriction);
+    fprintf(fff, "OATH:%s:REWARD_STAT:%s:%d\n", oath->name,
+        stat_names_full[oath->reward_stat], oath->reward_amount);
+}
+
 /* Export one scenario rule back into the authored event/action syntax. */
 static void scenario_export_rule(FILE* fff, const scenario_rule* rule)
 {
@@ -5084,6 +5826,18 @@ static void scenario_export_rule(FILE* fff, const scenario_rule* rule)
         break;
     case SCN_EVENT_USE_DOWN_EXIT:
         event = "USE_DOWN_EXIT";
+        break;
+    case SCN_EVENT_ESCAPE:
+        event = "ESCAPE";
+        break;
+    case SCN_EVENT_START_SONG:
+        event = "START_SONG";
+        break;
+    case SCN_EVENT_ATTACK_MONSTER:
+        event = "ATTACK_MONSTER";
+        break;
+    case SCN_EVENT_DAMAGE_MONSTER:
+        event = "DAMAGE_MONSTER";
         break;
     case SCN_EVENT_DEATH:
         event = "DEATH";
@@ -5121,11 +5875,52 @@ static void scenario_export_rule(FILE* fff, const scenario_rule* rule)
             }
             else if (term->kind == SCN_TERM_HAS_SILMARIL)
             {
-                fprintf(fff, "has_silmaril");
+                fprintf(fff, "has_silmaril()");
             }
-            else if (term->kind == SCN_TERM_MORGOTH_SLAIN)
+            else if (term->kind == SCN_TERM_MONSTER_SLAIN)
             {
-                fprintf(fff, "morgoth_slain");
+                char monster_buf[80];
+
+                fprintf(fff, "monster_slain(%s)",
+                    scenario_export_monster_token(
+                        term->value, monster_buf, sizeof(monster_buf)));
+            }
+            else if (term->kind == SCN_TERM_HAS_ITEM)
+            {
+                char object_buf[80];
+
+                fprintf(fff, "has_item(%s,%d)",
+                    scenario_export_object_token(
+                        term->value, object_buf, sizeof(object_buf)),
+                    term->extra);
+            }
+            else if (term->kind == SCN_TERM_CHOSEN_OATH)
+            {
+                fprintf(fff, "chosen_oath(%s)",
+                    (term->value == 0) ? "None" : oath_name(term->value));
+            }
+            else if (term->kind == SCN_TERM_OATH_BROKEN)
+            {
+                fprintf(fff, "oath_broken()");
+            }
+            else if (term->kind == SCN_TERM_MONSTER_IS)
+            {
+                if (term->value == SCN_MONSTER_IS_MAN)
+                    fprintf(fff, "monster_is(Man)");
+                else if (term->value == SCN_MONSTER_IS_ELF)
+                    fprintf(fff, "monster_is(Elf)");
+                else
+                {
+                    char monster_buf[80];
+
+                    fprintf(fff, "monster_is(%s)",
+                        scenario_export_monster_token(
+                            term->value, monster_buf, sizeof(monster_buf)));
+                }
+            }
+            else if (term->kind == SCN_TERM_MONSTER_VISIBLE)
+            {
+                fprintf(fff, "monster_visible()");
             }
         }
     }
@@ -5152,10 +5947,19 @@ static void scenario_export_rule(FILE* fff, const scenario_rule* rule)
             fprintf(fff, ":DISPLAY_MESSAGE=%s",
                 scenario.texts[action->text_idx].name);
         }
+        else if (action->kind == SCN_ACTION_ADD_NOTE)
+        {
+            fprintf(
+                fff, ":ADD_NOTE=%s", scenario.texts[action->text_idx].name);
+        }
         else if (action->kind == SCN_ACTION_CONFIRM_TEXT)
         {
             fprintf(fff, ":CONFIRM_TEXT=%s",
                 scenario.texts[action->text_idx].name);
+        }
+        else if (action->kind == SCN_ACTION_BREAK_OATH)
+        {
+            fprintf(fff, ":BREAK_OATH");
         }
         else if (action->kind == SCN_ACTION_SET_NEW_DEPTH)
         {
@@ -5372,6 +6176,13 @@ bool scenario_export_current(cptr filename)
             scenario_export_text_block(
                 fff, scenario.texts[y].name, scenario.texts[y].text);
         }
+    }
+
+    if (scenario.oath_count > 0)
+    {
+        fprintf(fff, "\n# Oath definitions.\n");
+        for (y = 0; y < scenario.oath_count; y++)
+            scenario_export_oath(fff, &scenario.oaths[y]);
     }
 
     if (scenario.rule_count > 0)

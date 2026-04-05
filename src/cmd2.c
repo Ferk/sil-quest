@@ -122,25 +122,6 @@ void do_cmd_go_up(void)
         return;
     }
 
-    if (chosen_oath(OATH_IRON) && !oath_invalid(OATH_IRON)
-        && (silmarils_possessed() == 0))
-    {
-        if (get_check("Are you sure you wish to break your oath? "))
-        {
-            msg_print("You break your oath of iron.");
-            do_cmd_note("Broke your oath", p_ptr->depth);
-        }
-        else
-        {
-            return;
-        }
-    }
-
-    if (silmarils_possessed() == 0)
-    {
-        p_ptr->oaths_broken |= OATH_IRON_FLAG;
-    }
-
     /* Hack -- take a turn */
     p_ptr->energy_use = 100;
 

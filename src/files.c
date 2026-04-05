@@ -3149,19 +3149,7 @@ void do_cmd_escape(void)
         break;
     }
 
-    if (p_ptr->oath_type > 0)
-    {
-        if (oath_invalid(p_ptr->oath_type))
-        {
-            do_cmd_note(
-                "You will be remembered always as a shameful oathbreaker.",
-                p_ptr->depth);
-        }
-        else
-        {
-            do_cmd_note("You kept your oath to the very end.", p_ptr->depth);
-        }
-    }
+    quests_handle_escape();
 
     my_strcat(notes_buffer, "\n", sizeof(notes_buffer));
 
@@ -3490,7 +3478,7 @@ static int score_points(high_score* score)
         points += challenge_factor * 1;
     }
 
-    if (!oath_invalid(OATH_IRON))
+    if ((oath_lookup("Iron") > 0) && !oath_invalid(oath_lookup("Iron")))
     {
         points += challenge_factor * 2;
     }
