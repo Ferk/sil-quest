@@ -1,15 +1,4 @@
-# Sil-Q
-
-Sil-Quest is a free, single-player dungeon infiltration game, based on Sil-Q.
-
-It adds UX enhancements, a touchscreen-friendly web frontend, and removes/cleans-up some elements from its Angband legacy.
-
-There hasn't been a release yet and the current state is work-in-progress.
-
-Sil-Quest is a free, open source, and non-commercial game.
-
-While the the project, as a compilation, remains non-commercial, some parts have been licensed under a license that is both more suitabe for ensuring source distribution when dealing with server-driven software (similar to the AGPL) but that also explicitly allows intermixing with other open source licenses, minimizing friction. After some research, the EUPL (European Union Public License) seems to be fit this purpose nicely.
-
+# Sil-Quest
 
 **Sil-Quest is a free, single-player dungeon infiltration game, based on Sil-Q.** It has a strong
 emphasis on exploration and tactical combat. It features a simple but rich
