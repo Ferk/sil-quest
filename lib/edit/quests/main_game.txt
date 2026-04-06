@@ -9,24 +9,27 @@
 # parse and edit for a human.
 # -----------------------------------------------------------------------------
 #
-# Copyright (c) 2026 Fernando Carmona Varo
-# This file is part of Sil-Quest.
-# Licensed under the EUPL, Version 1.2 or subsequent versions of the EUPL
-# You may not use this work except in compliance with the Licence.
-# You may obtain copy of it at: https://joinup.ec.europa.eu/software/page/eupl
+# Scenario-backed data for the birth-based "Main Game" quest.
 #
-# Scenario-backed rules for the birth-based "Main Game" quest.
-#
-# This file intentionally has no M:/E: map rows. That means it still uses the
-# normal birth flow and procedural dungeon generation, while reusing the
-# scenario rule engine for quest text and event handling.
+# The root of this file provides the quest-wide oaths, text, and rules for a
+# mostly procedural game. Specific authored depths are added later with
+# MAP:/M:/E: blocks, so the Gates of Angband and Morgoth's throne room now
+# live here too.
 #
 # Supported directives:
 #   V:<version>
 #   P:<field>:<value>
 #   X:<text-name>:<text line>
 #   OATH:<name>:VOW|RESTRICTION|REWARD_STAT:<value>
+#   T:<symbol>:FEATURE|PLACE|FLOOR:...
 #   R:<event>[:when=<term[,term...]>][:ACTION...]
+#   MAP:<name>
+#   MAP_DEPTH:<n>
+#   MAP_FLAGS:<flag[,flag...]>
+#   MAP_SIZE:<h>:<w>
+#   MAP_ORIGIN:<y>:<x>
+#   M:<symbols...>
+#   E:<y>:<x>:PLAYER|MONSTER|OBJECT|GEN_MONSTER|GEN_OBJECT:...
 #
 # Supported events:
 #   ENTER_LEVEL
@@ -128,3 +131,116 @@ R:USE_DOWN_EXIT:when=new_depth=20,!escape_phase:DISPLAY_MESSAGE=throne_warning:C
 R:USE_DOWN_EXIT:when=new_depth=20,escape_phase:DISPLAY_MESSAGE=throne_no_return:SET_NEW_DEPTH=19:CREATE_STAIRS=down staircase
 R:ESCAPE:when=!chosen_oath(None),oath_broken():ADD_NOTE=escape_oath_broken
 R:ESCAPE:when=!chosen_oath(None),!oath_broken():ADD_NOTE=escape_oath_kept
+
+# Level 0 overrides the old Gates vault generation.
+MAP:The Gates of Angband
+MAP_DEPTH:0
+MAP_FLAGS:GOOD_ITEM
+MAP_SIZE:33:66
+MAP_ORIGIN:1:1
+T:#:FEATURE:inner granite wall:ROOM:ICKY:G_VAULT
+T:.:FLOOR:ROOM:ICKY:G_VAULT
+T:o:FLOOR:ROOM:ICKY:G_VAULT:MONSTER=Orc champion
+T:O:FLOOR:ROOM:ICKY:G_VAULT:MONSTER=Orc captain
+T:+:PLACE:CLOSED_DOOR:ROOM:ICKY:G_VAULT
+T::FEATURE:pile of rubble:ROOM:ICKY:G_VAULT
+T:>:FEATURE:down staircase:ROOM:ICKY:G_VAULT
+T:^:PLACE:TRAP:CHANCE=50:ROOM:ICKY:G_VAULT
+T:f:FLOOR:ROOM:ICKY:G_VAULT:MONSTER=Cat warrior
+T:F:FLOOR:ROOM:ICKY:G_VAULT:MONSTER=Cat assassin
+T:T:FLOOR:ROOM:ICKY:G_VAULT:MONSTER=Troll guard
+T:s:FEATURE:secret door:ROOM:ICKY:G_VAULT
+T:C:FLOOR:ROOM:ICKY:G_VAULT:MONSTER=Carcharoth, the Jaws of Thirst
+T:~:FLOOR:ROOM:ICKY:G_VAULT:GEN_OBJECT=20:DROP=CHEST
+E:4:32:PLAYER
+M:################################################################
+M:#......#####################.......######################......#
+M:#.oooo.+.........:##########.#...#.###########.:....:...+.oooo.#
+M:#.oOOo.#.oooooooo.#......^.....>...^.....^...#.oooooooo.#.oOOo.#
+M:#.oOOo.#.oooooooo.+^########.#...#.#########.+.oooooooo.#.oOOo.#
+M:#.oooo.#:.........#.#....###.......###.....#^#.........:#.oooo.#
+M:#......############^#.OOO#############.OOO.#.############......#
+M:########.........:#.+.OOO#############.OOO.+.#::.......:########
+M:#.::...+:oooooooo.#.#...:#############.:...#.#.oooooooo.+....::#
+M:#....:.#:oooooooo.#.########################.#.oooooooo.#..:...#
+M:#.ffff.#.....:....+..^.....^.......^.......^.+..........#.ffff.#
+M:#:fFFf.######################^#..#.######################.fFFf:#
+M:#.fFFf:#.:....##TTTTTTTTT.###..^^.:###:TTTTTTTTT##::....#.fFFf.#
+M:#.ffff.#..~~.:##TTTTTTTTT:###.#..#.###.TTTTTTTTT##..~~:.#.ffff.#
+M:#..:..:#.:~~..##:...........+...^..+..........::##..~~..#:..:..#
+M:#:....:s....::###############.#..#.###############:.:...s:.:..:#
+M:#.::...######################:^^^^.######################...:::#
+M:###############################++###############################
+M:#############################......#############################
+M:############################........############################
+M:############################:...C.:..###########################
+M:###########################::.......:###########################
+M:#########################.:...........##########################
+M:##########################............##########################
+M:########################:.:...........:#########################
+M:#######################::...............########################
+M:#####################.::.................#######################
+M:#####################..................:..:#####################
+M:####################.:......................#:##################
+M:##################:.:.........................##################
+M:#################...............................################
+M:#################..................................#############
+
+# Level 20 overrides the old throne-room vault generation.
+MAP:Morgoth's throne room
+MAP_DEPTH:20
+MAP_FLAGS:GOOD_ITEM
+MAP_SIZE:33:99
+MAP_ORIGIN:1:21
+T:#:FEATURE:inner granite wall:ROOM:ICKY:G_VAULT
+T:.:FLOOR:ROOM:ICKY:G_VAULT
+T:+:PLACE:CLOSED_DOOR:ROOM:ICKY:G_VAULT
+T:<:FEATURE:up staircase:ROOM:ICKY:G_VAULT
+T:&:FLOOR:ROOM:ICKY:G_VAULT:GEN_OBJECT=+1..+4:GOOD=1
+T:1:FLOOR:ROOM:ICKY:G_VAULT:GEN_MONSTER=+1
+T:2:FLOOR:ROOM:ICKY:G_VAULT:GEN_MONSTER=+2
+T:3:FLOOR:ROOM:ICKY:G_VAULT:GEN_MONSTER=+3
+T:4:FLOOR:ROOM:ICKY:G_VAULT:GEN_MONSTER=+4
+T:s:FEATURE:secret door:ROOM:ICKY:G_VAULT
+T:T:FLOOR:ROOM:ICKY:G_VAULT:MONSTER=Troll guard
+T:@:FLOOR:ROOM:ICKY:G_VAULT:MONSTER=Easterling spy
+T:o:FLOOR:ROOM:ICKY:G_VAULT:MONSTER=Orc champion
+T:O:FLOOR:ROOM:ICKY:G_VAULT:MONSTER=Orc captain
+T:~:FLOOR:ROOM:ICKY:G_VAULT:GEN_OBJECT=+4:DROP=CHEST
+T:*:FLOOR:ROOM:ICKY:G_VAULT:GEN_OBJECT=+1..+4
+T:F:FLOOR:ROOM:ICKY:G_VAULT:MONSTER=Cat assassin
+T:f:FLOOR:ROOM:ICKY:G_VAULT:MONSTER=Cat warrior
+T:V:FLOOR:ROOM:ICKY:G_VAULT:MONSTER=Morgoth, Lord of Darkness
+T:H:FLOOR:ROOM:ICKY:G_VAULT:MONSTER=Silent watcher
+T:^:PLACE:TRAP:CHANCE=50:ROOM:ICKY:G_VAULT
+E:5:37:PLAYER
+M:###################################
+M:##&...+.####..#####..##......######
+M:#&..#.#...+..#######..#.#..#.######
+M:#..#..#.###...#####...+......s...##
+M:#.#1.##.###.....<.....+...3..###.##
+M:#...###+####.T.....T.##.#..#.###.##
+M:#+###...######T.1.T####......###.##
+M:#..+.@@@.######+#+#####.T..T.###.##
+M:#s##.@@@.#####..#..######++#####+##
+M:#.###...#####...#..o#####..####..##
+M:#.####s###.1.......Oo..##..###.2..#
+M:#.####...+...o.....o...##..###..~.#
+M:#.####.###..##T...T##..##..####..##
+M:#.s*##.###oo##T...T##..##..########
+M:#.####.###O..oT...T...o##++####FfF#
+M:#.####+###2.oOT...T.1.O#...####f<f#
+M:#.##.1...#..##T...T##.o#...**##FfF#
+M:#.##.#.#.#..##.....##..#T....&##.##
+M:#.##.....#......4......+.......+.##
+M:#.##+##+##.............+....4..#s##
+M:#.#&.&#.##..##.....##..#T....&##..#
+M:#.##^##..+..##.....##..#...**###.1#
+M:#.#2~2####*...........*#...###~s..#
+M:#.##.#####*..3.....3..*#####&######
+M:#.#############.V.###+######s######
+M:#s########...###.##....#*#1#&#&####
+M:#...+....+.H.###s##.2..#+#+#+#+#..#
+M:#&..###s##...s^^^##**..........s.~#
+M:#######&########################..#
+M:###################################

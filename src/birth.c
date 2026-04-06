@@ -42,14 +42,7 @@ struct birther
 
 static int get_start_xp(void)
 {
-    if (birth_fixed_exp)
-    {
-        return PY_FIXED_EXP;
-    }
-    else
-    {
-        return PY_START_EXP;
-    }
+    return (scenario_birth_get_start_exp());
 }
 
 /*
@@ -712,6 +705,7 @@ static bool player_birth_apply_stats(const int* stats)
 {
     int i;
     int cost = 0;
+    int free_cost = scenario_birth_get_stat_cost_offset();
 
     for (i = 0; i < A_MAX; i++)
     {
@@ -722,7 +716,7 @@ static bool player_birth_apply_stats(const int* stats)
         cost += ui_birth_stat_cost_for_value(stats[i]);
     }
 
-    if (cost > ui_birth_stat_budget())
+    if ((cost - free_cost) > ui_birth_stat_budget())
         return (FALSE);
 
     p_ptr->new_exp = p_ptr->exp = get_start_xp();
@@ -1084,6 +1078,7 @@ void player_birth(void)
     message_add("  ", MSG_GENERIC, 0);
     message_add(" ", MSG_GENERIC, 0);
 
-    /* Hack -- outfit the player */
-    player_outfit();
+    /* Hack -- outfit the player unless the scenario provides its own loadout */
+    if (!scenario_birth_overrides_outfit())
+        player_outfit();
 }

@@ -372,12 +372,12 @@ void quests_activate_pending_for_loaded_game(void)
 
 bool quests_pending_level_generation(void)
 {
-    return (scenario_pending_level_generation());
+    return (scenario_pending_map_generation());
 }
 
 bool quests_generate_pending_level(void)
 {
-    return (scenario_generate_pending_level());
+    return (scenario_generate_pending_map());
 }
 
 bool quests_allow_monster_race(int r_idx)
