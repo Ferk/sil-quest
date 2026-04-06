@@ -2,13 +2,17 @@
 #
 # Quick legend:
 # V:<n> format version
-# P:<field>:<value> player state
+# P:<field>:<value> player state or birth preset data
 # P:ABILITY:<skill>:<ability>[:INNATE=0][:ACTIVE=0] player ability state
 # I:<slot>:<object>[:key=value...] starting inventory or equipment
-# T:<symbol>:FEATURE:<feature>[:flags...] terrain legend used by M: rows
+# MAP:<name> begin one authored map block with metadata
+# MAP_DEPTH:<n> exact dungeon depth where that map is used
+# MAP_FLAGS:<flag[,flag...]>
+# MAP_SIZE:<h>:<w>
+# MAP_ORIGIN:<y>:<x>
+# T:<symbol>:FEATURE|PLACE|FLOOR:... tile legend used by M: rows
 # M:<symbols...> one map row using the T: legend above
-# O:<y>:<x>:<object>[:key=value...] floor object
-# N:<y>:<x>:<monster>[:key=value...] monster
+# E:<y>:<x>:PLAYER|MONSTER|OBJECT|GEN_MONSTER|GEN_OBJECT:... sparse entity
 # G:<y>:<x>:<tag> tag one grid for rule matching
 # X:<text-id>:<line> named multiline text block (repeatable)
 # R:<event>[:tag=<tag>][:when=<flag,!flag...>][:ACTION...] event rule
@@ -32,7 +36,6 @@ P:NEW_EXP:2000
 P:FOOD:4753
 P:HP:41
 P:VOICE:41
-P:POS:28:3
 P:STAT:Str :2
 P:STAT:Dex :4
 P:STAT:Con :4
@@ -52,7 +55,13 @@ P:ABILITY:Song:Song of the Trees
 # Starting inventory and equipped items.
 I:LITE:Wooden Torch:timeout=1999:ident=0x8:aware=1:everseen=1
 
-# Terrain legend for the map rows below.
+# Authored start map.
+MAP:Tutorial
+MAP_DEPTH:1
+MAP_SIZE:32:61
+MAP_ORIGIN:0:0
+
+# Terrain legend for the MAP rows below.
 T:$:FEATURE:permanent granite wall
 T:#:FEATURE:outer granite wall:GLOW:ROOM
 T:M:FEATURE:inner granite wall:GLOW:ROOM
@@ -112,84 +121,85 @@ M:$W,,,,,,W$$$$#.......#....+___H$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$
 M:$WWWWWWWW$$$$##############HHHH$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$
 M:$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$
 
-# Floor objects.
-O:16:48:Set of Gauntlets:weight=27:ident=0x8:aware=1:everseen=1
-O:16:55:Shortsword:discount=108:weight=15:name2=21:ident=0x1:aware=1:everseen=1
-O:27:6:Note:tag=note_452:ident=0x88:marked=1:aware=1:everseen=1
-O:19:39:Note:tag=note_464:ident=0x88:aware=1:everseen=1
-O:28:3:Note:tag=note_451:ident=0x88:marked=1:aware=1:everseen=1
-O:27:19:Note:tag=note_454:ident=0x88:aware=1:everseen=1
-O:27:15:Note:tag=note_453:ident=0x88:aware=1:everseen=1
-O:28:17:Leather Armour:weight=82:ident=0x8:aware=1:everseen=1
-O:26:17:Curved Sword:ident=0x8:aware=1:everseen=1
-O:25:23:Note:tag=note_455:ident=0x88:aware=1:everseen=1
-O:25:29:Note:tag=note_458:ident=0x80:aware=1:everseen=1
-O:29:24:Note:tag=note_456:ident=0x88:aware=1:everseen=1
-O:25:34:Arrow:number=24:ident=0x8:aware=1:everseen=1
-O:19:18:Note:tag=note_457:ident=0x88:aware=1:everseen=1
-O:24:48:Note:tag=note_460:ident=0x88:aware=1:everseen=1
-O:23:34:Shortbow:ident=0x8:aware=1:everseen=1
-O:24:34:Note:tag=note_459:ident=0x88:aware=1:everseen=1
-O:15:55:Note:tag=note_462:ident=0x88:aware=1:everseen=1
-O:19:55:Note:tag=note_461:ident=0x88:aware=1:everseen=1
-O:19:33:Note:tag=note_466:ident=0x88:aware=1:everseen=1
-O:16:47:Note:tag=note_463:ident=0x88:aware=1:everseen=1
-O:19:36:Note:tag=note_465:ident=0x88:aware=1:everseen=1
-O:18:32:Note:tag=note_467:ident=0x88:aware=1:everseen=1
-O:20:32:Note:tag=note_468:ident=0x88:aware=1:everseen=1
-O:18:30:Note:tag=note_469:ident=0x88:aware=1:everseen=1
-O:20:30:Note:tag=note_470:ident=0x88:aware=1:everseen=1
-O:19:23:Note:tag=note_472:ident=0x88:aware=1:everseen=1
-O:19:25:Note:tag=note_471:ident=0x88:aware=1:everseen=1
-O:20:16:Note:tag=note_474:ident=0x88:aware=1:everseen=1
-O:21:16:Battle Axe:weight=56:ident=0x8:aware=1:everseen=1
-O:18:16:Note:tag=note_473:ident=0x88:aware=1:everseen=1
-O:17:16:Rage
-O:19:14:Note:tag=note_475:ident=0x88:aware=1:everseen=1
-O:21:4:Note:tag=note_476:ident=0x88:aware=1:everseen=1
-O:23:9:Note:tag=note_477:ident=0x88:aware=1:everseen=1
-O:17:2:Note:tag=note_478:ident=0x88:aware=1:everseen=1
-O:16:4:Note:tag=note_479:ident=0x88:aware=1:everseen=1
-O:15:6:Note:tag=note_480:ident=0x88:aware=1:everseen=1
-O:11:22:Note:tag=note_484:ident=0x88:aware=1:everseen=1
-O:2:11:Note:tag=note_481:ident=0x88:aware=1:everseen=1
-O:8:25:Note:tag=note_485:ident=0x88:aware=1:everseen=1
-O:2:18:Note:tag=note_482:ident=0x88:aware=1:everseen=1
-O:8:19:Note:tag=note_483:ident=0x88:aware=1:everseen=1
-O:5:11:Round Shield:weight=54:ident=0x8:aware=1:everseen=1
-O:2:19:Shovel:weight=69:dd=3:ds=1:ident=0x8:aware=1:everseen=1
-O:8:33:Note:tag=note_487:ident=0x88:aware=1:everseen=1
-O:9:53:#328
-O:8:32:Note:tag=note_486:ident=0x88:aware=1:everseen=1
-O:11:52:Arrow:number=48:discount=108:name2=101:ident=0x1:aware=1:everseen=1
-O:10:52:Cowardice:pval=1:ident=0x80
-O:10:51:Crown:pval=1:discount=108:weight=40:name2=72:ident=0x1:aware=1:everseen=1
-O:9:52:Mail Corslet:discount=108:weight=315:name2=1:ps=5:ident=0x1:aware=1:everseen=1
-O:10:53:Last Chances:weight=3
-O:8:36:Note:tag=note_488:ident=0x88:aware=1:everseen=1
-O:14:44:Spear:discount=108:name1=87:att=1:ident=0x1:xtra1=1:aware=1:everseen=1
-O:14:35:Quickness:everseen=1
+# Sparse MAP entities.
+E:28:3:PLAYER
+E:16:48:OBJECT:Set of Gauntlets:weight=27:ident=0x8:aware=1:everseen=1
+E:16:55:OBJECT:Shortsword:discount=108:weight=15:name2=21:ident=0x1:aware=1:everseen=1
+E:27:6:OBJECT:Note:tag=note_452:ident=0x88:marked=1:aware=1:everseen=1
+E:19:39:OBJECT:Note:tag=note_464:ident=0x88:aware=1:everseen=1
+E:28:3:OBJECT:Note:tag=note_451:ident=0x88:marked=1:aware=1:everseen=1
+E:27:19:OBJECT:Note:tag=note_454:ident=0x88:aware=1:everseen=1
+E:27:15:OBJECT:Note:tag=note_453:ident=0x88:aware=1:everseen=1
+E:28:17:OBJECT:Leather Armour:weight=82:ident=0x8:aware=1:everseen=1
+E:26:17:OBJECT:Curved Sword:ident=0x8:aware=1:everseen=1
+E:25:23:OBJECT:Note:tag=note_455:ident=0x88:aware=1:everseen=1
+E:25:29:OBJECT:Note:tag=note_458:ident=0x80:aware=1:everseen=1
+E:29:24:OBJECT:Note:tag=note_456:ident=0x88:aware=1:everseen=1
+E:25:34:OBJECT:Arrow:number=24:ident=0x8:aware=1:everseen=1
+E:19:18:OBJECT:Note:tag=note_457:ident=0x88:aware=1:everseen=1
+E:24:48:OBJECT:Note:tag=note_460:ident=0x88:aware=1:everseen=1
+E:23:34:OBJECT:Shortbow:ident=0x8:aware=1:everseen=1
+E:24:34:OBJECT:Note:tag=note_459:ident=0x88:aware=1:everseen=1
+E:15:55:OBJECT:Note:tag=note_462:ident=0x88:aware=1:everseen=1
+E:19:55:OBJECT:Note:tag=note_461:ident=0x88:aware=1:everseen=1
+E:19:33:OBJECT:Note:tag=note_466:ident=0x88:aware=1:everseen=1
+E:16:47:OBJECT:Note:tag=note_463:ident=0x88:aware=1:everseen=1
+E:19:36:OBJECT:Note:tag=note_465:ident=0x88:aware=1:everseen=1
+E:18:32:OBJECT:Note:tag=note_467:ident=0x88:aware=1:everseen=1
+E:20:32:OBJECT:Note:tag=note_468:ident=0x88:aware=1:everseen=1
+E:18:30:OBJECT:Note:tag=note_469:ident=0x88:aware=1:everseen=1
+E:20:30:OBJECT:Note:tag=note_470:ident=0x88:aware=1:everseen=1
+E:19:23:OBJECT:Note:tag=note_472:ident=0x88:aware=1:everseen=1
+E:19:25:OBJECT:Note:tag=note_471:ident=0x88:aware=1:everseen=1
+E:20:16:OBJECT:Note:tag=note_474:ident=0x88:aware=1:everseen=1
+E:21:16:OBJECT:Battle Axe:weight=56:ident=0x8:aware=1:everseen=1
+E:18:16:OBJECT:Note:tag=note_473:ident=0x88:aware=1:everseen=1
+E:17:16:OBJECT:Rage
+E:19:14:OBJECT:Note:tag=note_475:ident=0x88:aware=1:everseen=1
+E:21:4:OBJECT:Note:tag=note_476:ident=0x88:aware=1:everseen=1
+E:23:9:OBJECT:Note:tag=note_477:ident=0x88:aware=1:everseen=1
+E:17:2:OBJECT:Note:tag=note_478:ident=0x88:aware=1:everseen=1
+E:16:4:OBJECT:Note:tag=note_479:ident=0x88:aware=1:everseen=1
+E:15:6:OBJECT:Note:tag=note_480:ident=0x88:aware=1:everseen=1
+E:11:22:OBJECT:Note:tag=note_484:ident=0x88:aware=1:everseen=1
+E:2:11:OBJECT:Note:tag=note_481:ident=0x88:aware=1:everseen=1
+E:8:25:OBJECT:Note:tag=note_485:ident=0x88:aware=1:everseen=1
+E:2:18:OBJECT:Note:tag=note_482:ident=0x88:aware=1:everseen=1
+E:8:19:OBJECT:Note:tag=note_483:ident=0x88:aware=1:everseen=1
+E:5:11:OBJECT:Round Shield:weight=54:ident=0x8:aware=1:everseen=1
+E:2:19:OBJECT:Shovel:weight=69:dd=3:ds=1:ident=0x8:aware=1:everseen=1
+E:8:33:OBJECT:Note:tag=note_487:ident=0x88:aware=1:everseen=1
+E:9:53:OBJECT:#328
+E:8:32:OBJECT:Note:tag=note_486:ident=0x88:aware=1:everseen=1
+E:11:52:OBJECT:Arrow:number=48:discount=108:name2=101:ident=0x1:aware=1:everseen=1
+E:10:52:OBJECT:Cowardice:pval=1:ident=0x80
+E:10:51:OBJECT:Crown:pval=1:discount=108:weight=40:name2=72:ident=0x1:aware=1:everseen=1
+E:9:52:OBJECT:Mail Corslet:discount=108:weight=315:name2=1:ps=5:ident=0x1:aware=1:everseen=1
+E:10:53:OBJECT:Last Chances:weight=3
+E:8:36:OBJECT:Note:tag=note_488:ident=0x88:aware=1:everseen=1
+E:14:44:OBJECT:Spear:discount=108:name1=87:att=1:ident=0x1:xtra1=1:aware=1:everseen=1
+E:14:35:OBJECT:Quickness:everseen=1
 
-# Monsters.
-N:7:53:Fire-drake hatchling:hp=25:maxhp=25:alertness=-10:mspeed=2:energy=45:stance=2:morale=170:tmp_morale=0:image_r_idx=32:mana=20:song=100
-N:9:14:Wolf:hp=14:maxhp=14:alertness=-8:mspeed=3:energy=1:stance=0:morale=0:tmp_morale=0:image_r_idx=223:mana=15:song=100
-N:8:12:Wolf:hp=12:maxhp=12:alertness=-14:mspeed=3:energy=6:stance=0:morale=0:tmp_morale=0:image_r_idx=143:mana=15:song=100
-N:15:14:Nightthorn:hp=18:maxhp=18:alertness=1:mspeed=2:energy=30:stance=3:morale=120:tmp_morale=0:image_r_idx=231:song=100
-N:7:13:Wolf:hp=13:maxhp=13:alertness=-12:mspeed=3:energy=8:stance=0:morale=0:tmp_morale=0:image_r_idx=193:mana=15:song=100
-N:7:14:Wolf:hp=17:maxhp=17:alertness=-2:mspeed=3:energy=3:stance=0:morale=0:tmp_morale=0:image_r_idx=154:mana=15:song=100
-N:7:15:Wolf:hp=17:maxhp=17:alertness=-5:mspeed=3:energy=0:stance=0:morale=0:tmp_morale=0:image_r_idx=93:mana=15:song=100
-N:7:16:Wolf:hp=11:maxhp=11:alertness=-10:mspeed=3:energy=6:stance=0:morale=0:tmp_morale=0:image_r_idx=243:mana=15:song=100
-N:23:47:Orc soldier:hp=24:maxhp=24:alertness=-14:mspeed=2:energy=2:stance=0:morale=0:tmp_morale=0:image_r_idx=41:wandering_idx=308:wandering_dist=50:mana=15:song=100:home_wander=1
-N:25:47:Orc soldier:hp=23:maxhp=23:alertness=-12:mspeed=2:energy=0:stance=0:morale=0:tmp_morale=0:image_r_idx=206:wandering_idx=307:wandering_dist=50:mana=15:song=100:home_wander=1
-N:12:6:Orc soldier:hp=24:maxhp=24:alertness=-3:mspeed=2:energy=0:stance=0:morale=0:tmp_morale=0:image_r_idx=184:wandering_idx=304:wandering_dist=50:mana=15:song=100:home_wander=1
-N:9:6:Orc soldier:hp=14:maxhp=14:alertness=-2:mspeed=2:energy=2:stance=0:morale=0:tmp_morale=0:image_r_idx=114:wandering_idx=303:wandering_dist=50:mana=15:song=100:home_wander=1
-N:9:40:Orc archer:hp=21:maxhp=21:alertness=-8:mspeed=2:energy=8:stance=2:morale=100:tmp_morale=0:image_r_idx=104:wandering_idx=301:wandering_dist=1:song=100:tag=archer_warning:home_wander=1:prev2=8:prev4=2
-N:10:52:Young fire-drake:hp=81:maxhp=81:alertness=-14:mspeed=2:energy=37:stance=2:morale=230:tmp_morale=0:image_r_idx=92:wandering_idx=306:wandering_dist=50:mana=30:song=100:home_wander=1
-N:20:40:Orc soldier:hp=27:maxhp=27:alertness=-7:mspeed=2:energy=0:stance=0:morale=0:tmp_morale=0:image_r_idx=101:wandering_idx=305:wandering_dist=50:mana=15:song=100:home_wander=1
-N:6:40:Orc archer:hp=15:maxhp=15:alertness=-2:mspeed=2:energy=9:stance=2:morale=100:tmp_morale=0:image_r_idx=94:wandering_idx=300:wandering_dist=1:song=100:tag=archer_warning:home_wander=1:prev2=8:prev4=2
-N:10:6:Orc soldier:hp=24:maxhp=24:alertness=-2:mspeed=2:energy=5:stance=0:morale=0:tmp_morale=0:image_r_idx=204:wandering_idx=302:wandering_dist=50:mana=15:song=100:home_wander=1
-N:7:51:Fire-drake hatchling:hp=26:maxhp=26:alertness=-8:mspeed=2:energy=40:stance=2:morale=170:tmp_morale=0:image_r_idx=132:mana=20:song=100
-N:25:29:Tanglethorn:hp=19:maxhp=19:alertness=0:mspeed=2:energy=4:stance=0:morale=0:tmp_morale=0:image_r_idx=194:mana=15:song=100
+# More sparse MAP entities.
+E:7:53:MONSTER:Fire-drake hatchling:hp=25:maxhp=25:alertness=-10:mspeed=2:energy=45:stance=2:morale=170:tmp_morale=0:image_r_idx=32:mana=20:song=100
+E:9:14:MONSTER:Wolf:hp=14:maxhp=14:alertness=-8:mspeed=3:energy=1:stance=0:morale=0:tmp_morale=0:image_r_idx=223:mana=15:song=100
+E:8:12:MONSTER:Wolf:hp=12:maxhp=12:alertness=-14:mspeed=3:energy=6:stance=0:morale=0:tmp_morale=0:image_r_idx=143:mana=15:song=100
+E:15:14:MONSTER:Nightthorn:hp=18:maxhp=18:alertness=1:mspeed=2:energy=30:stance=3:morale=120:tmp_morale=0:image_r_idx=231:song=100
+E:7:13:MONSTER:Wolf:hp=13:maxhp=13:alertness=-12:mspeed=3:energy=8:stance=0:morale=0:tmp_morale=0:image_r_idx=193:mana=15:song=100
+E:7:14:MONSTER:Wolf:hp=17:maxhp=17:alertness=-2:mspeed=3:energy=3:stance=0:morale=0:tmp_morale=0:image_r_idx=154:mana=15:song=100
+E:7:15:MONSTER:Wolf:hp=17:maxhp=17:alertness=-5:mspeed=3:energy=0:stance=0:morale=0:tmp_morale=0:image_r_idx=93:mana=15:song=100
+E:7:16:MONSTER:Wolf:hp=11:maxhp=11:alertness=-10:mspeed=3:energy=6:stance=0:morale=0:tmp_morale=0:image_r_idx=243:mana=15:song=100
+E:23:47:MONSTER:Orc soldier:hp=24:maxhp=24:alertness=-14:mspeed=2:energy=2:stance=0:morale=0:tmp_morale=0:image_r_idx=41:wandering_idx=308:wandering_dist=50:mana=15:song=100:home_wander=1
+E:25:47:MONSTER:Orc soldier:hp=23:maxhp=23:alertness=-12:mspeed=2:energy=0:stance=0:morale=0:tmp_morale=0:image_r_idx=206:wandering_idx=307:wandering_dist=50:mana=15:song=100:home_wander=1
+E:12:6:MONSTER:Orc soldier:hp=24:maxhp=24:alertness=-3:mspeed=2:energy=0:stance=0:morale=0:tmp_morale=0:image_r_idx=184:wandering_idx=304:wandering_dist=50:mana=15:song=100:home_wander=1
+E:9:6:MONSTER:Orc soldier:hp=14:maxhp=14:alertness=-2:mspeed=2:energy=2:stance=0:morale=0:tmp_morale=0:image_r_idx=114:wandering_idx=303:wandering_dist=50:mana=15:song=100:home_wander=1
+E:9:40:MONSTER:Orc archer:hp=21:maxhp=21:alertness=-8:mspeed=2:energy=8:stance=2:morale=100:tmp_morale=0:image_r_idx=104:wandering_idx=301:wandering_dist=1:song=100:tag=archer_warning:home_wander=1:prev2=8:prev4=2
+E:10:52:MONSTER:Young fire-drake:hp=81:maxhp=81:alertness=-14:mspeed=2:energy=37:stance=2:morale=230:tmp_morale=0:image_r_idx=92:wandering_idx=306:wandering_dist=50:mana=30:song=100:home_wander=1
+E:20:40:MONSTER:Orc soldier:hp=27:maxhp=27:alertness=-7:mspeed=2:energy=0:stance=0:morale=0:tmp_morale=0:image_r_idx=101:wandering_idx=305:wandering_dist=50:mana=15:song=100:home_wander=1
+E:6:40:MONSTER:Orc archer:hp=15:maxhp=15:alertness=-2:mspeed=2:energy=9:stance=2:morale=100:tmp_morale=0:image_r_idx=94:wandering_idx=300:wandering_dist=1:song=100:tag=archer_warning:home_wander=1:prev2=8:prev4=2
+E:10:6:MONSTER:Orc soldier:hp=24:maxhp=24:alertness=-2:mspeed=2:energy=5:stance=0:morale=0:tmp_morale=0:image_r_idx=204:wandering_idx=302:wandering_dist=50:mana=15:song=100:home_wander=1
+E:7:51:MONSTER:Fire-drake hatchling:hp=26:maxhp=26:alertness=-8:mspeed=2:energy=40:stance=2:morale=170:tmp_morale=0:image_r_idx=132:mana=20:song=100
+E:25:29:MONSTER:Tanglethorn:hp=19:maxhp=19:alertness=0:mspeed=2:energy=4:stance=0:morale=0:tmp_morale=0:image_r_idx=194:mana=15:song=100
 
 # Tagged grids used by the tutorial rules below.
 # These authored rule/text sections are maintained by hand rather than by the

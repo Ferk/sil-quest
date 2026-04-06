@@ -13,6 +13,8 @@
  * exporter.
  */
 
+#include <limits.h>
+
 #include "angband.h"
 #include "ui-birth.h"
 #include "ui-character.h"
@@ -21,11 +23,10 @@
 
 #define SCENARIO_MAX_ROWS MAX_DUNGEON_HGT
 #define SCENARIO_MAX_COLS MAX_DUNGEON_WID
+#define SCENARIO_MAX_LEVELS 8
 #define SCENARIO_MAX_ITEMS 64
-#define SCENARIO_MAX_ENTITY_LEGENDS 96
 #define SCENARIO_MAX_TERRAIN_LEGENDS 96
-#define SCENARIO_MAX_FLOOR_OBJECTS 512
-#define SCENARIO_MAX_FLOOR_MONSTERS MAX_MONSTERS
+#define SCENARIO_MAX_LEVEL_ENTITIES 512
 #define SCENARIO_MAX_GRID_TAGS 128
 #define SCENARIO_MAX_TEXTS 64
 #define SCENARIO_MAX_TEXT_LEN 4096
@@ -38,11 +39,23 @@
 #define SCENARIO_MAX_OATH_TEXT_LEN 160
 
 #define SCN_FLAG_LIT 0x01
+#define SCN_LEVEL_FLAG_GOOD_ITEM 0x01
 
 #define SCN_SLOT_PACK 255
 
-#define SCN_ENTITY_MONSTER 1
-#define SCN_ENTITY_OBJECT 2
+#define SCN_TERRAIN_FEATURE 1
+#define SCN_TERRAIN_PLACE 2
+#define SCN_TERRAIN_FLOOR 3
+
+#define SCN_TERRAIN_PLACE_CLOSED_DOOR 1
+#define SCN_TERRAIN_PLACE_TRAP 2
+#define SCN_TERRAIN_PLACE_FORGE 3
+
+#define SCN_LEVEL_ENTITY_PLAYER 1
+#define SCN_LEVEL_ENTITY_OBJECT 2
+#define SCN_LEVEL_ENTITY_MONSTER 3
+#define SCN_LEVEL_ENTITY_GEN_OBJECT 4
+#define SCN_LEVEL_ENTITY_GEN_MONSTER 5
 
 #define SCN_EVENT_SEE_MONSTER 1
 #define SCN_EVENT_USE_EXIT 2
@@ -90,11 +103,10 @@
 
 typedef struct scenario_object_spec scenario_object_spec;
 typedef struct scenario_monster_spec scenario_monster_spec;
-typedef struct scenario_entity_legend scenario_entity_legend;
 typedef struct scenario_terrain_legend scenario_terrain_legend;
-typedef struct scenario_floor_object scenario_floor_object;
-typedef struct scenario_floor_monster scenario_floor_monster;
 typedef struct scenario_grid_tag scenario_grid_tag;
+typedef struct scenario_map_entity scenario_map_entity;
+typedef struct scenario_map scenario_map;
 typedef struct scenario_text_block scenario_text_block;
 typedef struct scenario_oath scenario_oath;
 typedef struct scenario_rule_term scenario_rule_term;
@@ -292,33 +304,35 @@ struct scenario_monster_spec
     bool sleep_set;
 };
 
-struct scenario_entity_legend
+struct scenario_map_entity
 {
-    char symbol;
-    byte type;
+    byte kind;
+    int y;
+    int x;
+
     scenario_object_spec object;
     scenario_monster_spec monster;
+
+    bool relative_depth;
+    s16b min_depth;
+    s16b max_depth;
+
+    bool good;
+    byte drop_type;
+    byte chance;
 };
 
 struct scenario_terrain_legend
 {
     char symbol;
+    byte type;
     byte feat;
+    byte place;
+    byte chance;
     u16b info;
-};
 
-struct scenario_floor_object
-{
-    int y;
-    int x;
-    scenario_object_spec object;
-};
-
-struct scenario_floor_monster
-{
-    int y;
-    int x;
-    scenario_monster_spec monster;
+    bool entity_set;
+    scenario_map_entity entity;
 };
 
 struct scenario_grid_tag
@@ -326,6 +340,42 @@ struct scenario_grid_tag
     int y;
     int x;
     char tag[SCENARIO_MAX_NAME_LEN];
+};
+
+struct scenario_map
+{
+    char name[SCENARIO_MAX_NAME_LEN];
+
+    bool depth_set;
+    s16b depth;
+    byte flags;
+
+    bool map_size_set;
+    int map_height;
+    int map_width;
+
+    bool origin_set;
+    int origin_y;
+    int origin_x;
+
+    int width;
+    int height;
+    int terrain_rows;
+
+    bool player_pos_set;
+    int player_y;
+    int player_x;
+
+    int entity_count;
+    scenario_map_entity entities[SCENARIO_MAX_LEVEL_ENTITIES];
+
+    int terrain_legend_count;
+    scenario_terrain_legend terrain_legends[SCENARIO_MAX_TERRAIN_LEGENDS];
+
+    int grid_tag_count;
+    scenario_grid_tag grid_tags[SCENARIO_MAX_GRID_TAGS];
+
+    char terrain[SCENARIO_MAX_ROWS][SCENARIO_MAX_COLS + 1];
 };
 
 struct scenario_text_block
@@ -430,7 +480,6 @@ struct scenario_rule_effects
 struct scenario_state
 {
     bool loaded;
-    bool level_pending;
 
     char source[1024];
 
@@ -486,33 +535,8 @@ struct scenario_state
     byte innate_ability[S_MAX][ABILITIES_MAX];
     byte active_ability[S_MAX][ABILITIES_MAX];
 
-    int width;
-    int height;
-
-    int terrain_rows;
-    int entity_rows;
-
-    bool player_pos_set;
-    int player_y;
-    int player_x;
-
     int item_count;
     scenario_object_spec items[SCENARIO_MAX_ITEMS];
-
-    int entity_legend_count;
-    scenario_entity_legend entity_legends[SCENARIO_MAX_ENTITY_LEGENDS];
-
-    int terrain_legend_count;
-    scenario_terrain_legend terrain_legends[SCENARIO_MAX_TERRAIN_LEGENDS];
-
-    int floor_object_count;
-    scenario_floor_object floor_objects[SCENARIO_MAX_FLOOR_OBJECTS];
-
-    int floor_monster_count;
-    scenario_floor_monster floor_monsters[SCENARIO_MAX_FLOOR_MONSTERS];
-
-    int grid_tag_count;
-    scenario_grid_tag grid_tags[SCENARIO_MAX_GRID_TAGS];
 
     int text_count;
     scenario_text_block texts[SCENARIO_MAX_TEXTS];
@@ -526,12 +550,13 @@ struct scenario_state
     int flag_count;
     char flag_names[SCENARIO_MAX_FLAGS][SCENARIO_MAX_NAME_LEN];
 
-    char terrain[SCENARIO_MAX_ROWS][SCENARIO_MAX_COLS + 1];
-    char entities[SCENARIO_MAX_ROWS][SCENARIO_MAX_COLS + 1];
+    int level_count;
+    scenario_map levels[SCENARIO_MAX_LEVELS];
 };
 
 static scenario_state scenario;
 static char scenario_monster_tags[MAX_MONSTERS][SCENARIO_MAX_NAME_LEN];
+static int scenario_active_map_idx = -1;
 static int scenario_truce_flag_idx = -1;
 static int scenario_escape_flag_idx = -1;
 static int scenario_error_line = 0;
@@ -541,7 +566,12 @@ static int scenario_warning_count = 0;
 static char scenario_warning[160];
 
 static int scenario_default_start_exp(void);
+static int scenario_birth_start_exp(void);
+static int scenario_birth_stat_cost_offset(void);
 static bool scenario_grid_has_tag(int y, int x, cptr tag);
+static bool scenario_place_map_entity(const scenario_map_entity* entity);
+static bool scenario_parse_depth_span(
+    cptr token, bool* relative, s16b* min_depth, s16b* max_depth, int line);
 static void scenario_show_text_block(int text_idx);
 static void scenario_show_message_block(int text_idx);
 static void scenario_add_note_block(int text_idx);
@@ -1914,27 +1944,33 @@ static bool scenario_parse_rule(cptr token, int line)
     return (TRUE);
 }
 
-static scenario_entity_legend* scenario_find_entity_legend(char symbol)
+/* Look up one authored MAP block by exact dungeon depth. */
+static scenario_map* scenario_find_map(int depth)
 {
     int i;
 
-    for (i = 0; i < scenario.entity_legend_count; i++)
+    for (i = 0; i < scenario.level_count; i++)
     {
-        if (scenario.entity_legends[i].symbol == symbol)
-            return (&scenario.entity_legends[i]);
+        if (scenario.levels[i].depth_set && (scenario.levels[i].depth == depth))
+            return (&scenario.levels[i]);
     }
 
     return (NULL);
 }
 
-static scenario_terrain_legend* scenario_find_terrain_legend(char symbol)
+/* Resolve one terrain legend inside one authored MAP block. */
+static scenario_terrain_legend* scenario_find_terrain_legend_in(
+    scenario_map* level, char symbol)
 {
     int i;
 
-    for (i = 0; i < scenario.terrain_legend_count; i++)
+    if (!level)
+        return (NULL);
+
+    for (i = 0; i < level->terrain_legend_count; i++)
     {
-        if (scenario.terrain_legends[i].symbol == symbol)
-            return (&scenario.terrain_legends[i]);
+        if (level->terrain_legends[i].symbol == symbol)
+            return (&level->terrain_legends[i]);
     }
 
     return (NULL);
@@ -2590,20 +2626,20 @@ static bool scenario_parse_flag_line(char* spec, int line)
 
 static bool scenario_append_row(
     char rows[SCENARIO_MAX_ROWS][SCENARIO_MAX_COLS + 1], int* row_count,
-    cptr row, int line)
+    int* width, cptr row, int line)
 {
     size_t len = strlen(row);
 
     if (*row_count >= SCENARIO_MAX_ROWS)
         return (scenario_fail(line, "Scenario map is too tall."));
 
-    if (!scenario.width)
+    if (!(*width))
     {
         if ((len <= 0) || (len > SCENARIO_MAX_COLS))
             return (scenario_fail(line, "Scenario map has invalid width."));
-        scenario.width = (int)len;
+        *width = (int)len;
     }
-    else if ((int)len != scenario.width)
+    else if ((int)len != *width)
     {
         return (scenario_fail(line, "Scenario map rows must be rectangular."));
     }
@@ -2613,55 +2649,262 @@ static bool scenario_append_row(
     return (TRUE);
 }
 
-static bool scenario_parse_terrain_legend(char* body, int line)
+static bool scenario_parse_terrain_legend(
+    scenario_map* level, char* body, int line)
 {
     char local[256];
     char* parts[24];
     int count;
-    int feat;
+    int feat = 0;
     int i;
     scenario_terrain_legend* legend;
     long info_value;
+    char* eq;
+    long chance_value;
 
-    if (scenario.terrain_legend_count >= SCENARIO_MAX_TERRAIN_LEGENDS)
+    if (!level)
+        return (scenario_fail(line, "T: requires an active MAP block."));
+
+    if (level->terrain_legend_count >= SCENARIO_MAX_TERRAIN_LEGENDS)
         return (scenario_fail(line, "Too many terrain legends."));
 
     my_strcpy(local, body, sizeof(local));
+    int base_idx;
+    int modifier_idx;
+    char symbol;
+    bool good_flag;
+
     count = scenario_split(local, parts, 24);
-    if (count < 3)
+    if (count < 2)
         return (scenario_fail(line, "Malformed terrain legend."));
 
     parts[0] = scenario_trim(parts[0]);
-    parts[1] = scenario_trim(parts[1]);
-    parts[2] = scenario_trim(parts[2]);
-
-    if (!parts[0][0] || parts[0][1] || (parts[0][0] == ' ')
-        || (parts[0][0] == '@'))
+    if (!parts[0][0])
     {
-        return (scenario_fail(line, "Invalid terrain legend symbol."));
+        symbol = ':';
+        base_idx = 1;
+    }
+    else
+    {
+        if (parts[0][1] || (parts[0][0] == ' '))
+        {
+            return (scenario_fail(line, "Invalid terrain legend symbol."));
+        }
+
+        symbol = parts[0][0];
+        base_idx = 1;
     }
 
-    if (my_stricmp(parts[1], "FEATURE"))
-        return (scenario_fail(line, "Unknown terrain legend type."));
+    if (count <= base_idx)
+        return (scenario_fail(line, "Malformed terrain legend."));
 
-    feat = scenario_lookup_feature(parts[2]);
-    if (feat < 0)
-        return (scenario_fail(line, "Unknown terrain feature."));
+    parts[base_idx] = scenario_trim(parts[base_idx]);
+    if ((count > base_idx + 1) && parts[base_idx + 1])
+        parts[base_idx + 1] = scenario_trim(parts[base_idx + 1]);
 
-    legend = &scenario.terrain_legends[scenario.terrain_legend_count++];
-    legend->symbol = parts[0][0];
-    legend->feat = (byte)feat;
+    if (!parts[base_idx][0])
+    {
+        return (scenario_fail(line, "Malformed terrain legend."));
+    }
+
+    legend = &level->terrain_legends[level->terrain_legend_count++];
+    WIPE(legend, scenario_terrain_legend);
+    legend->symbol = symbol;
+    legend->type = 0;
+    legend->feat = 0;
+    legend->place = 0;
+    legend->chance = 100;
     legend->info = 0;
+    legend->entity_set = FALSE;
+    legend->entity.chance = 100;
+    legend->entity.drop_type = DROP_TYPE_NOT_DAMAGED;
 
-    for (i = 3; i < count; i++)
+    if (!my_stricmp(parts[base_idx], "FEATURE"))
+    {
+        if (count <= base_idx + 1)
+            return (scenario_fail(line, "Malformed terrain legend."));
+
+        feat = scenario_lookup_feature(parts[base_idx + 1]);
+        if (feat < 0)
+            return (scenario_fail(line, "Unknown terrain feature."));
+
+        legend->type = SCN_TERRAIN_FEATURE;
+        legend->feat = (byte)feat;
+        modifier_idx = base_idx + 2;
+    }
+    else if (!my_stricmp(parts[base_idx], "PLACE"))
+    {
+        if (count <= base_idx + 1)
+            return (scenario_fail(line, "Malformed terrain legend."));
+
+        legend->type = SCN_TERRAIN_PLACE;
+
+        if (!my_stricmp(parts[base_idx + 1], "CLOSED_DOOR"))
+            legend->place = SCN_TERRAIN_PLACE_CLOSED_DOOR;
+        else if (!my_stricmp(parts[base_idx + 1], "TRAP"))
+            legend->place = SCN_TERRAIN_PLACE_TRAP;
+        else if (!my_stricmp(parts[base_idx + 1], "FORGE"))
+            legend->place = SCN_TERRAIN_PLACE_FORGE;
+        else
+            return (scenario_fail(line, "Unknown terrain placer."));
+
+        modifier_idx = base_idx + 2;
+    }
+    else if (!my_stricmp(parts[base_idx], "FLOOR"))
+    {
+        legend->type = SCN_TERRAIN_FLOOR;
+        legend->feat = FEAT_FLOOR;
+        modifier_idx = base_idx + 1;
+    }
+    else
+    {
+        return (scenario_fail(line, "Unknown terrain legend type."));
+    }
+
+    for (i = modifier_idx; i < count; i++)
     {
         char* token = scenario_trim(parts[i]);
+
+        my_strcpy(local, token, sizeof(local));
+        eq = strchr(local, '=');
 
         if (!my_strnicmp(token, "info=", 5))
         {
             if (!scenario_parse_int(token + 5, &info_value))
                 return (scenario_fail(line, "Invalid terrain info mask."));
             legend->info = (u16b)info_value;
+        }
+        else if (eq)
+        {
+            int idx;
+
+            *eq++ = '\0';
+
+            if (!my_stricmp(scenario_trim(local), "CHANCE"))
+            {
+                if (!scenario_parse_int(scenario_trim(eq), &chance_value)
+                    || (chance_value < 0) || (chance_value > 100))
+                {
+                    return (scenario_fail(line, "Invalid terrain placer chance."));
+                }
+
+                legend->chance = (byte)chance_value;
+            }
+            else if (!my_stricmp(scenario_trim(local), "MONSTER"))
+            {
+                if (legend->entity_set && (legend->entity.kind != SCN_LEVEL_ENTITY_MONSTER))
+                {
+                    return (scenario_fail(
+                        line, "A terrain legend cannot define multiple entity kinds."));
+                }
+
+                idx = scenario_lookup_monster(scenario_trim(eq));
+                if (idx <= 0)
+                    return (scenario_fail(line, "Unknown monster race."));
+
+                legend->entity_set = TRUE;
+                legend->entity.kind = SCN_LEVEL_ENTITY_MONSTER;
+                legend->entity.monster.r_idx = (s16b)idx;
+            }
+            else if (!my_stricmp(scenario_trim(local), "OBJECT"))
+            {
+                if (legend->entity_set && (legend->entity.kind != SCN_LEVEL_ENTITY_OBJECT))
+                {
+                    return (scenario_fail(
+                        line, "A terrain legend cannot define multiple entity kinds."));
+                }
+
+                idx = scenario_lookup_object(scenario_trim(eq));
+                if (idx <= 0)
+                {
+                    return (scenario_fail(
+                        line, "Unknown or ambiguous object kind."));
+                }
+
+                legend->entity_set = TRUE;
+                legend->entity.kind = SCN_LEVEL_ENTITY_OBJECT;
+                legend->entity.object.k_idx = (s16b)idx;
+            }
+            else if (!my_stricmp(scenario_trim(local), "GEN_MONSTER"))
+            {
+                if (legend->entity_set
+                    && (legend->entity.kind != SCN_LEVEL_ENTITY_GEN_MONSTER))
+                {
+                    return (scenario_fail(
+                        line, "A terrain legend cannot define multiple entity kinds."));
+                }
+
+                legend->entity_set = TRUE;
+                legend->entity.kind = SCN_LEVEL_ENTITY_GEN_MONSTER;
+                if (!scenario_parse_depth_span(scenario_trim(eq),
+                        &legend->entity.relative_depth,
+                        &legend->entity.min_depth, &legend->entity.max_depth, line))
+                {
+                    return (FALSE);
+                }
+            }
+            else if (!my_stricmp(scenario_trim(local), "GEN_OBJECT"))
+            {
+                if (legend->entity_set
+                    && (legend->entity.kind != SCN_LEVEL_ENTITY_GEN_OBJECT))
+                {
+                    return (scenario_fail(
+                        line, "A terrain legend cannot define multiple entity kinds."));
+                }
+
+                legend->entity_set = TRUE;
+                legend->entity.kind = SCN_LEVEL_ENTITY_GEN_OBJECT;
+                if (!scenario_parse_depth_span(scenario_trim(eq),
+                        &legend->entity.relative_depth,
+                        &legend->entity.min_depth, &legend->entity.max_depth, line))
+                {
+                    return (FALSE);
+                }
+            }
+            else if (!my_stricmp(scenario_trim(local), "GOOD"))
+            {
+                if (legend->entity.kind != SCN_LEVEL_ENTITY_GEN_OBJECT)
+                {
+                    return (scenario_fail(
+                        line, "GOOD requires a generated object tile."));
+                }
+
+                if (!scenario_parse_bool(scenario_trim(eq), &good_flag))
+                    return (scenario_fail(line, "Invalid GOOD flag."));
+                legend->entity.good = good_flag;
+            }
+            else if (!my_stricmp(scenario_trim(local), "DROP"))
+            {
+                if (legend->entity.kind != SCN_LEVEL_ENTITY_GEN_OBJECT)
+                {
+                    return (scenario_fail(
+                        line, "DROP requires a generated object tile."));
+                }
+
+                eq = scenario_trim(eq);
+                if (!my_stricmp(eq, "NOT_DAMAGED"))
+                    legend->entity.drop_type = DROP_TYPE_NOT_DAMAGED;
+                else if (!my_stricmp(eq, "UNTHEMED"))
+                    legend->entity.drop_type = DROP_TYPE_UNTHEMED;
+                else if (!my_stricmp(eq, "CHEST"))
+                    legend->entity.drop_type = DROP_TYPE_CHEST;
+                else
+                    return (scenario_fail(line, "Unknown generated object drop type."));
+            }
+            else
+            {
+                return (scenario_fail(line, "Unknown terrain legend modifier."));
+            }
+        }
+        else if (!my_stricmp(token, "GOOD"))
+        {
+            if (legend->entity.kind != SCN_LEVEL_ENTITY_GEN_OBJECT)
+            {
+                return (scenario_fail(
+                    line, "GOOD requires a generated object tile."));
+            }
+
+            legend->entity.good = TRUE;
         }
         else if (!scenario_parse_cave_info_flag_token(&legend->info, token, line))
         {
@@ -2672,16 +2915,459 @@ static bool scenario_parse_terrain_legend(char* body, int line)
     return (TRUE);
 }
 
-/* Return whether the pending scenario carries an authored fixed level map. */
-static bool scenario_has_authored_level(void)
+/* Start one new authored MAP block with its display name. */
+static scenario_map* scenario_add_map(cptr name, int line)
 {
-    return (scenario.terrain_rows > 0);
+    scenario_map* level;
+    char local_name[SCENARIO_MAX_NAME_LEN];
+
+    my_strcpy(local_name, name ? name : "", sizeof(local_name));
+    if (!scenario_trim(local_name)[0])
+    {
+        scenario_fail(line, "MAP name cannot be empty.");
+        return (NULL);
+    }
+
+    if (scenario.level_count >= SCENARIO_MAX_LEVELS)
+    {
+        scenario_fail(line, "Too many scenario MAP blocks.");
+        return (NULL);
+    }
+
+    level = &scenario.levels[scenario.level_count++];
+    WIPE(level, scenario_map);
+    my_strcpy(level->name, scenario_trim(local_name), sizeof(level->name));
+    return (level);
 }
 
-/* Return whether the pending scenario is a mapless birth-backed scenario. */
+/* Return the full generated map height for one authored MAP block. */
+static int scenario_map_height(const scenario_map* level)
+{
+    if (!level)
+        return (0);
+
+    if (level->map_size_set)
+        return (level->map_height);
+
+    return (level->height);
+}
+
+/* Return the full generated map width for one authored MAP block. */
+static int scenario_map_width(const scenario_map* level)
+{
+    if (!level)
+        return (0);
+
+    if (level->map_size_set)
+        return (level->map_width);
+
+    return (level->width);
+}
+
+/* Parse the generated map size for one MAP block. */
+static bool scenario_parse_map_size(
+    scenario_map* level, cptr spec, int line)
+{
+    char local[64];
+    char* parts[3];
+    int count;
+    long value;
+
+    if (!level)
+        return (scenario_fail(line, "MAP_SIZE requires an active MAP block."));
+
+    my_strcpy(local, spec, sizeof(local));
+    count = scenario_split(local, parts, N_ELEMENTS(parts));
+    if (count < 2)
+        return (scenario_fail(line, "Malformed MAP_SIZE directive."));
+
+    if (!scenario_parse_int(scenario_trim(parts[0]), &value) || (value <= 0)
+        || (value > SCENARIO_MAX_ROWS))
+    {
+        return (scenario_fail(line, "Invalid authored map height."));
+    }
+    level->map_height = (int)value;
+
+    if (!scenario_parse_int(scenario_trim(parts[1]), &value) || (value <= 0)
+        || (value > SCENARIO_MAX_COLS))
+    {
+        return (scenario_fail(line, "Invalid authored map width."));
+    }
+    level->map_width = (int)value;
+    level->map_size_set = TRUE;
+    return (TRUE);
+}
+
+/* Parse the exact dungeon depth where one MAP block should be used. */
+static bool scenario_parse_map_depth(scenario_map* level, cptr spec, int line)
+{
+    long value;
+
+    if (!level)
+        return (scenario_fail(line, "MAP_DEPTH requires an active MAP block."));
+
+    if (!scenario_parse_int(spec, &value) || (value < 0) || (value >= MAX_DEPTH))
+        return (scenario_fail(line, "Invalid MAP depth."));
+
+    if (scenario_find_map((int)value) && (scenario_find_map((int)value) != level))
+        return (scenario_fail(line, "Duplicate MAP depth."));
+
+    level->depth = (s16b)value;
+    level->depth_set = TRUE;
+    return (TRUE);
+}
+
+/* Parse the top-left origin where one MAP block is stamped into its map. */
+static bool scenario_parse_map_origin(
+    scenario_map* level, cptr spec, int line)
+{
+    char local[64];
+    char* parts[3];
+    int count;
+    long value;
+
+    if (!level)
+        return (scenario_fail(line, "MAP_ORIGIN requires an active MAP block."));
+
+    my_strcpy(local, spec, sizeof(local));
+    count = scenario_split(local, parts, N_ELEMENTS(parts));
+    if (count < 2)
+        return (scenario_fail(line, "Malformed MAP_ORIGIN directive."));
+
+    if (!scenario_parse_int(scenario_trim(parts[0]), &value) || (value < 0))
+        return (scenario_fail(line, "Invalid authored map origin y coordinate."));
+    level->origin_y = (int)value;
+
+    if (!scenario_parse_int(scenario_trim(parts[1]), &value) || (value < 0))
+        return (scenario_fail(line, "Invalid authored map origin x coordinate."));
+    level->origin_x = (int)value;
+
+    level->origin_set = TRUE;
+    return (TRUE);
+}
+
+/* Parse one sparse depth range like +1, +1..+4, or 20. */
+static bool scenario_parse_depth_span(
+    cptr token, bool* relative, s16b* min_depth, s16b* max_depth, int line)
+{
+    char local[64];
+    char* split;
+    char* left;
+    char* right;
+    long min_value;
+    long max_value;
+    bool rel_left;
+    bool rel_right;
+
+    if (!token || !token[0])
+        return (scenario_fail(line, "Missing generation depth."));
+
+    my_strcpy(local, token, sizeof(local));
+    split = strstr(local, "..");
+    if (split)
+    {
+        *split = '\0';
+        right = split + 2;
+    }
+    else
+    {
+        right = NULL;
+    }
+
+    left = scenario_trim(local);
+    if (!left[0])
+        return (scenario_fail(line, "Missing generation depth."));
+
+    rel_left = ((left[0] == '+') || (left[0] == '-'));
+    if (!scenario_parse_int(left, &min_value))
+        return (scenario_fail(line, "Invalid generation depth."));
+
+    if (right)
+    {
+        right = scenario_trim(right);
+        if (!right[0])
+            return (scenario_fail(line, "Invalid generation depth range."));
+
+        rel_right = ((right[0] == '+') || (right[0] == '-'));
+        if (rel_left != rel_right)
+        {
+            return (scenario_fail(
+                line, "Generation depth range must be consistently relative or absolute."));
+        }
+
+        if (!scenario_parse_int(right, &max_value))
+            return (scenario_fail(line, "Invalid generation depth."));
+    }
+    else
+    {
+        max_value = min_value;
+        rel_right = rel_left;
+    }
+
+    if ((min_value < SHRT_MIN) || (min_value > SHRT_MAX) || (max_value < SHRT_MIN)
+        || (max_value > SHRT_MAX))
+    {
+        return (scenario_fail(line, "Generation depth is out of range."));
+    }
+
+    if (min_value > max_value)
+    {
+        long tmp = min_value;
+        min_value = max_value;
+        max_value = tmp;
+    }
+
+    *relative = rel_left;
+    *min_depth = (s16b)min_value;
+    *max_depth = (s16b)max_value;
+    return (TRUE);
+}
+
+/* Parse MAP block flags that affect one authored special level. */
+static bool scenario_parse_map_flags(
+    scenario_map* level, cptr spec, int line)
+{
+    char local[160];
+    char* token;
+
+    if (!level)
+        return (scenario_fail(line, "MAP_FLAGS requires an active MAP block."));
+
+    my_strcpy(local, spec, sizeof(local));
+
+    for (token = strtok(local, " ,|\t"); token; token = strtok(NULL, " ,|\t"))
+    {
+        if (!my_stricmp(token, "NONE"))
+            continue;
+        if (!my_stricmp(token, "GOOD_ITEM"))
+            level->flags |= SCN_LEVEL_FLAG_GOOD_ITEM;
+        else
+            return (scenario_fail(line, "Unknown MAP flag."));
+    }
+
+    return (TRUE);
+}
+
+/* Parse one sparse entity placement inside a MAP block. */
+static bool scenario_parse_map_entity(
+    scenario_map* level, cptr body, int line)
+{
+    char local[512];
+    char local2[128];
+    char* parts[64];
+    int count;
+    long value;
+    int idx;
+    int i;
+    scenario_map_entity* entity;
+
+    if (!level)
+        return (scenario_fail(line, "Sparse entities require an active MAP block."));
+
+    my_strcpy(local, body, sizeof(local));
+    count = scenario_split(local, parts, N_ELEMENTS(parts));
+    if (count < 3)
+        return (scenario_fail(line, "Malformed sparse entity directive."));
+
+    if (!scenario_parse_int(scenario_trim(parts[0]), &value))
+        return (scenario_fail(line, "Invalid entity y coordinate."));
+    if ((value < 0) || (value >= SCENARIO_MAX_ROWS))
+        return (scenario_fail(line, "Entity y coordinate is out of bounds."));
+
+    if (!scenario_parse_int(scenario_trim(parts[1]), &value))
+        return (scenario_fail(line, "Invalid entity x coordinate."));
+    if ((value < 0) || (value >= SCENARIO_MAX_COLS))
+        return (scenario_fail(line, "Entity x coordinate is out of bounds."));
+
+    if (count < 3)
+        return (scenario_fail(line, "Malformed sparse entity directive."));
+
+    if (!my_stricmp(scenario_trim(parts[2]), "PLAYER"))
+    {
+        if (count != 3)
+            return (scenario_fail(line, "PLAYER entity does not take modifiers."));
+
+        if (!scenario_parse_int(scenario_trim(parts[0]), &value))
+            return (FALSE);
+        level->player_y = (int)value;
+
+        if (!scenario_parse_int(scenario_trim(parts[1]), &value))
+            return (FALSE);
+        level->player_x = (int)value;
+
+        level->player_pos_set = TRUE;
+        return (TRUE);
+    }
+
+    if (level->entity_count >= SCENARIO_MAX_LEVEL_ENTITIES)
+        return (scenario_fail(line, "Too many sparse entities in this MAP block."));
+
+    entity = &level->entities[level->entity_count++];
+    WIPE(entity, scenario_map_entity);
+    entity->chance = 100;
+    entity->drop_type = DROP_TYPE_NOT_DAMAGED;
+    entity->y = atoi(scenario_trim(parts[0]));
+    entity->x = atoi(scenario_trim(parts[1]));
+
+    if (!my_stricmp(scenario_trim(parts[2]), "OBJECT"))
+    {
+        if (count < 4)
+            return (scenario_fail(line, "Sparse object is missing its kind."));
+
+        idx = scenario_lookup_object(scenario_trim(parts[3]));
+        if (idx <= 0)
+            return (scenario_fail(line, "Unknown or ambiguous object kind."));
+
+        entity->kind = SCN_LEVEL_ENTITY_OBJECT;
+        entity->object.k_idx = (s16b)idx;
+
+        for (i = 4; i < count; i++)
+        {
+            if (!scenario_parse_object_modifier(
+                    &entity->object, scenario_trim(parts[i]), line))
+            {
+                return (FALSE);
+            }
+        }
+
+        return (TRUE);
+    }
+
+    if (!my_stricmp(scenario_trim(parts[2]), "MONSTER"))
+    {
+        if (count < 4)
+            return (scenario_fail(line, "Sparse monster is missing its race."));
+
+        idx = scenario_lookup_monster(scenario_trim(parts[3]));
+        if (idx <= 0)
+            return (scenario_fail(line, "Unknown monster race."));
+
+        entity->kind = SCN_LEVEL_ENTITY_MONSTER;
+        entity->monster.r_idx = (s16b)idx;
+
+        for (i = 4; i < count; i++)
+        {
+            if (!scenario_parse_monster_modifier(
+                    &entity->monster, scenario_trim(parts[i]), line))
+            {
+                return (FALSE);
+            }
+        }
+
+        return (TRUE);
+    }
+
+    if (!my_stricmp(scenario_trim(parts[2]), "GEN_OBJECT"))
+    {
+        entity->kind = SCN_LEVEL_ENTITY_GEN_OBJECT;
+
+        for (i = 3; i < count; i++)
+        {
+            char* token = scenario_trim(parts[i]);
+            char* eq;
+
+            my_strcpy(local2, token, sizeof(local2));
+            eq = strchr(local2, '=');
+            if (!eq)
+                return (scenario_fail(line, "Unknown generated object modifier."));
+
+            *eq++ = '\0';
+            if (!my_stricmp(local2, "depth"))
+            {
+                if (!scenario_parse_depth_span(
+                        scenario_trim(eq), &entity->relative_depth,
+                        &entity->min_depth, &entity->max_depth, line))
+                {
+                    return (FALSE);
+                }
+            }
+            else if (!my_stricmp(local2, "chance"))
+            {
+                if (!scenario_parse_int(scenario_trim(eq), &value) || (value < 0)
+                    || (value > 100))
+                {
+                    return (scenario_fail(line, "Invalid generated object chance."));
+                }
+                entity->chance = (byte)value;
+            }
+            else if (!my_stricmp(local2, "good"))
+            {
+                bool good;
+
+                if (!scenario_parse_bool(scenario_trim(eq), &good))
+                    return (scenario_fail(line, "Invalid generated object good flag."));
+                entity->good = good;
+            }
+            else if (!my_stricmp(local2, "drop"))
+            {
+                eq = scenario_trim(eq);
+                if (!my_stricmp(eq, "NOT_DAMAGED"))
+                    entity->drop_type = DROP_TYPE_NOT_DAMAGED;
+                else if (!my_stricmp(eq, "UNTHEMED"))
+                    entity->drop_type = DROP_TYPE_UNTHEMED;
+                else if (!my_stricmp(eq, "CHEST"))
+                    entity->drop_type = DROP_TYPE_CHEST;
+                else
+                    return (scenario_fail(line, "Unknown generated object drop type."));
+            }
+            else
+            {
+                return (scenario_fail(line, "Unknown generated object modifier."));
+            }
+        }
+
+        return (TRUE);
+    }
+
+    if (!my_stricmp(scenario_trim(parts[2]), "GEN_MONSTER"))
+    {
+        entity->kind = SCN_LEVEL_ENTITY_GEN_MONSTER;
+
+        for (i = 3; i < count; i++)
+        {
+            char* token = scenario_trim(parts[i]);
+            char* eq;
+
+            my_strcpy(local2, token, sizeof(local2));
+            eq = strchr(local2, '=');
+            if (!eq)
+                return (scenario_fail(line, "Unknown generated monster modifier."));
+
+            *eq++ = '\0';
+            if (!my_stricmp(local2, "depth"))
+            {
+                if (!scenario_parse_depth_span(
+                        scenario_trim(eq), &entity->relative_depth,
+                        &entity->min_depth, &entity->max_depth, line))
+                {
+                    return (FALSE);
+                }
+            }
+            else if (!my_stricmp(local2, "chance"))
+            {
+                if (!scenario_parse_int(scenario_trim(eq), &value) || (value < 0)
+                    || (value > 100))
+                {
+                    return (scenario_fail(line, "Invalid generated monster chance."));
+                }
+                entity->chance = (byte)value;
+            }
+            else
+            {
+                return (scenario_fail(line, "Unknown generated monster modifier."));
+            }
+        }
+
+        return (TRUE);
+    }
+
+    return (scenario_fail(line, "Unknown sparse entity type."));
+}
+
+/* Return whether a loaded scenario should seed the normal birth flow. */
 bool scenario_birth_active(void)
 {
-    return (scenario.loaded && !scenario_has_authored_level());
+    return (scenario.loaded);
 }
 
 /* Mirror reserved scenario flags onto the current live player state. */
@@ -2728,7 +3414,6 @@ static bool scenario_house_matches_race(void)
 static bool scenario_validate_birth_stats(void)
 {
     int i;
-    int total_cost = 0;
     bool any = FALSE;
 
     for (i = 0; i < A_MAX; i++)
@@ -2761,21 +3446,15 @@ static bool scenario_validate_birth_stats(void)
             return (scenario_fail(
                 0, "A fixed birth stat is too low for the chosen race and house."));
         }
-
-        total_cost += ui_birth_stat_cost_for_value(raw);
     }
-
-    if (total_cost > ui_birth_stat_budget())
-        return (scenario_fail(0, "Fixed birth stats exceed the stat budget."));
 
     return (TRUE);
 }
 
-/* Validate any fixed skill presets against the starting experience pool. */
+/* Validate any fixed skill presets for basic sanity. */
 static bool scenario_validate_birth_skills(void)
 {
     int i;
-    int total_cost = 0;
 
     for (i = 0; i < S_MAX; i++)
     {
@@ -2783,84 +3462,57 @@ static bool scenario_validate_birth_skills(void)
             continue;
         if (scenario.skill_base[i] < 0)
             return (scenario_fail(0, "Fixed birth skills cannot be negative."));
-
-        total_cost += ui_character_skill_gain_cost(0, scenario.skill_base[i]);
-    }
-
-    if (total_cost > scenario_default_start_exp())
-    {
-        return (scenario_fail(
-            0, "Fixed birth skills exceed the starting experience budget."));
     }
 
     return (TRUE);
 }
 
-static bool scenario_validate(void)
+/* Validate one depth-keyed authored MAP block. */
+static bool scenario_validate_map(scenario_map* level)
 {
+    int map_height;
+    int map_width;
+    int origin_y;
+    int origin_x;
     int y;
 
-    if (scenario.phouse_set && !scenario.prace_set)
+    if (!level)
+        return (FALSE);
+
+    if (!level->depth_set)
+        return (scenario_fail(0, "Scenario MAP block must define MAP_DEPTH."));
+
+    if (level->terrain_rows <= 0)
+        return (scenario_fail(0, "Scenario MAP block must define map rows."));
+
+    level->height = level->terrain_rows;
+    map_height = scenario_map_height(level);
+    map_width = scenario_map_width(level);
+    origin_y = level->origin_set ? level->origin_y : 0;
+    origin_x = level->origin_set ? level->origin_x : 0;
+
+    if ((map_height <= 0) || (map_width <= 0))
+        return (scenario_fail(0, "Scenario MAP block has invalid map bounds."));
+
+    if ((origin_y < 0) || (origin_x < 0))
+        return (scenario_fail(0, "Scenario MAP block has an invalid map origin."));
+
+    if ((origin_y + level->height > map_height)
+        || (origin_x + level->width > map_width))
     {
         return (scenario_fail(
-            0, "A fixed player house requires a fixed player race."));
+            0, "Scenario level rows do not fit within the authored map bounds."));
     }
 
-    if (scenario.prace_set && scenario.phouse_set && !scenario_house_matches_race())
-    {
-        return (scenario_fail(
-            0, "The fixed player house does not belong to the fixed race."));
-    }
-
-    if (!scenario_has_authored_level())
-    {
-        if (scenario.player_pos_set)
-            return (scenario_fail(0, "Mapless scenarios cannot define P:POS."));
-        if (scenario.entity_rows > 0)
-            return (scenario_fail(0, "Mapless scenarios cannot define an entity map."));
-        if (scenario.entity_legend_count > 0)
-            return (scenario_fail(0, "Mapless scenarios cannot define entity legends."));
-        if (scenario.terrain_legend_count > 0)
-        {
-            return (scenario_fail(
-                0, "Mapless scenarios cannot define terrain legends."));
-        }
-        if (scenario.floor_object_count > 0)
-            return (scenario_fail(0, "Mapless scenarios cannot place floor objects."));
-        if (scenario.floor_monster_count > 0)
-            return (scenario_fail(0, "Mapless scenarios cannot place monsters."));
-        if (scenario.grid_tag_count > 0)
-            return (scenario_fail(0, "Mapless scenarios cannot tag map grids."));
-        if (!scenario_validate_birth_stats())
-            return (FALSE);
-        if (!scenario_validate_birth_skills())
-            return (FALSE);
-        return (TRUE);
-    }
-
-    if (!scenario.prace_set)
-        return (scenario_fail(0, "Scenario must define a player race."));
-
-    if (!scenario.phouse_set)
-        return (scenario_fail(0, "Scenario must define a player house."));
-
-    scenario.height = scenario.terrain_rows;
-
-    if (scenario.entity_rows && (scenario.entity_rows != scenario.terrain_rows))
-    {
-        return (scenario_fail(
-            0, "Entity map must have the same height as terrain map."));
-    }
-
-    for (y = 0; y < scenario.terrain_rows; y++)
+    for (y = 0; y < level->terrain_rows; y++)
     {
         int x;
 
-        for (x = 0; x < scenario.width; x++)
+        for (x = 0; x < level->width; x++)
         {
-            char symbol = scenario.terrain[y][x];
+            char symbol = level->terrain[y][x];
 
-            if (scenario_find_terrain_legend(symbol))
+            if (scenario_find_terrain_legend_in(level, symbol))
                 continue;
 
             switch (symbol)
@@ -2883,78 +3535,33 @@ static bool scenario_validate(void)
 
             default:
                 return (scenario_fail(
-                    0, "Terrain map uses an undefined terrain symbol."));
+                    0, "Scenario level uses an undefined terrain symbol."));
             }
         }
     }
 
-    if (scenario.entity_rows > 0)
+    if (!level->player_pos_set)
+        return (scenario_fail(0, "Scenario level must define a player start."));
+
+    if ((level->player_y < 0) || (level->player_y >= map_height)
+        || (level->player_x < 0) || (level->player_x >= map_width))
     {
-        for (y = 0; y < scenario.entity_rows; y++)
+        return (scenario_fail(0, "Scenario level player start lies outside the terrain map."));
+    }
+
+    for (y = 0; y < level->entity_count; y++)
+    {
+        if ((level->entities[y].y < 0) || (level->entities[y].y >= map_height)
+            || (level->entities[y].x < 0) || (level->entities[y].x >= map_width))
         {
-            int x;
-
-            for (x = 0; x < scenario.width; x++)
-            {
-                char symbol = scenario.entities[y][x];
-
-                if ((symbol == '.') || (symbol == ' '))
-                    continue;
-
-                if (symbol == '@')
-                {
-                    scenario.player_pos_set = TRUE;
-                    scenario.player_y = y;
-                    scenario.player_x = x;
-                    continue;
-                }
-
-                if (!scenario_find_entity_legend(symbol))
-                {
-                    return (scenario_fail(
-                        0, "Entity map uses an undefined entity symbol."));
-                }
-            }
+            return (scenario_fail(0, "A sparse entity lies outside the terrain map."));
         }
     }
 
-    if (!scenario.player_pos_set)
-        return (scenario_fail(0, "Scenario must define a player start."));
-
-    if ((scenario.player_y < 0) || (scenario.player_y >= scenario.height)
-        || (scenario.player_x < 0) || (scenario.player_x >= scenario.width))
+    for (y = 0; y < level->grid_tag_count; y++)
     {
-        return (scenario_fail(0, "Player start lies outside the terrain map."));
-    }
-
-    for (y = 0; y < scenario.floor_object_count; y++)
-    {
-        if ((scenario.floor_objects[y].y < 0)
-            || (scenario.floor_objects[y].y >= scenario.height)
-            || (scenario.floor_objects[y].x < 0)
-            || (scenario.floor_objects[y].x >= scenario.width))
-        {
-            return (scenario_fail(0, "A floor object lies outside the terrain map."));
-        }
-    }
-
-    for (y = 0; y < scenario.floor_monster_count; y++)
-    {
-        if ((scenario.floor_monsters[y].y < 0)
-            || (scenario.floor_monsters[y].y >= scenario.height)
-            || (scenario.floor_monsters[y].x < 0)
-            || (scenario.floor_monsters[y].x >= scenario.width))
-        {
-            return (
-                scenario_fail(0, "A monster lies outside the terrain map."));
-        }
-    }
-
-    for (y = 0; y < scenario.grid_tag_count; y++)
-    {
-        if ((scenario.grid_tags[y].y < 0) || (scenario.grid_tags[y].y >= scenario.height)
-            || (scenario.grid_tags[y].x < 0)
-            || (scenario.grid_tags[y].x >= scenario.width))
+        if ((level->grid_tags[y].y < 0) || (level->grid_tags[y].y >= map_height)
+            || (level->grid_tags[y].x < 0) || (level->grid_tags[y].x >= map_width))
         {
             return (scenario_fail(0, "A tagged grid lies outside the terrain map."));
         }
@@ -2963,42 +3570,34 @@ static bool scenario_validate(void)
     return (TRUE);
 }
 
-static void scenario_init_notes(void)
+static bool scenario_validate(void)
 {
     int i;
-    char raw_date[25];
-    char clean_date[25];
-    char month[4];
-    time_t ct = time((time_t*)0);
 
-    for (i = 0; i < NOTES_LENGTH; i++)
-        notes_buffer[i] = '\0';
+    if (scenario.phouse_set && !scenario.prace_set)
+    {
+        return (scenario_fail(
+            0, "A fixed player house requires a fixed player race."));
+    }
 
-    (void)strftime(raw_date, sizeof(raw_date), "@%Y%m%d", localtime(&ct));
+    if (scenario.prace_set && scenario.phouse_set && !scenario_house_matches_race())
+    {
+        return (scenario_fail(
+            0, "The fixed player house does not belong to the fixed race."));
+    }
 
-    strnfmt(month, sizeof(month), "%.2s", raw_date + 5);
-    atomonth(atoi(month), month, sizeof(month));
+    if (!scenario_validate_birth_stats())
+        return (FALSE);
+    if (!scenario_validate_birth_skills())
+        return (FALSE);
 
-    if (*(raw_date + 7) == '0')
-        strnfmt(clean_date, sizeof(clean_date), "%.1s %.3s %.4s", raw_date + 8,
-            month, raw_date + 1);
-    else
-        strnfmt(clean_date, sizeof(clean_date), "%.2s %.3s %.4s", raw_date + 7,
-            month, raw_date + 1);
+    for (i = 0; i < scenario.level_count; i++)
+    {
+        if (!scenario_validate_map(&scenario.levels[i]))
+            return (FALSE);
+    }
 
-    my_strcat(notes_buffer,
-        format("%s of the %s\n", op_ptr->full_name, p_name + rp_ptr->name),
-        sizeof(notes_buffer));
-    my_strcat(notes_buffer, format("Entered Angband on %s\n", clean_date),
-        sizeof(notes_buffer));
-    my_strcat(
-        notes_buffer, "\n   Turn     Depth   Note\n\n", sizeof(notes_buffer));
-
-    message_add(" ", MSG_GENERIC, 0);
-    message_add("  ", MSG_GENERIC, 0);
-    message_add("====================", MSG_GENERIC, 0);
-    message_add("  ", MSG_GENERIC, 0);
-    message_add(" ", MSG_GENERIC, 0);
+    return (TRUE);
 }
 
 static int scenario_default_start_exp(void)
@@ -3007,6 +3606,42 @@ static int scenario_default_start_exp(void)
         return (PY_FIXED_EXP);
 
     return (PY_START_EXP);
+}
+
+/* Return the birth XP budget that a loaded scenario should start from. */
+static int scenario_birth_start_exp(void)
+{
+    if (scenario.exp_set)
+        return (scenario.exp);
+
+    return (scenario_default_start_exp());
+}
+
+/* Return the stat-budget cost contributed by free scenario stat presets. */
+static int scenario_birth_stat_cost_offset(void)
+{
+    int i;
+    int total_cost = 0;
+
+    if (!scenario_birth_active() || !scenario.prace_set || !scenario.phouse_set
+        || !rp_ptr || !hp_ptr)
+    {
+        return (0);
+    }
+
+    for (i = 0; i < A_MAX; i++)
+    {
+        int raw;
+
+        if (!scenario.stat_set[i])
+            continue;
+
+        raw = scenario.stat_base[i] - (rp_ptr->r_adj[i] + hp_ptr->h_adj[i]);
+        if (raw > 0)
+            total_cost += ui_birth_stat_cost_for_value(raw);
+    }
+
+    return (total_cost);
 }
 
 /* Seed any fixed birth choices before the normal birth prompts begin. */
@@ -3052,11 +3687,10 @@ void scenario_birth_seed_background(void)
     }
 }
 
-/* Seed fixed skill presets and pre-charge their share of the XP budget. */
+/* Seed fixed skill presets without spending the interactive XP budget yet. */
 bool scenario_birth_seed_skills(void)
 {
     int i;
-    int total_cost = 0;
 
     if (!scenario_birth_active())
         return (TRUE);
@@ -3067,14 +3701,27 @@ bool scenario_birth_seed_skills(void)
             continue;
 
         p_ptr->skill_base[i] = scenario.skill_base[i];
-        total_cost += ui_character_skill_gain_cost(0, scenario.skill_base[i]);
     }
-
-    if (total_cost > p_ptr->exp)
-        return (FALSE);
-
-    p_ptr->new_exp = p_ptr->exp - total_cost;
     return (TRUE);
+}
+
+/* Return whether scenario items replace the normal birth outfit. */
+bool scenario_birth_overrides_outfit(void)
+{
+    return (scenario_birth_active() && (scenario.item_count > 0));
+}
+
+/* Return the birth XP budget after scenario presets are applied. */
+int scenario_birth_get_start_exp(void)
+{
+    return (scenario_birth_active() ? scenario_birth_start_exp()
+                                    : scenario_default_start_exp());
+}
+
+/* Return the free stat-budget offset granted by scenario stat presets. */
+int scenario_birth_get_stat_cost_offset(void)
+{
+    return (scenario_birth_active() ? scenario_birth_stat_cost_offset() : 0);
 }
 
 /* Return whether the scenario fixes the player's race choice. */
@@ -3140,29 +3787,6 @@ bool scenario_birth_ahw_fixed(void)
 bool scenario_birth_name_fixed(void)
 {
     return (scenario_birth_active() && scenario.full_name_set);
-}
-
-static void scenario_roll_body_values(void)
-{
-    if (!scenario.age_set)
-        p_ptr->age = rand_range(rp_ptr->b_age, rp_ptr->m_age);
-    else
-        p_ptr->age = scenario.age;
-
-    if (!scenario.ht_set)
-        p_ptr->ht = Rand_normal(rp_ptr->b_ht, rp_ptr->m_ht);
-    else
-        p_ptr->ht = scenario.ht;
-
-    if (!scenario.wt_set)
-    {
-        p_ptr->wt = Rand_normal(rp_ptr->b_wt, rp_ptr->m_wt);
-        p_ptr->wt += p_ptr->ht / 5;
-    }
-    else
-    {
-        p_ptr->wt = scenario.wt;
-    }
 }
 
 /* Instantiate one authored object spec, including tagged note text wiring. */
@@ -3391,16 +4015,71 @@ static bool scenario_add_starting_item(const scenario_object_spec* spec)
 
 static bool scenario_place_terrain(int y, int x, char ch)
 {
-    scenario_terrain_legend* legend = scenario_find_terrain_legend(ch);
+    scenario_map* level = NULL;
+    scenario_terrain_legend* legend;
+    scenario_map_entity entity;
 
     cave_info[y][x] = 0;
 
+    if ((scenario_active_map_idx >= 0)
+        && (scenario_active_map_idx < scenario.level_count))
+    {
+        level = &scenario.levels[scenario_active_map_idx];
+    }
+
+    legend = scenario_find_terrain_legend_in(level, ch);
+
     if (legend)
     {
-        cave_set_feat(y, x, legend->feat);
+        if (legend->type == SCN_TERRAIN_FEATURE)
+        {
+            cave_set_feat(y, x, legend->feat);
+        }
+        else if (legend->type == SCN_TERRAIN_FLOOR)
+        {
+            cave_set_feat(y, x, FEAT_FLOOR);
+        }
+        else if (legend->type == SCN_TERRAIN_PLACE)
+        {
+            cave_set_feat(y, x, FEAT_FLOOR);
+        }
+        else
+        {
+            return (FALSE);
+        }
+
         cave_info[y][x]
             = (cave_info[y][x] & ~SCENARIO_CAVE_INFO_FLAGS)
             | (legend->info & SCENARIO_CAVE_INFO_FLAGS);
+
+        if ((legend->type == SCN_TERRAIN_PLACE)
+            && ((legend->chance >= 100) || (rand_int(100) < legend->chance)))
+        {
+            switch (legend->place)
+            {
+            case SCN_TERRAIN_PLACE_CLOSED_DOOR:
+                place_closed_door(y, x);
+                break;
+            case SCN_TERRAIN_PLACE_TRAP:
+                place_trap(y, x);
+                break;
+            case SCN_TERRAIN_PLACE_FORGE:
+                place_forge(y, x);
+                break;
+            default:
+                return (FALSE);
+            }
+        }
+
+        if (legend->entity_set)
+        {
+            entity = legend->entity;
+            entity.y = y;
+            entity.x = x;
+            if (!scenario_place_map_entity(&entity))
+                return (FALSE);
+        }
+
         return (TRUE);
     }
 
@@ -3457,6 +4136,36 @@ static bool scenario_place_terrain(int y, int x, char ch)
     }
 
     return (TRUE);
+}
+
+/* Roll one authored generated depth, relative to the current level if needed. */
+static int scenario_roll_generated_depth(const scenario_map_entity* entity)
+{
+    int min_depth;
+    int max_depth;
+
+    if (!entity)
+        return (p_ptr ? p_ptr->depth : 0);
+
+    min_depth = entity->min_depth;
+    max_depth = entity->max_depth;
+
+    if (entity->relative_depth && p_ptr)
+    {
+        min_depth += p_ptr->depth;
+        max_depth += p_ptr->depth;
+    }
+
+    min_depth = MAX(0, min_depth);
+    max_depth = MIN(MAX_DEPTH - 1, max_depth);
+
+    if (min_depth > max_depth)
+        min_depth = max_depth;
+
+    if (min_depth == max_depth)
+        return (min_depth);
+
+    return (rand_range(min_depth, max_depth));
 }
 
 static bool scenario_player_already_placed(void)
@@ -3518,27 +4227,43 @@ static bool scenario_place_monster(int y, int x, const scenario_monster_spec* sp
     return (TRUE);
 }
 
-static bool scenario_place_entity(int y, int x, char symbol)
+/* Place one sparse entity from a MAP block onto the live dungeon. */
+static bool scenario_place_map_entity(const scenario_map_entity* entity)
 {
-    scenario_entity_legend* legend;
+    int saved_level;
 
-    if ((symbol == '.') || (symbol == ' '))
-        return (TRUE);
-
-    if (symbol == '@')
-        return (scenario_place_player(y, x));
-
-    legend = scenario_find_entity_legend(symbol);
-    if (!legend)
+    if (!entity)
         return (FALSE);
 
-    if (legend->type == SCN_ENTITY_MONSTER)
-        return (scenario_place_monster(y, x, &legend->monster));
+    if ((entity->chance < 100) && (rand_int(100) >= entity->chance))
+        return (TRUE);
 
-    if (legend->type == SCN_ENTITY_OBJECT)
-        return (scenario_place_floor_object(y, x, &legend->object));
+    switch (entity->kind)
+    {
+    case SCN_LEVEL_ENTITY_OBJECT:
+        return (scenario_place_floor_object(entity->y, entity->x, &entity->object));
 
-    return (FALSE);
+    case SCN_LEVEL_ENTITY_MONSTER:
+        return (scenario_place_monster(entity->y, entity->x, &entity->monster));
+
+    case SCN_LEVEL_ENTITY_GEN_OBJECT:
+        saved_level = object_level;
+        object_level = scenario_roll_generated_depth(entity);
+        place_object(
+            entity->y, entity->x, entity->good, FALSE, entity->drop_type);
+        object_level = saved_level;
+        return (TRUE);
+
+    case SCN_LEVEL_ENTITY_GEN_MONSTER:
+        saved_level = monster_level;
+        monster_level = scenario_roll_generated_depth(entity);
+        place_monster(entity->y, entity->x, TRUE, TRUE, TRUE);
+        monster_level = saved_level;
+        return (TRUE);
+
+    default:
+        return (FALSE);
+    }
 }
 
 /*
@@ -4040,13 +4765,27 @@ void scenario_handle_enter_level(void)
 static bool scenario_grid_has_tag(int y, int x, cptr tag)
 {
     int i;
+    scenario_grid_tag* tags;
+    int tag_count;
+    scenario_map* level;
 
     if (!tag || !tag[0])
         return (FALSE);
 
-    for (i = 0; i < scenario.grid_tag_count; i++)
+    if ((scenario_active_map_idx < 0) || (scenario_active_map_idx >= scenario.level_count)
+        || !p_ptr)
+        return (FALSE);
+
+    level = &scenario.levels[scenario_active_map_idx];
+    if (level->depth != p_ptr->depth)
+        return (FALSE);
+
+    tags = level->grid_tags;
+    tag_count = level->grid_tag_count;
+
+    for (i = 0; i < tag_count; i++)
     {
-        scenario_grid_tag* grid_tag = &scenario.grid_tags[i];
+        scenario_grid_tag* grid_tag = &tags[i];
 
         if ((grid_tag->y != y) || (grid_tag->x != x))
             continue;
@@ -4328,6 +5067,7 @@ void scenario_clear_pending(void)
     WIPE(&scenario, scenario_state);
     memset(scenario_monster_tags, 0, sizeof(scenario_monster_tags));
     oath_clear_catalog();
+    scenario_active_map_idx = -1;
     scenario_truce_flag_idx = -1;
     scenario_escape_flag_idx = -1;
     scenario_error_line = 0;
@@ -4344,6 +5084,7 @@ bool scenario_prepare_pending(cptr filename)
     FILE* fff;
     char buf[512];
     int line = 0;
+    scenario_map* current_map = NULL;
 
     scenario_clear_pending();
 
@@ -4380,6 +5121,40 @@ bool scenario_prepare_pending(cptr filename)
                 break;
             }
         }
+        else if (!my_strnicmp(s, "MAP:", 4))
+        {
+            current_map = scenario_add_map(scenario_trim(s + 4), line);
+            if (!current_map)
+                break;
+        }
+        else if (!my_strnicmp(s, "MAP_DEPTH:", 10))
+        {
+            if (!scenario_parse_map_depth(current_map, scenario_trim(s + 10), line))
+                break;
+        }
+        else if (!my_strnicmp(s, "MAP_FLAGS:", 10))
+        {
+            if (!scenario_parse_map_flags(current_map, scenario_trim(s + 10),
+                    line))
+            {
+                break;
+            }
+        }
+        else if (!my_strnicmp(s, "MAP_SIZE:", 9))
+        {
+            if (!scenario_parse_map_size(current_map, scenario_trim(s + 9),
+                    line))
+            {
+                break;
+            }
+        }
+        else if (!my_strnicmp(s, "MAP_ORIGIN:", 11))
+        {
+            if (!scenario_parse_map_origin(current_map, scenario_trim(s + 11), line))
+            {
+                break;
+            }
+        }
         else if (!my_strnicmp(s, "F:", 2))
         {
             if (!scenario_parse_flag_line(scenario_trim(s + 2), line))
@@ -4393,7 +5168,13 @@ bool scenario_prepare_pending(cptr filename)
             long value;
             scenario_grid_tag* entry;
 
-            if (scenario.grid_tag_count >= SCENARIO_MAX_GRID_TAGS)
+            if (!current_map)
+            {
+                scenario_fail(line, "G: requires an active MAP block.");
+                break;
+            }
+
+            if (current_map->grid_tag_count >= SCENARIO_MAX_GRID_TAGS)
             {
                 scenario_fail(line, "Too many tagged grids.");
                 break;
@@ -4407,7 +5188,7 @@ bool scenario_prepare_pending(cptr filename)
                 break;
             }
 
-            entry = &scenario.grid_tags[scenario.grid_tag_count++];
+            entry = &current_map->grid_tags[current_map->grid_tag_count++];
             WIPE(entry, scenario_grid_tag);
 
             if (!scenario_parse_int(parts[0], &value))
@@ -4433,7 +5214,13 @@ bool scenario_prepare_pending(cptr filename)
         }
         else if (!my_strnicmp(s, "T:", 2))
         {
-            if (!scenario_parse_terrain_legend(scenario_trim(s + 2), line))
+            if (!current_map)
+            {
+                scenario_fail(line, "T: requires an active MAP block.");
+                break;
+            }
+            if (!scenario_parse_terrain_legend(
+                    current_map, scenario_trim(s + 2), line))
                 break;
         }
         else if (!my_strnicmp(s, "P:", 2))
@@ -4565,26 +5352,10 @@ bool scenario_prepare_pending(cptr filename)
             }
             else if (!my_stricmp(parts[0], "POS"))
             {
-                if (count < 3)
-                {
-                    scenario_fail(line, "POS needs y and x.");
-                    break;
-                }
-
-                if (!scenario_parse_int(parts[1], &value))
-                {
-                    scenario_fail(line, "Invalid player y coordinate.");
-                    break;
-                }
-                scenario.player_y = (int)value;
-
-                if (!scenario_parse_int(scenario_trim(parts[2]), &value))
-                {
-                    scenario_fail(line, "Invalid player x coordinate.");
-                    break;
-                }
-                scenario.player_x = (int)value;
-                scenario.player_pos_set = TRUE;
+                scenario_fail(
+                    line,
+                    "P:POS is obsolete; define E:<y>:<x>:PLAYER inside a MAP block.");
+                break;
             }
             else
             {
@@ -4703,209 +5474,15 @@ bool scenario_prepare_pending(cptr filename)
             if (i < count)
                 break;
         }
-        else if (!my_strnicmp(s, "O:", 2))
-        {
-            char local[512];
-            char* parts[48];
-            int count;
-            int i;
-            long value;
-            int k_idx;
-            scenario_floor_object* entry;
-
-            if (scenario.floor_object_count >= SCENARIO_MAX_FLOOR_OBJECTS)
-            {
-                scenario_fail(line, "Too many floor objects.");
-                break;
-            }
-
-            my_strcpy(local, scenario_trim(s + 2), sizeof(local));
-            count = scenario_split(local, parts, 48);
-            if (count < 3)
-            {
-                scenario_fail(line, "Malformed floor object directive.");
-                break;
-            }
-
-            entry = &scenario.floor_objects[scenario.floor_object_count++];
-            WIPE(entry, scenario_floor_object);
-
-            if (!scenario_parse_int(parts[0], &value))
-            {
-                scenario_fail(line, "Invalid floor object y coordinate.");
-                break;
-            }
-            entry->y = (int)value;
-
-            if (!scenario_parse_int(parts[1], &value))
-            {
-                scenario_fail(line, "Invalid floor object x coordinate.");
-                break;
-            }
-            entry->x = (int)value;
-
-            k_idx = scenario_lookup_object(scenario_trim(parts[2]));
-            if (k_idx <= 0)
-            {
-                scenario_fail(line, "Unknown or ambiguous object kind.");
-                break;
-            }
-            entry->object.k_idx = (s16b)k_idx;
-
-            for (i = 3; i < count; i++)
-            {
-                if (!scenario_parse_object_modifier(
-                        &entry->object, scenario_trim(parts[i]), line))
-                    break;
-            }
-            if (i < count)
-                break;
-        }
-        else if (!my_strnicmp(s, "N:", 2))
-        {
-            char local[512];
-            char* parts[64];
-            int count;
-            int i;
-            long value;
-            int r_idx;
-            scenario_floor_monster* entry;
-
-            if (scenario.floor_monster_count >= SCENARIO_MAX_FLOOR_MONSTERS)
-            {
-                scenario_fail(line, "Too many monsters.");
-                break;
-            }
-
-            my_strcpy(local, scenario_trim(s + 2), sizeof(local));
-            count = scenario_split(local, parts, 64);
-            if (count < 3)
-            {
-                scenario_fail(line, "Malformed monster directive.");
-                break;
-            }
-
-            entry = &scenario.floor_monsters[scenario.floor_monster_count++];
-            WIPE(entry, scenario_floor_monster);
-
-            if (!scenario_parse_int(parts[0], &value))
-            {
-                scenario_fail(line, "Invalid monster y coordinate.");
-                break;
-            }
-            entry->y = (int)value;
-
-            if (!scenario_parse_int(parts[1], &value))
-            {
-                scenario_fail(line, "Invalid monster x coordinate.");
-                break;
-            }
-            entry->x = (int)value;
-
-            r_idx = scenario_lookup_monster(scenario_trim(parts[2]));
-            if (r_idx <= 0)
-            {
-                scenario_fail(line, "Unknown monster race.");
-                break;
-            }
-            entry->monster.r_idx = (s16b)r_idx;
-
-            for (i = 3; i < count; i++)
-            {
-                if (!scenario_parse_monster_modifier(
-                        &entry->monster, scenario_trim(parts[i]), line))
-                    break;
-            }
-            if (i < count)
-                break;
-        }
-        else if (!my_strnicmp(s, "L:", 2))
-        {
-            char local[512];
-            char* parts[64];
-            int count;
-            int i;
-            int idx;
-            scenario_entity_legend* legend;
-
-            if (scenario.entity_legend_count >= SCENARIO_MAX_ENTITY_LEGENDS)
-            {
-                scenario_fail(line, "Too many entity legends.");
-                break;
-            }
-
-            my_strcpy(local, scenario_trim(s + 2), sizeof(local));
-            count = scenario_split(local, parts, 64);
-            if (count < 3)
-            {
-                scenario_fail(line, "Malformed legend directive.");
-                break;
-            }
-
-            legend = &scenario.entity_legends[scenario.entity_legend_count++];
-            WIPE(legend, scenario_entity_legend);
-            parts[0] = scenario_trim(parts[0]);
-            parts[1] = scenario_trim(parts[1]);
-            parts[2] = scenario_trim(parts[2]);
-
-            if (!parts[0][0] || parts[0][1] || (parts[0][0] == '.')
-                || (parts[0][0] == '@') || (parts[0][0] == ' '))
-            {
-                scenario_fail(line, "Invalid legend symbol.");
-                break;
-            }
-
-            legend->symbol = parts[0][0];
-
-            if (!my_stricmp(parts[1], "MONSTER"))
-            {
-                idx = scenario_lookup_monster(parts[2]);
-                if (idx <= 0)
-                {
-                    scenario_fail(line, "Unknown monster race.");
-                    break;
-                }
-
-                legend->type = SCN_ENTITY_MONSTER;
-                legend->monster.r_idx = (s16b)idx;
-                for (i = 3; i < count; i++)
-                {
-                    if (!scenario_parse_monster_modifier(
-                            &legend->monster, scenario_trim(parts[i]), line))
-                        break;
-                }
-            }
-            else if (!my_stricmp(parts[1], "OBJECT"))
-            {
-                idx = scenario_lookup_object(parts[2]);
-                if (idx <= 0)
-                {
-                    scenario_fail(line, "Unknown or ambiguous object kind.");
-                    break;
-                }
-
-                legend->type = SCN_ENTITY_OBJECT;
-                legend->object.k_idx = (s16b)idx;
-                for (i = 3; i < count; i++)
-                {
-                    if (!scenario_parse_object_modifier(
-                            &legend->object, scenario_trim(parts[i]), line))
-                        break;
-                }
-            }
-            else
-            {
-                scenario_fail(line, "Unknown legend type.");
-                break;
-            }
-
-            if (i < count)
-                break;
-        }
         else if (!my_strnicmp(s, "M:", 2))
         {
-            if (!scenario_append_row(
-                    scenario.terrain, &scenario.terrain_rows, s + 2, line))
+            if (!current_map)
+            {
+                scenario_fail(line, "M: requires an active MAP block.");
+                break;
+            }
+            if (!scenario_append_row(current_map->terrain, &current_map->terrain_rows,
+                    &current_map->width, s + 2, line))
                 break;
         }
         else if (!my_strnicmp(s, "X:", 2))
@@ -4935,9 +5512,23 @@ bool scenario_prepare_pending(cptr filename)
         }
         else if (!my_strnicmp(s, "E:", 2))
         {
-            if (!scenario_append_row(
-                    scenario.entities, &scenario.entity_rows, s + 2, line))
+            if (!current_map)
+            {
+                scenario_fail(line, "E: requires an active MAP block.");
                 break;
+            }
+            if (!scenario_parse_map_entity(current_map,
+                    scenario_trim(s + 2), line))
+            {
+                break;
+            }
+        }
+        else if (!my_strnicmp(s, "O:", 2) || !my_strnicmp(s, "N:", 2)
+            || !my_strnicmp(s, "L:", 2))
+        {
+            scenario_fail(
+                line, "O:/N:/L: are obsolete; use MAP-local E: entries instead.");
+            break;
         }
         else if (!my_strnicmp(s, "R:", 2))
         {
@@ -4984,7 +5575,21 @@ bool scenario_prepare_pending(cptr filename)
     scenario_truce_flag_idx = scenario_find_flag("truce_active");
     scenario_escape_flag_idx = scenario_find_flag("escape_phase");
     scenario.loaded = TRUE;
-    scenario.level_pending = FALSE;
+    scenario_active_map_idx = -1;
+    if (p_ptr)
+    {
+        scenario_map* level = scenario_find_map(p_ptr->depth);
+        int i;
+
+        for (i = 0; level && (i < scenario.level_count); i++)
+        {
+            if (&scenario.levels[i] == level)
+            {
+                scenario_active_map_idx = i;
+                break;
+            }
+        }
+    }
     scenario_seed_reserved_flags();
     return (TRUE);
 }
@@ -5053,18 +5658,12 @@ static bool scenario_apply_post_birth_overrides(void)
     p_ptr->redraw |= (PR_BASIC | PR_MISC | PR_EQUIPPY | PR_RESIST | PR_EXP);
 
     scenario_sync_player_state();
-    scenario.level_pending = FALSE;
     return (TRUE);
 }
 
-/*
- * Start a new game from the pending scenario, rebuilding player state from
- * the scenario definition instead of a binary savefile.
- */
+/* Start a new game from the pending scenario through the normal birth flow. */
 bool scenario_start_pending_new_game(void)
 {
-    int i;
-    int j;
     s16b game_type;
     s16b quest_id;
 
@@ -5074,183 +5673,118 @@ bool scenario_start_pending_new_game(void)
     game_type = p_ptr->game_type;
     quest_id = p_ptr->unused2;
 
-    if (!scenario_has_authored_level())
-    {
-        player_birth();
-        p_ptr->game_type = game_type;
-        p_ptr->unused2 = quest_id;
-        return (scenario_apply_post_birth_overrides());
-    }
-
-    player_birth_wipe();
-
+    player_birth();
     p_ptr->game_type = game_type;
     p_ptr->unused2 = quest_id;
-    p_ptr->unused3 = 0;
-    p_ptr->prace = scenario.prace;
-    p_ptr->phouse = scenario.phouse;
-
-    rp_ptr = &p_info[p_ptr->prace];
-    hp_ptr = &c_info[p_ptr->phouse];
-
-    for (i = 0; i < S_MAX; i++)
-        p_ptr->skill_base[i] = 0;
-
-    for (i = 0; i < S_MAX; i++)
-    {
-        for (j = 0; j < ABILITIES_MAX; j++)
-        {
-            p_ptr->innate_ability[i][j] = scenario.innate_ability[i][j];
-            p_ptr->active_ability[i][j] = scenario.active_ability[i][j];
-        }
-    }
-
-    for (i = OPT_BIRTH; i < OPT_CHEAT; i++)
-        op_ptr->opt[OPT_ADULT + (i - OPT_BIRTH)] = op_ptr->opt[i];
-
-    for (i = OPT_CHEAT; i < OPT_ADULT; i++)
-        op_ptr->opt[OPT_SCORE + (i - OPT_CHEAT)] = op_ptr->opt[i];
-
-    if (strlen(op_ptr->full_name) == 0)
-    {
-        op_ptr->hitpoint_warn = 3;
-        op_ptr->delay_factor = 5;
-    }
-
-    for (i = 0; i < z_info->e_max; i++)
-        e_info[i].aware = FALSE;
-
-    if (scenario.full_name_set)
-        my_strcpy(op_ptr->full_name, scenario.full_name, sizeof(op_ptr->full_name));
-    else
-        my_strcpy(op_ptr->full_name, "Adventurer", sizeof(op_ptr->full_name));
-
-    op_ptr->base_name[0] = '\0';
-
-    if (scenario.history[0])
-        my_strcpy(p_ptr->history, scenario.history, sizeof(p_ptr->history));
-
-    scenario_roll_body_values();
-
-    p_ptr->depth = scenario.depth_set ? scenario.depth : 1;
-    p_ptr->max_depth
-        = scenario.max_depth_set ? scenario.max_depth : p_ptr->depth;
-    p_ptr->exp = scenario.exp_set ? scenario.exp : scenario_default_start_exp();
-    p_ptr->new_exp = scenario.new_exp_set ? scenario.new_exp : p_ptr->exp;
-    p_ptr->song1 = SNG_NOTHING;
-    p_ptr->song2 = SNG_NOTHING;
-    p_ptr->song_duration = 0;
-    p_ptr->food = scenario.food_set ? scenario.food : (PY_FOOD_FULL - 1);
-    p_ptr->artefacts = 0;
-
-    for (i = 0; i < A_MAX; i++)
-    {
-        if (scenario.stat_set[i])
-            p_ptr->stat_base[i] = scenario.stat_base[i];
-        p_ptr->stat_drain[i] = 0;
-    }
-
-    for (i = 0; i < S_MAX; i++)
-    {
-        if (scenario.skill_set[i])
-            p_ptr->skill_base[i] = scenario.skill_base[i];
-    }
-
-    for (i = 0; i < scenario.item_count; i++)
-    {
-        if (!scenario_add_starting_item(&scenario.items[i]))
-        {
-            msg_format("Scenario '%s': failed to grant starting item %d.",
-                scenario.source, i + 1);
-            message_flush();
-            return (FALSE);
-        }
-    }
-
-    p_ptr->update |= (PU_BONUS | PU_HP | PU_MANA);
-    update_stuff();
-
-    p_ptr->chp = scenario.chp_set ? MIN(scenario.chp, p_ptr->mhp) : p_ptr->mhp;
-    p_ptr->chp_frac = 0;
-
-    p_ptr->csp = scenario.csp_set ? MIN(scenario.csp, p_ptr->msp) : p_ptr->msp;
-    p_ptr->csp_frac = 0;
-
-    p_ptr->window |= (PW_INVEN | PW_EQUIP | PW_PLAYER_0);
-    p_ptr->redraw |= (PR_BASIC | PR_MISC | PR_EQUIPPY | PR_RESIST | PR_EXP);
-
-    scenario_init_notes();
-    scenario.level_pending = TRUE;
-    return (TRUE);
+    return (scenario_apply_post_birth_overrides());
 }
 
-bool scenario_pending_level_generation(void)
+bool scenario_pending_map_generation(void)
 {
-    return (scenario.loaded && scenario.level_pending);
+    if (!scenario.loaded || !p_ptr)
+        return (FALSE);
+
+    return (scenario_find_map(p_ptr->depth) != NULL);
 }
 
 /*
- * Materialize the pending scenario map, then place the player, authored
- * floor contents, and any legend-driven entities on top of it.
+ * Materialize one authored MAP block, then place the player and sparse
+ * entities on top of it.
  */
-bool scenario_generate_pending_level(void)
+bool scenario_generate_pending_map(void)
 {
+    int map_height;
+    int map_width;
+    int origin_y;
+    int origin_x;
     int y;
+    int i;
+    scenario_map* level;
 
-    if (!scenario_pending_level_generation())
+    if (!scenario_pending_map_generation())
         return (FALSE);
+
+    level = scenario_find_map(p_ptr->depth);
+    if (!level)
+        return (FALSE);
+
+    scenario_active_map_idx = -1;
+    for (i = 0; i < scenario.level_count; i++)
+    {
+        if (&scenario.levels[i] == level)
+        {
+            scenario_active_map_idx = i;
+            break;
+        }
+    }
+
+    map_height = scenario_map_height(level);
+    map_width = scenario_map_width(level);
+    origin_y = level->origin_set ? level->origin_y : 0;
+    origin_x = level->origin_set ? level->origin_x : 0;
 
     memset(scenario_monster_tags, 0, sizeof(scenario_monster_tags));
 
-    p_ptr->cur_map_hgt = (byte)scenario.height;
-    p_ptr->cur_map_wid = (byte)scenario.width;
+    p_ptr->cur_map_hgt = (byte)map_height;
+    p_ptr->cur_map_wid = (byte)map_width;
 
-    for (y = 0; y < scenario.height; y++)
+    if (level->flags & SCN_LEVEL_FLAG_GOOD_ITEM)
+        good_item_flag = TRUE;
+
+    if (level->map_size_set)
     {
         int x;
 
-        for (x = 0; x < scenario.width; x++)
+        for (y = 0; y < map_height; y++)
         {
-            if (!scenario_place_terrain(y, x, scenario.terrain[y][x]))
+            for (x = 0; x < map_width; x++)
+            {
+                cave_info[y][x] = 0;
+                cave_set_feat(y, x, FEAT_WALL_EXTRA);
+            }
+        }
+
+        for (y = 0; y < map_height; y++)
+        {
+            cave_set_feat(y, 0, FEAT_WALL_PERM);
+            cave_set_feat(y, map_width - 1, FEAT_WALL_PERM);
+        }
+
+        for (x = 0; x < map_width; x++)
+        {
+            cave_set_feat(0, x, FEAT_WALL_PERM);
+            cave_set_feat(map_height - 1, x, FEAT_WALL_PERM);
+        }
+    }
+
+    for (y = 0; y < level->height; y++)
+    {
+        int x;
+
+        for (x = 0; x < level->width; x++)
+        {
+            int target_y = origin_y + y;
+            int target_x = origin_x + x;
+            char symbol = level->terrain[y][x];
+
+            if (symbol == ' ')
+                continue;
+
+            if (!scenario_place_terrain(target_y, target_x, symbol))
                 return (FALSE);
         }
     }
 
-    if (!scenario_place_player(scenario.player_y, scenario.player_x))
+    if (!scenario_place_player(level->player_y, level->player_x))
         return (FALSE);
 
-    for (y = 0; y < scenario.floor_object_count; y++)
+    for (y = 0; y < level->entity_count; y++)
     {
-        if (!scenario_place_floor_object(scenario.floor_objects[y].y,
-                scenario.floor_objects[y].x, &scenario.floor_objects[y].object))
-        {
+        if (!scenario_place_map_entity(&level->entities[y]))
             return (FALSE);
-        }
-    }
-
-    for (y = 0; y < scenario.floor_monster_count; y++)
-    {
-        if (!scenario_place_monster(scenario.floor_monsters[y].y,
-                scenario.floor_monsters[y].x, &scenario.floor_monsters[y].monster))
-        {
-            return (FALSE);
-        }
-    }
-
-    for (y = 0; y < scenario.entity_rows; y++)
-    {
-        int x;
-
-        for (x = 0; x < scenario.width; x++)
-        {
-            if (!scenario_place_entity(y, x, scenario.entities[y][x]))
-                return (FALSE);
-        }
     }
 
     scenario_init_wandering_flows();
-
-    scenario.level_pending = FALSE;
     return (TRUE);
 }
 
@@ -5265,19 +5799,25 @@ static void scenario_export_header(FILE* fff, cptr filename)
 
     fprintf(fff, "# File: %s\n", basename);
     fprintf(fff, "#\n");
-    fprintf(fff, "# Generated from a savefile. Edit by hand if you want, or regenerate it\n");
-    fprintf(fff, "# with the scenario exporter to refresh the exact snapshot.\n");
+    fprintf(fff, "# Generated from the current live game state. Edit by hand if you want,\n");
+    fprintf(fff, "# or regenerate it with the scenario exporter to refresh this MAP block.\n");
     fprintf(fff, "#\n");
     fprintf(fff, "# Quick legend:\n");
     fprintf(fff, "# V:<n> format version\n");
     fprintf(fff, "# P:<field>:<value> player state or birth preset data\n");
     fprintf(fff, "# P:ABILITY:<skill>:<ability>[:INNATE=0][:ACTIVE=0] player ability state\n");
     fprintf(fff, "# I:<slot>:<object>[:key=value...] starting inventory or equipment\n");
-    fprintf(fff, "# T:<symbol>:FEATURE:<feature>[:flags...] terrain legend used by M: rows\n");
+    fprintf(fff, "# MAP:<name> begin one authored map block with metadata\n");
+    fprintf(fff, "# MAP_DEPTH:<n> exact dungeon depth where that map is used\n");
+    fprintf(fff, "# MAP_FLAGS:<flag[,flag...]> extra generation hints for that map\n");
+    fprintf(fff, "# MAP_SIZE:<h>:<w> full generated map size for a compact MAP block\n");
+    fprintf(fff, "# MAP_ORIGIN:<y>:<x> top-left stamp position of its M: rows\n");
+    fprintf(fff, "# T:<symbol>:FEATURE|PLACE|FLOOR:... tile legend used by M: rows\n");
+    fprintf(fff, "#   FLOOR tiles can add MONSTER=..., OBJECT=..., GEN_MONSTER=...,\n");
+    fprintf(fff, "#   GEN_OBJECT=..., GOOD=1, or DROP=CHEST while still starting from floor\n");
     fprintf(fff, "# M:<symbols...> one map row using the T: legend above\n");
-    fprintf(fff, "# O:<y>:<x>:<object>[:key=value...] floor object\n");
-    fprintf(fff, "#   Tagged Note objects reuse tag=<text-id> to choose their X: text\n");
-    fprintf(fff, "# N:<y>:<x>:<monster>[:key=value...] monster\n");
+    fprintf(fff, "# E:<y>:<x>:PLAYER|MONSTER|OBJECT|GEN_MONSTER|GEN_OBJECT:... sparse\n");
+    fprintf(fff, "#   entity used inside MAP blocks for player starts and exceptions\n");
     fprintf(fff, "# G:<y>:<x>:<tag> tag one grid for rule matching\n");
     fprintf(fff, "# X:<text-id>:<line> named multiline text block (repeatable)\n");
     fprintf(fff, "# OATH:<name>:VOW|RESTRICTION|REWARD_STAT:<value>\n");
@@ -5294,8 +5834,9 @@ static void scenario_export_header(FILE* fff, cptr filename)
     fprintf(fff, "# DISPLAY_MESSAGE, ADD_NOTE, CONFIRM_TEXT, BREAK_OATH,\n");
     fprintf(fff, "# DENY_ACTION, END_GAME,\n");
     fprintf(fff, "# SET_NEW_DEPTH=<n>, and CREATE_STAIRS=<stair|none>.\n");
-    fprintf(fff, "# Map rows are optional: without M:/E:, the scenario uses normal birth and\n");
-    fprintf(fff, "# procedural level generation while still applying its P:/X:/R: data.\n");
+    fprintf(fff, "# Map rows are optional: without authored MAP blocks, the\n");
+    fprintf(fff, "# scenario uses normal birth and procedural level generation while still\n");
+    fprintf(fff, "# applying its P:/X:/R: data.\n");
 }
 
 static void scenario_export_wrapped_text(
@@ -5993,7 +6534,9 @@ bool scenario_export_current(cptr filename)
     int y;
     int x;
     char path[1024];
+    char map_name[SCENARIO_MAX_NAME_LEN];
     char token[160];
+    scenario_map* active_map = NULL;
     scenario_terrain_legend legends[SCENARIO_MAX_TERRAIN_LEGENDS];
     int legend_count = 0;
 
@@ -6029,7 +6572,6 @@ bool scenario_export_current(cptr filename)
     fprintf(fff, "P:FOOD:%d\n", p_ptr->food);
     fprintf(fff, "P:HP:%d\n", p_ptr->chp);
     fprintf(fff, "P:VOICE:%d\n", p_ptr->csp);
-    fprintf(fff, "P:POS:%d:%d\n", p_ptr->py, p_ptr->px);
 
     for (y = 0; y < A_MAX; y++)
         fprintf(fff, "P:STAT:%s:%d\n", stat_names[y], p_ptr->stat_base[y]);
@@ -6081,6 +6623,33 @@ bool scenario_export_current(cptr filename)
 
     fprintf(fff, "\n");
 
+    if ((scenario_active_map_idx >= 0) && (scenario_active_map_idx < scenario.level_count)
+        && scenario.levels[scenario_active_map_idx].depth_set
+        && (scenario.levels[scenario_active_map_idx].depth == p_ptr->depth))
+    {
+        active_map = &scenario.levels[scenario_active_map_idx];
+    }
+
+    if (active_map)
+    {
+        if (active_map->name[0])
+            my_strcpy(map_name, active_map->name, sizeof(map_name));
+        else
+            strnfmt(map_name, sizeof(map_name), "Depth %d", p_ptr->depth);
+    }
+    else
+    {
+        strnfmt(map_name, sizeof(map_name), "Depth %d", p_ptr->depth);
+    }
+
+    fprintf(fff, "# Authored start map.\n");
+    fprintf(fff, "MAP:%s\n", map_name);
+    fprintf(fff, "MAP_DEPTH:%d\n", p_ptr->depth);
+    if (good_item_flag || (active_map && (active_map->flags & SCN_LEVEL_FLAG_GOOD_ITEM)))
+        fprintf(fff, "MAP_FLAGS:GOOD_ITEM\n");
+    fprintf(fff, "MAP_SIZE:%d:%d\n", p_ptr->cur_map_hgt, p_ptr->cur_map_wid);
+    fprintf(fff, "MAP_ORIGIN:0:0\n\n");
+
     fprintf(fff, "# Terrain legend for the map rows below.\n");
     for (y = 0; y < p_ptr->cur_map_hgt; y++)
     {
@@ -6129,7 +6698,9 @@ bool scenario_export_current(cptr filename)
 
     fprintf(fff, "\n");
 
-    fprintf(fff, "# Floor objects.\n");
+    fprintf(fff, "# Sparse MAP entities.\n");
+    fprintf(fff, "E:%d:%d:PLAYER\n", p_ptr->py, p_ptr->px);
+
     for (y = 1; y < o_max; y++)
     {
         object_type* o_ptr = &o_list[y];
@@ -6137,13 +6708,12 @@ bool scenario_export_current(cptr filename)
         if (!o_ptr->k_idx || o_ptr->held_m_idx)
             continue;
 
-        fprintf(fff, "O:%u:%u:%s", (unsigned)o_ptr->iy, (unsigned)o_ptr->ix,
+        fprintf(fff, "E:%u:%u:OBJECT:%s", (unsigned)o_ptr->iy, (unsigned)o_ptr->ix,
             scenario_export_object_token(o_ptr->k_idx, token, sizeof(token)));
         scenario_export_object_modifiers(fff, o_ptr);
         fprintf(fff, "\n");
     }
 
-    fprintf(fff, "\n# Monsters.\n");
     for (y = 1; y < mon_max; y++)
     {
         monster_type* m_ptr = &mon_list[y];
@@ -6151,18 +6721,18 @@ bool scenario_export_current(cptr filename)
         if (!m_ptr->r_idx)
             continue;
 
-        fprintf(fff, "N:%u:%u:%s", (unsigned)m_ptr->fy, (unsigned)m_ptr->fx,
+        fprintf(fff, "E:%u:%u:MONSTER:%s", (unsigned)m_ptr->fy, (unsigned)m_ptr->fx,
             scenario_export_monster_token(m_ptr->r_idx, token, sizeof(token)));
         scenario_export_monster_modifiers(fff, m_ptr, y);
         fprintf(fff, "\n");
     }
 
-    if (scenario.grid_tag_count > 0)
+    if (active_map && (active_map->grid_tag_count > 0))
     {
         fprintf(fff, "\n# Tagged grids.\n");
-        for (y = 0; y < scenario.grid_tag_count; y++)
+        for (y = 0; y < active_map->grid_tag_count; y++)
         {
-            scenario_grid_tag* tag = &scenario.grid_tags[y];
+            scenario_grid_tag* tag = &active_map->grid_tags[y];
 
             fprintf(fff, "G:%d:%d:%s\n", tag->y, tag->x, tag->tag);
         }
