@@ -13,6 +13,7 @@
 #include "ui-birth.h"
 #include "ui-character.h"
 #include "ui-abilities.h"
+#include "ui-document.h"
 #include "ui-input.h"
 #include "ui-model.h"
 
@@ -1886,6 +1887,187 @@ static void string_lower(char* buf)
         *s = tolower((unsigned char)*s);
 }
 
+static void document_builder_append_char(char* text, byte* attrs, size_t size,
+    size_t* off, char ch, byte attr)
+{
+    if (!text || !attrs || !off || (size == 0))
+        return;
+
+    if (*off + 1 >= size)
+        return;
+
+    text[*off] = ch;
+    attrs[*off] = attr;
+    (*off)++;
+    text[*off] = '\0';
+}
+
+static void document_builder_append_line(char* text, byte* attrs, size_t size,
+    size_t* off, cptr line, cptr lower_line, cptr shower)
+{
+    int i;
+    int shower_len = shower ? strlen(shower) : 0;
+
+    if (!line)
+        line = "";
+
+    for (i = 0; line[i]; i++)
+    {
+        byte attr = TERM_WHITE;
+
+        if (shower_len > 0 && lower_line)
+        {
+            cptr match = lower_line;
+
+            while ((match = strstr(match, shower)) != NULL)
+            {
+                int start = match - lower_line;
+
+                if ((i >= start) && (i < start + shower_len))
+                {
+                    attr = TERM_YELLOW;
+                    break;
+                }
+
+                if (start > i)
+                    break;
+
+                match++;
+            }
+        }
+
+        document_builder_append_char(text, attrs, size, off, line[i], attr);
+    }
+
+    document_builder_append_char(text, attrs, size, off, '\n', TERM_WHITE);
+}
+
+static void publish_buffer_document(cptr main_buffer, cptr what, int line, int size)
+{
+    static char text[MESSAGE_BUF * 8];
+    static byte attrs[MESSAGE_BUF * 8];
+    size_t off = 0;
+    size_t j;
+    size_t line_start = 0;
+    size_t first_text = 0;
+    size_t last_text = 0;
+    int current_line = 0;
+    int first_line = -1;
+    int last_line = -1;
+    int document_line;
+    int document_line_count;
+
+    text[0] = '\0';
+
+    if (!main_buffer)
+    {
+        ui_document_set(what ? what : "Document", "", NULL, 0, 0, 0);
+        return;
+    }
+
+    for (j = 0; TRUE; j++)
+    {
+        char ch = main_buffer[j];
+
+        if ((ch == '\n') || (ch == '\0'))
+        {
+            size_t line_end = j;
+            size_t k;
+            bool blank = TRUE;
+
+            for (k = line_start; k < line_end; k++)
+            {
+                char line_ch = main_buffer[k];
+
+                if ((line_ch != ' ') && (line_ch != '\t') && (line_ch != '\r'))
+                {
+                    blank = FALSE;
+                    break;
+                }
+            }
+
+            if (!blank)
+            {
+                if (first_line < 0)
+                {
+                    first_line = current_line;
+                    first_text = line_start;
+                }
+
+                last_line = current_line;
+                last_text = line_end;
+            }
+
+            if (ch == '\0')
+                break;
+
+            current_line++;
+            line_start = j + 1;
+        }
+    }
+
+    if (first_line < 0)
+    {
+        (void)size;
+        ui_document_set(what ? what : "Document", "", NULL, 0, 0, 0);
+        return;
+    }
+
+    for (j = first_text; j < last_text; j++)
+    {
+        document_builder_append_char(
+            text, attrs, sizeof(text), &off, main_buffer[j], TERM_WHITE);
+    }
+
+    document_line_count = last_line - first_line + 1;
+    document_line = line - first_line;
+    if (document_line < 0)
+        document_line = 0;
+    if (document_line >= document_line_count)
+        document_line = document_line_count - 1;
+
+    (void)size;
+    ui_document_set(what ? what : "Document", text, attrs, (int)off,
+        document_line, document_line_count);
+}
+
+static void publish_file_document(cptr path, cptr caption, int line, int size,
+    bool case_sensitive, cptr shower)
+{
+    FILE* fff;
+    static char text[MESSAGE_BUF * 8];
+    static byte attrs[MESSAGE_BUF * 8];
+    size_t off = 0;
+    char buf[1024];
+    char lc_buf[1024];
+
+    text[0] = '\0';
+
+    fff = my_fopen(path, "r");
+    if (!fff)
+        return;
+
+    while (TRUE)
+    {
+        if (my_fgets(fff, buf, sizeof(buf)))
+            break;
+
+        if (prefix(buf, "***** "))
+            continue;
+
+        my_strcpy(lc_buf, buf, sizeof(lc_buf));
+        if (!case_sensitive)
+            string_lower(lc_buf);
+
+        document_builder_append_line(
+            text, attrs, sizeof(text), &off, buf, lc_buf, shower);
+    }
+
+    my_fclose(fff);
+    ui_document_set(caption && caption[0] ? caption : path, text, attrs,
+        (int)off, line, size);
+}
+
 /*
  * Show the contents of a char buffer on the screen and allow scrolling.
  * Based on show_file.
@@ -1932,6 +2114,8 @@ bool show_buffer(cptr main_buffer, cptr what, int line)
             line = size - (hgt - 5);
         if (line < 0)
             line = 0;
+
+        publish_buffer_document(main_buffer, what, line, size);
 
         /* Goto the selected line */
         next = 0;
@@ -2012,6 +2196,7 @@ bool show_buffer(cptr main_buffer, cptr what, int line)
         switch (ui_input_parse_pager_key(ch))
         {
         case UI_INPUT_PAGER_ACTION_CANCEL:
+            ui_document_clear();
             return (TRUE);
 
         case UI_INPUT_PAGER_ACTION_LINE_UP:
@@ -2362,6 +2547,8 @@ bool show_file(cptr name, cptr what, int line)
             continue;
         }
 
+        publish_file_document(path, caption, line, size, case_sensitive, shower);
+
         /* Show a general "title" */
         //		prt(format("[%s %s, %s, Line %d-%d/%d]", VERSION_NAME,
         // VERSION_STRING, 	           caption, line, line + hgt - 4, size),
@@ -2482,6 +2669,8 @@ bool show_file(cptr name, cptr what, int line)
     }
 
 done:
+    ui_document_clear();
+
     /* Close the file */
     my_fclose(fff);
 

@@ -176,6 +176,7 @@ set(SIL_SOURCES
     src/ui-birth.c
     src/ui-abilities.c
     src/ui-character.c
+    src/ui-document.c
     src/ui-input.c
     src/ui-item-select.c
     src/ui-inventory.c

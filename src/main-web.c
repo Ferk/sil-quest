@@ -19,6 +19,7 @@
 #include "main.h"
 #include "ui-birth.h"
 #include "ui-character.h"
+#include "ui-document.h"
 #include "ui-knowledge.h"
 #include "ui-marks.h"
 #include "ui-model.h"
@@ -269,6 +270,16 @@ EMSCRIPTEN_KEEPALIVE int web_get_modal_visual_kind(void);
 EMSCRIPTEN_KEEPALIVE int web_get_modal_visual_attr(void);
 EMSCRIPTEN_KEEPALIVE int web_get_modal_visual_char(void);
 EMSCRIPTEN_KEEPALIVE unsigned int web_get_modal_revision(void);
+EMSCRIPTEN_KEEPALIVE int web_get_document_active(void);
+EMSCRIPTEN_KEEPALIVE uintptr_t web_get_document_title_ptr(void);
+EMSCRIPTEN_KEEPALIVE int web_get_document_title_len(void);
+EMSCRIPTEN_KEEPALIVE uintptr_t web_get_document_text_ptr(void);
+EMSCRIPTEN_KEEPALIVE int web_get_document_text_len(void);
+EMSCRIPTEN_KEEPALIVE uintptr_t web_get_document_attrs_ptr(void);
+EMSCRIPTEN_KEEPALIVE int web_get_document_attrs_len(void);
+EMSCRIPTEN_KEEPALIVE int web_get_document_top_line(void);
+EMSCRIPTEN_KEEPALIVE int web_get_document_line_count(void);
+EMSCRIPTEN_KEEPALIVE unsigned int web_get_document_revision(void);
 EMSCRIPTEN_KEEPALIVE int web_get_prompt_kind(void);
 EMSCRIPTEN_KEEPALIVE int web_get_prompt_more_hint(void);
 EMSCRIPTEN_KEEPALIVE uintptr_t web_get_prompt_text_ptr(void);
@@ -548,6 +559,23 @@ static void web_mark_cursor_dirty(term_data* td)
 /* FX Snapshot Capture                                                      */
 /* ------------------------------------------------------------------------ */
 
+static bool web_should_block_terminal_fx(void)
+{
+    if (ui_saved_screen_get_depth() > 0)
+        return TRUE;
+
+    if (character_icky > 0)
+        return TRUE;
+
+    if (!p_ptr)
+        return TRUE;
+
+    if (!p_ptr->playing)
+        return TRUE;
+
+    return FALSE;
+}
+
 static void web_ensure_fx_cells(int count)
 {
     if (count < 0)
@@ -582,6 +610,18 @@ static void web_capture_fx_cells(void)
 
     if (!web_fx_cells || !data.cells || (cols <= 0) || (rows <= 0))
         return;
+
+    if (web_should_block_terminal_fx())
+    {
+        int i;
+
+        for (i = 0; i < count; i++)
+        {
+            web_set_text_cell(&web_fx_cells[i], TERM_WHITE, (byte)' ');
+        }
+
+        return;
+    }
 
     for (my = 0; my < rows; my++)
     {
@@ -3579,6 +3619,56 @@ EMSCRIPTEN_KEEPALIVE int web_get_modal_visual_char(void)
 EMSCRIPTEN_KEEPALIVE unsigned int web_get_modal_revision(void)
 {
     return ui_modal_get_revision();
+}
+
+EMSCRIPTEN_KEEPALIVE int web_get_document_active(void)
+{
+    return ui_document_is_active() ? 1 : 0;
+}
+
+EMSCRIPTEN_KEEPALIVE uintptr_t web_get_document_title_ptr(void)
+{
+    return (uintptr_t)(const void*)ui_document_get_title();
+}
+
+EMSCRIPTEN_KEEPALIVE int web_get_document_title_len(void)
+{
+    return ui_document_get_title_len();
+}
+
+EMSCRIPTEN_KEEPALIVE uintptr_t web_get_document_text_ptr(void)
+{
+    return (uintptr_t)(const void*)ui_document_get_text();
+}
+
+EMSCRIPTEN_KEEPALIVE int web_get_document_text_len(void)
+{
+    return ui_document_get_text_len();
+}
+
+EMSCRIPTEN_KEEPALIVE uintptr_t web_get_document_attrs_ptr(void)
+{
+    return (uintptr_t)(const void*)ui_document_get_attrs();
+}
+
+EMSCRIPTEN_KEEPALIVE int web_get_document_attrs_len(void)
+{
+    return ui_document_get_attrs_len();
+}
+
+EMSCRIPTEN_KEEPALIVE int web_get_document_top_line(void)
+{
+    return ui_document_get_top_line();
+}
+
+EMSCRIPTEN_KEEPALIVE int web_get_document_line_count(void)
+{
+    return ui_document_get_line_count();
+}
+
+EMSCRIPTEN_KEEPALIVE unsigned int web_get_document_revision(void)
+{
+    return ui_document_get_revision();
 }
 
 EMSCRIPTEN_KEEPALIVE int web_get_prompt_kind(void)

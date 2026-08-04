@@ -127,6 +127,8 @@
     let lastFrameId = -1;
     let lastMenuRevision = -1;
     let lastModalRevision = -1;
+    let lastDocumentRevision = -1;
+    let lastDocumentScrollRevision = -1;
     let lastPromptRevision = -1;
     let lastPromptInputRevision = -1;
     let lastMessageHistoryModalRevision = -1;
@@ -3186,6 +3188,8 @@
       "overlay-character-sheet",
       "overlay-tile-context",
       "overlay-menu",
+      "overlay-document",
+      "overlay-terminal",
       "overlay-dismissable",
     ];
 
@@ -4361,6 +4365,84 @@
       return true;
     }
 
+    function renderDocumentLines(text, attrs) {
+      const lines = String(text || "").split("\n");
+      let off = 0;
+
+      return lines.map((line, index) => {
+        const lineAttrs = attrs ? attrs.slice(off, off + line.length) : [];
+        off += line.length + 1;
+
+        return (
+          `<div class="document-line" data-document-line="${index}">` +
+            renderColoredText(line || " ", lineAttrs, 1) +
+          "</div>"
+        );
+      }).join("");
+    }
+
+    function syncDocumentLineIntoView(topLine) {
+      const safeLine = Math.max(0, Number(topLine) || 0);
+      const lineEl = overlayModalEl.querySelector(
+        `[data-document-line="${safeLine}"]`
+      );
+      if (!lineEl) return;
+
+      lineEl.scrollIntoView({ block: "start", inline: "nearest" });
+    }
+
+    function updateDocumentSemantic(heap) {
+      if (!api || typeof api.getDocumentActive !== "function") return false;
+
+      if (!api.getDocumentActive()) {
+        if (overlayModalEl.classList.contains("overlay-document")) {
+          hideSemanticOverlay();
+        }
+        return false;
+      }
+
+      const revision =
+        typeof api.getDocumentRevision === "function" ? api.getDocumentRevision() : 0;
+      const title = readUtf8(
+        heap,
+        api.getDocumentTitlePtr ? api.getDocumentTitlePtr() : 0,
+        api.getDocumentTitleLen ? api.getDocumentTitleLen() : 0
+      );
+      const text = readUtf8(
+        heap,
+        api.getDocumentTextPtr ? api.getDocumentTextPtr() : 0,
+        api.getDocumentTextLen ? api.getDocumentTextLen() : 0
+      );
+      const attrs = readBytes(
+        heap,
+        api.getDocumentAttrsPtr ? api.getDocumentAttrsPtr() : 0,
+        api.getDocumentAttrsLen ? api.getDocumentAttrsLen() : 0
+      );
+      const topLine = api.getDocumentTopLine ? api.getDocumentTopLine() : 0;
+      const lineCount = api.getDocumentLineCount ? api.getDocumentLineCount() : 0;
+      const changed = revision !== lastDocumentScrollRevision;
+      const positionLine = Math.min(Math.max(0, topLine) + 1, Math.max(lineCount, 1));
+      const html =
+        `<div class="document-modal">` +
+          `<header class="document-head">` +
+            `<h2 class="document-title">${escapeHtml(title || "Document")}</h2>` +
+            `<p class="document-note">Scroll to read. Esc to close.</p>` +
+            `<p class="document-position">Line ${positionLine}/${Math.max(lineCount, 1)}</p>` +
+          `</header>` +
+          `<div class="document-body">${renderDocumentLines(text, attrs)}</div>` +
+        `</div>`;
+
+      activeTileContextState = null;
+      showSemanticOverlay("overlay-document", html);
+
+      if (changed) {
+        syncDocumentLineIntoView(topLine);
+        lastDocumentScrollRevision = revision;
+      }
+
+      return true;
+    }
+
     // Renders an active semantic modal dialog as an HTML overlay.
     function updateModalSemantic(heap) {
       if (
@@ -4447,6 +4529,11 @@
 
     // Updates modal overlay text from semantic wasm buffers.
     function updateOverlaySemantic(heap) {
+      if (updateDocumentSemantic(heap)) {
+        activeTileContextState = null;
+        return true;
+      }
+
       if (updateModalSemantic(heap)) {
         activeTileContextState = null;
         return true;
@@ -4535,7 +4622,7 @@
       }
 
       showSemanticOverlay(
-        null,
+        "overlay-terminal",
         `<div class="modal-copy-shell"><div class="modal-copy">${renderColoredText(text, attrs, 1)}</div></div>`
       );
       return true;
@@ -4709,6 +4796,8 @@
         typeof api.getMenuRevision === "function" ? api.getMenuRevision() : 0;
       const modalRevision =
         typeof api.getModalRevision === "function" ? api.getModalRevision() : 0;
+      const documentRevision =
+        typeof api.getDocumentRevision === "function" ? api.getDocumentRevision() : 0;
       const promptRevision =
         typeof api.getPromptRevision === "function" ? api.getPromptRevision() : 0;
       const promptInputRevision =
@@ -4728,6 +4817,7 @@
         frameId === lastFrameId &&
         menuRevision === lastMenuRevision &&
         modalRevision === lastModalRevision &&
+        documentRevision === lastDocumentRevision &&
         promptRevision === lastPromptRevision &&
         promptInputRevision === lastPromptInputRevision &&
         birthStateRevision === lastBirthStateRevision &&
@@ -4741,6 +4831,7 @@
       lastFrameId = frameId;
       lastMenuRevision = menuRevision;
       lastModalRevision = modalRevision;
+      lastDocumentRevision = documentRevision;
       lastPromptRevision = promptRevision;
       lastPromptInputRevision = promptInputRevision;
       lastBirthStateRevision = birthStateRevision;
@@ -4859,6 +4950,7 @@
         !overlayModalEl.classList.contains("overlay-birth-stats") &&
         !overlayModalEl.classList.contains("overlay-character-skills") &&
         !overlayModalEl.classList.contains("overlay-character-sheet") &&
+        !overlayModalEl.classList.contains("overlay-document") &&
         !overlayModalEl.classList.contains("overlay-dismissable") &&
         !isInteractiveTopPromptActive() &&
         !morePromptActive;
@@ -4962,6 +5054,7 @@
           overlayModalEl.classList.contains("overlay-birth-stats") ||
           overlayModalEl.classList.contains("overlay-character-skills") ||
           overlayModalEl.classList.contains("overlay-character-sheet") ||
+          overlayModalEl.classList.contains("overlay-document") ||
           isDismissableModalOverlayActive() ||
           isGenericCapturedOverlayActive() ||
           overlayModalEl.classList.contains("overlay-menu") ||
@@ -6017,6 +6110,7 @@
         if (
           overlayModalEl.classList.contains("overlay-menu") ||
           overlayModalEl.classList.contains("overlay-tile-context") ||
+          overlayModalEl.classList.contains("overlay-document") ||
           overlayModalEl.classList.contains("overlay-message-log")
         ) {
           return;
@@ -7070,6 +7164,46 @@
               ? Module._web_get_modal_kind
               : null,
           getModalRevision: Module._web_get_modal_revision,
+          getDocumentActive:
+            typeof Module._web_get_document_active === "function"
+              ? Module._web_get_document_active
+              : null,
+          getDocumentTitlePtr:
+            typeof Module._web_get_document_title_ptr === "function"
+              ? Module._web_get_document_title_ptr
+              : null,
+          getDocumentTitleLen:
+            typeof Module._web_get_document_title_len === "function"
+              ? Module._web_get_document_title_len
+              : null,
+          getDocumentTextPtr:
+            typeof Module._web_get_document_text_ptr === "function"
+              ? Module._web_get_document_text_ptr
+              : null,
+          getDocumentTextLen:
+            typeof Module._web_get_document_text_len === "function"
+              ? Module._web_get_document_text_len
+              : null,
+          getDocumentAttrsPtr:
+            typeof Module._web_get_document_attrs_ptr === "function"
+              ? Module._web_get_document_attrs_ptr
+              : null,
+          getDocumentAttrsLen:
+            typeof Module._web_get_document_attrs_len === "function"
+              ? Module._web_get_document_attrs_len
+              : null,
+          getDocumentTopLine:
+            typeof Module._web_get_document_top_line === "function"
+              ? Module._web_get_document_top_line
+              : null,
+          getDocumentLineCount:
+            typeof Module._web_get_document_line_count === "function"
+              ? Module._web_get_document_line_count
+              : null,
+          getDocumentRevision:
+            typeof Module._web_get_document_revision === "function"
+              ? Module._web_get_document_revision
+              : null,
           getPromptKind: Module._web_get_prompt_kind,
           getPromptMoreHint: Module._web_get_prompt_more_hint,
           getPromptTextPtr: Module._web_get_prompt_text_ptr,

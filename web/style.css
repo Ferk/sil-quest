@@ -663,6 +663,89 @@
       overflow: hidden;
     }
 
+    #overlay-modal.overlay-document {
+      padding: 1rem;
+      width: min(78rem, calc(100% - 2rem));
+      height: min(48rem, calc(100% - 2rem));
+      max-width: calc(100% - 2rem);
+      max-height: calc(100% - 2rem);
+      box-sizing: border-box;
+      white-space: normal;
+      overflow: hidden;
+      touch-action: pan-y;
+    }
+
+    #overlay-modal.overlay-terminal {
+      background: rgba(7, 10, 16, 0.97);
+      padding: 1rem;
+      width: min(72rem, calc(100% - 2rem));
+      height: min(46rem, calc(100% - 2rem));
+      max-width: calc(100% - 2rem);
+      max-height: calc(100% - 2rem);
+      box-sizing: border-box;
+      overflow: auto;
+      touch-action: pan-y;
+    }
+
+    .document-modal {
+      display: grid;
+      grid-template-rows: auto minmax(0, 1fr);
+      gap: 0.8rem;
+      height: 100%;
+      min-height: 0;
+    }
+
+    .document-head {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 0.25rem 1rem;
+      align-items: start;
+      border-bottom: 1px solid rgba(148, 163, 184, 0.25);
+      padding-bottom: 0.65rem;
+    }
+
+    .document-title {
+      margin: 0;
+      color: #f8fafc;
+      font-size: 1rem;
+      line-height: 1.2;
+    }
+
+    .document-note,
+    .document-position {
+      margin: 0;
+      color: #9ca3af;
+      font-size: 0.78rem;
+      line-height: 1.25;
+    }
+
+    .document-note {
+      grid-column: 1 / -1;
+    }
+
+    .document-position {
+      justify-self: end;
+      white-space: nowrap;
+    }
+
+    .document-body {
+      min-height: 0;
+      overflow: auto;
+      overscroll-behavior: contain;
+      -webkit-overflow-scrolling: touch;
+      touch-action: pan-y;
+      font-family: var(--font-game);
+      font-size: clamp(0.58rem, 1.8vw, 0.9rem);
+      line-height: 1.18;
+      color: #f0f4ff;
+      white-space: pre;
+    }
+
+    .document-line {
+      min-height: 1.18em;
+      white-space: pre;
+    }
+
     #overlay-modal.overlay-tile-context {
       padding: 1rem;
       width: min(34rem, calc(100% - 2rem));
@@ -2004,6 +2087,26 @@
         height: auto;
         max-width: none;
         max-height: none;
+      }
+
+      #overlay-modal.overlay-document {
+        padding: 0.75rem;
+        width: auto;
+        height: auto;
+        max-width: none;
+        max-height: none;
+      }
+
+      .document-head {
+        grid-template-columns: minmax(0, 1fr);
+      }
+
+      .document-position {
+        justify-self: start;
+      }
+
+      .document-body {
+        font-size: clamp(0.52rem, 2.6vw, 0.78rem);
       }
 
       .menu-shell {
