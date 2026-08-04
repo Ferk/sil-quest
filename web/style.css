@@ -2154,6 +2154,17 @@
 
       .menu-body-with-details .menu-columns {
         max-height: 40vh;
+        overflow-x: hidden;
+      }
+
+      .menu-body-with-details .menu-column {
+        flex: 1 1 100%;
+        min-width: 0;
+        width: 100%;
+      }
+
+      .menu-body-with-details .menu-column-inactive {
+        display: none;
       }
 
       .menu-columns-wrap-tabbed {
@@ -2193,6 +2204,7 @@
 
       .menu-item {
         min-height: 2.8rem;
+        white-space: normal;
       }
 
       .menu-item-details {

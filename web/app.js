@@ -1211,6 +1211,11 @@
       const container = overlayModalEl.querySelector(".menu-columns");
       if (!container) return;
 
+      if (globalThis.innerWidth <= 800) {
+        container.scrollLeft = 0;
+        return;
+      }
+
       let columnEl = null;
       if (Number.isInteger(activeColumnX)) {
         columnEl = container.querySelector(
@@ -1253,6 +1258,11 @@
         verticalContainer.scrollTop -= (verticalRect.top - itemRect.top) + pad;
       } else if (itemRect.bottom > verticalRect.bottom) {
         verticalContainer.scrollTop += (itemRect.bottom - verticalRect.bottom) + pad;
+      }
+
+      if (globalThis.innerWidth <= 800) {
+        container.scrollLeft = 0;
+        return;
       }
 
       if (itemRect.left < containerRect.left) {

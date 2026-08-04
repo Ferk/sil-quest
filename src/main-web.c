@@ -3906,7 +3906,12 @@ EMSCRIPTEN_KEEPALIVE int web_open_song_menu(void)
 EMSCRIPTEN_KEEPALIVE int web_save_game_automatically(void)
 {
     if (!save_game_automatically())
+    {
+        if (p_ptr && character_generated && quests_save_disabled())
+            web_update_auto_resume_marker(FALSE);
+
         return 0;
+    }
 
     web_update_auto_resume_marker(TRUE);
     return 1;
