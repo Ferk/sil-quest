@@ -1,0 +1,1549 @@
+= Sil-Quest Manual
+:doctype: article
+:toc: macro
+:toc-title: Table of Contents
+:toclevels: 2
+:title-page:
+:stylesheet: manual.css
+:stylesdir: styles
+:imagesdir: images
+:docimagesdir: {docdir}/images
+:pdf-themesdir: {docdir}/styles
+:pdf-theme: manual-theme.yml
+:silquest-toc-note-file: {docdir}/includes/welcome-note.adoc
+
+ifdef::backend-html5[]
+++++
+<div class="silquest-cover"
+     role="img"
+     aria-label="Sil-Quest cover. A lone adventurer approaches the dark fortress of Angband beneath the looming figure of Morgoth.">
+  <img class="silquest-cover-art"
+       src="images/cover.png"
+       alt="">
+  <img class="silquest-cover-title"
+       src="images/title.png"
+       alt="">
+</div>
+++++
+endif::[]
+
+
+== Welcome to Sil-Quest
+
+[verse,role=intro-quote]
+____
+A game of adventure set in the First Age of Middle-earth,
+when the world still rang with elven song
+and gleamed with dwarven mail.
+
+Walk the dark halls of Angband.
+Slay creatures black and fell.
+Wrest a shining Silmaril from Morgoth's iron crown.
+____
+
+ifdef::backend-html5[]
+++++
+<a class="manual-toc-open" href="#toc" aria-label="Open table of contents" title="Open table of contents">☰</a>
+++++
+endif::[]
+
+toc::[]
+
+ifdef::backend-html5[]
+++++
+<a class="manual-toc-close" href="#toc-out" aria-label="Close table of contents">×</a>
+++++
+endif::[]
+
+ifndef::backend-pdf[]
+[.welcome-note]
+--
+include::includes/welcome-note.adoc[]
+--
+endif::[]
+
+== About this game
+
+Sil-Quest is a fork of Sil-Q, which is itself a fork of Sil. If you know Sil or
+Sil-Q, much of the core dungeon-crawling experience will feel familiar: precise
+tactical combat, a sophisticated stealth system, morale, smithing, song, and the
+central impossible errand of stealing a Silmaril from Morgoth.
+
+Sil-Quest keeps that foundation while adding a quest/scenario framework, web
+support, mobile-oriented interface work, and cleanup of some legacy or unused
+features. New authored content should generally be written as text scenarios
+under `lib/edit/quests/` rather than as binary savefiles.
+
+This manual describes the Sil-Q-derived mechanics that Sil-Quest inherits, while
+updating the framing to refer to Sil-Quest as its own game. For content-authoring
+details, see the `quest-authoring.adoc` document.
+
+== About Sil
+
+image::angband-gates.jpg[Elves before the gates of Angband,float="right",width=28%]
+
+Sil is a role-playing game with a strong emphasis on discovery and tactical
+combat. Its combat system is simple to read but rich in consequences: heavy
+armour makes you easier to hit but reduces incoming damage, heavy weapons can
+overcome armour, and lighter weapons can favour accuracy and critical hits.
+
+Sil is also unusually faithful to Tolkien's First Age. It avoids many generic
+fantasy conventions: there are no wizards, priests, plate mail, fireball spells,
+or teleportation scrolls. Instead, warriors clad in mail sing songs of fear,
+binding, rage, sorrow, and escape.
+
+Sil belongs to the roguelike tradition: randomly generated dungeons, permanent
+death, unidentified items, tactical resource pressure, and a compact symbolic
+interface. Sil-Quest adds a web frontend and semantic overlays, but the core
+roguelike bargain remains: choose carefully, because each character has one
+life.
+
+=== Who will like Sil?
+
+You may like Sil-Quest if you want a detailed, well-balanced tactical
+role-playing game; if you enjoy stealth and positioning as much as raw damage;
+or if you want a Tolkien-inspired game that feels less generic than most
+fantasy RPGs.
+
+== The Basics
+
+You take the role of an elf, dwarf, or human attempting the impossible: infiltrate
+Morgoth's fortress of Angband, descend one thousand feet into the cold earth,
+find Morgoth in his throne room, cut a Silmaril from his crown, and escape.
+
+After character creation you begin just inside Angband with limited supplies.
+Your first task is to find a weapon, then secure equipment, develop skills, and
+learn which fights to seek, avoid, or end before they truly begin.
+
+The best way to learn the basics is to play the tutorial. In game, press `?` to
+open help.
+
+Dice notation uses `XdY`, meaning roll `X` dice with `Y` sides and add the
+results. For example, `2d6` means two six-sided dice.
+
+== Notes for Angband players
+
+Sil borrows much of Angband's interface lineage, but most mechanics are changed.
+
+[[fig-roguelike-lineage]]
+.Roguelike lineage from Rogue to Sil-Quest
+[listing%autofit,role=ascii-art,caption="Figure {counter:ascii-figure}: "]
+----
+                             ┌─> ...
+      ┌──> Hack ──> Nethack ─┼─> ...
+      │                      └─> ...
+Rogue ┤
+      │                      ┌─> ...
+      └─> Moria ──> Angband ─┼─> Sil ──> Sil-Q ──> Sil-Quest
+                             └─> ...
+----
+
+
+Main differences from Angband-style expectations include:
+
+* The goal is not simply to kill Morgoth.
+* The aim is to free a Silmaril from Morgoth's crown, then escape.
+* The game is much shorter.
+* Morgoth is found at 1,000 ft.
+* There is no town or word of recall.
+* There are no classes or experience levels.
+* Character development is based on 8 skills and their ability trees.
+* Combat, stealth, morale, and monster AI are much more tactical.
+* Magic is subtle and thematic rather than spell-list driven.
+* There is an effective time limit: over time, you can no longer find your way
+  back to shallower depths.
+
+System differences include:
+
+* Strength, Dexterity, Constitution, and Grace replace the usual Angband stats.
+* Hit points do not rise with experience; they depend on Constitution.
+* There are four main elemental attack types: fire, cold, poison, and darkness.
+* Resistances stack, reducing damage to one half, then one third, then one
+  quarter, and so on.
+* Darkness resistance is determined by light level.
+* Poison damages over time rather than as one direct hit.
+* Speed is less granular and less available.
+* `{special}` is the main pseudo-identification category for artefacts and
+  enchanted items.
+* Tunnelling requires shovels or mattocks.
+
+== About Sil-Q and Sil-Quest
+
+Sil has many elegant ideas: stealth that matters, morale that changes how
+monsters behave, critical hits that make light and heavy weapons feel different,
+and distinct skill trees for smithing, song, perception, will, combat, and
+stealth.
+
+Sil-Q refined many of Sil's weaker elements. Sil-Quest starts from that refined
+base and then makes the game easier to maintain, author, and play in modern
+contexts, especially the browser.
+
+=== More choices should be viable
+
+Sil-Q removed or reworked many item and skill choices that were too weak,
+misleading, or narrow. Some weak items were removed or made useful. Some
+mechanics were introduced or adjusted so previously marginal weapons and builds
+could matter. Skills such as Impale and Vengeance support weapon and build
+classes that previously had little reason to exist.
+
+Sil-Quest inherits that design direction. Its own cleanup work should follow the
+same principle: remove misleading options where possible, and make remaining
+options serve a clear gameplay purpose.
+
+=== Morgoth should remain terrifying
+
+Sil famously made killing Morgoth possible, even if thematically absurd. Sil-Q
+made Morgoth less of a hit-point mountain but more dangerous when angered.
+Sil-Quest keeps the theme that facing Morgoth should be a desperate act, not a
+routine optimization puzzle.
+
+=== Skills should matter throughout the game
+
+Several Sil skills were mainly valued for the throne room. Sil-Q replaced or
+rebalanced those so that investment in song, smithing, archery, stealth, and
+other trees could pay off during the whole descent. Sil-Quest should continue to
+treat skills as build-shaping tools rather than late-game tax payments.
+
+=== A kinder start and better interfaces
+
+Sil-Q made the early dungeon somewhat less punishing for players who had not yet
+mastered stealth and morale. Sil-Quest continues this accessibility direction at
+the interface layer: semantic web UI, mobile-friendly controls, contextual
+buttons, improved overlays, and scenario-authored tutorial content.
+
+== The Dungeon
+
+[verse,role=section-quote]
+____
+"Far, far below the deepest delving of the Dwarves,
+the world is gnawed by nameless things.”
+____
+
+Deep below Thangorodrim go the pits of Angband, and many and sprawling are the
+corridors and caverns. It is so vast and lacking in order that having once left
+an area behind, it is highly unlikely that you could navigate your way back.
+
+Deep, deep within the earth, a thousand feet underground, is the throne room of
+the black enemy Morgoth. There he holds court with all manner of foul orcs, beasts,
+and demons, and in his black iron crown are those three stolen gems, the Silmarils
+of Fëanor. It is normally the greatest and darkest of his servants who are found
+in the deep parts of the dungeons.
+
+=== Staircases and minimum depth
+
+Staircases connect dungeon levels, but Sil's descent is not a leisurely shopping
+trip. They normally take you 50 feet deeper or shallower, while shafts dive 100
+feet into the rock. But the dark power of Morgoth calls all new things in
+Angband toward him, and you can resist that pull for only so long.
+
+As time passes, the game raises your minimum depth. If you try to return above
+that depth before claiming a Silmaril, the staircase collapses and you fall back
+down instead. Your character sheet records this as `Min Depth`.
+
+Only with a Silmaril in hand can you return all the way to the surface. The
+purpose of this rule is to stop slow accumulation of safety and power in the
+shallows: if you want the strength to face the throne room in time, you must
+press down toward the greater risks and rewards of the deep dungeon.
+
+If you use many staircases in a short period, you may become lost and fail to
+arrive where expected. Monsters can also enter levels on staircases, making them
+dangerous places to linger while recovering from a fight.
+
+=== Items and knowledge
+
+Items often begin unidentified. Learning what objects do is part of play:
+potions, herbs, staves, horns, jewellery, enchanted equipment, artefacts, and
+curses all have knowledge states.
+
+The most common way to identify an item is to cause it to have a visible effect.
+For example, drinking an unidentified Potion of Antidote while poisoned will
+identify that potion type for the rest of the game. Drinking the same potion
+while not poisoned teaches you nothing. Potions of Healing are a special case:
+they are identified the first time they are quaffed, even if no health is
+restored.
+
+Knowledge-focused abilities can reveal item properties earlier. If you can make
+an item through smithing, you can identify that kind of item in the dungeon:
+Jeweller identifies jewellery, Alchemy identifies herbs, potions, staves, and
+horns, and Channeling identifies staves and horns. Staves of Understanding and
+Self Knowledge can also help. You still gain identification experience only when
+you actually encounter or identify new item types during play.
+
+== Race and House
+
+image::elves.jpg[Elven warriors illustration,float="right",width=30%]
+
+Race and house define your starting identity and shape your stats, affinities,
+masteries, penalties, and weapon proficiencies.
+
+The races are intentionally not balanced against one another. The Noldor are the
+most forgiving and are a good first choice. The Naugrim and Sindar are somewhat
+harder but encourage interesting variations in play. The Edain are noticeably
+more difficult and should be treated as a challenge mode. Within a race, the
+houses are intended to be roughly comparable in power.
+
+Each race and house modifies Strength, Dexterity, Constitution, and Grace. It
+may also grant affinities, masteries, penalties, or weapon proficiencies:
+
+`Affinity`::
+  Gives +1 to the skill total. Abilities in that tree cost 500 experience less,
+  and the first ability in the tree is free.
+
+`Mastery`::
+  Acts like a double affinity for one skill: +2 to the skill total, abilities
+  cost 1000 experience less, and the first ability is free.
+
+`Penalty`::
+  Gives -1 to the skill total and makes abilities in that tree cost 500
+  experience more.
+
+`Weapon proficiency`::
+  Gives +1 with a weapon family while the appropriate weapon is used. Elves have
+  bow proficiency; dwarves have axe proficiency.
+
+Elves inherit bow proficiency and song affinity rather than blade proficiency and
+bow affinity. This helps balance archery and makes songs more available.
+
+== Stats
+
+Sil-Quest inherits the Sil-Q stat model. Strength, Dexterity, Constitution, and
+Grace remain the four primary stats. In the main game you have 13 points to
+spend between them at character creation. Costs follow the triangular numbers:
+1, 3, 6, 10.
+
+`Strength`::
+  Increases melee damage, though this bonus is limited by weapon weight. It also
+  increases bow range, carrying capacity, throwing range, heavy weapon handling,
+  resistance to disarming, escaping webs, and bashing down locked doors.
+
+`Dexterity`::
+  Gives a bonus to the first four skills: Melee, Archery, Evasion, and Stealth.
+  It also helps avoid needle traps in chests.
+
+`Constitution`::
+  Determines health. Each point increases health by 20%.
+
+`Grace`::
+  Gives a bonus to the last four skills: Perception, Will, Smithing, and Song.
+  Each point increases Voice by 20%.
+
+[verse,role=section-quote]
+____
+“But of bliss and glad life there is little to be said, before it ends;
+as works fair and wonderful, while they still endure for eyes to see,
+are ever their own record, and only when they are in peril or broken
+for ever do they pass into song.”
+____
+
+== Skills
+
+Skills are the main form of character development. You spend experience to raise
+skill values, then buy abilities from the associated ability trees.
+
+The main mechanic in Sil-Quest is the skill check. For most checks, you roll
+`1d10 + skill` and compare it against `1d10 + difficulty`; your total must be
+higher to succeed. For Melee, Archery, and Evasion, the game uses `1d20` instead
+of `1d10`, making combat swingier and allowing dramatic critical hits.
+
+Skill checks are often opposed by an enemy skill. Melee attacks oppose enemy
+Evasion, stealth opposes enemy Perception, and many songs or status effects
+oppose enemy Will. Your skills can be viewed and improved from the character
+menu.
+
+=== Stealth
+
+Stealth helps you avoid being noticed. It is opposed by monster Perception and
+is modified by distance, doors, noise, armour weight, combat, songs, and recent
+actions. Stealth mode gives +5 Stealth but lowers speed by 1.
+
+Compared to original Sil, early creatures tend to have lower perception, while
+deeper creatures tend to have higher perception and will. This represents
+Morgoth's creatures becoming more aware of the player as the descent continues.
+
+=== Perception
+
+Perception helps you notice traps, secret doors, and invisible opponents. It
+also helps disarm traps and pick locks.
+
+Trap and secret-door detection uses a base of half the dungeon level, plus 10
+for floor traps and secret doors, 15 for chest traps, 5 if you cannot see
+properly, 5 if confused, and 2 for each square of distance beyond the first.
+Disarming and lock-picking use the trap or lock's own difficulty, with extra
+penalties for locks, poor sight, and confusion. If you fail to disarm a trap by
+3 or more, you trigger it.
+
+=== Will
+
+Will helps resist many special effects: confusion, stunning, fear, blindness,
+entrancement, slowing, hallucination, hunger, and stat draining. If an enemy
+caused the effect, the difficulty is often based on that enemy's Will; otherwise
+the default difficulty is usually 10.
+
+Will also helps you use staves and horns, and increases the effectiveness of
+many of them.
+
+=== Smithing
+
+Smithing was substantially reworked in Sil-Q and remains central in Sil-Quest.
+Guaranteed forges exist at important depths, and armour and weapons can have
+their basic stats modified without needing the old Artistry skill. Protection is
+cheaper, evasion and accuracy are more expensive, and high-tier effects carry
+higher costs.
+
+=== Melee
+
+Melee governs close combat accuracy and many physical combat abilities.
+
+=== Archery
+
+Archery governs bow attacks and ranged ability investment.
+
+=== Evasion
+
+Evasion is the primary defensive skill against physical attacks.
+
+=== Song
+
+Song powers the subtle magic of Sil-Quest: fear, revelation, silence, healing,
+warding, protection, mastery, and layered themes.
+
+== Combat
+
+image::fallen-warrior.jpg[Fallen warrior illustration,float="right",width=28%]
+
+Each attack has two stages: first the game checks whether the blow hits, then it
+checks how much damage gets through.
+
+Weapons and armour display compact combat notation:
+
+* Offense comes first and is written in round brackets: `Battle Axe (-3,3d4)`.
+  This axe gives -3 accuracy and rolls `3d4` damage when it hits.
+* Defence comes second and is written in square brackets: `Leather Armour
+  [-1,1d4]`. This armour gives -1 Evasion and absorbs `1d4` damage.
+* Some items have both offensive and defensive modifiers. For example,
+  `Greatsword (-2,3d5) [+1]` gives an attack penalty, a damage roll, and an
+  Evasion bonus from parrying.
+* Armour can also penalize offense: `Mail Corslet (-1) [-3,2d4]` gives -1 to
+  attacks, -3 to Evasion, and `2d4` protection.
+
+Some weapon stats differ from original Sil, especially where old weapons were
+weaker than starting equipment.
+
+=== Attacking
+
+To see whether a melee attack hits, the attacker rolls:
+
+[source]
+----
+attacker's Melee + 1d20
+----
+
+The defender rolls:
+
+[source]
+----
+defender's Evasion + 1d20
+----
+
+If the attack roll is greater, the attack hits. Melee and Evasion scores include
+weapon and armour modifiers, status effects such as stunning, and relevant
+abilities.
+
+Being surrounded is extremely dangerous. Overwhelming affects only Evasion:
+enemies on the far side of the attacker contribute larger penalties than enemies
+near the attacker, and even weak monsters can become deadly once they surround
+you. Monsters never suffer this penalty, since there is only one of you.
+
+Visibility also matters. If an attacker cannot see the defender, the attacker's
+Melee is halved. If the defender cannot see the attacker, Evasion is halved.
+Unwary enemies count as unable to see you for this purpose. Fighting from a pit
+or web halves both Melee and Evasion again. A creature unable to move, such as a
+sleeping enemy or an entranced player, has Evasion set to -5 regardless of other
+modifiers.
+
+=== Damage
+
+If an attack hits, the attacker rolls damage and the defender rolls protection.
+If damage is less than or equal to protection, no damage is dealt. Otherwise the
+target takes one point of damage for each point by which damage exceeds
+protection.
+
+Strength adds sides to weapon dice, limited by weapon weight. A character with
+Strength 3 using a `3d4` battle axe would normally roll `3d7`; if the axe weighs
+only 4 lb, no more than four Strength-derived sides can be added. Negative
+Strength subtracts sides under the same limit.
+
+Hand-and-a-half weapons can be used one-handed or two-handed. If you are not
+using a shield, the game assumes you are wielding such a weapon two-handed and
+adds two damage sides.
+
+Extra damage dice come mainly from slays, brands, and critical hits. A slaying
+weapon adds a die against the relevant enemy. Elemental brands add a die against
+enemies that do not resist the element, and two dice against enemies that are
+explicitly vulnerable to it.
+
+Critical hits reward high accuracy and lighter weapons. The first critical die
+requires beating the Evasion roll by:
+
+[source]
+----
+7 + weapon weight
+----
+
+Each additional multiple of that amount adds another die. A 3 lb longsword
+therefore needs to beat Evasion by 10 for the first bonus die, 20 for the
+second, 30 for the third, and so on.
+
+=== Archery
+
+Archery is similar to melee, but uses the Archery skill, adds the arrow's attack
+bonus, and suffers -1 for every 5 squares of range. The defender's Evasion is
+halved against archery, which can stack with other halvings.
+
+Bow damage uses Strength, slays, brands, and critical hits much like melee.
+Strength is limited by bow weight. Bow range is 1.5 times the number of damage
+sides; a longbow dealing `1d10` has range 15.
+
+Firing while enemies are adjacent is dangerous. Unless an ability says
+otherwise, adjacent enemies get free attacks against you at half your normal
+Evasion.
+
+=== Thrown weapons
+
+Throwing is also melee-like, but many objects are not designed to be thrown.
+Daggers, throwing axes, and spears are suitable throwing weapons; unsuitable
+objects suffer -5 to hit. All throws suffer -1 attack per 5 squares.
+
+Damage sides are halved if the object was not designed for throwing. Range is
+based on the object's weight and your carrying capacity:
+
+[source]
+----
+carrying capacity / (5 * (weight + 2))
+----
+
+Thrown weapons display their range when examined.
+
+=== Consumables, horns, and special items
+
+Consumables include herbs, potions, and staves. Horns are also found in Angband;
+unlike staves, horns do not run out of charges, but cost Voice when blown.
+
+Each run randomizes the visible descriptions of unidentified consumables. A
+healing potion that was golden in one game may be purple in the next, but once a
+description is identified it remains consistent for that run.
+
+Special items include ego items and artefacts. Slaying weapons and other special
+equipment are identified by seeing their effects. Artefacts are generated only
+once, when a floor is created; if you leave that floor without finding or
+identifying one, that artefact will not be generated again in that run.
+
+== User Interface
+
+image::combat-ui.png[Combat UI explanation from the Sil-Q manual,align="center",width=50%]
+
+The traditional interface presents compact combat, archery, evasion/protection,
+monster health, and monster morale information. Sil-Quest's web frontend
+re-renders much of this information semantically, but the underlying concepts
+are the same.
+
+In native terminal-style frontends, additional windows can show information such
+as combat rolls, inventory, and messages. In the web frontend, these become
+panels, overlays, and contextual controls.
+
+=== Save files
+
+Sil-Quest supports ordinary save/load for the main game. Traditional Sil options
+are tied to a character name, so a new character name starts with its own option
+state. Some players therefore reuse names across attempts.
+
+Some quests, especially tutorial or challenge-style scenario content, may be
+marked `NO_SAVE` and should not be persisted in deployment builds.
+
+== Elements and Resistances
+
+Elemental attacks include fire, cold, poison, and darkness.
+
+`Fire`::
+  The most common and dangerous element. It can destroy arrows, bows, axes,
+  polearms, hafted weapons, boots, gloves, cloaks, soft armour, chests, torches,
+  and staves.
+
+`Cold`::
+  Less common than fire. It can destroy potions and flasks of oil.
+
+`Poison`::
+  Damages over time rather than as one immediate burst. Poison damage is added
+  to a poison counter; each round, about 20% of the remaining counter is dealt
+  as damage and removed from the counter.
+
+`Darkness`::
+  Is resisted through light. There is no ordinary darkness resistance; instead,
+  light level above 2 grants one level of darkness resistance for each excess
+  point.
+
+Resistances stack: one source reduces damage to one half, two to one third,
+three to one quarter, and so on.
+
+Elemental attacks can be pure, like dragon breath and poison gas, or mixed with
+physical damage, like a balrog's flaming sword. Mixed elemental damage adds an
+extra damage die if you lack resistance, or two extra dice if you are especially
+vulnerable. Multiple sources of resistance do not further reduce mixed
+elemental damage.
+
+Breath attacks spread in a cone and lose `2d4` damage per square travelled.
+Armour usually does not protect against them; only special protection from
+abilities, magical rings and amulets, and sometimes shields against fire or cold,
+are counted before resistance divides the remaining damage.
+
+== Morale
+
+Sil-Quest inherits Sil-Q's correction to Majesty: Majesty lowers morale by half
+the difference between your Will and the monster's Will, not by -1 per 4 points
+of player Will.
+
+Monsters are not just bags of hit points. Their morale changes as they are
+wounded, see allies die, notice you, hear songs, or face a character of great
+majesty. A monster may be aggressive, confident, wavering, or fleeing. Learning
+to make enemies flee, or to keep them from becoming confident, is part of the
+tactical game.
+
+Most enemies evaluate the situation instead of always fighting to the death.
+Mindless creatures are the main exception. Morale begins with a base value and
+then rises or falls with circumstances.
+
+Morale bonuses include:
+
+* the base morale value;
+* appearing later than the monster's usual depth;
+* the player escaping Angband with a Silmaril;
+* the player being blind, hallucinating, stunned, confused, slow, afraid,
+  entranced, or knocked out;
+* the player being wounded, especially below half or quarter health;
+* the monster being hasted;
+* similar nearby creatures that are not fleeing, especially leaders.
+
+Morale penalties include:
+
+* appearing earlier than the monster's usual depth;
+* the monster being stunned or badly wounded;
+* light-susceptible monsters standing in strong light;
+* Majesty, based on the difference between your Will and the monster's Will;
+* Bane, against the selected enemy category;
+* similar nearby creatures fleeing, especially leaders.
+
+Temporary morale modifiers decay by about 10% each turn. They include being
+unable to escape, just starting or stopping flight, seeing similar creatures
+killed, being struck by slays or especially harmful brands, suffering Cruel
+Blow, hearing Song of Elbereth, or being affected by Horns of Terror and Staves
+of Majesty.
+
+The resulting morale determines stance:
+
+`Aggressive`::
+  High morale. The monster attacks directly. Mindless creatures, trolls, angered
+  enemies, and creatures affected by wrath use Aggressive behaviour instead of
+  ordinary confidence.
+
+`Confident`::
+  Positive morale. The monster may use tactics while engaging you, such as
+  waiting in rooms or choosing favourable approaches.
+
+`Fleeing`::
+  Morale of 0 or less. The monster tries to get away. Creatures immune to
+  non-magical fear stay confident instead of fleeing.
+
+== Stealth
+
+In the tale behind Sil, Beren and Luthien enter Angband through secrecy and song,
+not by cutting down every guard. Sil-Quest keeps stealth as a first-class way to
+play.
+
+Monster alertness broadly moves through these states:
+
+`Asleep`::
+  The monster is unaware and vulnerable.
+
+`Unwary`::
+  The monster is awake but has not fully noticed you.
+
+`Alert`::
+  The monster has noticed you and can act against you normally.
+
+Internally, monster awareness is tracked as an Alertness score. An Alertness of
+0 or more means the monster is aware of you. From -1 to -10 it is awake but
+unwary. At -11 or below it is usually asleep, though not every creature in
+Angband sleeps.
+
+Each round, you roll:
+
+[source]
+----
+your Stealth + 1d10
+----
+
+Each monster rolls:
+
+[source]
+----
+monster Perception + 1d10
+----
+
+If the monster's total is higher, its Alertness rises by the difference. This
+can wake sleeping enemies, make unwary enemies alert, or draw hostile attention.
+
+Helpful stealth factors include:
+
+* distance from the monster;
+* closed doors between you and the monster;
+* Stealth mode, which gives +5 Stealth but lowers speed;
+* passing a turn, which gives a larger temporary quietness bonus that does not
+  stack with Stealth mode.
+
+Hindrances include:
+
+* armour weight;
+* attacking or being attacked;
+* unwary monsters seeing you in line of sight;
+* being in open spaces with many adjacent passable squares;
+* singing, based on the song's noise value;
+* setting off traps;
+* landing from a leap.
+
+Your light level does not directly penalize Stealth. Stealth is abstract: it can
+mean moving quietly, keeping to shadow, making noises that blend into the
+dungeon, or simply not being where enemies expect you to be.
+
+If you attack a monster, or an unaware monster tries to move into your square, it
+notices you immediately. Once a monster has noticed you, it can become unwary
+again only if you are out of sight and it fails its perception check badly
+enough. This normally requires beating it by more than 25; Vanish reduces this
+threshold to 15. Songs, staves, and territorial behaviour can also make monsters
+unwary or asleep.
+
+Compared to original Sil, Sil-Q and Sil-Quest make early monsters less
+perceptive and deeper monsters more perceptive and willful.
+
+== Smithing
+
+Angband contains forges used by Morgoth's hosts, and a skilled character can turn
+them to other purposes. Smithing requires:
+
+* a forge with remaining uses;
+* the relevant Smithing ability;
+* the base object or category you want to make;
+* sufficient Smithing skill for the planned difficulty;
+* any required experience, stat, or special costs.
+
+Making an item takes ten turns per point of difficulty and makes noise, so you
+may be interrupted. Interrupted forging can be resumed later at the same forge.
+You can use smithing planning mode at a forge to explore possibilities before
+committing resources.
+
+Some equipment slots are easier to enchant than others. Weapons, bows, shields,
+body armour, helms, and amulets have lower costs than most other slots, and
+robes are cheaper still. In the main dungeon, there are guaranteed forges at
+100 ft, 300 ft, and 500 ft, but only the first time those depths are generated.
+If a shaft skips over such a depth, the guaranteed forge appears at the depth
+where you land instead.
+
+Sil-Quest inherits Sil-Q's guaranteed important forges and its smithing cost
+rebalance. Protection is cheaper, Evasion and accuracy are more expensive, and
+high-tier effects cost more experience. Authored scenarios can also place forges
+directly in map terrain.
+
+=== Creating artefacts
+
+With Artifice, truly great smiths can make custom artefacts: beautiful or
+terrible works that may become the matter of songs and legends. Artefacts can
+combine properties beyond the usual limits, can be named by the player, and are
+almost indestructible. Creating one is a great work and requires three uses from
+the same forge.
+
+=== Enchanted forges
+
+Most forges arm Morgoth's hosts with swords and mail, but a few are greater
+works used for the axes of Valaraukar or the armour of mighty trolls. Enchanted
+forges give a Smithing bonus, allowing you to create items beyond your ordinary
+reach.
+
+== Temporary Status Effects
+
+At certain times you may suffer temporary effects. Many appear in coloured text
+near the bottom of the map or in the web status area. Most wear off with time,
+and many have some consumable or ability that can remove them immediately.
+
+=== Hunger
+
+The Gorged status no longer exists. Characters may still eat and drink when
+maximally full, but after the message that they are as full as possible,
+additional food is digested extremely rapidly.
+
+Hunger states are:
+
+`Full`::
+  At least 5,000 turns of food.
+
+`Hungry`::
+  Below the comfortable range, but not yet dangerous.
+
+`Weak`::
+  Around 1,000 turns of food or less. You suffer -1 Strength until you eat
+  enough to recover.
+
+`Starving`::
+  No food remains. You take damage each turn and no longer regenerate health.
+
+=== Negative effects
+
+`Blind`::
+  You cannot see. Melee, Evasion, and Archery are halved against foes you cannot
+  see.
+
+`Hallucinating`::
+  Enemies and objects appear as other things, and you may occasionally see
+  things that are not there.
+
+`Slow`::
+  You move at half speed. If this is caused by excessive carried weight, you
+  must reduce your load to remove it.
+
+`Confused`::
+  You cannot reliably choose directions. Directional actions may go somewhere
+  nearby instead.
+
+`Afraid`::
+  You are too afraid to attack by melee, archery, or throwing.
+
+`Entranced`::
+  You cannot act and have -5 Evasion. It can be broken by an enemy attack, time,
+  or Freedom of Movement.
+
+`Stunned`::
+  Stunned characters suffer -2 to all skills. Heavy stunning worsens this to
+  -4. Extreme stunning can knock the character out, leaving them unable to act
+  with -5 Evasion.
+
+`Poisoned X`::
+  You will take `X` poison damage over the next few rounds. Each round, about
+  20% of the remaining amount is dealt and removed.
+
+`Bleeding X`::
+  An open wound, handled similarly to poison.
+
+=== Drained stats and resistances
+
+Drained Strength, Dexterity, Constitution, or Grace appears in yellow. Stat
+drain does not heal with time; you need an appropriate item to restore it.
+
+Elemental resistances are covered in the elements section. Resistance to a
+status effect grants a large bonus, usually +10, to rolls against that effect.
+Free Action resists slowness and entrancement and helps escape webs. See
+Invisible grants +10 to seeing otherwise invisible enemies.
+
+=== Regeneration
+
+Regeneration increases hunger only while you are actually regenerating. Voice
+recovery is also affected by regeneration. In practice, regeneration heals you
+at three times the normal rate and improves Voice recovery, but makes you hungry
+much faster while it is active.
+
+== Experience
+
+Sil has neither classes nor experience levels. Experience is spent directly on
+skills and abilities.
+
+Common sources of experience include:
+
+* encountering new monster types;
+* killing monsters;
+* descending deeper;
+* identifying new item types;
+* some scenario or quest-specific rewards.
+
+In the ordinary main game, characters begin with 5,000 experience to allocate.
+Sil-Q introduced a Fixed XP challenge with 50,000 starting experience and no
+further experience gain. Sil-Quest has moved toward quest/scenario-backed starts
+instead; scenario-authored quests can set starting experience explicitly with
+`P:EXP` and `P:NEW_EXP`.
+
+In ordinary main-game play, experience follows the Sil-Q model.
+
+Encountering a monster for the first time gives experience based on the depth at
+which that monster is normally found. Later encounters with the same monster
+type decay: the second gives half, the third gives a third, the fourth gives a
+quarter, and so on. Killing monsters gives a separate pool of experience using
+the same decay. There is as much experience available from encounters as from
+kills, so stealthy characters can progress without needing to murder every room
+into silence.
+
+The first time you reach a depth of `d` feet or deeper, you gain `d` experience.
+Identifying a new potion, herb, ring, amulet, horn, stave, or special item gives
+100 experience; identifying an artefact gives 200.
+
+You spend experience to improve the eight skills. Your first point in a skill
+costs 100 experience, your second costs 200, your third costs 300, and so on.
+Abilities linked to a skill become more expensive as you buy more of them: the
+first costs 500, the second 1000, the third 1500, and so forth, modified by
+affinities, masteries, and penalties.
+
+[verse,role=section-quote]
+____
+“As three great Jewels they were in form. But not until the End,
+when Fëanor shall return who perished ere the Sun was made,
+and sits now in the Halls of Awaiting and comes no more among his kin;
+not until the Sun passes and the Moon falls, shall it be known
+of what substance they were made.”
+____
+
+== Abilities
+
+This section is a reference for the Sil-Q-derived ability set inherited by
+Sil-Quest.
+
+=== Melee Abilities
+
+==== Power
+
+* Gives +1 damage side to melee attacks.
+* Increases the amount needed to score each level of critical hit by 1.
+** For example, you need to hit by `8 + weapon weight` instead of
+   `7 + weapon weight`.
+
+==== Finesse
+
+* Lowers the amount needed to score each level of critical hit by 2.
+** For example, you need to hit by `5 + weapon weight` instead of
+   `7 + weapon weight`.
+
+This was strengthened from Sil, where it reduced the amount needed by 1.
+
+==== Knock Back
+
+* When you hit a monster, you make a skill check to see whether you force it
+  back one square.
+* You roll twice your effective Strength with that attack against twice the
+  monster's Constitution.
+* Effective Strength includes ability modifiers such as Charge or Rapid Attack,
+  is capped by weapon weight, and gets +2 if wielding a weapon with two hands.
+* The monster is knocked back only if an empty square is available.
+* A monster actually moved by Knock Back misses its next turn.
+* Opportunist attacks do not trigger Knock Back.
+
+==== Polearm Mastery
+
+* Gives +2 Melee when using polearms.
+* Allows you to set a polearm to intercept attackers.
+** If you waited last turn and an opponent who was not adjacent moves adjacent,
+   you get a free attack.
+** You do not get this free attack if you cannot see the opponent or are
+   confused.
+
+==== Charge
+
+* If you attack after just moving toward an opponent, your attack is calculated
+  as if you had +3 Strength and +3 Dexterity.
+* The damage bonus applies only to regular, flanking, or controlled-retreat
+  attacks.
+
+==== Follow-Through
+
+* If you kill an opponent, you get a free follow-through attack on another
+  adjacent opponent.
+* You do not get the free attack if you cannot see the opponent or are confused.
+* The follow-up applies only after a regular, flanking, controlled-retreat, or
+  follow-through attack, so it can chain.
+
+==== Impale
+
+* Allows you to attack up to two enemies in a row while wielding a polearm or
+  greatsword.
+* Both enemies are attacked with an impale attack.
+* Applies only if the attack was regular, flanking, or controlled retreat.
+* Rapid Attack and Smite can trigger on Impale attacks.
+
+==== Subtlety
+
+* If you wield a one-handed weapon and have nothing in your off-hand, the amount
+  needed for each critical-hit level is reduced by 2.
+* Hand-and-a-half weapons, such as Bastard Swords, do not count as one-handed.
+
+This stacks with Finesse.
+
+==== Whirlwind Attack
+
+* When you attack an enemy, you get a free attack on all other adjacent enemies.
+* You do get these free attacks even if you cannot see the opponent or are
+  confused.
+* Extra attacks are gained only on regular, flanking, or controlled-retreat
+  attacks.
+* All the attacks are treated as whirlwind attacks, so they are incompatible
+  with many other abilities.
+
+==== Zone of Control
+
+* If an opponent moves between two squares that are both adjacent to you, you get
+  a free attack.
+* You do not get this free attack if you cannot see the opponent or are confused.
+
+==== Smite
+
+* When using a two-handed weapon, the first main attack you make each turn rolls
+  maximum possible damage against all opponents it hits.
+* If you make such an attack, you lose a turn recovering.
+* Whirlwind Attack and Impale count as main attacks that can hit multiple
+  enemies.
+
+==== Two Weapon Fighting
+
+* You can wield a one-handed weapon in your off-hand instead of a shield.
+* You receive an off-hand attack calculated as if you had -3 Strength and
+  -3 Dexterity.
+* The extra attack applies only to regular, flanking, whirlwind, or
+  controlled-retreat attacks.
+* If Impale and Two Weapon Fighting would both be valid, you impale instead of
+  striking with both weapons.
+
+==== Rapid Attack
+
+* You receive two melee attacks instead of one.
+* They are calculated as if you had -3 Strength and -3 Dexterity.
+* The extra attack applies only to regular, flanking, or controlled-retreat
+  attacks.
+* In other cases, the single attack does not suffer those penalties.
+
+==== Strength
+
+* You gain a point of Strength.
+
+=== Archery Abilities
+
+==== Rout
+
+* Attacks on fleeing enemies are calculated as if you had +5 Dexterity.
+
+==== Fletchery
+
+* You can craft arrows into +3 arrows with the `-` command.
+* Each +3 arrow takes one turn to craft.
+* Crafting a whole stack takes as many turns as there are arrows.
+* You can be interrupted while crafting.
+
+==== Point Blank Archery
+
+* When firing provokes attacks of opportunity, the enemy you fired at does not
+  get one.
+
+==== Puncture
+
+* Whenever an enemy's armour roll would fully block your archery damage roll,
+  you deal a flat 5 damage instead.
+
+==== Ambush
+
+* Grants an additional critical damage die when you hit an unwary or sleeping
+  monster with an arrow.
+
+==== Versatility
+
+* If Archery is higher than Melee, you gain a Melee bonus equal to half the
+  difference, rounded down.
+
+==== Crippling Shot
+
+* If you score a critical hit with archery and deal at least 1 net damage, the
+  target makes a Will check against:
++
+[source]
+----
+30 - (60 / (critical level + 2))
+----
+* On failure, the target is slowed for one round per critical level.
+
+==== Deadly Hail
+
+* When shooting an enemy immediately after killing another enemy with an arrow,
+  you roll twice as many damage dice as normal.
+* All damage dice are doubled: slay, poison, critical, and weapon dice all
+  count.
+* The target only rolls armour once.
+
+==== Dexterity
+
+* You gain a point of Dexterity.
+
+=== Evasion Abilities
+
+==== Dodging
+
+* Gives +3 Evasion if you moved last turn.
+* This bonus is not shown in the side panel, but it applies.
+
+==== Blocking
+
+* Doubles the number of protection dice granted by your shield against all
+  attacks if you did not move on your last turn.
+
+==== Parry
+
+* Doubles the evasion bonus granted by your weapon.
+* This does not apply to an off-hand weapon.
+
+==== Crowd Fighting
+
+* Halves the Melee bonus opponents get for surrounding you.
+
+==== Leaping
+
+* Lets you leap over one square of chasm or trap.
+* Roosts and webs are not leapable.
+* You must have moved roughly toward the obstacle on the previous turn.
+* It takes two turns to reach the destination; one is spent in the air.
+* You can be attacked while in the air.
+
+==== Sprinting
+
+* You gain +1 speed if you move four or more squares in roughly the same
+  direction.
+* Each move can differ by up to 45 degrees from the previous one.
+* The speed lasts until you fail to meet the condition.
+* You can never exceed speed 3.
+
+==== Flanking
+
+* Gives a free attack if you move between two squares that are both adjacent to
+  an opponent.
+* You cannot get both a flanking attack and a controlled-retreat attack in the
+  same turn; flanking only adds eligible opponents.
+* Works on one opponent each time, preferring the targeted opponent if any.
+* You do not get the free attack if you cannot see the opponent or are confused.
+
+==== Heavy Armour Use
+
+* Gives `[1dX]` extra protection, where `X = total armour weight / 15 lb`.
+
+==== Riposte
+
+* If an opponent misses you in melee by at least `10 + weapon weight`, you get a
+  free attack.
+* You get at most one riposte per round.
+* You do not get this free attack if you cannot see the opponent or are
+  confused.
+
+==== Controlled Retreat
+
+* Gives a free attack if you move from a square adjacent to an opponent to a
+  square not adjacent to it, but only if you did not move on the previous round.
+* You cannot get both a flanking attack and a controlled-retreat attack in the
+  same turn; controlled retreat only adds eligible opponents.
+* Works on one opponent each time, preferring the targeted opponent if any.
+* You do not get the free attack if you cannot see the opponent or are confused.
+
+==== Dexterity
+
+* You gain a point of Dexterity.
+
+=== Stealth Abilities
+
+==== Disguise
+
+* Halves bonuses that awake but unwary monsters have to notice you because you
+  are in their line of sight.
+
+==== Assassination
+
+* Gives a Melee bonus equal to your Stealth when attacking unwary or sleeping
+  opponents.
+* You do not get the bonus if you cannot see the opponent or are confused.
+* The bonus applies only to regular, flanking, or controlled-retreat attacks.
+* The bonus is not applied to charge attacks.
+
+==== Cruel Blow
+
+* If you score a critical hit in melee and deal at least 1 net damage, the target
+  makes a Will check against:
++
+[source]
+----
+30 - (60 / (critical level + 2))
+----
+* On failure, the target becomes confused with pain for one round per critical
+  level.
+
+==== Exchange Places
+
+* Use the `X` command to swap places with an adjacent enemy.
+* Alert enemies get a free attack unless they are confused or mindless.
+* Cannot be used when you cannot see the enemy, or while you are in a web or pit.
+
+==== Opportunist
+
+* If an opponent moves from a square adjacent to you to one that is not, you get
+  a free attack.
+* You do not get the free attack if you cannot see the opponent or are confused.
+
+==== Vanish
+
+* Makes it easier to make enemies unwary again.
+* Instead of needing to beat their perception check by more than 25 while out of
+  line of sight, you need to beat it by more than 15.
+
+==== Dexterity
+
+* You gain a point of Dexterity.
+
+=== Perception Abilities
+
+==== Quick Study
+
+* Lets you take abilities without their normal prerequisite abilities.
+
+==== Focused attack
+
+* Gives an attack bonus equal to half your Perception if you waited on the
+  previous turn.
+* Works only for the first attack of the round.
+
+==== Keen Senses
+
+* Lets you see enemies just beyond the edge of a pool of light, including your
+  own light radius.
+* Gives +5 to spotting invisible enemies.
+
+==== Concentration
+
+* Gives +1 attack for each consecutive round spent attacking a particular enemy,
+  to a maximum of half your Perception.
+* Waiting or blocking does not break concentration.
+
+==== Alchemy
+
+* Reveals the purpose of all herbs and potions you encounter, as well as staves
+  and horns.
+* You still gain identification experience only when you actually encounter an
+  item type you had not seen before.
+
+==== Bane
+
+* Gives a bonus to all skill rolls against a selected broad enemy category.
+* Categories are Orc, Wolf, Spider, Troll, Wraith, Rauko, Serpent, and Dragon.
+* You must have killed 4 enemies from the category to select it.
+* When you reach `2n` kills of the chosen enemy, the bonus increases to `+n`.
+
+==== Outwit
+
+* Whenever you receive a critical hit, you make a Perception roll against the
+  attacker's Perception.
+* If you succeed, you negate all critical damage from that attack.
+
+==== Listen
+
+* Gives a chance each turn to detect monsters you cannot see, including around
+  corners and through doors.
+* The check is Perception versus the opponent's stealth score with a modifier, as below:
+** `-3`  if awake but unwary
+** `-5`  if it moved
+** `-10` if it called out or smashed a door
+** `-15` if it tunnelled through rock
+** `+(Song / 2)` if you are singing Song of Silence
+** `+1` per square of distance along the shortest sound path
+** `+5` per closed door along the shortest sound path
+* Success represents the opponent as a grey asterisk.
+* Success by 10 or more reveals the opponent completely.
+
+==== Master Hunter
+
+* Gives +1 attack for each time you have killed an opponent of the same narrow
+  type, up to a maximum of one half of your Perception.
+* For example, killing 3 Orc soldiers gives +3 attack against Orc soldiers.
+
+==== Grace
+
+* You gain a point of Grace.
+
+=== Will Abilities
+
+==== Curse Breaking
+
+* Lets you remove cursed equipment and thereby break the curse.
+
+==== Channeling
+
+* You automatically recognize all staves and horns.
+* Horns have halved voice costs.
+* Staves have twice as many charges.
+
+==== Strength in Adversity
+
+* Gives bonuses to Strength, Dexterity, and Grace when seriously injured:
+** +1 at 50% health or below.
+** +3 at 25% health or below.
+
+==== Formidable
+
+* Slaying enemies in melee scares all other enemies who see it.
+* Enemies do not gain morale based on your injuries.
+
+==== Inner Light
+
+* Strengthens the light in your light radius against unnatural darkness created
+  by some monsters.
+
+==== Indomitable
+
+* Gives resistance to fear, confusion, stunning, and hallucination.
+* Slows hunger to one third the normal rate.
+
+==== Oath
+
+* You swear an oath and are rewarded for keeping it.
+* If the forbidden action has already been performed before the oath is taken,
+  that oath is unavailable.
+* If you perform the forbidden action after taking the oath, you lose the oath's
+  benefit and cannot recover it that game.
+* Oaths:
+** Mercy: do not attack Men or Elves; gain +1 Grace.
+** Silence: do not sing; gain +1 Strength.
+** Iron: do not go up stairs without a Silmaril; gain +2 Constitution.
+
+==== Poison Resistance
+
+* Gives a level of resistance to poison.
+
+==== Vengeance
+
+* When damaged in melee by an enemy, your next successful attack gains one
+  additional damage die.
+* This does not stack.
+* A maximum of one die can be gained this way on each attack.
+
+==== Majesty
+
+* Makes monsters more likely to flee by lowering morale by half the difference
+  between your Will and theirs.
+
+==== Constitution
+
+* You gain a point of Constitution.
+
+=== Smithing Abilities
+
+==== Weaponsmith
+
+* Allows you to create weapons at a forge.
+* Includes bows and arrows.
+* Lets you improve attack, evasion, and damage values of weapons you create.
+
+==== Armoursmith
+
+* Allows you to create armour at a forge.
+* Lets you improve attack, evasion, and protection values of armour you create.
+
+==== Jeweller
+
+* Allows you to create rings, amulets, light sources, and horns at a forge.
+* Identifies rings, amulets, light sources, and horns you encounter.
+
+==== Enchantment
+
+* Allows you to create `{special}` items at a forge.
+* Identifies enchanted items you encounter.
+
+==== Expertise
+
+* Reduces time taken to forge an item by half.
+* Negates all experience and stat costs on items you create.
+
+==== Artifice
+
+* Allows you to create custom artefacts with many different properties.
+* These require three forge uses each.
+
+==== Masterpiece
+
+* Allows you to create items whose difficulty exceeds your Smithing skill.
+* For each excess point of difficulty, you permanently lose one Smithing point.
+* You can regain lost Smithing later with more experience.
+
+==== Grace
+
+* You gain a point of Grace.
+
+=== Song Abilities
+
+[verse,role=section-quote]
+____
+“Then sudden Felagund there swaying
+sang in answer a song of staying,
+resisting, battling against power,
+of secrets kept, strength like a tower,
+and trust unbroken, freedom, escape;
+of changing and of shifting shape,
+of snares eluded, broken traps,
+the prison opening, the chain that snaps.”
+____
+
+==== Song of Elbereth
+
+* Causes fear in intelligent enemies.
+* Uses a Song skill check versus the `enemy Will`, with a modifier as below:
+** `+1` per square of distance along the shortest sound path
+** `+5` per closed door along the shortest sound path
+* Temporarily lowers morale by 1 per point you succeed by.
+* Voice: 1/3 per turn.
+* Noise: 8.
+
+==== Song of Challenge
+
+* Boosts enemy morale and makes enemies aggressive.
+* Morale is boosted by up to +3.
+* Enemies with morale greater than 5 become aggressive.
+* Aggressive enemies that would normally attack at range or keep distance may be
+  angered into charging.
+* Uses a Song skill check against `(enemy Will * enemy Will) / 10`, with modifiers:
+** `+1` per square of distance along the shortest sound path
+** `+5` per closed door along the shortest sound path
+* Voice: 1/3 per turn.
+* Noise: 12.
+
+==== Song of Delvings
+
+* Reveals terrain adjacent to known areas, including forges, stairs, traps, and
+  secret doors.
+* Squares adjacent to known squares are revealed if: 
++
+[source]
+----
+Song - distance from player > 1d6
+----
+* Stairs and forges do not need to be adjacent to a wall to be seen.
+* Voice: 1/3 per turn.
+* Noise: 4.
+
+==== Song of Freedom
+
+* Eases passage through the dungeon.
+* Grants free action, protecting from entrancement and slowing.
+* Makes existing entrancement and slowing effects wear off quickly.
+* Can disarm nearby traps, remove rubble, discover secret doors, and unlock
+  locked or stuck doors and chests.
+* Uses a Song skill check versus `dungeon level / 2 + 5`, with modifiers:
+** `+1` per square of distance along the shortest sound path
+** `+5` per closed door along the shortest sound path
+* Voice: 1/3 per turn.
+* Noise: 4.
+
+==== Song of Silence
+
+* Quietens dungeon sounds, making opponents less likely to notice you.
+* Lowers the noise you make by half your Song skill.
+* Also affects opponents hearing each other call for help.
+* Also penalizes your own Listen ability.
+* Voice: 1/3 per turn.
+* Noise: 0.
+
+==== Song of Staunching
+
+* Stops bleeding and speeds wound healing.
+* Each point of Song heals 1/12 health per turn.
+* Voice: 1 per turn.
+* Noise: 4.
+
+==== Song of Thresholds
+
+* Doors you close while singing are warded.
+* Warded doors can be green, blue, or purple.
+** Green wards require a 20-strength Will check to pass.
+** Blue wards require a 25-strength Will check to pass.
+** Purple wards require a 30-strength Will check to pass.
+* Ward strength is determined by a `1d10` Song check with difficulty 15.
+** Failure creates a green ward.
+** Success creates a blue ward.
+** Success by 10 or more creates a purple ward.
+* Voice: 1/3 per turn.
+* Noise: 4.
+
+==== Song of the Trees
+
+* Increases light radius by 1 per 5 Song.
+* Voice: 1/3 per turn.
+* Noise: 4.
+
+==== Song of Slaying
+
+* Critical hits in melee kill enemies outright if they have health less than or
+  equal to twice your Song score.
+* Voice: 1 per turn.
+* Noise: 8.
+
+==== Song of Staying
+
+* Gives `[2d2]` protection against all damage types.
+* Increases Will by 1 for every 2 points of Song.
+* Voice: 1 per turn.
+* Noise: 8.
+
+==== Song of Lorien
+
+* Lowers alertness of nearby enemies, making them unwary and eventually putting
+  them to sleep.
+* Uses a Song skill check versus `enemy Will + 5`, with modifiers:
+** `+1` per square of distance along the shortest sound path
+** `+5` per closed door along the shortest sound path
+* Voice: 1 per turn.
+* Noise: 4.
+
+==== Song of Mastery
+
+* Attempts to make nearby enemies powerless.
+* On success, the enemy misses its turn, stays still, and does not attack.
+* Uses a Song skill check versus `enemy Will + 2d10 - 2d8`, with modifiers:
+** `+1` per square of distance along the shortest sound path
+** `+5` per closed door along the shortest sound path
+* Voice: 1 per turn.
+* Noise: 8.
+
+==== Woven Themes
+
+* Allows you to add a minor theme to your song.
+* You can begin a second song and gain its effect in addition to your major song.
+* The minor theme treats your Song skill as half its actual value.
+* The noise is the average of the two songs.
+* The voice cost is the sum of both songs.
+* You can end the minor theme without ending the major theme by attempting to
+  sing the major theme again.
+* You can swap the order of themes by attempting to sing song `x`.
+
+==== Grace
+
+* You gain a point of Grace.
+
+[verse,role=section-quote]
+____
+“In Aman we have come through bliss to woe.
+The other now we will try: through sorrow to find joy;
+or freedom, at the least”
+____
+
+== Sil-Quest Web and Mobile Notes
+
+Sil-Quest includes a web frontend in addition to the traditional terminal-style
+frontends. The web frontend renders the map semantically, exposes contextual
+buttons for common actions, and uses mobile-friendly overlays for character,
+inventory, knowledge, help/manual, and menu views.
+
+On phones, the side panel is normally collapsed and the bottom-right contextual
+buttons are the primary touch affordance. Tapping the player's current grid can
+be used to wait. Contextual actions such as singing, toggling stealth, opening
+inventory, and shooting appear when they are useful.
+
+Quest and tutorial content should be authored with this in mind:
+
+* Keep tutorial notes and help text concise.
+* Avoid very wide ASCII art unless it is essential.
+* Prefer scenario note objects and semantic text blocks to terminal-only UI.
+* Test new content in both a desktop-size browser and a phone-size viewport.
+
+== Further Documentation
+
+* TODO: `quest-authoring.adoc` explains how to create scenario-backed quests.

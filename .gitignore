@@ -9,6 +9,7 @@ src/sil.o.arm64
 src/sil.o.x86_64
 /Sil.app
 /web/lib
+/web/assets/unscii-fantasy.woff
 # Same as `src/sil`
 /sil
 .DS_Store

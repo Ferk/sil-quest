@@ -31,7 +31,8 @@ jobs:
       - name: Install build dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y cmake ninja-build
+          sudo apt-get install -y cmake ninja-build ruby
+          sudo gem install --no-document asciidoctor asciidoctor-pdf
 
       - name: Build web app
         run: |
@@ -49,6 +50,11 @@ jobs:
             -DSUPPORT_WEB_FRONTEND=ON \
             -DSUPPORT_GCU_FRONTEND=OFF
           cmake --build build-pages-wasm --config Release
+
+      - name: Verify rendered manual
+        run: |
+          test -s "web/doc/Sil-Quest Manual.html"
+          test -s "web/doc/Sil-Quest Manual.pdf"
 
       - name: Stage GitHub Pages site
         run: |

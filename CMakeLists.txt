@@ -307,6 +307,24 @@ if (SUPPORT_WEB_FRONTEND)
     set(WEB_TILESET_TARGET "${WEB_LIB_DIR}/16x16_microchasm.png")
     set(WEB_VERSION_TEMPLATE "${WEB_ROOT_DIR}/version.js.in")
     set(WEB_VERSION_OUTPUT "${WEB_LIB_DIR}/version.js")
+    set(WEB_FONT_SOURCE_DIR "${CMAKE_SOURCE_DIR}/lib/xtra/fonts")
+    set(WEB_UNSCII_FONT_SOURCE "${WEB_FONT_SOURCE_DIR}/unscii-fantasy.woff")
+    set(WEB_UNSCII_FONT_OUTPUT "${WEB_ROOT_DIR}/assets/unscii-fantasy.woff")
+    set(WEB_MANUAL_SOURCE "${CMAKE_SOURCE_DIR}/lib/docs/Sil-Quest Manual.adoc")
+    set(WEB_DOC_DIR "${WEB_ROOT_DIR}/doc")
+    set(WEB_MANUAL_OUTPUT "${WEB_DOC_DIR}/Sil-Quest Manual.html")
+    set(WEB_MANUAL_PDF_OUTPUT "${WEB_DOC_DIR}/Sil-Quest Manual.pdf")
+    set(WEB_MANUAL_IMAGE_SOURCE_DIR "${CMAKE_SOURCE_DIR}/lib/docs/images")
+    set(WEB_MANUAL_IMAGE_OUTPUT_DIR "${WEB_DOC_DIR}/images")
+    set(WEB_MANUAL_STYLE_SOURCE_DIR "${CMAKE_SOURCE_DIR}/lib/docs/styles")
+    set(WEB_MANUAL_STYLE_OUTPUT_DIR "${WEB_DOC_DIR}/styles")
+    set(WEB_MANUAL_FONT_SOURCE_DIR "${CMAKE_SOURCE_DIR}/lib/docs/fonts")
+    set(WEB_MANUAL_FONT_OUTPUT_DIR "${WEB_DOC_DIR}/fonts")
+    set(WEB_MANUAL_INCLUDE_SOURCE_DIR "${CMAKE_SOURCE_DIR}/lib/docs/includes")
+    set(WEB_MANUAL_TOC_NOTE_SOURCE "${WEB_MANUAL_INCLUDE_SOURCE_DIR}/welcome-note.adoc")
+    set(WEB_MANUAL_PDF_TOC_NOTE_EXTENSION
+        "${CMAKE_SOURCE_DIR}/lib/docs/scripts/sil_quest_pdf_toc_note.rb")
+    set(WEB_MANUAL_RENDER_SCRIPT "${CMAKE_SOURCE_DIR}/cmake/RenderWebManual.cmake")
 
     file(MAKE_DIRECTORY "${WEB_LIB_DIR}")
 
@@ -371,6 +389,69 @@ if (SUPPORT_WEB_FRONTEND)
         "sil-quest-web-v${PROJECT_VERSION_STRING}-${WEB_BUILD_GIT_HASH}")
     string(TOLOWER "${WEB_APP_CACHE_NAME}" WEB_APP_CACHE_NAME)
     configure_file("${WEB_VERSION_TEMPLATE}" "${WEB_VERSION_OUTPUT}" @ONLY)
+
+    add_custom_command(
+        OUTPUT "${WEB_UNSCII_FONT_OUTPUT}"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "${WEB_UNSCII_FONT_SOURCE}"
+            "${WEB_UNSCII_FONT_OUTPUT}"
+        DEPENDS "${WEB_UNSCII_FONT_SOURCE}"
+        COMMENT "Copying shared Unscii web font"
+        VERBATIM
+    )
+    add_custom_target(sil_web_assets DEPENDS "${WEB_UNSCII_FONT_OUTPUT}")
+    add_dependencies(${SIL_TARGET} sil_web_assets)
+
+    if (EXISTS "${WEB_MANUAL_SOURCE}")
+        find_program(ASCIIDOCTOR_EXECUTABLE asciidoctor REQUIRED)
+        find_program(ASCIIDOCTOR_PDF_EXECUTABLE asciidoctor-pdf)
+        file(GLOB WEB_MANUAL_IMAGE_SOURCES CONFIGURE_DEPENDS
+            "${WEB_MANUAL_IMAGE_SOURCE_DIR}/*")
+        file(GLOB WEB_MANUAL_STYLE_SOURCES CONFIGURE_DEPENDS
+            "${WEB_MANUAL_STYLE_SOURCE_DIR}/*")
+        file(GLOB WEB_MANUAL_FONT_SOURCES CONFIGURE_DEPENDS
+            "${WEB_MANUAL_FONT_SOURCE_DIR}/*")
+        file(GLOB WEB_MANUAL_INCLUDE_SOURCES CONFIGURE_DEPENDS
+            "${WEB_MANUAL_INCLUDE_SOURCE_DIR}/*")
+        set(WEB_MANUAL_OUTPUTS "${WEB_MANUAL_OUTPUT}")
+        if (ASCIIDOCTOR_PDF_EXECUTABLE)
+            list(APPEND WEB_MANUAL_OUTPUTS "${WEB_MANUAL_PDF_OUTPUT}")
+        else()
+            message(STATUS
+                "asciidoctor-pdf was not found; the web bundle will include "
+                "the HTML manual but not Sil-Quest Manual.pdf")
+        endif()
+        add_custom_command(
+            OUTPUT ${WEB_MANUAL_OUTPUTS}
+            COMMAND ${CMAKE_COMMAND}
+                "-DASCIIDOCTOR_EXECUTABLE=${ASCIIDOCTOR_EXECUTABLE}"
+                "-DASCIIDOCTOR_PDF_EXECUTABLE=${ASCIIDOCTOR_PDF_EXECUTABLE}"
+                "-DWEB_MANUAL_SOURCE=${WEB_MANUAL_SOURCE}"
+                "-DWEB_MANUAL_OUTPUT=${WEB_MANUAL_OUTPUT}"
+                "-DWEB_MANUAL_PDF_OUTPUT=${WEB_MANUAL_PDF_OUTPUT}"
+                "-DWEB_MANUAL_IMAGE_SOURCE_DIR=${WEB_MANUAL_IMAGE_SOURCE_DIR}"
+                "-DWEB_MANUAL_IMAGE_OUTPUT_DIR=${WEB_MANUAL_IMAGE_OUTPUT_DIR}"
+                "-DWEB_MANUAL_STYLE_SOURCE_DIR=${WEB_MANUAL_STYLE_SOURCE_DIR}"
+                "-DWEB_MANUAL_STYLE_OUTPUT_DIR=${WEB_MANUAL_STYLE_OUTPUT_DIR}"
+                "-DWEB_MANUAL_FONT_SOURCE_DIR=${WEB_MANUAL_FONT_SOURCE_DIR}"
+                "-DWEB_MANUAL_FONT_OUTPUT_DIR=${WEB_MANUAL_FONT_OUTPUT_DIR}"
+                "-DWEB_MANUAL_PDF_TOC_NOTE_EXTENSION=${WEB_MANUAL_PDF_TOC_NOTE_EXTENSION}"
+                "-DWEB_MANUAL_TOC_NOTE_SOURCE=${WEB_MANUAL_TOC_NOTE_SOURCE}"
+                -P "${WEB_MANUAL_RENDER_SCRIPT}"
+            DEPENDS
+                "${WEB_MANUAL_SOURCE}"
+                "${WEB_MANUAL_RENDER_SCRIPT}"
+                "${WEB_MANUAL_PDF_TOC_NOTE_EXTENSION}"
+                ${WEB_MANUAL_IMAGE_SOURCES}
+                ${WEB_MANUAL_STYLE_SOURCES}
+                ${WEB_MANUAL_FONT_SOURCES}
+                ${WEB_MANUAL_INCLUDE_SOURCES}
+            COMMENT "Rendering Sil-Quest manual for the web bundle"
+            VERBATIM
+        )
+        add_custom_target(sil_web_manual DEPENDS ${WEB_MANUAL_OUTPUTS})
+        add_dependencies(${SIL_TARGET} sil_web_manual)
+    endif()
 
     set_target_properties(${SIL_TARGET} PROPERTIES
         RUNTIME_OUTPUT_DIRECTORY "${WEB_LIB_DIR}"

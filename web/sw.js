@@ -63,7 +63,20 @@ const APP_ASSETS = [
   "./lib/sil.js",
   "./lib/sil.wasm",
   "./lib/sil.data",
-  "./lib/16x16_microchasm.png"
+  "./lib/16x16_microchasm.png",
+  "./doc/Sil-Quest%20Manual.html",
+  "./doc/Sil-Quest%20Manual.pdf",
+  "./doc/fonts/NotoSansMono-Bold.ttf",
+  "./doc/fonts/NotoSansMono-Regular.ttf",
+  "./doc/fonts/OFL-1.1-Noto.txt",
+  "./doc/fonts/unscii-fantasy.otf",
+  "./doc/styles/manual.css",
+  "./doc/images/angband-gates.jpg",
+  "./doc/images/combat-ui.png",
+  "./doc/images/cover.png",
+  "./doc/images/elves.jpg",
+  "./doc/images/fallen-warrior.jpg",
+  "./doc/images/title.png"
 ];
 
 self.addEventListener("install", (event) => {

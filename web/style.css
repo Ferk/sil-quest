@@ -272,6 +272,10 @@
       padding: 0.35rem;
     }
 
+    .shell-toolbar-link {
+      text-decoration: none;
+    }
+
     .shell-toolbar-button-visual {
       width: 1.7rem;
       height: 1.7rem;

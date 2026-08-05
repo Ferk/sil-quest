@@ -1,0 +1,16 @@
+// SPDX-License-Identifier: EUPL-1.2
+//
+// Copyright (c) 2026 Fernando Carmona Varo
+
+[.welcome-note-text]
+Sil-Quest is a fork of Sil-Q, which is itself a fork of the game Sil originally
+developed by Half and Scatha.
+In this document, the game Sil (v1.3) will be referred to as “original Sil”, when
+differences between the base game and the fork are noted. When the fork and base
+games are discussed as a whole, they will be referred to collectively as “Sil.”
+
+[.welcome-note-text]
+Sil-Quest is based on Sil-Q. Sil-Quest-specific additions and updates in this
+document are licensed under the EUPL, Version 1.2 or subsequent versions of the
+EUPL. Portions adapted from the Sil-Q manual remain subject to the applicable
+licence and copyright terms of that source.
