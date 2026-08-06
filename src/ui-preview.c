@@ -59,14 +59,11 @@ bool ui_preview_show_object_recall_modal(const object_type* o_ptr)
     ui_text_builder_append_line(&modal_builder, "(press any key)", TERM_L_BLUE);
 
     ui_modal_set_kind(modal_text, modal_attrs,
-        ui_text_builder_length(&modal_builder), '\r', UI_MODAL_KIND_GENERIC);
+        ui_text_builder_length(&modal_builder), 0, UI_MODAL_KIND_RECALL);
     ui_modal_set_visual(graphics_are_ascii() ? UI_MENU_VISUAL_TEXT
                                              : UI_MENU_VISUAL_TILE,
         (byte)object_attr((object_type*)o_ptr),
         (byte)object_char((object_type*)o_ptr));
-
-    (void)inkey();
-    ui_modal_clear();
 
     return TRUE;
 }

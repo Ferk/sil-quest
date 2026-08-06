@@ -914,8 +914,7 @@ static ui_inventory_action_result ui_inventory_execute_action(
 
     case 'x':
         ui_inventory_pause_menu();
-        ui_preselect_item(item);
-        do_cmd_observe();
+        object_info_screen(o_ptr);
         break;
 
     case '{':

@@ -260,35 +260,6 @@ static cptr ui_model_simple_menu_title(cptr label)
     return title + i;
 }
 
-/* Builds one synthetic vertical-navigation hint for a simple menu item. */
-static void ui_model_build_simple_menu_nav(char* nav, size_t nav_size,
-    int current_highlight, int target_highlight)
-{
-    size_t off = 0;
-    int step = 0;
-    int distance;
-    int i;
-
-    if (!nav || (nav_size == 0))
-        return;
-
-    nav[0] = '\0';
-
-    if (current_highlight < target_highlight)
-        step = '2';
-    else if (current_highlight > target_highlight)
-        step = '8';
-
-    if (!step)
-        return;
-
-    distance = ABS(target_highlight - current_highlight);
-    for (i = 0; (i < distance) && (off + 1 < nav_size); i++)
-        nav[off++] = (char)step;
-
-    nav[off] = '\0';
-}
-
 /* Stores one new semantic prompt state and invalidates frontend caches. */
 static void ui_prompt_set_state(
     cptr text, byte attr, ui_prompt_kind kind, bool has_more_hint)
@@ -475,6 +446,32 @@ void ui_menu_scroll_selection_into_view(
         *top = max_top;
 }
 
+/* Builds vertical movement keys for previewing one semantic menu entry. */
+void ui_menu_build_vertical_nav(
+    char* nav, size_t size, int current_index, int target_index)
+{
+    size_t off = 0;
+
+    if (!nav || (size == 0))
+        return;
+
+    nav[0] = '\0';
+
+    while ((current_index < target_index) && (off + 1 < size))
+    {
+        nav[off++] = '2';
+        current_index++;
+    }
+
+    while ((current_index > target_index) && (off + 1 < size))
+    {
+        nav[off++] = '8';
+        current_index--;
+    }
+
+    nav[off] = '\0';
+}
+
 /* Moves one two-column menu selection using viewport-aware semantics. */
 void ui_menu_move_two_column_selection(int direction, int page_rows,
     int* column, int* left_cur, int left_top, int left_count, int* right_cur,
@@ -577,7 +574,7 @@ void ui_model_publish_simple_menu(cptr title, int title_row, int col,
         size_t label_len = strlen(label);
         char nav[UI_MENU_NAV_MAX];
 
-        ui_model_build_simple_menu_nav(nav, sizeof(nav), highlight, i + 1);
+        ui_menu_build_vertical_nav(nav, sizeof(nav), highlight, i + 1);
         ui_menu_add_with_nav(0, entries[i].row, (int)label_len, 1,
             entries[i].key, (i + 1 == highlight), TERM_WHITE, label, nav);
     }

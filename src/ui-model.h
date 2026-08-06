@@ -156,6 +156,9 @@ void ui_front_invalidate(void);
 /* Keeps one paged menu selection visible inside its current viewport. */
 void ui_menu_scroll_selection_into_view(
     int current, int* top, int count, int page_rows);
+/* Builds vertical movement keys for previewing one semantic menu entry. */
+void ui_menu_build_vertical_nav(
+    char* nav, size_t size, int current_index, int target_index);
 /* Moves one two-column menu selection using viewport-aware semantics. */
 void ui_menu_move_two_column_selection(int direction, int page_rows,
     int* column, int* left_cur, int left_top, int left_count, int* right_cur,

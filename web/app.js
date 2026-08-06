@@ -1097,7 +1097,7 @@
 
     // Items with a non-Enter activation key are treated as direct actions rather than hover-driven selections.
     function isDirectMenuItem(item) {
-      return !!item && item.key > 0 && item.key !== 13;
+      return !!item && item.key > 0 && item.key !== 13 && !(item.navLen > 0);
     }
 
     // Groups menu items by their terminal x-position so multi-column menus can keep their parent/child structure.
@@ -1596,7 +1596,7 @@
         detailsVisualChar
       );
 
-      if (!ptr || count <= 0 || stride < 40 || ptr < 0 || (ptr + byteLen) > heap.length) {
+      if (!ptr || count <= 0 || stride < 108 || ptr < 0 || (ptr + byteLen) > heap.length) {
         activeMenuItems = [];
         activeMenuColumnX = null;
         activeMenuLayoutKind = UI_MENU_LAYOUT_GENERIC;
@@ -1632,6 +1632,7 @@
             view.getInt32(off + 32, true),
             view.getInt32(off + 36, true)
           ),
+          navLen: view.getInt32(off + 104, true),
           label: utf8Decoder.decode(
             labelBytes.subarray(0, labelEnd >= 0 ? labelEnd : labelBytes.length)
           ),
@@ -3258,6 +3259,14 @@
       );
     }
 
+    // Returns whether a captured terminal screen is currently shown as an overlay.
+    function isTerminalOverlayActive() {
+      return (
+        isSemanticOverlayVisible() &&
+        overlayModalEl.classList.contains("overlay-terminal")
+      );
+    }
+
     // Dismisses the custom tile-context popup without sending input to the backend.
     function hideTileContextOverlay({ redraw = true } = {}) {
       if (!activeTileContextState && !overlayModalEl.classList.contains("overlay-tile-context")) {
@@ -3306,7 +3315,15 @@
           return false;
         }
 
-        hideSemanticOverlay();
+        requestRender(true);
+        return true;
+      }
+
+      if (isTerminalOverlayActive()) {
+        if (!pushAscii(27)) {
+          return false;
+        }
+
         requestRender(true);
         return true;
       }
@@ -4303,6 +4320,7 @@
       }</div>`;
       const shellClass =
         (hasCopy ? "menu-shell-with-copy" : "menu-shell-no-copy") +
+        (hasDetailsPane ? " menu-shell-with-details" : "") +
         menuShellTypeClass;
       const bodyClass = hasDetailsPane ? "menu-body-with-details" : "menu-body-no-details";
       let menuBrowserHtml = "";
@@ -4896,8 +4914,8 @@
       updateSemanticPanels(heap, state);
       noteAutosaveGameplayActivity(frameChanged, stateReady);
 
-      if (!initialViewportPlaced) {
-        followPlayerInViewport(false, true);
+      if (!initialViewportPlaced && !overlayActive) {
+        followPlayerInViewport(overlayActive, true);
         initialViewportPlaced = true;
       }
 
@@ -5065,6 +5083,7 @@
           overlayModalEl.classList.contains("overlay-character-skills") ||
           overlayModalEl.classList.contains("overlay-character-sheet") ||
           overlayModalEl.classList.contains("overlay-document") ||
+          overlayModalEl.classList.contains("overlay-terminal") ||
           isDismissableModalOverlayActive() ||
           isGenericCapturedOverlayActive() ||
           overlayModalEl.classList.contains("overlay-menu") ||
@@ -5260,6 +5279,7 @@
       skillEditorActive,
       targetPreviewPromptActive,
       dismissableModalActive,
+      terminalOverlayActive,
       genericOverlayActive,
     }) {
       if (morePromptActive) {
@@ -5277,7 +5297,7 @@
       if (targetPreviewPromptActive) {
         return { title: "Cancel target (Esc)", ariaLabel: "Cancel target" };
       }
-      if (dismissableModalActive || genericOverlayActive) {
+      if (dismissableModalActive || terminalOverlayActive || genericOverlayActive) {
         return { title: "Dismiss (Esc)", ariaLabel: "Dismiss" };
       }
       return { title: "Close (Esc)", ariaLabel: "Close" };
@@ -5298,6 +5318,7 @@
       const birthStatsActive = isBirthStatsScreenActive();
       const skillEditorActive = isCharacterSkillEditorActive();
       const tileContextActive = isTileContextOverlayActive();
+      const terminalOverlayActive = isTerminalOverlayActive();
       const dismissableModalActive = isDismissableModalOverlayActive();
       const genericOverlayActive = isGenericCapturedOverlayActive();
       const hasNamed = hasNamedCharacter(state);
@@ -5348,6 +5369,7 @@
         skillEditorActive,
         targetPreviewPromptActive,
         dismissableModalActive,
+        terminalOverlayActive,
         genericOverlayActive,
       });
 
@@ -6205,6 +6227,13 @@
           const keyCode = mapKeyEventToAscii(ev);
           advanceMorePrompt(keyCode);
           ev.preventDefault();
+          return;
+        }
+
+        if (isDismissableModalOverlayActive()) {
+          if (tryDismissActiveOverlay()) {
+            ev.preventDefault();
+          }
           return;
         }
 

@@ -23,10 +23,10 @@
 #define UI_BIRTH_STATS_VALUE_MAX 16
 #define UI_BIRTH_RACE_DETAILS_WIDTH 38
 #define UI_BIRTH_RACE_DETAILS_ROWS 12
-#define UI_BIRTH_RACE_SUMMARY_ROWS 8
+#define UI_BIRTH_RACE_SUMMARY_ROWS 5
 #define UI_BIRTH_HOUSE_DETAILS_WIDTH 30
 #define UI_BIRTH_HOUSE_DETAILS_ROWS 12
-#define UI_BIRTH_HOUSE_SUMMARY_ROWS 8
+#define UI_BIRTH_HOUSE_SUMMARY_ROWS 5
 #define UI_BIRTH_STAT_MIN 0
 #define UI_BIRTH_STAT_MAX 6
 #define UI_BIRTH_STAT_BUDGET 13
@@ -472,10 +472,12 @@ static void ui_birth_publish_race_menu(int current_race)
     for (i = 0; i < z_info->p_max; i++)
     {
         char label[80];
+        char nav[UI_MENU_NAV_MAX];
 
         ui_birth_choice_label(label, sizeof(label), i, p_name + p_info[i].name);
-        ui_menu_add(0, i + 4, (int)strlen(label), 1, ui_birth_choice_key(i),
-            i == current_race, TERM_WHITE, label);
+        ui_menu_build_vertical_nav(nav, sizeof(nav), current_race, i);
+        ui_menu_add_with_nav(0, i + 4, (int)strlen(label), 1,
+            ui_birth_choice_key(i), i == current_race, TERM_WHITE, label, nav);
     }
 
     ui_menu_set_details(
@@ -538,11 +540,13 @@ static void ui_birth_publish_house_menu(
     for (i = 0; i < house_count; i++)
     {
         char label[80];
+        char nav[UI_MENU_NAV_MAX];
         int house = houses[i];
 
         ui_birth_choice_label(label, sizeof(label), i, c_name + c_info[house].name);
-        ui_menu_add(0, i + 5, (int)strlen(label), 1, ui_birth_choice_key(i),
-            i == selection, TERM_WHITE, label);
+        ui_menu_build_vertical_nav(nav, sizeof(nav), selection, i);
+        ui_menu_add_with_nav(0, i + 5, (int)strlen(label), 1,
+            ui_birth_choice_key(i), i == selection, TERM_WHITE, label, nav);
     }
 
     ui_menu_set_details(
