@@ -12,6 +12,7 @@
  */
 
 #include "angband.h"
+#include "dialogue.h"
 
 typedef enum adjacent_action_type adjacent_action_type;
 typedef struct adjacent_action_info adjacent_action_info;
@@ -19,6 +20,7 @@ typedef struct adjacent_action_info adjacent_action_info;
 enum adjacent_action_type
 {
     ADJACENT_ACTION_NONE = 0,
+    ADJACENT_ACTION_TALK,
     ADJACENT_ACTION_ATTACK,
     ADJACENT_ACTION_TUNNEL,
     ADJACENT_ACTION_BASH_DOOR,
@@ -179,8 +181,11 @@ static adjacent_action_info adjacent_action_info_in_dir(int dir)
 
     if ((cave_m_idx[y][x] > 0) && mon_list[cave_m_idx[y][x]].ml)
     {
-        info.type = ADJACENT_ACTION_ATTACK;
         info.m_ptr = &mon_list[cave_m_idx[y][x]];
+        if (dialogue_monster_can_talk(info.m_ptr))
+            info.type = ADJACENT_ACTION_TALK;
+        else
+            info.type = ADJACENT_ACTION_ATTACK;
     }
     else if (!(is_marked || is_visible || has_known_searchable))
     {
@@ -239,6 +244,9 @@ cptr adjacent_action_label(int dir)
 {
     switch (adjacent_action_info_in_dir(dir).type)
     {
+    case ADJACENT_ACTION_TALK:
+        return "Talk";
+
     case ADJACENT_ACTION_ATTACK:
         return "Attack";
 
@@ -281,6 +289,7 @@ void adjacent_action_visual(int dir, byte* attr, byte* chr)
 
     switch (info.type)
     {
+    case ADJACENT_ACTION_TALK:
     case ADJACENT_ACTION_ATTACK:
         if (info.m_ptr && info.m_ptr->r_idx && attr && chr)
         {
@@ -334,6 +343,13 @@ int adjacent_collect_context_actions(int dir, int action_ids[], int max)
 
     switch (info.type)
     {
+    case ADJACENT_ACTION_TALK:
+        adjacent_append_context_action(
+            GRID_CONTEXT_ACTION_TALK, action_ids, &count, max);
+        adjacent_append_context_action(
+            GRID_CONTEXT_ACTION_ATTACK, action_ids, &count, max);
+        break;
+
     case ADJACENT_ACTION_ATTACK:
     case ADJACENT_ACTION_TUNNEL:
     case ADJACENT_ACTION_BASH_DOOR:
@@ -358,4 +374,10 @@ int adjacent_collect_context_actions(int dir, int action_ids[], int max)
     }
 
     return count;
+}
+
+/* Force an explicit attack against one adjacent dialogue-capable monster. */
+bool adjacent_action_force_attack(int dir)
+{
+    return (dialogue_force_attack_adjacent(dir));
 }

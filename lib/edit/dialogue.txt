@@ -1,0 +1,23 @@
+# SPDX-License-Identifier: EUPL-1.2
+#
+# Copyright (c) 2026 Fernando Carmona Varo
+#
+# Dialogue definition records.
+#
+# This registry lists data-driven conversation files for quest and scenario
+# content.  It is intentionally separate from quest.txt so larger stories can
+# keep NPC conversations in their own files.
+#
+# N:index:dialogue-id
+# D:description
+# S:<dialogue data file under lib/edit>
+
+V:1
+
+N:1:example_doorward
+D:A tiny branching conversation example for future quest-authored NPC dialogue.
+S:dialogues/example_doorward.txt
+
+N:2:dialogue_test_doorward
+D:Dialogue used by the Dialogue Test quest's tagged doorward NPC.
+S:dialogues/dialogue_test_doorward.txt

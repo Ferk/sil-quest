@@ -404,6 +404,8 @@ extern void do_cmd_rest(void);
 #define GRID_CONTEXT_ACTION_DESCEND 4
 #define GRID_CONTEXT_ACTION_USE_FORGE 5
 #define GRID_CONTEXT_ACTION_OPEN 6
+#define GRID_CONTEXT_ACTION_TALK 7
+#define GRID_CONTEXT_ACTION_ATTACK 8
 /* Reports whether one adjacent direction has a meaningful alter action. */
 extern bool adjacent_action_available(int dir);
 /* Reports whether one adjacent alter action should be presented as an attack. */
@@ -414,6 +416,8 @@ extern cptr adjacent_action_label(int dir);
 extern void adjacent_action_visual(int dir, byte* attr, byte* chr);
 /* Collects the context-menu action ids available for one adjacent tile. */
 extern int adjacent_collect_context_actions(int dir, int action_ids[], int max);
+/* Force an explicit attack against one adjacent dialogue-capable monster. */
+extern bool adjacent_action_force_attack(int dir);
 extern bool current_square_action_available(void);
 extern cptr current_square_action_label(void);
 extern void current_square_action_visual(byte* attr, byte* chr);
@@ -625,6 +629,7 @@ extern bool scenario_birth_name_fixed(void);
 extern bool scenario_birth_overrides_outfit(void);
 extern int scenario_birth_get_start_exp(void);
 extern int scenario_birth_get_stat_cost_offset(void);
+extern cptr scenario_monster_tag(const monster_type* m_ptr);
 extern cptr scenario_note_text(const object_type* o_ptr);
 extern void scenario_handle_enter_level(void);
 extern void scenario_handle_monster_seen(monster_type* m_ptr);

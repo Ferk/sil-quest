@@ -44,3 +44,10 @@ D:Create a fresh character, steal a Silmaril from Morgoth, and escape alive.
 G:0
 S:SCENARIO:quests/main_game.txt
 O:NONE
+
+N:3:Dialogue Test
+D:A tiny authored quest for testing branching NPC conversation content.
+G:-2
+S:SCENARIO:quests/dialogue_test.txt
+O:NONE
+F:NO_SAVE | NO_STAIRS_MONSTERS

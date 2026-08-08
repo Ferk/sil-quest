@@ -1,0 +1,70 @@
+# SPDX-License-Identifier: EUPL-1.2
+#
+# Copyright (c) 2026 Fernando Carmona Varo
+#
+# A compact quest used to test future Morrowind-style dialogue integration.
+# The doorward monster is tagged so a later runtime can bind that entity to the
+# dialogue_test_doorward conversation in lib/edit/dialogues/.
+
+V:1
+
+P:RACE:Noldor
+P:HOUSE:House of Finarfin
+P:NAME:Laurilfea
+P:HISTORY:You have been sent to a forgotten gate to test the weight of words.
+P:AGE:3966
+P:HEIGHT:71
+P:WEIGHT:148
+P:DEPTH:1
+P:MAX_DEPTH:1
+P:EXP:2000
+P:NEW_EXP:500
+P:FOOD:4753
+P:HP:41
+P:VOICE:41
+P:STAT:Str :2
+P:STAT:Dex :4
+P:STAT:Con :4
+P:STAT:Gra :4
+P:SKILL:Melee:5
+P:SKILL:Archery:3
+P:SKILL:Evasion:5
+P:SKILL:Stealth:3
+P:SKILL:Perception:2
+P:SKILL:Will:2
+P:SKILL:Smithing:0
+P:SKILL:Song:2
+
+I:LITE:Wooden Torch:timeout=1999:ident=0x8:aware=1:everseen=1
+I:WIELD:Curved Sword:ident=0x8:aware=1:everseen=1
+
+X:entry:The chamber is quiet enough that every word feels dangerous.
+X:entry:A lone doorward watches the sealed path to the east.
+X:doorward_hint:This NPC is tagged as "doorward" for future dialogue binding.
+X:doorward_hint:The matching conversation is "dialogue_test_doorward".
+X:finish:You leave the dialogue test chamber.
+
+R:ENTER_LEVEL:when=!entry_shown:DISPLAY_TEXT=entry:SET_FLAG=entry_shown
+R:USE_EXIT:tag=final_exit:DISPLAY_TEXT=finish:END_GAME
+
+MAP:Dialogue Test Chamber
+MAP_DEPTH:1
+MAP_SIZE:9:18
+MAP_ORIGIN:0:0
+T:#:FEATURE:outer granite wall:GLOW:ROOM
+T:.:FEATURE:open floor:GLOW:ROOM
+T:+:FEATURE:door:GLOW:ROOM
+T:}:FEATURE:down staircase:GLOW:ROOM
+M:##################
+M:#................#
+M:#................#
+M:#.....+..........#
+M:#................#
+M:#................#
+M:#............}...#
+M:#................#
+M:##################
+E:4:4:PLAYER
+E:4:9:MONSTER:Dejected elven thrall:tag=doorward:awake:no_open_doors
+E:5:9:OBJECT:Note:tag=doorward_hint:ident=0x88:marked=1:aware=1:everseen=1
+G:6:13:final_exit

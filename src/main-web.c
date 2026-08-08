@@ -16,6 +16,7 @@
 
 #ifdef USE_WEB
 
+#include "dialogue.h"
 #include "main.h"
 #include "ui-birth.h"
 #include "ui-character.h"
@@ -330,6 +331,16 @@ EMSCRIPTEN_KEEPALIVE int web_get_tile_context_state_len(int dir);
 EMSCRIPTEN_KEEPALIVE uintptr_t web_get_map_tile_context_state_ptr(int y, int x);
 EMSCRIPTEN_KEEPALIVE int web_get_map_tile_context_state_len(int y, int x);
 EMSCRIPTEN_KEEPALIVE int web_execute_tile_context_action(int dir, int action_id);
+EMSCRIPTEN_KEEPALIVE int web_get_dialogue_active(void);
+EMSCRIPTEN_KEEPALIVE unsigned int web_get_dialogue_revision(void);
+EMSCRIPTEN_KEEPALIVE uintptr_t web_get_dialogue_title_ptr(void);
+EMSCRIPTEN_KEEPALIVE int web_get_dialogue_title_len(void);
+EMSCRIPTEN_KEEPALIVE uintptr_t web_get_dialogue_body_ptr(void);
+EMSCRIPTEN_KEEPALIVE int web_get_dialogue_body_len(void);
+EMSCRIPTEN_KEEPALIVE uintptr_t web_get_dialogue_options_ptr(void);
+EMSCRIPTEN_KEEPALIVE int web_get_dialogue_options_len(void);
+EMSCRIPTEN_KEEPALIVE int web_dialogue_choose(int key);
+EMSCRIPTEN_KEEPALIVE int web_dialogue_close(void);
 EMSCRIPTEN_KEEPALIVE void web_consume_render_request(void);
 EMSCRIPTEN_KEEPALIVE int web_get_overlay_mode(void);
 EMSCRIPTEN_KEEPALIVE uintptr_t web_get_overlay_text_ptr(void);
@@ -1466,6 +1477,12 @@ static cptr web_get_tile_context_action_label(int dir, int action_id)
     case GRID_CONTEXT_ACTION_OPEN:
         return "Open door";
 
+    case GRID_CONTEXT_ACTION_TALK:
+        return "Talk";
+
+    case GRID_CONTEXT_ACTION_ATTACK:
+        return "Attack";
+
     case WEB_GRID_CONTEXT_ACTION_RECALL:
         return "Recall";
 
@@ -1525,13 +1542,20 @@ static int web_collect_tile_context_actions_for_grid(int y, int x,
 {
     int count = 0;
     int dir = web_get_tile_context_dir_for_grid(y, x);
+    monster_type* m_ptr = web_get_tile_context_visible_monster_for_grid(y, x);
 
     if (dir == 5)
         count = current_square_collect_context_actions(action_ids, max);
     else if (dir > 0)
         count = adjacent_collect_context_actions(dir, action_ids, max);
 
-    if (web_get_tile_context_visible_monster_for_grid(y, x))
+    if ((dir == 0) && m_ptr && dialogue_monster_can_talk(m_ptr) && (count < max))
+    {
+        action_ids[count] = GRID_CONTEXT_ACTION_TALK;
+        count++;
+    }
+
+    if (m_ptr)
     {
         int i;
 
@@ -4134,6 +4158,27 @@ EMSCRIPTEN_KEEPALIVE int web_execute_tile_context_action(int dir, int action_id)
 
         return web_key_enqueue(I2D(dir)) ? 1 : 0;
 
+    case GRID_CONTEXT_ACTION_TALK:
+    {
+        monster_type* m_ptr = web_get_tile_context_visible_monster_for_grid(
+            target_y, target_x);
+
+        if (!m_ptr)
+            return 0;
+
+        if (!dialogue_web_open_monster(m_ptr))
+            return 0;
+
+        web_request_render();
+        return 1;
+    }
+
+    case GRID_CONTEXT_ACTION_ATTACK:
+        if (dir == 5)
+            return 0;
+
+        return adjacent_action_force_attack(dir) ? 1 : 0;
+
     case WEB_GRID_CONTEXT_ACTION_RECALL:
     {
         monster_type* m_ptr = web_get_tile_context_visible_monster_for_grid(
@@ -4150,6 +4195,62 @@ EMSCRIPTEN_KEEPALIVE int web_execute_tile_context_action(int dir, int action_id)
     default:
         return 0;
     }
+}
+
+EMSCRIPTEN_KEEPALIVE int web_get_dialogue_active(void)
+{
+    return dialogue_web_is_active() ? 1 : 0;
+}
+
+EMSCRIPTEN_KEEPALIVE unsigned int web_get_dialogue_revision(void)
+{
+    return dialogue_web_get_revision();
+}
+
+EMSCRIPTEN_KEEPALIVE uintptr_t web_get_dialogue_title_ptr(void)
+{
+    return (uintptr_t)(const void*)dialogue_web_get_title();
+}
+
+EMSCRIPTEN_KEEPALIVE int web_get_dialogue_title_len(void)
+{
+    return (int)strlen(dialogue_web_get_title());
+}
+
+EMSCRIPTEN_KEEPALIVE uintptr_t web_get_dialogue_body_ptr(void)
+{
+    return (uintptr_t)(const void*)dialogue_web_get_body();
+}
+
+EMSCRIPTEN_KEEPALIVE int web_get_dialogue_body_len(void)
+{
+    return (int)strlen(dialogue_web_get_body());
+}
+
+EMSCRIPTEN_KEEPALIVE uintptr_t web_get_dialogue_options_ptr(void)
+{
+    return (uintptr_t)(const void*)dialogue_web_get_options_json();
+}
+
+EMSCRIPTEN_KEEPALIVE int web_get_dialogue_options_len(void)
+{
+    return (int)strlen(dialogue_web_get_options_json());
+}
+
+EMSCRIPTEN_KEEPALIVE int web_dialogue_choose(int key)
+{
+    if (!dialogue_web_choose(key))
+        return 0;
+
+    web_request_render();
+    return 1;
+}
+
+EMSCRIPTEN_KEEPALIVE int web_dialogue_close(void)
+{
+    dialogue_web_close();
+    web_request_render();
+    return 1;
 }
 
 EMSCRIPTEN_KEEPALIVE int web_get_overlay_mode(void)

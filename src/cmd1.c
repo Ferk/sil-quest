@@ -9,6 +9,7 @@
  */
 
 #include "angband.h"
+#include "dialogue.h"
 #include "item-rules.h"
 
 bool graphics_are_ascii(void)
@@ -3955,11 +3956,15 @@ void py_attack_aux(int y, int x, int attack_type)
         abort_attack = TRUE;
     }
 
-    if (r_ptr->flags1 & (RF1_PEACEFUL))
+    if ((r_ptr->flags1 & (RF1_PEACEFUL)) && !dialogue_force_attack_active())
     {
         if (attack_type == ATT_MAIN)
         {
-            if (m_ptr->r_idx == R_IDX_ALERT_HUMAN_THRALL ||
+            if (dialogue_handle_bump(m_ptr))
+            {
+                /* Handled by quest-authored dialogue. */
+            }
+            else if (m_ptr->r_idx == R_IDX_ALERT_HUMAN_THRALL ||
                 m_ptr->r_idx == R_IDX_ALERT_ELF_THRALL)
             {
                 do_quest(m_ptr);

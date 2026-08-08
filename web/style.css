@@ -778,6 +778,17 @@
       touch-action: pan-y;
     }
 
+    #overlay-modal.overlay-dialogue {
+      padding: 1rem;
+      width: min(38rem, calc(100% - 2rem));
+      max-width: calc(100% - 2rem);
+      max-height: calc(100% - 2rem);
+      box-sizing: border-box;
+      white-space: normal;
+      overflow: hidden;
+      touch-action: pan-y;
+    }
+
     #overlay-modal.overlay-dismissable {
       cursor: pointer;
     }
@@ -1480,6 +1491,73 @@
       font-weight: 700;
       text-transform: uppercase;
       letter-spacing: 0.04em;
+    }
+
+    .dialogue-shell {
+      display: grid;
+      grid-template-rows: auto minmax(0, 1fr) auto;
+      gap: 0.9rem;
+      max-height: calc(100vh - 4rem);
+      color: #d7dde7;
+    }
+
+    .dialogue-head {
+      padding-bottom: 0.7rem;
+      border-bottom: 1px solid rgba(148, 163, 184, 0.24);
+    }
+
+    .dialogue-head h2 {
+      margin: 0;
+      color: #fde047;
+      font-size: clamp(1rem, 4vw, 1.35rem);
+      line-height: 1.2;
+    }
+
+    .dialogue-body {
+      min-height: 0;
+      overflow: auto;
+      overscroll-behavior: contain;
+      -webkit-overflow-scrolling: touch;
+      padding: 0.9rem 1rem;
+      border: 1px solid rgba(156, 163, 175, 0.18);
+      background:
+        linear-gradient(180deg, rgba(10, 14, 22, 0.82), rgba(7, 10, 16, 0.66));
+      color: #f0f4ff;
+      white-space: pre-wrap;
+      overflow-wrap: break-word;
+      line-height: 1.5;
+    }
+
+    .dialogue-options {
+      display: grid;
+      gap: 0.65rem;
+    }
+
+    .dialogue-option {
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr);
+      gap: 0.75rem;
+      align-items: center;
+      width: 100%;
+      min-height: 3rem;
+      padding: 0.75rem 0.95rem;
+      border: 1px solid rgba(147, 197, 253, 0.3);
+      background: rgba(16, 27, 46, 0.88);
+      color: #d7dde7;
+      font: inherit;
+      text-align: left;
+      cursor: pointer;
+    }
+
+    .dialogue-option-key {
+      min-width: 2ch;
+      color: #93c5fd;
+      font-weight: 800;
+      text-transform: uppercase;
+    }
+
+    .dialogue-option-label {
+      min-width: 0;
     }
 
     /* --------------------------------------------------------------------- */

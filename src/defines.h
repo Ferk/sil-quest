@@ -3003,10 +3003,8 @@
  * Determine if a "legal" grid is within "line of fire" of the player
  *
  * Note the use of comparison to zero to force a "boolean" result
- *
- * (Sil-y: actually I note that it isn't doing a comparison here -- bug?)
  */
-#define player_can_fire_bold(Y, X) (cave_info[Y][X] & (CAVE_FIRE))
+#define player_can_fire_bold(Y, X) ((cave_info[Y][X] & (CAVE_FIRE)) != 0)
 
 /*** Color constants ***/
 

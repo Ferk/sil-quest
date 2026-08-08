@@ -3198,6 +3198,7 @@
       "overlay-character-skills",
       "overlay-character-sheet",
       "overlay-tile-context",
+      "overlay-dialogue",
       "overlay-menu",
       "overlay-document",
       "overlay-terminal",
@@ -3267,6 +3268,14 @@
       );
     }
 
+    // Returns whether the custom dialogue overlay is currently visible.
+    function isDialogueOverlayActive() {
+      return (
+        isSemanticOverlayVisible() &&
+        overlayModalEl.classList.contains("overlay-dialogue")
+      );
+    }
+
     // Dismisses the custom tile-context popup without sending input to the backend.
     function hideTileContextOverlay({ redraw = true } = {}) {
       if (!activeTileContextState && !overlayModalEl.classList.contains("overlay-tile-context")) {
@@ -3306,6 +3315,14 @@
     function tryDismissActiveOverlay() {
       if (isTileContextOverlayActive()) {
         return hideTileContextOverlay();
+      }
+
+      if (isDialogueOverlayActive()) {
+        if (!api || typeof api.dialogueClose !== "function") return false;
+        if (!api.dialogueClose()) return false;
+        hideSemanticOverlay();
+        requestRender(true);
+        return true;
       }
 
       if (isDismissableModalOverlayActive()) {
@@ -3432,6 +3449,79 @@
           `${conditionTags ? `<div class="tile-context-monster-tags">${conditionTags}</div>` : ""}` +
         `</section>`
       );
+    }
+
+    // Renders the current quest dialogue as a frontend-owned mobile-friendly modal.
+    function updateDialogueSemantic(heap) {
+      if (
+        !api ||
+        typeof api.getDialogueActive !== "function" ||
+        typeof api.getDialogueTitlePtr !== "function" ||
+        typeof api.getDialogueTitleLen !== "function" ||
+        typeof api.getDialogueBodyPtr !== "function" ||
+        typeof api.getDialogueBodyLen !== "function" ||
+        typeof api.getDialogueOptionsPtr !== "function" ||
+        typeof api.getDialogueOptionsLen !== "function"
+      ) {
+        return false;
+      }
+
+      if (!api.getDialogueActive()) {
+        if (overlayModalEl.classList.contains("overlay-dialogue")) {
+          hideSemanticOverlay();
+        }
+        return false;
+      }
+
+      const title = readUtf8(
+        heap,
+        api.getDialogueTitlePtr(),
+        api.getDialogueTitleLen()
+      );
+      const body = readUtf8(
+        heap,
+        api.getDialogueBodyPtr(),
+        api.getDialogueBodyLen()
+      );
+      const optionsJson = readUtf8(
+        heap,
+        api.getDialogueOptionsPtr(),
+        api.getDialogueOptionsLen()
+      );
+      let options = [];
+
+      try {
+        options = JSON.parse(optionsJson || "[]");
+      } catch (_err) {
+        options = [];
+      }
+
+      const optionHtml = options
+        .map((option) => {
+          const key = Number(option?.key ?? 0);
+          const label = String(option?.label || "").trim();
+          if (!Number.isInteger(key) || key <= 0 || !label) return "";
+          const keyLabel = String.fromCharCode(key).toLowerCase();
+          return (
+            `<button class="dialogue-option" type="button" data-dialogue-key="${key}">` +
+              `<span class="dialogue-option-key">${escapeHtml(keyLabel)})</span>` +
+              `<span class="dialogue-option-label">${escapeHtml(label)}</span>` +
+            `</button>`
+          );
+        })
+        .join("");
+
+      const html =
+        `<section class="dialogue-shell" role="dialog" aria-modal="true">` +
+          `<header class="dialogue-head">` +
+            `<h2>${escapeHtml(title || "Conversation")}</h2>` +
+          `</header>` +
+          `<div class="dialogue-body">${escapeHtml(body || "")}</div>` +
+          `<div class="dialogue-options">${optionHtml}</div>` +
+        `</section>`;
+
+      showSemanticOverlay("overlay-dialogue", html);
+      return true;
     }
 
     // Opens one semantic tile-context popup using the current gameplay state and wasm payload.
@@ -4558,6 +4648,11 @@
     // Updates modal overlay text from semantic wasm buffers.
     function updateOverlaySemantic(heap) {
       if (updateDocumentSemantic(heap)) {
+        activeTileContextState = null;
+        return true;
+      }
+
+      if (updateDialogueSemantic(heap)) {
         activeTileContextState = null;
         return true;
       }
@@ -6136,12 +6231,39 @@
       });
     }
 
+    // Binds click handling for quest dialogue choices.
+    function bindOverlayDialogueInput() {
+      overlayModalEl.addEventListener("pointerdown", (ev) => {
+        if (!overlayModalEl.classList.contains("overlay-dialogue")) return;
+        ev.stopPropagation();
+      });
+
+      overlayModalEl.addEventListener("click", (ev) => {
+        if (!overlayModalEl.classList.contains("overlay-dialogue")) return;
+        if (!api) return;
+
+        const optionEl = ev.target.closest("[data-dialogue-key]");
+        if (!optionEl || typeof api.dialogueChoose !== "function") return;
+
+        const key = Number(optionEl.dataset.dialogueKey);
+        if (!Number.isInteger(key) || key <= 0) return;
+
+        if (api.dialogueChoose(key)) {
+          requestRender(true);
+        }
+        ev.preventDefault();
+        ev.stopImmediatePropagation();
+        ev.stopPropagation();
+      });
+    }
+
     // Binds tap-to-dismiss for both semantic modals and plain captured overlays.
     function bindOverlayModalInput() {
       overlayModalEl.addEventListener("click", (ev) => {
         if (
           overlayModalEl.classList.contains("overlay-menu") ||
           overlayModalEl.classList.contains("overlay-tile-context") ||
+          overlayModalEl.classList.contains("overlay-dialogue") ||
           overlayModalEl.classList.contains("overlay-document") ||
           overlayModalEl.classList.contains("overlay-message-log")
         ) {
@@ -6248,6 +6370,32 @@
           if (ev.key === "Escape") {
             hideTileContextOverlay();
           }
+          ev.preventDefault();
+          return;
+        }
+
+        if (isDialogueOverlayActive()) {
+          if (ev.key === "Escape") {
+            if (typeof api.dialogueClose === "function") {
+              api.dialogueClose();
+              hideSemanticOverlay();
+              requestRender(true);
+            }
+            ev.preventDefault();
+            return;
+          }
+
+          const keyCode = mapKeyEventToAscii(ev);
+          if (
+            keyCode &&
+            typeof api.dialogueChoose === "function" &&
+            api.dialogueChoose(keyCode)
+          ) {
+            requestRender(true);
+            ev.preventDefault();
+            return;
+          }
+
           ev.preventDefault();
           return;
         }
@@ -7132,6 +7280,46 @@
             typeof Module._web_execute_tile_context_action === "function"
               ? Module._web_execute_tile_context_action
               : null,
+          getDialogueActive:
+            typeof Module._web_get_dialogue_active === "function"
+              ? Module._web_get_dialogue_active
+              : null,
+          getDialogueRevision:
+            typeof Module._web_get_dialogue_revision === "function"
+              ? Module._web_get_dialogue_revision
+              : null,
+          getDialogueTitlePtr:
+            typeof Module._web_get_dialogue_title_ptr === "function"
+              ? Module._web_get_dialogue_title_ptr
+              : null,
+          getDialogueTitleLen:
+            typeof Module._web_get_dialogue_title_len === "function"
+              ? Module._web_get_dialogue_title_len
+              : null,
+          getDialogueBodyPtr:
+            typeof Module._web_get_dialogue_body_ptr === "function"
+              ? Module._web_get_dialogue_body_ptr
+              : null,
+          getDialogueBodyLen:
+            typeof Module._web_get_dialogue_body_len === "function"
+              ? Module._web_get_dialogue_body_len
+              : null,
+          getDialogueOptionsPtr:
+            typeof Module._web_get_dialogue_options_ptr === "function"
+              ? Module._web_get_dialogue_options_ptr
+              : null,
+          getDialogueOptionsLen:
+            typeof Module._web_get_dialogue_options_len === "function"
+              ? Module._web_get_dialogue_options_len
+              : null,
+          dialogueChoose:
+            typeof Module._web_dialogue_choose === "function"
+              ? Module._web_dialogue_choose
+              : null,
+          dialogueClose:
+            typeof Module._web_dialogue_close === "function"
+              ? Module._web_dialogue_close
+              : null,
           getLogTextPtr: Module._web_get_log_text_ptr,
           getLogTextLen: Module._web_get_log_text_len,
           getLogAttrsPtr: Module._web_get_log_attrs_ptr,
@@ -7289,6 +7477,7 @@
         bindOverlayCharacterSkillInput();
         bindOverlayCharacterSheetInput();
         bindOverlayTileContextInput();
+        bindOverlayDialogueInput();
         bindOverlayModalInput();
         bindMapZoomInput();
         startPersistSyncLoop();

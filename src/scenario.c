@@ -1328,6 +1328,24 @@ cptr scenario_note_text(const object_type* o_ptr)
     return (scenario.texts[idx].text);
 }
 
+/* Return the authored scenario tag associated with one placed monster. */
+cptr scenario_monster_tag(const monster_type* m_ptr)
+{
+    int m_idx;
+
+    if (!m_ptr)
+        return (NULL);
+
+    m_idx = (int)(m_ptr - mon_list);
+    if ((m_idx <= 0) || (m_idx >= MAX_MONSTERS))
+        return (NULL);
+
+    if (!scenario_monster_tags[m_idx][0])
+        return (NULL);
+
+    return (scenario_monster_tags[m_idx]);
+}
+
 /* Look up or create one named multiline scenario text block. */
 static int scenario_intern_text(cptr token, int line)
 {

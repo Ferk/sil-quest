@@ -154,6 +154,7 @@ set(SIL_SOURCES
     src/cmd6.c
     src/adjacent-actions.c
     src/current-square.c
+    src/dialogue.c
     src/dungeon.c
     src/files.c
     src/generate.c

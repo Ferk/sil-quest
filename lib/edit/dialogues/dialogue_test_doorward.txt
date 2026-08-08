@@ -1,0 +1,41 @@
+# SPDX-License-Identifier: EUPL-1.2
+#
+# Copyright (c) 2026 Fernando Carmona Varo
+#
+# Dialogue for the Dialogue Test quest.
+
+V:1
+DIALOG:dialogue_test_doorward
+NPC:Doorward of the Hidden Gate
+START:greeting
+
+NODE:greeting
+TEXT:The doorward studies you in silence, then lowers his spear.
+TEXT:"Few come to this forgotten post. Fewer still come with questions."
+OPTION:Ask who he serves.:service
+OPTION:Ask about the sealed path.:sealed_path
+OPTION:Leave him to his watch.:END
+
+NODE:service
+TEXT:"I serve memory first, and my hidden lord second. Both are poor masters."
+EFFECT:SET_FLAG=asked_doorward_service
+OPTION:Ask what he remembers.:memory:WHEN=flag.asked_doorward_service
+OPTION:Return to other matters.:greeting
+
+NODE:sealed_path
+TEXT:"Beyond this place lies an errand of knives, oaths, and half-truths."
+TEXT:"If you would walk it, learn first how words can open wounds."
+EFFECT:SET_FLAG=heard_of_sealed_path
+OPTION:Ask who sealed it.:sealed_by:WHEN=flag.heard_of_sealed_path
+OPTION:Return to other matters.:greeting
+
+NODE:memory
+WHEN:flag.asked_doorward_service
+TEXT:"I remember a house where every answer made another enemy."
+TEXT:"That is why I test questions before I test blades."
+OPTION:Return to other matters.:greeting
+
+NODE:sealed_by
+WHEN:flag.heard_of_sealed_path
+TEXT:"Not Morgoth. Not wholly. Some doors are barred by those who fear rescue."
+OPTION:Return to other matters.:greeting

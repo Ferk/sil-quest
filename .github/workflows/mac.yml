@@ -47,6 +47,9 @@ jobs:
       - name: Validate data file for abilities
         run: python3 bin/data-ability.py --validate
 
+      - name: Validate data file for dialogues
+        run: python3 bin/data-dialogue.py --validate
+
       - name: Validate data file for artefacts
         run: python3 bin/data-artefact.py --validate
 
@@ -83,7 +86,7 @@ jobs:
       - name: Validate data file for vaults
         run: python3 bin/data-vault.py --validate
 
-      - name: Verify tutorial savefile
+      - name: Verify tutorial scenario
         run: bin/verify-tutorial.sh
 
       - name: Remove outdated PDF manuals

@@ -1,0 +1,49 @@
+# SPDX-License-Identifier: EUPL-1.2
+#
+# Copyright (c) 2026 Fernando Carmona Varo
+#
+# Example Sil-Quest dialogue file.
+#
+# V:<n> format version
+# DIALOG:<dialogue-id>
+# NPC:<display name>
+# START:<node-id>
+# NODE:<node-id>
+# WHEN:<condition[,condition...]> optional node visibility condition
+# TEXT:<line> repeatable text shown for the current node
+# OPTION:<label>:<target-node|END>[:WHEN=<condition[,condition...]>]
+# EFFECT:SET_FLAG=<flag> | CLEAR_FLAG=<flag>
+#
+# Conditions currently validated by tooling:
+#   flag.<name>
+#   !flag.<name>
+#
+# Runtime support will use this same semantic shape for both web/mobile and
+# terminal renderers.
+
+V:1
+DIALOG:example_doorward
+NPC:Doorward of the Hidden Gate
+START:greeting
+
+NODE:greeting
+TEXT:Halt, friend. Few find this path unless they are either lost or summoned.
+OPTION:Who keeps this gate?:who
+OPTION:I am only passing through.:passing
+OPTION:Farewell.:END
+
+NODE:who
+TEXT:I keep watch for those who remember the old names of stone and starlight.
+EFFECT:SET_FLAG=met_doorward
+OPTION:Ask about the old names.:old_names:WHEN=flag.met_doorward
+OPTION:Back.:greeting
+
+NODE:passing
+TEXT:Then pass softly. There are ears beneath the hills that do not sleep.
+OPTION:Back.:greeting
+OPTION:Farewell.:END
+
+NODE:old_names
+WHEN:flag.met_doorward
+TEXT:Some names open doors. Some close wounds. A few are best left unspoken.
+OPTION:Back.:greeting

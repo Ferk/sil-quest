@@ -5,7 +5,7 @@
 # Umbrella script that runs all test-related scripts:
 #   - bin/data-*.py --validate  (data file validation)
 #   - bin/smoke-tests.sh        (basic binary smoke tests)
-#   - bin/verify-tutorial.sh    (tutorial savefile verification)
+#   - bin/verify-tutorial.sh    (tutorial scenario verification)
 
 set -uo pipefail
 
@@ -55,10 +55,10 @@ done
 run_step "Smoke tests" "$SCRIPT_DIR/smoke-tests.sh"
 
 ###############################################################################
-# Tutorial savefile verification
+# Tutorial scenario verification
 ###############################################################################
 
-run_step "Verify tutorial savefile" "$SCRIPT_DIR/verify-tutorial.sh"
+run_step "Verify tutorial scenario" "$SCRIPT_DIR/verify-tutorial.sh"
 
 ###############################################################################
 # Summary
