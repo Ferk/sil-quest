@@ -5691,7 +5691,8 @@ bool scenario_start_pending_new_game(void)
     game_type = p_ptr->game_type;
     quest_id = p_ptr->unused2;
 
-    player_birth();
+    if (!player_birth())
+        return (FALSE);
     p_ptr->game_type = game_type;
     p_ptr->unused2 = quest_id;
     return (scenario_apply_post_birth_overrides());

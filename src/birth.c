@@ -539,9 +539,7 @@ static bool get_player_race(void)
 
     /* No selection? */
     if (race == UI_BIRTH_CHOICE_CANCELLED)
-    {
         return (FALSE);
-    }
 
     // if different race to last time, then wipe the history, age, height,
     // weight
@@ -624,7 +622,7 @@ static bool player_birth_aux_1(void)
             }
             else if (!get_player_race())
             {
-                continue;
+                return (FALSE);
             }
 
             /* Clean up */
@@ -974,10 +972,6 @@ bool gain_skills(void)
  */
 static bool player_birth_aux(void)
 {
-    /* Ask questions */
-    if (!player_birth_aux_1())
-        return (FALSE);
-
     scenario_birth_seed_background();
 
     /* Point-based stats */
@@ -1026,7 +1020,7 @@ static bool player_birth_aux(void)
  * Note that we may be called with "junk" leftover in the various
  * fields, so we must be sure to clear them first.
  */
-void player_birth(void)
+bool player_birth(void)
 {
     int i;
 
@@ -1041,7 +1035,11 @@ void player_birth(void)
         /* Wipe the player */
         player_wipe();
 
-        /* Roll up a new character */
+        /* Choose the race and house. Cancelling the first screen aborts birth. */
+        if (!player_birth_aux_1())
+            return (FALSE);
+
+        /* Roll up a new character. Cancelling later screens restarts birth. */
         if (player_birth_aux())
             break;
     }
@@ -1081,4 +1079,6 @@ void player_birth(void)
     /* Hack -- outfit the player unless the scenario provides its own loadout */
     if (!scenario_birth_overrides_outfit())
         player_outfit();
+
+    return (TRUE);
 }

@@ -333,7 +333,8 @@ bool quests_start_pending_new_game(void)
     if (!q_ptr)
     {
         scenario_clear_pending();
-        player_birth();
+        if (!player_birth())
+            return (FALSE);
         p_ptr->depth = 1;
         return (TRUE);
     }
@@ -345,7 +346,8 @@ bool quests_start_pending_new_game(void)
         return (scenario_start_pending_new_game());
 
     scenario_clear_pending();
-    player_birth();
+    if (!player_birth())
+        return (FALSE);
     p_ptr->depth = 1;
     return (TRUE);
 }

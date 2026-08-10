@@ -264,7 +264,7 @@ struct ui_text_builder;
  */
 
 /* birth.c */
-extern void player_birth(void);
+extern bool player_birth(void);
 extern void player_birth_wipe(void);
 extern bool gain_skills(void);
 

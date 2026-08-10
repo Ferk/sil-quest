@@ -3045,7 +3045,11 @@ void play_game(bool new_game)
         seed_randart = rand_int(0x10000000);
 
         if (!quests_start_pending_new_game())
-            quit("Unable to start quest.");
+        {
+            quests_clear_pending_start();
+            character_icky--;
+            return;
+        }
 
         /* Reset the item kind rules. */
         item_rules_clear();
