@@ -7162,6 +7162,7 @@ extern void do_cmd_options_aux(int page, cptr info)
         for (i = 0; i < n; i++)
         {
             byte a = TERM_WHITE;
+            char nav[UI_MENU_NAV_MAX];
 
             /* Color current option */
             if (i == k)
@@ -7188,7 +7189,9 @@ extern void do_cmd_options_aux(int page, cptr info)
             my_strcpy(labels[i], buf, sizeof(labels[i]));
 
             c_prt(a, buf, i + 3, 2);
-            ui_menu_add(2, i + 3, (int)strlen(buf), 1, '5', i == k, a, buf);
+            ui_menu_build_vertical_nav(nav, sizeof(nav), k, i);
+            ui_menu_add_with_nav(
+                2, i + 3, (int)strlen(buf), 1, '5', i == k, a, buf, nav);
         }
 
         if (page == CHALLENGE_PAGE)
@@ -7500,6 +7503,11 @@ static errr option_dump(cptr fname)
 
     /* Success */
     return (0);
+}
+
+errr option_dump_pref_file(cptr fname)
+{
+    return option_dump(fname);
 }
 
 /*
@@ -7874,6 +7882,30 @@ static errr keymap_dump(cptr fname)
 
     /* Success */
     return (0);
+}
+
+errr macro_dump_pref_file(cptr fname)
+{
+    return macro_dump(fname);
+}
+
+errr keymap_dump_pref_file(cptr fname)
+{
+    return keymap_dump(fname);
+}
+
+#else
+
+errr macro_dump_pref_file(cptr fname)
+{
+    (void)fname;
+    return (-1);
+}
+
+errr keymap_dump_pref_file(cptr fname)
+{
+    (void)fname;
+    return (-1);
 }
 
 #endif
@@ -8734,16 +8766,92 @@ static void modify_colors(void)
 /*
  * Interact with "colors"
  */
+#ifdef ALLOW_COLORS
+static errr color_dump(cptr fname)
+{
+    static cptr mark = "Colors";
+    FILE* fff;
+    char buf[1024];
+    int i;
+
+    /* Build the filename */
+    path_build(buf, sizeof(buf), ANGBAND_DIR_USER, fname);
+
+    /* Remove old colors */
+    remove_old_dump(buf, mark);
+
+    /* Append to the file */
+    fff = my_fopen(buf, "a");
+
+    /* Failure */
+    if (!fff)
+        return (-1);
+
+    /* Output header */
+    pref_header(fff, mark);
+
+    /* Skip some lines */
+    fprintf(fff, "\n\n");
+
+    /* Start dumping */
+    fprintf(fff, "# Color redefinitions\n\n");
+
+    /* Dump colors */
+    for (i = 0; i < 256; i++)
+    {
+        int kv = angband_color_table[i][0];
+        int rv = angband_color_table[i][1];
+        int gv = angband_color_table[i][2];
+        int bv = angband_color_table[i][3];
+
+        cptr name = "unknown";
+
+        /* Skip non-entries */
+        if (!kv && !rv && !gv && !bv)
+            continue;
+
+        /* Extract the color name */
+        if (i < 16)
+            name = color_names[i];
+
+        /* Dump a comment */
+        fprintf(fff, "# Color '%s'\n", name);
+
+        /* Dump the monster attr/char info */
+        fprintf(fff, "V:%d:0x%02X:0x%02X:0x%02X:0x%02X\n\n", i, kv, rv, gv,
+            bv);
+    }
+
+    /* All done */
+    fprintf(fff, "\n\n\n\n");
+
+    /* Output footer */
+    pref_footer(fff, mark);
+
+    /* Close */
+    my_fclose(fff);
+
+    /* Success */
+    return (0);
+}
+
+errr color_dump_pref_file(cptr fname)
+{
+    return color_dump(fname);
+}
+#else
+errr color_dump_pref_file(cptr fname)
+{
+    (void)fname;
+    return (-1);
+}
+#endif
+
 void do_cmd_colors(void)
 {
     int ch;
 
-    int i;
     int highlight = 1;
-
-    FILE* fff;
-
-    char buf[1024];
 
     /* File type is "TEXT" */
     FILE_TYPE(FILE_TYPE_TEXT);
@@ -8800,7 +8908,6 @@ void do_cmd_colors(void)
         /* Dump colors */
         else if (ch == '2')
         {
-            static cptr mark = "Colors";
             char ftmp[80];
 
             ui_menu_clear();
@@ -8817,62 +8924,9 @@ void do_cmd_colors(void)
             if (!askfor_aux(ftmp, sizeof(ftmp)))
                 continue;
 
-            /* Build the filename */
-            path_build(buf, sizeof(buf), ANGBAND_DIR_USER, ftmp);
-
-            /* Remove old colors */
-            remove_old_dump(buf, mark);
-
-            /* Append to the file */
-            fff = my_fopen(buf, "a");
-
-            /* Failure */
-            if (!fff)
+            /* Dump the colors */
+            if (color_dump(ftmp))
                 continue;
-
-            /* Output header */
-            pref_header(fff, mark);
-
-            /* Skip some lines */
-            fprintf(fff, "\n\n");
-
-            /* Start dumping */
-            fprintf(fff, "# Color redefinitions\n\n");
-
-            /* Dump colors */
-            for (i = 0; i < 256; i++)
-            {
-                int kv = angband_color_table[i][0];
-                int rv = angband_color_table[i][1];
-                int gv = angband_color_table[i][2];
-                int bv = angband_color_table[i][3];
-
-                cptr name = "unknown";
-
-                /* Skip non-entries */
-                if (!kv && !rv && !gv && !bv)
-                    continue;
-
-                /* Extract the color name */
-                if (i < 16)
-                    name = color_names[i];
-
-                /* Dump a comment */
-                fprintf(fff, "# Color '%s'\n", name);
-
-                /* Dump the monster attr/char info */
-                fprintf(fff, "V:%d:0x%02X:0x%02X:0x%02X:0x%02X\n\n", i, kv, rv,
-                    gv, bv);
-            }
-
-            /* All done */
-            fprintf(fff, "\n\n\n\n");
-
-            /* Output footer */
-            pref_footer(fff, mark);
-
-            /* Close */
-            my_fclose(fff);
 
             /* Message */
             msg_print("Dumped color redefinitions.");

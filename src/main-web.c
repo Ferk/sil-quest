@@ -127,6 +127,14 @@ static term_data data;
 #define WEB_PLAYER_STATE_MAX 8192
 #define WEB_TILE_CONTEXT_STATE_MAX 4096
 #define WEB_PROMPT_INPUT_TEXT_MAX (MESSAGE_BUF * 2)
+#define WEB_FILE_TRANSFER_BUFFER_MAX 262144
+#define WEB_OPTIONS_EXPORT_FILE "web-options-export.prf"
+#define WEB_MACROS_EXPORT_FILE "web-macros-export.prf"
+#define WEB_KEYMAPS_EXPORT_FILE "web-keymaps-export.prf"
+#define WEB_COLORS_EXPORT_FILE "web-colors-export.prf"
+#define WEB_SCREENSHOT_EXPORT_FILE "web-screenshot-export.html"
+#define WEB_CHARACTER_EXPORT_FILE "web-character-export.txt"
+#define WEB_PREF_IMPORT_FILE "web-options-import.prf"
 #define WEB_AUTO_RESUME_MARKER_NAME "web-autoresume.txt"
 #define WEB_GRID_CONTEXT_ACTION_RECALL 100
 
@@ -158,6 +166,9 @@ static char web_character_sheet_state[WEB_CHARACTER_SHEET_STATE_MAX];
 static uint32_t web_character_sheet_state_revision = UINT32_MAX;
 static char web_player_state[WEB_PLAYER_STATE_MAX];
 static char web_tile_context_state[WEB_TILE_CONTEXT_STATE_MAX];
+static char web_file_export_buffer[WEB_FILE_TRANSFER_BUFFER_MAX];
+static int web_file_export_len = 0;
+static char web_file_import_buffer[WEB_FILE_TRANSFER_BUFFER_MAX];
 static int web_tile_context_target_y = -1;
 static int web_tile_context_target_x = -1;
 static char web_overlay_text[WEB_OVERLAY_TEXT_MAX];
@@ -341,6 +352,19 @@ EMSCRIPTEN_KEEPALIVE uintptr_t web_get_dialogue_options_ptr(void);
 EMSCRIPTEN_KEEPALIVE int web_get_dialogue_options_len(void);
 EMSCRIPTEN_KEEPALIVE int web_dialogue_choose(int key);
 EMSCRIPTEN_KEEPALIVE int web_dialogue_close(void);
+EMSCRIPTEN_KEEPALIVE int web_export_pref_file(int kind);
+EMSCRIPTEN_KEEPALIVE int web_export_text_file(int kind);
+EMSCRIPTEN_KEEPALIVE uintptr_t web_get_file_export_buffer_ptr(void);
+EMSCRIPTEN_KEEPALIVE int web_get_file_export_buffer_len(void);
+EMSCRIPTEN_KEEPALIVE uintptr_t web_get_file_import_buffer_ptr(void);
+EMSCRIPTEN_KEEPALIVE int web_get_file_import_buffer_max(void);
+EMSCRIPTEN_KEEPALIVE int web_import_pref_file_buffer(int len);
+EMSCRIPTEN_KEEPALIVE int web_export_options_pref(void);
+EMSCRIPTEN_KEEPALIVE uintptr_t web_get_pref_export_buffer_ptr(void);
+EMSCRIPTEN_KEEPALIVE int web_get_pref_export_buffer_len(void);
+EMSCRIPTEN_KEEPALIVE uintptr_t web_get_pref_import_buffer_ptr(void);
+EMSCRIPTEN_KEEPALIVE int web_get_pref_import_buffer_max(void);
+EMSCRIPTEN_KEEPALIVE int web_import_pref_buffer(int len);
 EMSCRIPTEN_KEEPALIVE void web_consume_render_request(void);
 EMSCRIPTEN_KEEPALIVE int web_get_overlay_mode(void);
 EMSCRIPTEN_KEEPALIVE uintptr_t web_get_overlay_text_ptr(void);
@@ -3924,6 +3948,219 @@ EMSCRIPTEN_KEEPALIVE int web_open_song_menu(void)
         return web_key_enqueue('s') ? 1 : 0;
 
     return 1;
+}
+
+/* Reads one generated user file into the browser-download transfer buffer. */
+static bool web_read_user_file_into_export_buffer(cptr name)
+{
+    FILE* fff;
+    char path[1024];
+    size_t max = sizeof(web_file_export_buffer) - 1;
+    size_t len;
+
+    web_file_export_len = 0;
+    web_file_export_buffer[0] = '\0';
+
+    path_build(path, sizeof(path), ANGBAND_DIR_USER, name);
+    fff = my_fopen(path, "r");
+    if (!fff)
+        return FALSE;
+
+    len = fread(web_file_export_buffer, 1, max, fff);
+    if (ferror(fff) || ((len == max) && (fgetc(fff) != EOF)))
+    {
+        my_fclose(fff);
+        web_file_export_buffer[0] = '\0';
+        return FALSE;
+    }
+
+    my_fclose(fff);
+    web_file_export_buffer[len] = '\0';
+    web_file_export_len = (int)len;
+    return TRUE;
+}
+
+EMSCRIPTEN_KEEPALIVE int web_export_pref_file(int kind)
+{
+    errr err = -1;
+    cptr name = WEB_OPTIONS_EXPORT_FILE;
+    cptr what = "file";
+
+    if (kind == 1)
+    {
+        err = option_dump_pref_file(name);
+        what = "options";
+    }
+    else if (kind == 2)
+    {
+        name = WEB_MACROS_EXPORT_FILE;
+        err = macro_dump_pref_file(name);
+        what = "macros";
+    }
+    else if (kind == 3)
+    {
+        name = WEB_KEYMAPS_EXPORT_FILE;
+        err = keymap_dump_pref_file(name);
+        what = "keymaps";
+    }
+    else if (kind == 4)
+    {
+        name = WEB_COLORS_EXPORT_FILE;
+        err = color_dump_pref_file(name);
+        what = "colors";
+    }
+
+    if (err || !web_read_user_file_into_export_buffer(name))
+    {
+        msg_format("Failed to export %s.", what);
+        web_request_render();
+        return 0;
+    }
+
+    msg_format("Exported %s.", what);
+    web_request_render();
+    return 1;
+}
+
+EMSCRIPTEN_KEEPALIVE int web_export_text_file(int kind)
+{
+    char path[1024];
+    cptr name = NULL;
+    cptr what = "file";
+    bool ok = FALSE;
+
+    if (kind == 1)
+    {
+        name = WEB_SCREENSHOT_EXPORT_FILE;
+        what = "HTML screenshot";
+        html_screenshot(name);
+        ok = TRUE;
+    }
+    else if (kind == 2)
+    {
+        name = WEB_CHARACTER_EXPORT_FILE;
+        what = "character dump";
+        path_build(path, sizeof(path), ANGBAND_DIR_USER, name);
+        fd_kill(path);
+        ok = (file_character(name, FALSE) == 0);
+    }
+
+    if (!name || !ok || !web_read_user_file_into_export_buffer(name))
+    {
+        msg_format("Failed to export %s.", what);
+        web_request_render();
+        return 0;
+    }
+
+    msg_format("Exported %s.", what);
+    web_request_render();
+    return 1;
+}
+
+EMSCRIPTEN_KEEPALIVE uintptr_t web_get_file_export_buffer_ptr(void)
+{
+    return (uintptr_t)(const void*)web_file_export_buffer;
+}
+
+EMSCRIPTEN_KEEPALIVE int web_get_file_export_buffer_len(void)
+{
+    return web_file_export_len;
+}
+
+EMSCRIPTEN_KEEPALIVE uintptr_t web_get_file_import_buffer_ptr(void)
+{
+    return (uintptr_t)(void*)web_file_import_buffer;
+}
+
+EMSCRIPTEN_KEEPALIVE int web_get_file_import_buffer_max(void)
+{
+    return (int)sizeof(web_file_import_buffer) - 1;
+}
+
+EMSCRIPTEN_KEEPALIVE int web_import_pref_file_buffer(int len)
+{
+    FILE* fff;
+    char path[1024];
+
+    if ((len < 0) || (len >= (int)sizeof(web_file_import_buffer)))
+    {
+        msg_print("Pref file is too large.");
+        web_request_render();
+        return 0;
+    }
+
+    web_file_import_buffer[len] = '\0';
+
+    path_build(path, sizeof(path), ANGBAND_DIR_USER, WEB_PREF_IMPORT_FILE);
+    FILE_TYPE(FILE_TYPE_TEXT);
+    fff = my_fopen(path, "w");
+    if (!fff)
+    {
+        msg_print("Failed to stage pref file.");
+        web_request_render();
+        return 0;
+    }
+
+    if ((len > 0)
+        && (fwrite(web_file_import_buffer, 1, (size_t)len, fff) != (size_t)len))
+    {
+        my_fclose(fff);
+        msg_print("Failed to write pref file.");
+        web_request_render();
+        return 0;
+    }
+
+    my_fclose(fff);
+
+    if (process_pref_file(WEB_PREF_IMPORT_FILE))
+    {
+        msg_print("Failed to import pref file.");
+        web_request_render();
+        return 0;
+    }
+
+    msg_print("Imported pref file.");
+    Term_xtra(TERM_XTRA_REACT, 0);
+    Term_redraw();
+
+    if (p_ptr)
+    {
+        p_ptr->redraw |= (PR_BASIC | PR_EXTRA | PR_MAP);
+        p_ptr->window |= (PW_OVERHEAD);
+    }
+
+    web_request_render();
+    return 1;
+}
+
+EMSCRIPTEN_KEEPALIVE int web_export_options_pref(void)
+{
+    return web_export_pref_file(1);
+}
+
+EMSCRIPTEN_KEEPALIVE uintptr_t web_get_pref_export_buffer_ptr(void)
+{
+    return web_get_file_export_buffer_ptr();
+}
+
+EMSCRIPTEN_KEEPALIVE int web_get_pref_export_buffer_len(void)
+{
+    return web_get_file_export_buffer_len();
+}
+
+EMSCRIPTEN_KEEPALIVE uintptr_t web_get_pref_import_buffer_ptr(void)
+{
+    return web_get_file_import_buffer_ptr();
+}
+
+EMSCRIPTEN_KEEPALIVE int web_get_pref_import_buffer_max(void)
+{
+    return web_get_file_import_buffer_max();
+}
+
+EMSCRIPTEN_KEEPALIVE int web_import_pref_buffer(int len)
+{
+    return web_import_pref_file_buffer(len);
 }
 
 /* Saves the active game state without disturbing the player. */
