@@ -221,6 +221,10 @@
     let promptInputDraft = "";
     let promptInputSourceText = "";
     let promptInputDirty = false;
+    let pendingPromptCompletionKind = "";
+    let activePromptCompletionKind = "";
+    let promptCompletionCandidates = [];
+    let promptCompletionNotice = "";
     const alternateFabLongPressTimers = new WeakMap();
     const alternateFabSuppressedClicks = new WeakSet();
     const iconMeta = {
@@ -1047,6 +1051,12 @@
         .replaceAll(">", "&gt;");
     }
 
+    function escapeHtmlAttr(text) {
+      return escapeHtml(text)
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#39;");
+    }
+
     // Returns a byte slice from wasm memory for per-character color attributes.
     function readBytes(heap, ptr, len) {
       if (!ptr || !len || len <= 0) return null;
@@ -1788,6 +1798,9 @@
       promptInputDraft = "";
       promptInputSourceText = "";
       promptInputDirty = false;
+      activePromptCompletionKind = "";
+      promptCompletionCandidates = [];
+      promptCompletionNotice = "";
     }
 
     // Keeps the local shared prompt-input draft aligned with backend state.
@@ -1806,6 +1819,93 @@
       promptInputDraft = String(text ?? "");
       promptInputDirty = promptInputDraft !== promptInputSourceText;
       return promptInputDraft;
+    }
+
+    function notePromptCompletionForMenuAction(index) {
+      if (getActiveMenuActionLabel(index) === "open saved character") {
+        pendingPromptCompletionKind = "saved-character";
+        promptCompletionCandidates = [];
+        promptCompletionNotice = "";
+      }
+    }
+
+    function listSavedCharacterNames() {
+      const FS = globalThis.FS;
+      if (!FS) return [];
+
+      try {
+        return FS.readdir(PERSIST_SAVE_DIR)
+          .filter((name) => {
+            if (!name || name === "." || name === "..") return false;
+            if (name.endsWith(".old") || name.endsWith(".lok")) return false;
+
+            try {
+              const stat = FS.stat(`${PERSIST_SAVE_DIR}/${name}`);
+              return !FS.isDir || !FS.isDir(stat.mode);
+            } catch (_) {
+              return false;
+            }
+          })
+          .sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
+      } catch (_) {
+        return [];
+      }
+    }
+
+    function getCompletionPrefix(text) {
+      const value = String(text || "").trim();
+      return value === "<name>" ? "" : value;
+    }
+
+    function getLongestCommonPrefix(values) {
+      if (!values.length) return "";
+
+      let end = values[0].length;
+      for (let i = 1; i < values.length; i++) {
+        const a = values[0].toLowerCase();
+        const b = values[i].toLowerCase();
+        let j = 0;
+        while (j < end && j < b.length && a[j] === b[j]) j++;
+        end = j;
+      }
+      return values[0].slice(0, end);
+    }
+
+    function completeSavedCharacterPrompt(inputEl) {
+      if (!inputEl) return false;
+
+      const names = listSavedCharacterNames();
+      const prefix = getCompletionPrefix(inputEl.value);
+      const needle = prefix.toLowerCase();
+      const matches = names.filter((name) =>
+        name.toLowerCase().startsWith(needle)
+      );
+
+      promptCompletionCandidates = matches;
+      if (!names.length) {
+        promptCompletionNotice = "No saved characters were found in this browser.";
+        requestRender(true);
+        return true;
+      }
+      if (!matches.length) {
+        promptCompletionNotice = `No saved characters match “${prefix}”.`;
+        requestRender(true);
+        return true;
+      }
+
+      const replacement =
+        matches.length === 1 ? matches[0] : getLongestCommonPrefix(matches);
+      if (replacement && replacement.length > prefix.length) {
+        inputEl.value = replacement.slice(0, inputEl.maxLength || replacement.length);
+        commitPromptInputDraft(inputEl.value);
+      }
+
+      promptCompletionNotice =
+        matches.length === 1
+          ? "Completed saved character name."
+          : `${matches.length} saved characters match.`;
+      requestRender(true);
+      return true;
     }
 
     // Submits one accepted semantic text-entry prompt through the wasm adapter.
@@ -3823,6 +3923,12 @@
           typeof api.getPromptInputAllowRandom === "function" &&
           Number(api.getPromptInputAllowRandom()) === 1,
       };
+      if (!activePromptCompletionKind && pendingPromptCompletionKind) {
+        activePromptCompletionKind = pendingPromptCompletionKind;
+        pendingPromptCompletionKind = "";
+        promptCompletionCandidates = [];
+        promptCompletionNotice = "";
+      }
       syncPromptInputDraft(activePromptInputState);
       return activePromptInputState;
     }
@@ -3843,15 +3949,55 @@
       if (!state || !state.active) return false;
 
       const title = String(topPromptText || "Input").trim() || "Input";
-      const help = state.allowRandom
-        ? "Enter accepts, Escape cancels, and Tab generates a random value."
-        : "Enter accepts and Escape cancels.";
+      const hasSavedCharacterCompletion =
+        activePromptCompletionKind === "saved-character";
+      const help = hasSavedCharacterCompletion
+        ? "Enter opens, Escape cancels, and Tab completes from saved characters."
+        : state.allowRandom
+          ? "Enter accepts, Escape cancels, and Tab generates a random value."
+          : "Enter accepts and Escape cancels.";
       const randomHtml = state.allowRandom
         ? `<button type="button" class="character-sheet-action" data-prompt-input-action="random">` +
             `<span class="character-sheet-action-key">Tab</span>` +
             `<span class="character-sheet-action-label">Random</span>` +
           `</button>`
         : "";
+      const completionItems = hasSavedCharacterCompletion
+        ? promptCompletionCandidates.slice(0, 24)
+        : [];
+      const completionExtra =
+        hasSavedCharacterCompletion &&
+        promptCompletionCandidates.length > completionItems.length
+          ? `<p class="prompt-input-completion-note">` +
+              `${escapeHtml(`${promptCompletionCandidates.length - completionItems.length} more…`)}` +
+            `</p>`
+          : "";
+      const completionHtml =
+        hasSavedCharacterCompletion &&
+        (promptCompletionNotice || completionItems.length)
+          ? `<div class="prompt-input-completions" aria-live="polite">` +
+              `${
+                promptCompletionNotice
+                  ? `<p class="prompt-input-completion-note">${escapeHtml(promptCompletionNotice)}</p>`
+                  : ""
+              }` +
+              `${
+                completionItems.length
+                  ? `<div class="prompt-input-completion-list">` +
+                      completionItems
+                        .map((name) =>
+                          `<button type="button" class="prompt-input-completion-item" ` +
+                            `data-prompt-completion-value="${escapeHtmlAttr(name)}">` +
+                            `${escapeHtml(name)}` +
+                          `</button>`
+                        )
+                        .join("") +
+                    `</div>`
+                  : ""
+              }` +
+              `${completionExtra}` +
+            `</div>`
+          : "";
       const html =
         `<div class="character-sheet-shell prompt-input-editor">` +
           `<section class="character-sheet-card character-history-editor">` +
@@ -3866,9 +4012,10 @@
                   `data-prompt-input-field ` +
                   `type="text" ` +
                   `maxlength="${Math.max(0, state.maxLength)}" ` +
-                  `value="${escapeHtml(promptInputDraft)}" />` +
+                  `value="${escapeHtmlAttr(promptInputDraft)}" />` +
               `</label>` +
             `</div>` +
+            `${completionHtml}` +
           `</section>` +
           `<div class="character-sheet-actions">` +
             `${randomHtml}` +
@@ -5670,11 +5817,14 @@
           activeMenuColumnX = null;
           hoveredMenuIndex = -1;
           requestRender(true);
-        } else if (typeof api.menuActivate === "function" && api.menuActivate(index)) {
-          activeMenuItems = [];
-          activeMenuColumnX = null;
-          hoveredMenuIndex = -1;
-          requestRender(true);
+        } else if (typeof api.menuActivate === "function") {
+          notePromptCompletionForMenuAction(index);
+          if (api.menuActivate(index)) {
+            activeMenuItems = [];
+            activeMenuColumnX = null;
+            hoveredMenuIndex = -1;
+            requestRender(true);
+          }
         }
 
         ev.preventDefault();
@@ -5714,11 +5864,14 @@
               activeMenuColumnX = null;
               hoveredMenuIndex = -1;
               requestRender(true);
-            } else if (api.menuActivate(index)) {
-              activeMenuItems = [];
-              activeMenuColumnX = null;
-              hoveredMenuIndex = -1;
-              requestRender(true);
+            } else {
+              notePromptCompletionForMenuAction(index);
+              if (api.menuActivate(index)) {
+                activeMenuItems = [];
+                activeMenuColumnX = null;
+                hoveredMenuIndex = -1;
+                requestRender(true);
+              }
             }
             ev.preventDefault();
             ev.stopPropagation();
@@ -5929,10 +6082,10 @@
       return false;
     }
 
-    function tryHandleWebFileMenuKey(key) {
+    function getActiveMenuIndexForKey(key) {
       const value = Number(key);
       if (!Number.isInteger(value) || !Array.isArray(activeMenuItems)) {
-        return false;
+        return -1;
       }
 
       let index = activeMenuItems.findIndex((item) => Number(item?.key) === value);
@@ -5945,6 +6098,11 @@
         index = activeMenuItems.findIndex((item) => !!item?.selected);
       }
 
+      return index;
+    }
+
+    function tryHandleWebFileMenuKey(key) {
+      const index = getActiveMenuIndexForKey(key);
       return index >= 0 && tryHandleWebFileMenuAction(index);
     }
 
@@ -6115,12 +6273,15 @@
           activeMenuColumnX = null;
           hoveredMenuIndex = -1;
           requestRender(true);
-        } else if (api.menuActivate(index)) {
-          menuHoverNeedsPointerMove = true;
-          activeMenuItems = [];
-          activeMenuColumnX = null;
-          hoveredMenuIndex = -1;
-          requestRender(true);
+        } else {
+          notePromptCompletionForMenuAction(index);
+          if (api.menuActivate(index)) {
+            menuHoverNeedsPointerMove = true;
+            activeMenuItems = [];
+            activeMenuColumnX = null;
+            hoveredMenuIndex = -1;
+            requestRender(true);
+          }
         }
 
         ev.preventDefault();
@@ -6212,6 +6373,10 @@
         if (!inputEl) return;
 
         commitPromptInputDraft(inputEl.value);
+        if (activePromptCompletionKind) {
+          promptCompletionCandidates = [];
+          promptCompletionNotice = "";
+        }
       });
 
       overlayModalEl.addEventListener("keydown", (ev) => {
@@ -6221,8 +6386,16 @@
         if (!inputEl) return;
 
         if (ev.key === "Escape") {
+          pendingPromptCompletionKind = "";
           pushAscii(27);
           requestRender(true);
+          ev.preventDefault();
+          ev.stopPropagation();
+          return;
+        }
+
+        if (activePromptCompletionKind === "saved-character" && ev.key === "Tab") {
+          completeSavedCharacterPrompt(inputEl);
           ev.preventDefault();
           ev.stopPropagation();
           return;
@@ -6249,6 +6422,19 @@
       overlayModalEl.addEventListener("click", (ev) => {
         if (!overlayModalEl.classList.contains("overlay-prompt-input")) return;
 
+        const completionEl = ev.target.closest("[data-prompt-completion-value]");
+        if (completionEl) {
+          const inputEl = overlayModalEl.querySelector("[data-prompt-input-field]");
+          if (inputEl) {
+            inputEl.value = String(completionEl.dataset.promptCompletionValue || "");
+            commitPromptInputDraft(inputEl.value);
+            inputEl.focus({ preventScroll: true });
+          }
+          ev.preventDefault();
+          ev.stopPropagation();
+          return;
+        }
+
         const actionEl = ev.target.closest("[data-prompt-input-action]");
         if (!actionEl) return;
 
@@ -6262,6 +6448,7 @@
           pushAscii(9);
           requestRender(true);
         } else if (action === "cancel") {
+          pendingPromptCompletionKind = "";
           pushAscii(27);
           requestRender(true);
         } else {
@@ -6661,6 +6848,10 @@
           ) {
             ev.preventDefault();
             return;
+          }
+
+          if (activeMenuItems.length > 0) {
+            notePromptCompletionForMenuAction(getActiveMenuIndexForKey(keyCode));
           }
 
           if (

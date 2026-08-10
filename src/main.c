@@ -636,7 +636,6 @@ int main(int argc, char* argv[])
                 else if (choice == quest_count + 1)
                 {
                     quests_clear_pending_start();
-                    game_in_progress = TRUE;
                     new_game = FALSE;
 
                     /* Prompt for a new name */
@@ -644,6 +643,7 @@ int main(int argc, char* argv[])
                     {
                         char tmp[14];
                         bool name_selected = FALSE;
+                        bool name_cancelled = FALSE;
 
                         // Default name
                         my_strcpy(tmp, "<name>", sizeof(tmp));
@@ -657,13 +657,22 @@ int main(int argc, char* argv[])
                                 my_strcpy(op_ptr->full_name, tmp,
                                     sizeof(op_ptr->full_name));
                             }
+                            else
+                            {
+                                name_cancelled = TRUE;
+                                break;
+                            }
 
                             if (tmp[0] != '\0')
                                 name_selected = TRUE;
                             else
                                 bell("You must choose a name.");
                         }
+
+                        if (name_cancelled)
+                            continue;
                     }
+                    game_in_progress = TRUE;
                     process_player_name(TRUE);
                 }
                 else if (choice == quest_count + 2)
