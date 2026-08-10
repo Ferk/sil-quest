@@ -1232,6 +1232,11 @@
       const containerRect = container.getBoundingClientRect();
       const pad = 8;
 
+      if (columnRect.width >= containerRect.width) {
+        container.scrollLeft = 0;
+        return;
+      }
+
       if (columnRect.left < containerRect.left) {
         container.scrollLeft -= (containerRect.left - columnRect.left) + pad;
       } else if (columnRect.right > containerRect.right) {
@@ -1261,6 +1266,11 @@
       }
 
       if (globalThis.innerWidth <= 800) {
+        container.scrollLeft = 0;
+        return;
+      }
+
+      if (itemRect.width >= containerRect.width) {
         container.scrollLeft = 0;
         return;
       }
@@ -5560,7 +5570,12 @@
           return;
         }
 
-        if (typeof api.menuActivate === "function" && api.menuActivate(index)) {
+        if (tryHandleWebFileMenuAction(index)) {
+          activeMenuItems = [];
+          activeMenuColumnX = null;
+          hoveredMenuIndex = -1;
+          requestRender(true);
+        } else if (typeof api.menuActivate === "function" && api.menuActivate(index)) {
           activeMenuItems = [];
           activeMenuColumnX = null;
           hoveredMenuIndex = -1;
@@ -5599,7 +5614,12 @@
             typeof api.menuActivate === "function"
           ) {
             pressedMapMenuIndex = -1;
-            if (api.menuActivate(index)) {
+            if (tryHandleWebFileMenuAction(index)) {
+              activeMenuItems = [];
+              activeMenuColumnX = null;
+              hoveredMenuIndex = -1;
+              requestRender(true);
+            } else if (api.menuActivate(index)) {
               activeMenuItems = [];
               activeMenuColumnX = null;
               hoveredMenuIndex = -1;
@@ -5619,6 +5639,230 @@
           }
         });
       }
+    }
+
+    function normalizeMenuActionLabel(label) {
+      return String(label || "")
+        .replace(/^\s*(?:[a-z0-9]\)|\([a-z0-9]\))\s*/i, "")
+        .replace(/\s+/g, " ")
+        .trim()
+        .toLowerCase();
+    }
+
+    function getActiveMenuActionLabel(index) {
+      if (!Array.isArray(activeMenuItems)) return "";
+      const item = activeMenuItems[index];
+      return item ? normalizeMenuActionLabel(item.label) : "";
+    }
+
+    function downloadTextFile(filename, text) {
+      const blob = new Blob([String(text || "")], { type: "text/plain;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = filename;
+      link.style.display = "none";
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      globalThis.setTimeout(() => URL.revokeObjectURL(url), 0);
+    }
+
+    function getWebPrefExportBindings() {
+      return {
+        exportFile: api && api.exportPrefFile,
+        exportOptions: api && api.exportOptionsPref,
+        getPtr: api && (api.getFileExportBufferPtr || api.getPrefExportBufferPtr),
+        getLen: api && (api.getFileExportBufferLen || api.getPrefExportBufferLen),
+      };
+    }
+
+    function getWebPrefImportBindings() {
+      return {
+        getPtr: api && (api.getFileImportBufferPtr || api.getPrefImportBufferPtr),
+        getMax: api && (api.getFileImportBufferMax || api.getPrefImportBufferMax),
+        importBuffer: api && (api.importPrefFileBuffer || api.importPrefBuffer),
+      };
+    }
+
+    function getWebTextExportBindings() {
+      return {
+        exportFile: api && api.exportTextFile,
+        getPtr: api && api.getFileExportBufferPtr,
+        getLen: api && api.getFileExportBufferLen,
+      };
+    }
+
+    function getWebMenuPrefExportAction(label) {
+      switch (label) {
+        case "append options to a 'pref' file":
+          return { kind: 1, filename: "sil-quest-options.prf" };
+        case "append macros to a file":
+          return { kind: 2, filename: "sil-quest-macros.prf" };
+        case "append keymaps to a file":
+          return { kind: 3, filename: "sil-quest-keymaps.prf" };
+        case "dump colors":
+          return { kind: 4, filename: "sil-quest-colors.prf" };
+        default:
+          return null;
+      }
+    }
+
+    function getWebMenuTextExportAction(label) {
+      switch (label) {
+        case "take html screenshot":
+          return { kind: 1, filename: "sil-quest-screenshot.html" };
+        default:
+          return null;
+      }
+    }
+
+    function isWebMenuPrefImportAction(label) {
+      return label === "load a 'pref' file" || label === "load a user pref file";
+    }
+
+    function downloadPrefFromWebMenu(action) {
+      const bindings = getWebPrefExportBindings();
+      if (
+        (!bindings.exportFile && !(action.kind === 1 && bindings.exportOptions)) ||
+        !bindings.getPtr ||
+        !bindings.getLen
+      ) {
+        return false;
+      }
+
+      const exported = bindings.exportFile
+        ? bindings.exportFile(action.kind)
+        : bindings.exportOptions();
+      if (!exported) {
+        requestRender(true);
+        return true;
+      }
+
+      const heap = getHeapU8();
+      if (!heap) return true;
+
+      const ptr = bindings.getPtr();
+      const len = bindings.getLen();
+      downloadTextFile(action.filename, readUtf8(heap, ptr, len));
+      requestRender(true);
+      return true;
+    }
+
+    function downloadTextExportFromWeb(action) {
+      const bindings = getWebTextExportBindings();
+      if (!bindings.exportFile || !bindings.getPtr || !bindings.getLen) {
+        return false;
+      }
+
+      if (!bindings.exportFile(action.kind)) {
+        requestRender(true);
+        return true;
+      }
+
+      const heap = getHeapU8();
+      if (!heap) return true;
+
+      const ptr = bindings.getPtr();
+      const len = bindings.getLen();
+      downloadTextFile(action.filename, readUtf8(heap, ptr, len));
+      requestRender(true);
+      return true;
+    }
+
+    function importPrefFromWebMenu() {
+      const bindings = getWebPrefImportBindings();
+      if (!bindings.getPtr || !bindings.getMax || !bindings.importBuffer) {
+        return false;
+      }
+
+      const input = document.createElement("input");
+      input.type = "file";
+      input.accept = ".prf,.txt,text/plain";
+      input.style.display = "none";
+
+      input.addEventListener("change", async () => {
+        const file = input.files && input.files[0];
+        input.remove();
+        if (!file) return;
+
+        try {
+          const bytes = utf8Encoder.encode(await file.text());
+          const max = bindings.getMax();
+          if (bytes.length > max) {
+            globalThis.alert(
+              `That pref file is too large to import here (${bytes.length} bytes).`
+            );
+            return;
+          }
+
+          const ptr = bindings.getPtr();
+          const heap = getHeapU8();
+          if (!heap || ptr <= 0 || ptr + bytes.length >= heap.length) {
+            globalThis.alert("The game memory buffer is not ready for import.");
+            return;
+          }
+
+          heap.set(bytes, ptr);
+          heap[ptr + bytes.length] = 0;
+          bindings.importBuffer(bytes.length);
+          requestRender(true);
+        } catch (error) {
+          console.error("Failed to import pref file:", error);
+          globalThis.alert("Failed to import that pref file.");
+        }
+      }, { once: true });
+
+      document.body.appendChild(input);
+      input.click();
+      return true;
+    }
+
+    function tryHandleWebFileMenuAction(index) {
+      const label = getActiveMenuActionLabel(index);
+      const textExportAction = getWebMenuTextExportAction(label);
+      if (textExportAction) {
+        return downloadTextExportFromWeb(textExportAction);
+      }
+      const exportAction = getWebMenuPrefExportAction(label);
+      if (exportAction) {
+        return downloadPrefFromWebMenu(exportAction);
+      }
+      if (isWebMenuPrefImportAction(label)) {
+        return importPrefFromWebMenu();
+      }
+      return false;
+    }
+
+    function tryHandleWebFileMenuKey(key) {
+      const value = Number(key);
+      if (!Number.isInteger(value) || !Array.isArray(activeMenuItems)) {
+        return false;
+      }
+
+      let index = activeMenuItems.findIndex((item) => Number(item?.key) === value);
+      if (index < 0 && value >= 65 && value <= 90) {
+        index = activeMenuItems.findIndex((item) => Number(item?.key) === value + 32);
+      } else if (index < 0 && value >= 97 && value <= 122) {
+        index = activeMenuItems.findIndex((item) => Number(item?.key) === value - 32);
+      }
+      if (index < 0 && (value === 13 || value === 10)) {
+        index = activeMenuItems.findIndex((item) => !!item?.selected);
+      }
+
+      return index >= 0 && tryHandleWebFileMenuAction(index);
+    }
+
+    function tryHandleCharacterSheetFileAction(key) {
+      const value = Number(key);
+      if (value !== "s".charCodeAt(0) && value !== "S".charCodeAt(0)) {
+        return false;
+      }
+
+      return downloadTextExportFromWeb({
+        kind: 2,
+        filename: "sil-quest-character.txt",
+      });
     }
 
     // Binds semantic hover/click handling for HTML menu overlays.
@@ -5770,7 +6014,13 @@
         suppressedOverlayMenuActivateIndex = -1;
 
         hoveredMenuIndex = index;
-        if (api.menuActivate(index)) {
+        if (tryHandleWebFileMenuAction(index)) {
+          menuHoverNeedsPointerMove = true;
+          activeMenuItems = [];
+          activeMenuColumnX = null;
+          hoveredMenuIndex = -1;
+          requestRender(true);
+        } else if (api.menuActivate(index)) {
           menuHoverNeedsPointerMove = true;
           activeMenuItems = [];
           activeMenuColumnX = null;
@@ -6096,8 +6346,10 @@
         const key = Number(actionEl.dataset.characterActionKey);
         if (!Number.isInteger(key) || key <= 0) return;
 
-        pushAscii(key);
-        requestRender(true);
+        if (!tryHandleCharacterSheetFileAction(key)) {
+          pushAscii(key);
+          requestRender(true);
+        }
         ev.preventDefault();
         ev.stopPropagation();
       });
@@ -6255,6 +6507,22 @@
         const keyCode = mapKeyEventToAscii(ev);
 
         if (keyCode !== null) {
+          if (
+            activeMenuItems.length > 0 &&
+            tryHandleWebFileMenuKey(keyCode)
+          ) {
+            ev.preventDefault();
+            return;
+          }
+
+          if (
+            overlayModalEl.classList.contains("overlay-character-sheet") &&
+            tryHandleCharacterSheetFileAction(keyCode)
+          ) {
+            ev.preventDefault();
+            return;
+          }
+
           pushAscii(keyCode);
           ev.preventDefault();
         }
@@ -7261,6 +7529,58 @@
           consumeRenderRequest: Module._web_consume_render_request,
           menuHover: Module._web_menu_hover,
           menuActivate: Module._web_menu_activate,
+          exportPrefFile:
+            typeof Module._web_export_pref_file === "function"
+              ? Module._web_export_pref_file
+              : null,
+          exportTextFile:
+            typeof Module._web_export_text_file === "function"
+              ? Module._web_export_text_file
+              : null,
+          getFileExportBufferPtr:
+            typeof Module._web_get_file_export_buffer_ptr === "function"
+              ? Module._web_get_file_export_buffer_ptr
+              : null,
+          getFileExportBufferLen:
+            typeof Module._web_get_file_export_buffer_len === "function"
+              ? Module._web_get_file_export_buffer_len
+              : null,
+          getFileImportBufferPtr:
+            typeof Module._web_get_file_import_buffer_ptr === "function"
+              ? Module._web_get_file_import_buffer_ptr
+              : null,
+          getFileImportBufferMax:
+            typeof Module._web_get_file_import_buffer_max === "function"
+              ? Module._web_get_file_import_buffer_max
+              : null,
+          importPrefFileBuffer:
+            typeof Module._web_import_pref_file_buffer === "function"
+              ? Module._web_import_pref_file_buffer
+              : null,
+          exportOptionsPref:
+            typeof Module._web_export_options_pref === "function"
+              ? Module._web_export_options_pref
+              : null,
+          getPrefExportBufferPtr:
+            typeof Module._web_get_pref_export_buffer_ptr === "function"
+              ? Module._web_get_pref_export_buffer_ptr
+              : null,
+          getPrefExportBufferLen:
+            typeof Module._web_get_pref_export_buffer_len === "function"
+              ? Module._web_get_pref_export_buffer_len
+              : null,
+          getPrefImportBufferPtr:
+            typeof Module._web_get_pref_import_buffer_ptr === "function"
+              ? Module._web_get_pref_import_buffer_ptr
+              : null,
+          getPrefImportBufferMax:
+            typeof Module._web_get_pref_import_buffer_max === "function"
+              ? Module._web_get_pref_import_buffer_max
+              : null,
+          importPrefBuffer:
+            typeof Module._web_import_pref_buffer === "function"
+              ? Module._web_import_pref_buffer
+              : null,
           modalActivate: Module._web_modal_activate,
         };
 
