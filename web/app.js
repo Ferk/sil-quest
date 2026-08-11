@@ -1047,6 +1047,12 @@
         .replaceAll(">", "&gt;");
     }
 
+    function escapeHtmlAttr(text) {
+      return escapeHtml(text)
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#39;");
+    }
+
     // Returns a byte slice from wasm memory for per-character color attributes.
     function readBytes(heap, ptr, len) {
       if (!ptr || !len || len <= 0) return null;
@@ -3732,9 +3738,54 @@
         allowRandom:
           typeof api.getPromptInputAllowRandom === "function" &&
           Number(api.getPromptInputAllowRandom()) === 1,
+        completionKind:
+          typeof api.getPromptInputCompletionKind === "function"
+            ? Number(api.getPromptInputCompletionKind()) || 0
+            : 0,
+        completions: readPromptInputCompletions(heap),
       };
       syncPromptInputDraft(activePromptInputState);
       return activePromptInputState;
+    }
+
+    function readPromptInputCompletions(heap) {
+      if (
+        !api ||
+        !heap ||
+        typeof api.getPromptInputCompletionItemsPtr !== "function" ||
+        typeof api.getPromptInputCompletionItemCount !== "function" ||
+        typeof api.getPromptInputCompletionItemStride !== "function"
+      ) {
+        return [];
+      }
+
+      const ptr = Number(api.getPromptInputCompletionItemsPtr() || 0);
+      const count = Number(api.getPromptInputCompletionItemCount() || 0);
+      const stride = Number(api.getPromptInputCompletionItemStride() || 0);
+      if (!ptr || count <= 0 || stride < 128 || (ptr + count * stride) > heap.length) {
+        return [];
+      }
+
+      const completions = [];
+      for (let i = 0; i < count; i++) {
+        const off = ptr + i * stride;
+        const labelBytes = heap.subarray(off, off + 64);
+        const valueBytes = heap.subarray(off + 64, off + 128);
+        const labelEnd = labelBytes.indexOf(0);
+        const valueEnd = valueBytes.indexOf(0);
+        const label = utf8Decoder.decode(
+          labelBytes.subarray(0, labelEnd >= 0 ? labelEnd : labelBytes.length)
+        );
+        const value = utf8Decoder.decode(
+          valueBytes.subarray(0, valueEnd >= 0 ? valueEnd : valueBytes.length)
+        );
+
+        if (label || value) {
+          completions.push({ label: label || value, value: value || label });
+        }
+      }
+
+      return completions;
     }
 
     // Formats one inches value as feet and inches for the age/height/weight editor.
@@ -3753,15 +3804,46 @@
       if (!state || !state.active) return false;
 
       const title = String(topPromptText || "Input").trim() || "Input";
-      const help = state.allowRandom
-        ? "Enter accepts, Escape cancels, and Tab generates a random value."
-        : "Enter accepts and Escape cancels.";
+      const hasSavedCharacterCompletion =
+        Number(state.completionKind || 0) === 1;
+      const help = hasSavedCharacterCompletion
+        ? "Enter opens, Escape cancels, and Tab completes from saved characters."
+        : state.allowRandom
+          ? "Enter accepts, Escape cancels, and Tab generates a random value."
+          : "Enter accepts and Escape cancels.";
       const randomHtml = state.allowRandom
         ? `<button type="button" class="character-sheet-action" data-prompt-input-action="random">` +
             `<span class="character-sheet-action-key">Tab</span>` +
             `<span class="character-sheet-action-label">Random</span>` +
           `</button>`
         : "";
+      const completionItems = hasSavedCharacterCompletion
+        ? (Array.isArray(state.completions) ? state.completions : []).slice(0, 24)
+        : [];
+      const completionExtra =
+        hasSavedCharacterCompletion &&
+        Array.isArray(state.completions) &&
+        state.completions.length > completionItems.length
+          ? `<p class="prompt-input-completion-note">` +
+              `${escapeHtml(`${state.completions.length - completionItems.length} more…`)}` +
+            `</p>`
+          : "";
+      const completionHtml =
+        hasSavedCharacterCompletion && completionItems.length
+          ? `<div class="prompt-input-completions" aria-live="polite">` +
+              `<div class="prompt-input-completion-list">` +
+                completionItems
+                  .map((item) =>
+                    `<button type="button" class="prompt-input-completion-item" ` +
+                      `data-prompt-completion-value="${escapeHtmlAttr(item.value)}">` +
+                      `${escapeHtml(item.label)}` +
+                    `</button>`
+                  )
+                  .join("") +
+              `</div>` +
+              `${completionExtra}` +
+            `</div>`
+          : "";
       const html =
         `<div class="character-sheet-shell prompt-input-editor">` +
           `<section class="character-sheet-card character-history-editor">` +
@@ -3776,9 +3858,10 @@
                   `data-prompt-input-field ` +
                   `type="text" ` +
                   `maxlength="${Math.max(0, state.maxLength)}" ` +
-                  `value="${escapeHtml(promptInputDraft)}" />` +
+                  `value="${escapeHtmlAttr(promptInputDraft)}" />` +
               `</label>` +
             `</div>` +
+            `${completionHtml}` +
           `</section>` +
           `<div class="character-sheet-actions">` +
             `${randomHtml}` +
@@ -5575,11 +5658,13 @@
           activeMenuColumnX = null;
           hoveredMenuIndex = -1;
           requestRender(true);
-        } else if (typeof api.menuActivate === "function" && api.menuActivate(index)) {
-          activeMenuItems = [];
-          activeMenuColumnX = null;
-          hoveredMenuIndex = -1;
-          requestRender(true);
+        } else if (typeof api.menuActivate === "function") {
+          if (api.menuActivate(index)) {
+            activeMenuItems = [];
+            activeMenuColumnX = null;
+            hoveredMenuIndex = -1;
+            requestRender(true);
+          }
         }
 
         ev.preventDefault();
@@ -5619,11 +5704,13 @@
               activeMenuColumnX = null;
               hoveredMenuIndex = -1;
               requestRender(true);
-            } else if (api.menuActivate(index)) {
-              activeMenuItems = [];
-              activeMenuColumnX = null;
-              hoveredMenuIndex = -1;
-              requestRender(true);
+            } else {
+              if (api.menuActivate(index)) {
+                activeMenuItems = [];
+                activeMenuColumnX = null;
+                hoveredMenuIndex = -1;
+                requestRender(true);
+              }
             }
             ev.preventDefault();
             ev.stopPropagation();
@@ -5834,10 +5921,10 @@
       return false;
     }
 
-    function tryHandleWebFileMenuKey(key) {
+    function getActiveMenuIndexForKey(key) {
       const value = Number(key);
       if (!Number.isInteger(value) || !Array.isArray(activeMenuItems)) {
-        return false;
+        return -1;
       }
 
       let index = activeMenuItems.findIndex((item) => Number(item?.key) === value);
@@ -5850,6 +5937,11 @@
         index = activeMenuItems.findIndex((item) => !!item?.selected);
       }
 
+      return index;
+    }
+
+    function tryHandleWebFileMenuKey(key) {
+      const index = getActiveMenuIndexForKey(key);
       return index >= 0 && tryHandleWebFileMenuAction(index);
     }
 
@@ -6020,12 +6112,14 @@
           activeMenuColumnX = null;
           hoveredMenuIndex = -1;
           requestRender(true);
-        } else if (api.menuActivate(index)) {
-          menuHoverNeedsPointerMove = true;
-          activeMenuItems = [];
-          activeMenuColumnX = null;
-          hoveredMenuIndex = -1;
-          requestRender(true);
+        } else {
+          if (api.menuActivate(index)) {
+            menuHoverNeedsPointerMove = true;
+            activeMenuItems = [];
+            activeMenuColumnX = null;
+            hoveredMenuIndex = -1;
+            requestRender(true);
+          }
         }
 
         ev.preventDefault();
@@ -6133,6 +6227,16 @@
           return;
         }
 
+        if (Number(activePromptInputState?.completionKind || 0) !== 0 && ev.key === "Tab") {
+          commitPromptInputDraft(inputEl.value);
+          if (!submitPromptInput(inputEl.value)) return;
+          pushAscii(9);
+          requestRender(true);
+          ev.preventDefault();
+          ev.stopPropagation();
+          return;
+        }
+
         if (activePromptInputState?.allowRandom && ev.key === "Tab") {
           commitPromptInputDraft(inputEl.value);
           pushAscii(9);
@@ -6153,6 +6257,19 @@
 
       overlayModalEl.addEventListener("click", (ev) => {
         if (!overlayModalEl.classList.contains("overlay-prompt-input")) return;
+
+        const completionEl = ev.target.closest("[data-prompt-completion-value]");
+        if (completionEl) {
+          const inputEl = overlayModalEl.querySelector("[data-prompt-input-field]");
+          if (inputEl) {
+            inputEl.value = String(completionEl.dataset.promptCompletionValue || "");
+            commitPromptInputDraft(inputEl.value);
+            inputEl.focus({ preventScroll: true });
+          }
+          ev.preventDefault();
+          ev.stopPropagation();
+          return;
+        }
 
         const actionEl = ev.target.closest("[data-prompt-input-action]");
         if (!actionEl) return;
@@ -7281,6 +7398,10 @@
           typeof Module._web_get_prompt_input_text_len === "function" &&
           typeof Module._web_get_prompt_input_max_length === "function" &&
           typeof Module._web_get_prompt_input_allow_random === "function" &&
+          typeof Module._web_get_prompt_input_completion_kind === "function" &&
+          typeof Module._web_get_prompt_input_completion_items_ptr === "function" &&
+          typeof Module._web_get_prompt_input_completion_item_count === "function" &&
+          typeof Module._web_get_prompt_input_completion_item_stride === "function" &&
           typeof Module._web_get_prompt_input_revision === "function" &&
           typeof Module._web_get_prompt_submit_text_ptr === "function" &&
           typeof Module._web_submit_prompt_input === "function" &&
@@ -7523,6 +7644,10 @@
           getPromptInputTextLen: Module._web_get_prompt_input_text_len,
           getPromptInputMaxLength: Module._web_get_prompt_input_max_length,
           getPromptInputAllowRandom: Module._web_get_prompt_input_allow_random,
+          getPromptInputCompletionKind: Module._web_get_prompt_input_completion_kind,
+          getPromptInputCompletionItemsPtr: Module._web_get_prompt_input_completion_items_ptr,
+          getPromptInputCompletionItemCount: Module._web_get_prompt_input_completion_item_count,
+          getPromptInputCompletionItemStride: Module._web_get_prompt_input_completion_item_stride,
           getPromptInputRevision: Module._web_get_prompt_input_revision,
           getPromptSubmitTextPtr: Module._web_get_prompt_submit_text_ptr,
           submitPromptInput: Module._web_submit_prompt_input,

@@ -24,8 +24,12 @@ typedef struct ui_text_output_state ui_text_output_state;
 typedef enum ui_modal_kind ui_modal_kind;
 typedef enum ui_menu_layout_kind ui_menu_layout_kind;
 typedef enum ui_prompt_kind ui_prompt_kind;
+typedef enum ui_prompt_completion_kind ui_prompt_completion_kind;
+typedef struct ui_prompt_completion_item ui_prompt_completion_item;
 typedef bool (*ui_prompt_input_submit_hook)(char* text, size_t text_size);
 typedef void (*ui_prompt_input_randomize_hook)(char* text, size_t text_size);
+typedef int (*ui_prompt_completion_hook)(cptr prefix,
+    ui_prompt_completion_item* items, int max_items);
 typedef bool (*ui_prompt_render_hook)(int row, int col);
 typedef void (*ui_prompt_clear_hook)(void);
 typedef void (*ui_menu_render_hook)(void);
@@ -55,6 +59,8 @@ struct ui_text_output_state
 
 #define UI_MENU_LABEL_MAX 64
 #define UI_MENU_NAV_MAX 32
+#define UI_PROMPT_COMPLETION_LABEL_MAX 64
+#define UI_PROMPT_COMPLETION_ITEMS_MAX 64
 
 struct ui_menu_item
 {
@@ -81,6 +87,12 @@ struct ui_simple_menu_entry
     cptr details;
 };
 
+struct ui_prompt_completion_item
+{
+    char label[UI_PROMPT_COMPLETION_LABEL_MAX];
+    char value[UI_PROMPT_COMPLETION_LABEL_MAX];
+};
+
 enum ui_prompt_kind
 {
     UI_PROMPT_KIND_NONE = 0,
@@ -89,6 +101,12 @@ enum ui_prompt_kind
     UI_PROMPT_KIND_YES_NO = 3,
     UI_PROMPT_KIND_TARGET = 4,
     UI_PROMPT_KIND_MORE = 5
+};
+
+enum ui_prompt_completion_kind
+{
+    UI_PROMPT_COMPLETION_NONE = 0,
+    UI_PROMPT_COMPLETION_SAVED_CHARACTER = 1
 };
 
 enum ui_modal_kind
@@ -333,6 +351,15 @@ bool ui_prompt_input_available(void);
 /* Runs one frontend-backed semantic text-entry prompt when available. */
 bool ui_prompt_input_run(char* buf, size_t len, bool allow_random,
     ui_prompt_input_randomize_hook randomize_hook);
+/* Runs one semantic text-entry prompt with optional completion when available. */
+bool ui_prompt_input_run_complete(char* buf, size_t len, bool allow_random,
+    ui_prompt_input_randomize_hook randomize_hook,
+    ui_prompt_completion_kind completion_kind,
+    ui_prompt_completion_hook completion_hook);
+/* Applies one completion query to a prompt buffer and publishes candidates. */
+int ui_prompt_complete_buffer(char* buf, size_t len,
+    ui_prompt_completion_kind completion_kind,
+    ui_prompt_completion_hook completion_hook);
 /* Returns whether a semantic text-entry prompt is currently active. */
 bool ui_prompt_input_active(void);
 /* Returns the current semantic text-entry prompt buffer. */
@@ -341,6 +368,12 @@ const char* ui_prompt_input_get_text(void);
 int ui_prompt_input_get_max_length(void);
 /* Returns whether the current semantic text-entry prompt allows rerolling. */
 bool ui_prompt_input_get_allow_random(void);
+/* Returns the active prompt completion kind. */
+ui_prompt_completion_kind ui_prompt_input_get_completion_kind(void);
+/* Returns the active prompt completion candidates. */
+const ui_prompt_completion_item* ui_prompt_input_get_completion_items(void);
+/* Returns the number of active prompt completion candidates. */
+int ui_prompt_input_get_completion_item_count(void);
 /* Returns the text-entry prompt revision used by frontend caches. */
 unsigned int ui_prompt_input_get_revision(void);
 

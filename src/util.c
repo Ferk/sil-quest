@@ -13,6 +13,10 @@
 #include "ui-marks.h"
 #include "ui-model.h"
 
+bool askfor_aux_complete(char* buf, size_t len,
+    ui_prompt_completion_kind completion_kind,
+    ui_prompt_completion_hook completion_hook);
+
 static notify_hooks notify_frontend_hooks = { 0 };
 
 #ifdef SET_UID
@@ -3472,7 +3476,9 @@ void clear_from(int row)
  * Note that 'len' refers to the size of the buffer.  The maximum length
  * of the input is 'len-1'.
  */
-bool askfor_aux(char* buf, size_t len)
+bool askfor_aux_complete(char* buf, size_t len,
+    ui_prompt_completion_kind completion_kind,
+    ui_prompt_completion_hook completion_hook)
 {
     int y, x;
 
@@ -3483,7 +3489,8 @@ bool askfor_aux(char* buf, size_t len)
     bool done = FALSE;
 
     if (ui_prompt_input_available())
-        return ui_prompt_input_run(buf, len, FALSE, NULL);
+        return ui_prompt_input_run_complete(buf, len, FALSE, NULL,
+            completion_kind, completion_hook);
 
     /* Locate the cursor */
     Term_locate(&x, &y);
@@ -3522,6 +3529,32 @@ bool askfor_aux(char* buf, size_t len)
             k = strlen(buf);
             done = TRUE;
         }
+        else if ((ch == '\t') && completion_hook
+            && (completion_kind != UI_PROMPT_COMPLETION_NONE))
+        {
+            int count = ui_prompt_complete_buffer(
+                buf, len, completion_kind, completion_hook);
+            k = strlen(buf);
+            if (count <= 0)
+            {
+                bell("No matches.");
+            }
+            else if (count > 1)
+            {
+                int i;
+                const ui_prompt_completion_item* items =
+                    ui_prompt_input_get_completion_items();
+
+                msg_format("%d matches:", count);
+                for (i = 0;
+                     (i < count) && (i < ui_prompt_input_get_completion_item_count());
+                     i++)
+                {
+                    msg_print(items[i].label);
+                }
+                msg_print(NULL);
+            }
+        }
         else if (ui_input_is_backspace_key(ch))
         {
             if (k > 0)
@@ -3546,6 +3579,12 @@ bool askfor_aux(char* buf, size_t len)
 
     /* Done */
     return !ui_input_is_cancel_key(ch);
+}
+
+bool askfor_aux(char* buf, size_t len)
+{
+    return askfor_aux_complete(
+        buf, len, UI_PROMPT_COMPLETION_NONE, NULL);
 }
 
 /*

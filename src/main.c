@@ -17,7 +17,14 @@
 
 #if !defined(WINDOWS)
 
+#include <dirent.h>
+
 #include "main.h"
+#include "ui-model.h"
+
+extern bool askfor_aux_complete(char* buf, size_t len,
+    ui_prompt_completion_kind completion_kind,
+    ui_prompt_completion_hook completion_hook);
 
 /*
  * Sil-y: game in progress
@@ -36,6 +43,51 @@ static const struct module modules[] = {
     { "gcu", help_gcu, init_gcu },
 #endif /* USE_GCU */
 };
+
+static int saved_character_completion(cptr partial_name,
+    ui_prompt_completion_item* items, int max_items)
+{
+    DIR* dir;
+    struct dirent* entry;
+    int count = 0;
+    size_t partial_name_len;
+
+    if (!items || (max_items <= 0) || !ANGBAND_DIR_SAVE)
+        return 0;
+
+    if (!partial_name || streq(partial_name, "<name>"))
+        partial_name = "";
+    partial_name_len = strlen(partial_name);
+
+    dir = opendir(ANGBAND_DIR_SAVE);
+    if (!dir)
+        return 0;
+
+    while ((entry = readdir(dir)) != NULL)
+    {
+        cptr name = entry->d_name;
+        size_t len;
+
+        if (!name || streq(name, ".") || streq(name, ".."))
+            continue;
+
+        len = strlen(name);
+        if ((len >= 4) && (suffix(name, ".old") || suffix(name, ".lok")))
+            continue;
+
+        if ((partial_name_len > 0) && !prefix(name, partial_name))
+            continue;
+
+        my_strcpy(items[count].label, name, sizeof(items[count].label));
+        my_strcpy(items[count].value, name, sizeof(items[count].value));
+        count++;
+        if (count >= max_items)
+            break;
+    }
+
+    closedir(dir);
+    return count;
+}
 
 /*
  * A hook for "quit()".
@@ -636,7 +688,6 @@ int main(int argc, char* argv[])
                 else if (choice == quest_count + 1)
                 {
                     quests_clear_pending_start();
-                    game_in_progress = TRUE;
                     new_game = FALSE;
 
                     /* Prompt for a new name */
@@ -644,6 +695,7 @@ int main(int argc, char* argv[])
                     {
                         char tmp[14];
                         bool name_selected = FALSE;
+                        bool name_cancelled = FALSE;
 
                         // Default name
                         my_strcpy(tmp, "<name>", sizeof(tmp));
@@ -652,10 +704,17 @@ int main(int argc, char* argv[])
 
                         while (!name_selected)
                         {
-                            if (askfor_aux(tmp, sizeof(tmp)))
+                            if (askfor_aux_complete(tmp, sizeof(tmp),
+                                    UI_PROMPT_COMPLETION_SAVED_CHARACTER,
+                                    saved_character_completion))
                             {
                                 my_strcpy(op_ptr->full_name, tmp,
                                     sizeof(op_ptr->full_name));
+                            }
+                            else
+                            {
+                                name_cancelled = TRUE;
+                                break;
                             }
 
                             if (tmp[0] != '\0')
@@ -663,7 +722,11 @@ int main(int argc, char* argv[])
                             else
                                 bell("You must choose a name.");
                         }
+
+                        if (name_cancelled)
+                            continue;
                     }
+                    game_in_progress = TRUE;
                     process_player_name(TRUE);
                 }
                 else if (choice == quest_count + 2)

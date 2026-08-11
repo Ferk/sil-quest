@@ -65,6 +65,11 @@ static bool ui_prompt_pending_more_hint = FALSE;
 static char ui_prompt_input_text[UI_MENU_TEXT_MAX];
 static int ui_prompt_input_max_length = 0;
 static bool ui_prompt_input_allow_random = FALSE;
+static ui_prompt_completion_kind ui_prompt_input_completion_kind =
+    UI_PROMPT_COMPLETION_NONE;
+static ui_prompt_completion_item
+    ui_prompt_input_completion_items[UI_PROMPT_COMPLETION_ITEMS_MAX];
+static int ui_prompt_input_completion_item_count = 0;
 static bool ui_prompt_input_active_value = FALSE;
 static unsigned int ui_prompt_input_revision = 1;
 static ui_prompt_input_submit_hook ui_prompt_input_submit = NULL;
@@ -118,6 +123,65 @@ static void ui_prompt_input_touch(void)
     if (ui_prompt_input_revision == 0)
         ui_prompt_input_revision = 1;
     ui_front_invalidate();
+}
+
+/* Clears published text-entry completion candidates. */
+static void ui_prompt_input_clear_completions(void)
+{
+    ui_prompt_input_completion_item_count = 0;
+    ui_prompt_input_completion_kind = UI_PROMPT_COMPLETION_NONE;
+}
+
+/* Returns whether value begins with prefix, ignoring case. */
+static bool ui_prompt_completion_prefix_match(cptr value, cptr prefix)
+{
+    if (!value || !prefix)
+        return FALSE;
+
+    while (*prefix)
+    {
+        if (tolower((unsigned char)*value)
+            != tolower((unsigned char)*prefix))
+        {
+            return FALSE;
+        }
+
+        value++;
+        prefix++;
+    }
+
+    return TRUE;
+}
+
+/* Returns the case-preserving common prefix shared by published candidates. */
+static size_t ui_prompt_completion_common_prefix(char* out, size_t out_size)
+{
+    size_t end;
+    int i;
+
+    if (!out || (out_size == 0) || (ui_prompt_input_completion_item_count <= 0))
+        return 0;
+
+    my_strcpy(out, ui_prompt_input_completion_items[0].value, out_size);
+    end = strlen(out);
+
+    for (i = 1; i < ui_prompt_input_completion_item_count; i++)
+    {
+        cptr value = ui_prompt_input_completion_items[i].value;
+        size_t j = 0;
+
+        while ((j < end) && value[j]
+            && (tolower((unsigned char)out[j])
+                == tolower((unsigned char)value[j])))
+        {
+            j++;
+        }
+
+        end = j;
+        out[end] = '\0';
+    }
+
+    return end;
 }
 
 /* Bumps the saved-screen revision so frontends can detect lifecycle changes. */
@@ -277,12 +341,14 @@ static void ui_prompt_set_state(
 
 /* Stores the current semantic text-entry prompt state. */
 static void ui_prompt_input_set_state(
-    cptr text, size_t max_length, bool allow_random)
+    cptr text, size_t max_length, bool allow_random,
+    ui_prompt_completion_kind completion_kind)
 {
     size_t text_len = 0;
 
     ui_prompt_input_active_value = TRUE;
     ui_prompt_input_allow_random = allow_random ? TRUE : FALSE;
+    ui_prompt_input_completion_kind = completion_kind;
     ui_prompt_input_max_length = (int)max_length;
     if (ui_prompt_input_max_length < 0)
         ui_prompt_input_max_length = 0;
@@ -304,6 +370,7 @@ static void ui_prompt_input_clear_state(void)
     ui_prompt_input_text[0] = '\0';
     ui_prompt_input_max_length = 0;
     ui_prompt_input_allow_random = FALSE;
+    ui_prompt_input_clear_completions();
     ui_prompt_input_active_value = FALSE;
     ui_prompt_input_touch();
 }
@@ -1452,6 +1519,68 @@ bool ui_prompt_input_available(void)
 bool ui_prompt_input_run(char* buf, size_t len, bool allow_random,
     ui_prompt_input_randomize_hook randomize_hook)
 {
+    return ui_prompt_input_run_complete(buf, len, allow_random, randomize_hook,
+        UI_PROMPT_COMPLETION_NONE, NULL);
+}
+
+/* Applies one completion query to a prompt buffer and publishes candidates. */
+int ui_prompt_complete_buffer(char* buf, size_t len,
+    ui_prompt_completion_kind completion_kind,
+    ui_prompt_completion_hook completion_hook)
+{
+    int count;
+    char common[UI_PROMPT_COMPLETION_LABEL_MAX];
+    cptr prefix;
+
+    if (!buf || (len == 0) || !completion_hook
+        || (completion_kind == UI_PROMPT_COMPLETION_NONE))
+    {
+        ui_prompt_input_clear_completions();
+        ui_prompt_input_touch();
+        return 0;
+    }
+
+    prefix = streq(buf, "<name>") ? "" : buf;
+    ui_prompt_input_completion_kind = completion_kind;
+    ui_prompt_input_completion_item_count =
+        completion_hook(prefix, ui_prompt_input_completion_items,
+            UI_PROMPT_COMPLETION_ITEMS_MAX);
+    if (ui_prompt_input_completion_item_count < 0)
+        ui_prompt_input_completion_item_count = 0;
+    if (ui_prompt_input_completion_item_count > UI_PROMPT_COMPLETION_ITEMS_MAX)
+        ui_prompt_input_completion_item_count = UI_PROMPT_COMPLETION_ITEMS_MAX;
+
+    count = ui_prompt_input_completion_item_count;
+    if (count <= 0)
+    {
+        ui_prompt_input_touch();
+        return 0;
+    }
+
+    if (count == 1)
+    {
+        my_strcpy(buf, ui_prompt_input_completion_items[0].value, len);
+    }
+    else
+    {
+        (void)ui_prompt_completion_common_prefix(common, sizeof(common));
+        if (strlen(common) > strlen(prefix)
+            && ui_prompt_completion_prefix_match(common, prefix))
+        {
+            my_strcpy(buf, common, len);
+        }
+    }
+
+    ui_prompt_input_touch();
+    return count;
+}
+
+/* Runs one frontend-backed semantic text-entry prompt when available. */
+bool ui_prompt_input_run_complete(char* buf, size_t len, bool allow_random,
+    ui_prompt_input_randomize_hook randomize_hook,
+    ui_prompt_completion_kind completion_kind,
+    ui_prompt_completion_hook completion_hook)
+{
     char ch;
 
     if (!buf || (len == 0) || !ui_prompt_input_available())
@@ -1461,7 +1590,7 @@ bool ui_prompt_input_run(char* buf, size_t len, bool allow_random,
 
     while (TRUE)
     {
-        ui_prompt_input_set_state(buf, len - 1, allow_random);
+        ui_prompt_input_set_state(buf, len - 1, allow_random, completion_kind);
 
         hide_cursor = TRUE;
         ch = inkey();
@@ -1473,6 +1602,16 @@ bool ui_prompt_input_run(char* buf, size_t len, bool allow_random,
                 (void)ui_prompt_input_submit(buf, len);
             ui_prompt_input_clear_state();
             return TRUE;
+        }
+
+        if ((ch == '\t') && completion_hook
+            && (completion_kind != UI_PROMPT_COMPLETION_NONE))
+        {
+            if (ui_prompt_input_submit)
+                (void)ui_prompt_input_submit(buf, len);
+            (void)ui_prompt_complete_buffer(
+                buf, len, completion_kind, completion_hook);
+            continue;
         }
 
         if (allow_random && (ch == '\t') && randomize_hook)
@@ -1512,6 +1651,24 @@ int ui_prompt_input_get_max_length(void)
 bool ui_prompt_input_get_allow_random(void)
 {
     return ui_prompt_input_allow_random;
+}
+
+/* Returns the active prompt completion kind. */
+ui_prompt_completion_kind ui_prompt_input_get_completion_kind(void)
+{
+    return ui_prompt_input_completion_kind;
+}
+
+/* Returns the active prompt completion candidates. */
+const ui_prompt_completion_item* ui_prompt_input_get_completion_items(void)
+{
+    return ui_prompt_input_completion_items;
+}
+
+/* Returns the number of active prompt completion candidates. */
+int ui_prompt_input_get_completion_item_count(void)
+{
+    return ui_prompt_input_completion_item_count;
 }
 
 /* Returns the text-entry prompt revision used by frontend caches. */

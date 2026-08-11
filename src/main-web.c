@@ -292,6 +292,10 @@ EMSCRIPTEN_KEEPALIVE uintptr_t web_get_prompt_input_text_ptr(void);
 EMSCRIPTEN_KEEPALIVE int web_get_prompt_input_text_len(void);
 EMSCRIPTEN_KEEPALIVE int web_get_prompt_input_max_length(void);
 EMSCRIPTEN_KEEPALIVE int web_get_prompt_input_allow_random(void);
+EMSCRIPTEN_KEEPALIVE int web_get_prompt_input_completion_kind(void);
+EMSCRIPTEN_KEEPALIVE uintptr_t web_get_prompt_input_completion_items_ptr(void);
+EMSCRIPTEN_KEEPALIVE int web_get_prompt_input_completion_item_count(void);
+EMSCRIPTEN_KEEPALIVE int web_get_prompt_input_completion_item_stride(void);
 EMSCRIPTEN_KEEPALIVE unsigned int web_get_prompt_input_revision(void);
 EMSCRIPTEN_KEEPALIVE uintptr_t web_get_prompt_submit_text_ptr(void);
 EMSCRIPTEN_KEEPALIVE int web_submit_prompt_input(void);
@@ -3735,6 +3739,26 @@ EMSCRIPTEN_KEEPALIVE int web_get_prompt_input_max_length(void)
 EMSCRIPTEN_KEEPALIVE int web_get_prompt_input_allow_random(void)
 {
     return ui_prompt_input_get_allow_random() ? 1 : 0;
+}
+
+EMSCRIPTEN_KEEPALIVE int web_get_prompt_input_completion_kind(void)
+{
+    return ui_prompt_input_get_completion_kind();
+}
+
+EMSCRIPTEN_KEEPALIVE uintptr_t web_get_prompt_input_completion_items_ptr(void)
+{
+    return (uintptr_t)(const void*)ui_prompt_input_get_completion_items();
+}
+
+EMSCRIPTEN_KEEPALIVE int web_get_prompt_input_completion_item_count(void)
+{
+    return ui_prompt_input_get_completion_item_count();
+}
+
+EMSCRIPTEN_KEEPALIVE int web_get_prompt_input_completion_item_stride(void)
+{
+    return (int)sizeof(ui_prompt_completion_item);
 }
 
 EMSCRIPTEN_KEEPALIVE unsigned int web_get_prompt_input_revision(void)
